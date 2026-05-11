@@ -7,7 +7,7 @@ dist/
 dist-electron/
 dist-ssr/
 out/
-build/
+# build/ (Electron build resources like icons should be tracked)
 *.exe
 *.dmg
 *.AppImage
