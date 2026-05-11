@@ -1,0 +1,167 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import { app } from 'electron';
+import fs from 'fs';
+
+let db: Database.Database;
+
+export function initDb() {
+  const dbPath = path.join(app.getPath('userData'), 'vendora.db');
+  
+  // Ensure directory exists
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+  }
+
+  db = new Database(dbPath);
+  db.pragma('journal_mode = WAL');
+
+  // Create tables with full schema matching cloud sync expectations
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+        user_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        role TEXT DEFAULT 'CASHIER',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS products (
+        product_id TEXT PRIMARY KEY,
+        tenant_id TEXT,
+        name TEXT NOT NULL,
+        sku_barcode TEXT,
+        category TEXT,
+        hsn_sac_code TEXT,
+        purchase_price REAL DEFAULT 0,
+        base_price REAL NOT NULL,
+        is_gst_applicable INTEGER DEFAULT 1,
+        tax_rate_percent REAL DEFAULT 0,
+        uom TEXT DEFAULT 'Pcs',
+        brand_manufacturer TEXT,
+        current_stock REAL DEFAULT 0,
+        reorder_level REAL DEFAULT 0,
+        domain_attributes TEXT DEFAULT '{}',
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+        invoice_id TEXT PRIMARY KEY,
+        tenant_id TEXT,
+        invoice_number TEXT,
+        invoice_type TEXT DEFAULT 'tax_invoice',
+        customer_name TEXT,
+        customer_phone TEXT,
+        subtotal REAL NOT NULL DEFAULT 0,
+        tax_total REAL NOT NULL DEFAULT 0,
+        discount_total REAL DEFAULT 0,
+        grand_total REAL NOT NULL DEFAULT 0,
+        payment_method TEXT DEFAULT 'CASH',
+        user_id TEXT,
+        sync_status TEXT DEFAULT 'PENDING',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, invoice_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_items (
+        item_id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        tenant_id TEXT,
+        product_id TEXT NOT NULL,
+        name TEXT,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        tax_amount REAL DEFAULT 0,
+        total REAL NOT NULL,
+        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS settings (
+        tenant_id TEXT DEFAULT 'global',
+        key TEXT NOT NULL,
+        value TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (tenant_id, key)
+    );
+  `);
+
+  // Migration: Add missing columns if they don't exist (Idempotent)
+  const schemaMap: any = {
+    products: [
+        'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 
+        'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status'
+    ],
+    invoices: [
+        'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
+        'discount_total', 'grand_total', 'payment_method', 'user_id', 'sync_status'
+    ],
+    invoice_items: [
+        'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
+    ],
+    users: [
+        'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'
+    ]
+  };
+
+  for (const table in schemaMap) {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all();
+    const existingCols = info.map((c: any) => c.name);
+
+    for (const col of schemaMap[table]) {
+      if (!existingCols.includes(col)) {
+        console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
+        // We use TEXT or REAL depending on column name suffix or type
+        const type = (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) ? 'REAL DEFAULT 0' : 'TEXT';
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+      }
+    }
+  }
+  
+  // Cleanup/Migration for legacy columns (if any existed before restoration)
+  try {
+     // If user had total_amount instead of grand_total
+     const invInfo = db.prepare(`PRAGMA table_info(invoices)`).all();
+     if (invInfo.some((c: any) => c.name === 'total_amount') && invInfo.some((c: any) => c.name === 'grand_total')) {
+        db.exec("UPDATE invoices SET grand_total = total_amount WHERE grand_total = 0 AND total_amount > 0");
+     }
+  } catch (e) {}
+
+  // Ensure unique indexes for existing installations
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_name_tenant ON products(tenant_id, name)");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_invoice_number_tenant ON invoices(tenant_id, invoice_number)");
+  } catch (e: any) {
+    console.warn('[DB Migration] Could not create unique indexes. Duplicate data might exist.', e.message);
+  }
+
+  // Ensure defaults for is_deleted are set for legacy data
+  db.exec("UPDATE products SET is_deleted = 0 WHERE is_deleted IS NULL");
+
+  // Initialize hardware defaults if empty
+  const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();
+  if (!hasPrinter) {
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+      'printer_config', 
+      JSON.stringify({ type: 'network', ip: '192.168.1.100', port: 9100 })
+    );
+  }
+  
+  const hasScale = db.prepare("SELECT 1 FROM settings WHERE key = 'scale_config'").get();
+  if (!hasScale) {
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+      'scale_config', 
+      JSON.stringify({ path: 'COM3', baudRate: 9600 })
+    );
+  }
+}
+
+export function getDb() {
+  if (!db) initDb();
+  return db;
+}
