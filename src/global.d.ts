@@ -1,5 +1,6 @@
 export interface IElectronAPI {
   ping: () => Promise<string>;
+  appCheckForUpdates: () => Promise<any>;
   dbGetProducts: (tenantId: string) => Promise<any[]>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
@@ -14,9 +15,9 @@ export interface IElectronAPI {
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => Promise<{ success: boolean; error?: string }>;
-  printReceipt: (data: string) => Promise<{ success: boolean; error?: string }>;
-  openCashDrawer: () => Promise<{ success: boolean; error?: string }>;
-  printBarcode: (barcode: string) => Promise<{ success: boolean; error?: string }>;
+  printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string }>;
+  openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
+  printBarcode: (tenant_id: string, barcode: string) => Promise<{ success: boolean; error?: string }>;
   onBarcodeScanned: (callback: (code: string) => void) => void;
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;

@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Store, ArrowRight, Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 
-type Tab = 'login' | 'register';
+type Tab = 'login' | 'register' | 'forgot-password' | 'reset-password';
 const DOMAIN_OPTIONS = ['GENERAL', 'HARDWARE', 'JEWELRY', 'GROCERY'];
 
 export function LoginScreen() {
@@ -26,6 +26,9 @@ export function LoginScreen() {
     owner_password: '',
     owner_name: '',
   });
+  
+  const [resetToken, setResetToken] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +52,55 @@ export function LoginScreen() {
     if (!res.success) setError(res.error || 'Registration failed.');
     setLoading(false);
   };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) { setError('Email is required.'); return; }
+    setError('');
+    setLoading(true);
+    const res = await useAuthStore.getState().forgotPassword(email);
+    if (res.success) {
+      setSuccessMsg('A reset link has been sent to your email.');
+      setError('');
+    } else {
+      setError(res.error || 'Failed to send reset link.');
+    }
+    setLoading(false);
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password) { setError('New password is required.'); return; }
+    setError('');
+    setLoading(true);
+    const res = await useAuthStore.getState().resetPassword(resetToken, password);
+    if (res.success) {
+      setSuccessMsg('Password reset successful. You can now sign in.');
+      setTab('login');
+      setError('');
+    } else {
+      setError(res.error || 'Failed to reset password.');
+    }
+    setLoading(false);
+  };
+
+  // Check for reset token in URL on mount (for web version if applicable)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) {
+      setResetToken(token);
+      setTab('reset-password');
+    }
+
+    // Handle deep link from Electron
+    if (window.electronAPI?.onDeepLink) {
+      window.electronAPI.onDeepLink((token: string) => {
+        setResetToken(token);
+        setTab('reset-password');
+      });
+    }
+  }, []);
 
   return (
     <div className="min-h-screen w-screen bg-neutral-950 flex select-none">
@@ -103,20 +155,22 @@ export function LoginScreen() {
         <div className="w-full max-w-md">
 
           {/* Tab toggle */}
-          <div className="flex bg-neutral-900 border border-neutral-800 p-1 rounded-xl mb-8">
-            {(['login', 'register'] as Tab[]).map(t => (
-              <button
-                key={t}
-                onClick={() => { setTab(t); setError(''); }}
-                className={clsx(
-                  'flex-1 py-2.5 rounded-lg text-sm font-semibold capitalize transition-all duration-300',
-                  tab === t ? 'bg-white text-neutral-900 shadow' : 'text-neutral-500 hover:text-neutral-300'
-                )}
-              >
-                {t === 'login' ? 'Sign In' : 'Create Account'}
-              </button>
-            ))}
-          </div>
+          {tab !== 'forgot-password' && tab !== 'reset-password' && (
+            <div className="flex bg-neutral-900 border border-neutral-800 p-1 rounded-xl mb-8">
+              {(['login', 'register'] as Tab[]).filter(t => t === 'login' || t === 'register').map(t => (
+                <button
+                  key={t}
+                  onClick={() => { setTab(t); setError(''); setSuccessMsg(''); }}
+                  className={clsx(
+                    'flex-1 py-2.5 rounded-lg text-sm font-semibold capitalize transition-all duration-300',
+                    tab === t ? 'bg-white text-neutral-900 shadow' : 'text-neutral-500 hover:text-neutral-300'
+                  )}
+                >
+                  {t === 'login' ? 'Sign In' : 'Create Account'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* ── LOGIN FORM ──────────────────────────────────────────────── */}
           {tab === 'login' && (
@@ -150,9 +204,25 @@ export function LoginScreen() {
                 </div>
               </div>
 
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => { setTab('forgot-password'); setError(''); setSuccessMsg(''); }}
+                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+
               {error && (
                 <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
                   {error}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-3 rounded-xl text-center">
+                  {successMsg}
                 </div>
               )}
 
@@ -254,6 +324,96 @@ export function LoginScreen() {
               >
                 {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
                 {loading ? 'Creating Account...' : 'Create Account & Start'}
+              </button>
+            </form>
+          )}
+
+          {/* ── FORGOT PASSWORD FORM ─────────────────────────────────────── */}
+          {tab === 'forgot-password' && (
+            <form onSubmit={handleForgotPassword} className="space-y-5">
+              <div>
+                <button 
+                  type="button" 
+                  onClick={() => { setTab('login'); setError(''); setSuccessMsg(''); }}
+                  className="text-xs text-neutral-500 hover:text-neutral-300 mb-4 transition-colors flex items-center gap-1"
+                >
+                  <ArrowRight className="w-3 h-3 rotate-180" /> Back to Login
+                </button>
+                <h2 className="text-2xl font-bold text-white">Forgot Password</h2>
+                <p className="text-neutral-500 text-sm mt-1">Enter your email to receive a reset link</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Email</label>
+                  <input
+                    type="email" value={email} onChange={e => setEmail(e.target.value)}
+                    placeholder="owner@yourshop.com"
+                    className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                  {error}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-3 rounded-xl text-center">
+                  {successMsg}
+                </div>
+              )}
+
+              {!successMsg && (
+                <button
+                  type="submit" disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-neutral-900 rounded-xl font-bold hover:bg-neutral-100 transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg"
+                >
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                  {loading ? 'Sending link...' : 'Send Reset Link'}
+                </button>
+              )}
+            </form>
+          )}
+
+          {/* ── RESET PASSWORD FORM ──────────────────────────────────────── */}
+          {tab === 'reset-password' && (
+            <form onSubmit={handleResetPassword} className="space-y-5">
+              <div>
+                <h2 className="text-2xl font-bold text-white">Reset Password</h2>
+                <p className="text-neutral-500 text-sm mt-1">Enter your new password</p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
+                    />
+                    <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors">
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit" disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-neutral-900 rounded-xl font-bold hover:bg-neutral-100 transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg"
+              >
+                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                {loading ? 'Resetting...' : 'Reset Password'}
               </button>
             </form>
           )}

@@ -61,13 +61,14 @@ export function ActionPane() {
 
       // Print receipt and open cash drawer
       try {
-        const printResult = await window.electronAPI.printReceipt(`INVOICE ${invoice_number}\nTOTAL: ₹${grandTotal.toFixed(2)}`);
-        if (printResult && !printResult.success) {
-          setHardwareError('Printer not reachable. Please check connection.');
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', `INVOICE ${invoice_number}\nTOTAL: ₹${grandTotal.toFixed(2)}`);
+        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
+        
+        if (!printResult.success || !drawerResult.success) {
+          setHardwareError(`Hardware connection issue: ${printResult.error || drawerResult.error || 'Check printer'}`);
         }
-        await window.electronAPI.openCashDrawer();
       } catch (e) {
-        setHardwareError('Hardware error occurred.');
+        setHardwareError('Communication error with hardware services.');
       }
     }
 
@@ -155,7 +156,7 @@ export function ActionPane() {
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
             className="p-1.5 text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 rounded-lg transition-colors"
-            title="Hardware Maintenance"
+            title="Settings"
           >
             <Settings className="w-4 h-4" />
           </button>

@@ -16,6 +16,9 @@ export interface AuthState {
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateDomain: (domain: string) => Promise<{ success: boolean; error?: string }>;
+  forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface RegisterData {
@@ -211,6 +214,57 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return { success: true };
     } catch (err: any) {
       return { success: false, error: err.message };
+    }
+  },
+  
+  forgotPassword: async (email: string) => {
+    try {
+      const res = await fetch(`${CLOUD_API}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Request failed' };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Cannot reach server.' };
+    }
+  },
+
+  resetPassword: async (token: string, password: string) => {
+    try {
+      const res = await fetch(`${CLOUD_API}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Reset failed' };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Cannot reach server.' };
+    }
+  },
+
+  changePassword: async (oldPassword: string, newPassword: string) => {
+    const { token } = useAuthStore.getState();
+    if (!token) return { success: false, error: 'Not authenticated' };
+
+    try {
+      const res = await fetch(`${CLOUD_API}/auth/change-password`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ oldPassword, newPassword }),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.error || 'Update failed' };
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: 'Cannot reach server.' };
     }
   }
 }));

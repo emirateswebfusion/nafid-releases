@@ -7,10 +7,10 @@ const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
 const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
 const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
 
-function getPrinterConfig() {
+function getPrinterConfig(tenantId: string) {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE key = 'printer_config'").get();
+    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tenantId || 'global');
     return row ? JSON.parse(row.value) : { type: 'network', ip: '192.168.1.100', port: 9100 };
   } catch {
     return { type: 'network', ip: '192.168.1.100', port: 9100 };
@@ -18,9 +18,9 @@ function getPrinterConfig() {
 }
 
 export function initPrinter() {
-  ipcMain.handle('hardware:printReceipt', async (event, textData: string) => {
-    console.log('[Hardware] Received Print Request');
-    const config = getPrinterConfig();
+  ipcMain.handle('hardware:printReceipt', async (event, { tenant_id, textData }: { tenant_id: string; textData: string }) => {
+    console.log(`[Hardware] Received Print Request for tenant: ${tenant_id}`);
+    const config = getPrinterConfig(tenant_id);
     
     try {
       // Construct raw buffer
@@ -40,9 +40,9 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:openCashDrawer', async () => {
-    console.log('[Hardware] Kick RJ11 Cash Drawer');
-    const config = getPrinterConfig();
+  ipcMain.handle('hardware:openCashDrawer', async (event, tenant_id: string) => {
+    console.log(`[Hardware] Kick RJ11 Cash Drawer for tenant: ${tenant_id}`);
+    const config = getPrinterConfig(tenant_id);
     try {
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, ESC_DRAWER_KICK);
@@ -53,9 +53,9 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:printBarcode', async (event, barcode: string) => {
-    console.log(`[Hardware] Printing Barcode: ${barcode}`);
-    const config = getPrinterConfig();
+  ipcMain.handle('hardware:printBarcode', async (event, { tenant_id, barcode }: { tenant_id: string; barcode: string }) => {
+    console.log(`[Hardware] Printing Barcode: ${barcode} for tenant: ${tenant_id}`);
+    const config = getPrinterConfig(tenant_id);
     try {
       // Basic ESC/POS Barcode Command (CODE128)
       const barcodeData = Buffer.from(barcode, 'ascii');

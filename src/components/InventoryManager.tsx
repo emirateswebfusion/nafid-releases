@@ -54,6 +54,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   // Load products on mount
   useEffect(() => {
@@ -135,8 +136,21 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   const printBarcode = async () => {
     if (!formData.sku_barcode) return;
-    if (window.electronAPI) await window.electronAPI.printBarcode(formData.sku_barcode);
-    else alert('Print command dispatched (mock)');
+    setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
+    
+    if (window.electronAPI) {
+      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode);
+      if (res.success) {
+        setStatusMessage({ text: 'Barcode printed successfully!', type: 'success' });
+      } else {
+        setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
+      }
+      
+      // Clear message after 3 seconds
+      setTimeout(() => setStatusMessage(null), 3000);
+    } else {
+      alert('Print command dispatched (mock)');
+    }
   };
 
   const handleSave = async () => {
@@ -342,6 +356,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         <button onClick={printBarcode} className="mt-2 flex items-center gap-2 px-4 py-1.5 bg-neutral-900 text-white text-xs rounded hover:bg-neutral-800 w-full justify-center transition-colors">
                           <Printer className="w-3.5 h-3.5" /> Print Barcode Label
                         </button>
+                        {statusMessage && (
+                          <div className={clsx(
+                            "mt-2 px-4 py-2 rounded-lg text-xs font-bold text-center animate-pulse w-full",
+                            statusMessage.type === 'success' ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                          )}>
+                            {statusMessage.text}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

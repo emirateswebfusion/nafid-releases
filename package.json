@@ -1,12 +1,13 @@
 {
   "name": "vendora",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"npm run build:electron && wait-on tcp:5173 && electron .\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "tsc -b && vite build && npm run build:electron",
+    "package": "npm run build && electron-builder build --config electron-builder.config.js --win",
     "rebuild": "electron-rebuild",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -15,6 +16,7 @@
     "better-sqlite3": "^12.9.0",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
+    "electron-updater": "^6.8.3",
     "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-barcode": "^1.6.1",

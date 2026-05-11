@@ -1,6 +1,19 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import { autoUpdater } from 'electron-updater';
+import dotenv from 'dotenv';
+
+// Load environment variables
+const envPath = app.isPackaged
+  ? path.join(process.resourcesPath, '.env')
+  : path.join(__dirname, '..', '.env');
+
+if (fs.existsSync(envPath)) {
+  dotenv.config({ path: envPath });
+} else {
+  dotenv.config(); // Fallback to root .env
+}
 import { initDb, getDb } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
@@ -11,6 +24,48 @@ import { initSyncWorker } from './sync/syncWorker.js';
 // We don't need the fileURLToPath logic.
 
 let mainWindow: BrowserWindow | null = null;
+const PROTOCOL = 'vendora';
+
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
+
+const gotTheLock = app.requestSingleInstanceLock();
+
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (event, commandLine) => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+      
+      // On Windows, the deep link URL is in the commandLine arguments
+      const url = commandLine.pop();
+      if (url && url.startsWith(`${PROTOCOL}://`)) {
+        handleDeepLink(url);
+      }
+    }
+  });
+}
+
+function handleDeepLink(url: string) {
+  if (!mainWindow) return;
+  try {
+    const urlObj = new URL(url);
+    const token = urlObj.searchParams.get('token');
+    if (token) {
+      mainWindow.webContents.send('auth:deep-link', token);
+    }
+  } catch (err) {
+    console.error('[DeepLink] Failed to parse URL:', url);
+  }
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -38,10 +93,19 @@ app.whenReady().then(async () => {
   const dbPath = path.join(app.getPath('userData'), 'vendora.db');
   console.log(`[Main] App Data Path: ${app.getPath('userData')}`);
   console.log(`[Main] Database Path: ${dbPath}`);
-  
+
   initDb();
   initPrinter();
   createWindow();
+
+  // Handle deep link when app is opened via protocol (Windows)
+  if (process.platform === 'win32') {
+    const url = process.argv.find(arg => arg.startsWith(`${PROTOCOL}://`));
+    if (url) {
+      // Small delay to ensure window is ready
+      setTimeout(() => handleDeepLink(url), 1000);
+    }
+  }
 
   if (mainWindow) {
     initBarcodeScanner(mainWindow);
@@ -52,6 +116,39 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+
+  // Auto-Update Configuration
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', () => {
+    console.log('[Updater] Update available. Downloading...');
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'New update available! Downloading...');
+    }
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    console.log('[Updater] Update downloaded.');
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'Update downloaded. Restarting in 5s to install...');
+    }
+    setTimeout(() => {
+      autoUpdater.quitAndInstall();
+    }, 5000);
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[Updater] Error:', err);
+  });
+
+  // Check for updates every 1 hour
+  // setInterval(() => {
+  //   autoUpdater.checkForUpdatesAndNotify();
+  // }, 60 * 60 * 1000);
+
+  // Initial check
+  autoUpdater.checkForUpdatesAndNotify();
 });
 
 app.on('window-all-closed', () => {
@@ -59,6 +156,10 @@ app.on('window-all-closed', () => {
 });
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('app:checkForUpdates', () => {
+  return autoUpdater.checkForUpdatesAndNotify();
+});
 
 ipcMain.handle('db:getProducts', (event, tenantId: string) => {
   try {
@@ -214,14 +315,14 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
   try {
     const db = getDb();
     const { user_id, tenant_id, role } = filters || {};
-    
+
     if (!tenant_id) return []; // Safety: always require tenant_id
-    
+
     // If Cashier: strictly filter by their ID within the tenant
     if (role === 'CASHIER' && user_id) {
       return db.prepare('SELECT * FROM invoices WHERE tenant_id = ? AND user_id = ? ORDER BY created_at DESC').all(tenant_id, user_id);
     }
-    
+
     // If Owner: show all for THIS tenant only
     return db.prepare('SELECT * FROM invoices WHERE tenant_id = ? ORDER BY created_at DESC').all(tenant_id);
   } catch (error: any) {

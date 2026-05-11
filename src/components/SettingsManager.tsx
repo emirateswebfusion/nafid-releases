@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem } from 'lucide-react';
+import { X, Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -13,8 +13,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const { shopDomain, setDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
-
+  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [localDomain, setLocalDomain] = useState(shopDomain || 'GENERAL');
+  const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
+  const [changingPass, setChangingPass] = useState(false);
 
   useEffect(() => {
     loadSettings();
@@ -62,6 +64,49 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     setSaving(false);
   };
 
+  const handleCheckUpdate = async () => {
+    if (!window.electronAPI) return;
+    setCheckingUpdate(true);
+    setMessage(null);
+    try {
+      await window.electronAPI.appCheckForUpdates();
+      setMessage({ type: 'success', text: 'Update check initiated. Please check for notification.' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` });
+    } finally {
+      setCheckingUpdate(false);
+    }
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!pass.old || !pass.new) {
+      setMessage({ type: 'error', text: 'Current and new passwords are required.' });
+      return;
+    }
+    if (pass.new !== pass.confirm) {
+      setMessage({ type: 'error', text: 'New passwords do not match.' });
+      return;
+    }
+
+    setChangingPass(true);
+    setMessage(null);
+    try {
+      const { changePassword } = useAuthStore.getState();
+      const res = await changePassword(pass.old, pass.new);
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Password updated successfully!' });
+        setPass({ old: '', new: '', confirm: '' });
+      } else {
+        setMessage({ type: 'error', text: res.error || 'Failed to update password.' });
+      }
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message });
+    } finally {
+      setChangingPass(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
       <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl rounded-3xl flex flex-col overflow-hidden shadow-2xl">
@@ -73,8 +118,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <Settings className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Hardware Settings</h1>
-              <p className="text-neutral-500 text-sm">Configure your printers and peripheral devices</p>
+              <h1 className="text-2xl font-bold text-white">Settings</h1>
+              <p className="text-neutral-500 text-sm">Configure your hardware, domain, and system updates</p>
             </div>
           </div>
           <button 
@@ -192,6 +237,81 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                 </div>
+              </section>
+
+              <div className="h-px bg-neutral-800" />
+
+              {/* Version & Update Section */}
+              <section className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-white">
+                    <RefreshCw className={clsx("w-5 h-5 text-purple-400", checkingUpdate && "animate-spin")} />
+                    <div>
+                      <h3 className="font-bold text-lg">System Updates</h3>
+                      <p className="text-xs text-neutral-500">Current Version: v1.0.0</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCheckUpdate}
+                    disabled={checkingUpdate}
+                    className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                    {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+                  </button>
+                </div>
+              </section>
+
+              <div className="h-px bg-neutral-800" />
+
+              {/* Security Section */}
+              <section className="space-y-4 pb-4">
+                <div className="flex items-center gap-3 text-white">
+                  <Lock className="w-5 h-5 text-orange-400" />
+                  <h3 className="font-bold text-lg">Security</h3>
+                </div>
+                
+                <form onSubmit={handleChangePassword} className="space-y-4 bg-neutral-950 p-6 rounded-2xl border border-neutral-800">
+                  <p className="text-xs text-neutral-500 mb-2 font-medium uppercase tracking-widest">Change Password</p>
+                  
+                  <div className="grid grid-cols-1 gap-4">
+                    <div className="relative">
+                      <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
+                      <input 
+                        type="password"
+                        placeholder="Current Password"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 pl-11 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        value={pass.old}
+                        onChange={(e) => setPass({...pass, old: e.target.value})}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <input 
+                        type="password"
+                        placeholder="New Password"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        value={pass.new}
+                        onChange={(e) => setPass({...pass, new: e.target.value})}
+                      />
+                      <input 
+                        type="password"
+                        placeholder="Confirm New Password"
+                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
+                        value={pass.confirm}
+                        onChange={(e) => setPass({...pass, confirm: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  
+                  <button
+                    type="submit"
+                    disabled={changingPass}
+                    className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                    Update Password
+                  </button>
+                </form>
               </section>
 
               {message && (

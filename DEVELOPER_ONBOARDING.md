@@ -94,7 +94,7 @@ Vendora/
 │   │   │   └── migrate.ts       # Automated migration runner
 │   │   ├── index.ts             # Express bootstrap (calls migrate.ts)
 │   │   ├── routes/
-│   │   │   ├── auth.ts          # /auth/register, /auth/login, /auth/staff (New)
+│   │   │   ├── auth.ts          # /auth/register, /auth/login, /auth/forgot-password, /auth/reset-password, /auth/change-password
 │   │   │   ├── products.ts      # /api/products (CRUD)
 │   │   │   ├── sync.ts          # /api/sync (Invoices/Products Push & Invoices Pull)
 │   │   │   └── notifications.ts # /api/notifications
@@ -119,17 +119,20 @@ All communication goes through `contextBridge`.
 |---|---|
 | `db:checkout` | Atomically creates invoice + items + deducts stock in SQLite |
 | `db:getInvoices` | Fetches historical sales from local SQLite |
-| `db:getInvoiceItems` | Fetches specific items for an invoice |
 | `db:getProducts` | Fetches products for the POS and Inventory Manager |
 | `sync:runInitial` | Forces an immediate cloud pull (used on new system login) |
-| `auth:saveToken` | Persists shop details and JWT locally |
+| `settings:set` / `get` | Persists UI preferences (e.g., Domain Confirmation) locally |
+| `auth:saveToken` | Persists shop details and JWT locally in `config.json` |
+| `auth:deep-link` | Listens for `vendora://reset-password` protocol triggers |
+| `hardware:barcode` | (Event) Emitted when a physical barcode scanner is used |
+| `hardware:print...` | Sends raw ESC/POS commands to configured receipt printer |
 
-### Bi-directional Sync Flow
-Every 30 seconds, `syncWorker.ts` runs:
-1. **Push Products:** Sends locally added/edited products to cloud. Cloud triggers **Low Stock Alerts** if needed.
-2. **Push Invoices:** Sends new offline invoices + line items. Cloud **deducts stock** and updates history.
-3. **Pull Products:** Fetches latest catalog from cloud (updates local prices/stock).
-4. **Pull Invoices:** Fetches latest history from cloud (syncs other machines' sales).
+### Deep Link & Protocol Handling
+The app is registered as the handler for the `vendora://` protocol. This is primarily used for the **Password Reset** flow:
+1. Cloud API sends an email with a link: `vendora://reset-password?token=XYZ`.
+2. OS opens Vendora. Electron's `main.ts` captures the URL in `second-instance` or `argv`.
+3. `handleDeepLink` extracts the token and sends it via the `auth:deep-link` IPC channel.
+4. `LoginScreen.tsx` receives the token and switches the UI to the **Reset Password** tab automatically.
 
 ### Initial Sync (New System Login)
 When a user logs in on a new device, the app detects an empty local database.
@@ -137,6 +140,13 @@ When a user logs in on a new device, the app detects an empty local database.
 2. App shows a **Synchronizing Shop Data** loading overlay.
 3. `syncWorker` performs a full pull of products and invoices.
 4. Once complete, the overlay disappears, and the POS is ready with all historical data.
+
+### Bi-directional Sync Flow
+Every 30 seconds, `syncWorker.ts` runs:
+1. **Push Products:** Sends locally added/edited products to cloud. Cloud triggers **Low Stock Alerts** if needed.
+2. **Push Invoices:** Sends new offline invoices + line items. Cloud **deducts stock** and updates history.
+3. **Pull Products:** Fetches latest catalog from cloud (updates local prices/stock).
+4. **Pull Invoices:** Fetches latest history from cloud (syncs other machines' sales).
 
 ---
 
@@ -176,6 +186,7 @@ Prerequisite: Visual Studio Installer -> Web Dev C++
 1. **Server Setup:**
    - `cd server && npm install`
    - Copy `.env.example` to `.env` and configure DB.
+   - Set `FRONTEND_URL=vendora://` (or `http://localhost:5173` for web testing) for reset emails.
    - Run `npm run dev`.
 2. **PostgreSQL Setup:**
    - Create database
@@ -201,19 +212,48 @@ Prerequisite: Visual Studio Installer -> Web Dev C++
 
 ---
 
+## 📦 6. Packaging & Release Process
+
+Vendora uses `electron-builder` and `electron-updater` for professional distribution.
+
+### 🛠️ Prerequisites
+- Set `GITHUB_REPO_URL` in your `.env` file (e.g., `https://github.com/iamajmalsaleem/vendora-pos`).
+- Ensure `VITE_CLOUD_API` is set to your production server URL in `.env.production`.
+
+### 🚀 Creating an Installer
+Run the following command to generate a Windows `.exe` installer:
+```bash
+npm run package
+```
+The output will be located in the `/release` folder.
+
+### 🔄 Publishing an Update
+1. **Version Bump:** Increase the `"version"` field in `package.json` (e.g., `1.0.0` → `1.0.1`).
+2. **Build:** Run `npm run package`.
+3. **Github Release:**
+   - Go to your GitHub repository -> **Releases** -> **Draft a new release**.
+   - Use the version number as the tag (e.g., `v1.0.1`).
+   - Upload the **`.exe`** file and the **`latest.yml`** file from the `/release` folder.
+   - Publish the release.
+4. **Client Notification:** Installed apps will automatically detect the new version (on startup or manual check) and prompt for installation.
+
+---
+
 ## 📋 6. Pending Tasks & Next Steps
 
 ### High Priority
-- [ ] **Packaging:** Configure `electron-builder` to produce `.exe` (Windows) and `.dmg` (Mac) installers.
-
-### Medium Priority
-- [x] **Hardware Settings UI:** Build a settings panel to configure printer IP and serial port at runtime (Implemented).
 - [ ] **Notification UI:** Display in-app notifications (Low Stock, Sync Status) in the Electron UI.
 - [ ] **Dashboard/Analytics:** Web-based owner dashboard for multi-store revenue reports.
 
-### Low Priority
-- [ ] **Auto-Update:** Implement Electron auto-update.
+### Medium Priority
 - [ ] **Audit Logging:** Track all product edits and price changes.
+- [ ] **Multi-store:** Better support for inventory movement between branches.
+
+### Done ✅
+- [x] **Packaging:** Windows/Mac installers with `electron-builder`.
+- [x] **Auto-Update:** Professional distribution with `electron-updater`.
+- [x] **Hardware Settings UI:** Runtime printer/scale configuration.
+- [x] **Password Recovery:** Full forgot/reset flow with deep-link support.
 
 ---
 

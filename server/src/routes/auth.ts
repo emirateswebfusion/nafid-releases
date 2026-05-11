@@ -1,8 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/pg';
+import { sendPasswordResetEmail } from '../services/emailService';
 
 const router = Router();
 
@@ -185,6 +187,98 @@ router.post('/tenant/domain', async (req: Request, res: Response) => {
     return res.json({ success: true, domain_type });
   } catch (err: any) {
     console.error('[Auth] Domain update error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── POST /auth/forgot-password ──────────────────────────────────────────────
+router.post('/forgot-password', async (req: Request, res: Response) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  try {
+    const users = await query<any>('SELECT user_id, name FROM users WHERE email = $1', [email]);
+    if (users.length === 0) {
+      // Don't leak user existence, but we can't send an email
+      return res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
+    }
+
+    const token = crypto.randomBytes(32).toString('hex');
+    const expires = new Date(Date.now() + 3600000); // 1 hour
+
+    await query(
+      'UPDATE users SET reset_password_token = $1, reset_password_expires = $2 WHERE email = $3',
+      [token, expires, email]
+    );
+
+    // Link should point to the frontend reset page
+    // For custom protocols like vendora://, we don't want a double slash before 'reset-password'
+    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const separator = baseUrl.endsWith('://') ? '' : '/';
+    const resetLink = `${baseUrl}${separator}reset-password?token=${token}`;
+    
+    await sendPasswordResetEmail(email, resetLink);
+
+    return res.json({ success: true, message: 'If an account exists with this email, a reset link has been sent.' });
+  } catch (err: any) {
+    console.error('[Auth] Forgot password error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── POST /auth/reset-password ───────────────────────────────────────────────
+router.post('/reset-password', async (req: Request, res: Response) => {
+  const { token, password } = req.body;
+  if (!token || !password) return res.status(400).json({ error: 'Token and password are required' });
+
+  try {
+    const users = await query<any>(
+      'SELECT user_id FROM users WHERE reset_password_token = $1 AND reset_password_expires > NOW()',
+      [token]
+    );
+
+    if (users.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    await query(
+      'UPDATE users SET password_hash = $1, reset_password_token = NULL, reset_password_expires = NULL WHERE user_id = $2',
+      [passwordHash, users[0].user_id]
+    );
+
+    return res.json({ success: true, message: 'Password has been reset successfully' });
+  } catch (err: any) {
+    console.error('[Auth] Reset password error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// ── POST /auth/change-password ──────────────────────────────────────────────
+router.post('/change-password', async (req: Request, res: Response) => {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: 'Unauthorized' });
+
+  try {
+    const auth: any = jwt.verify(header.slice(7), process.env.JWT_SECRET!);
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ error: 'Current and new passwords are required' });
+    }
+
+    const users = await query<any>('SELECT password_hash FROM users WHERE user_id = $1', [auth.user_id]);
+    if (users.length === 0) return res.status(404).json({ error: 'User not found' });
+
+    const valid = await bcrypt.compare(oldPassword, users[0].password_hash);
+    if (!valid) return res.status(401).json({ error: 'Incorrect current password' });
+
+    const newHash = await bcrypt.hash(newPassword, 12);
+    await query('UPDATE users SET password_hash = $1 WHERE user_id = $2', [newHash, auth.user_id]);
+
+    return res.json({ success: true, message: 'Password updated successfully' });
+  } catch (err: any) {
+    console.error('[Auth] Change password error:', err.message);
     return res.status(500).json({ error: 'Internal server error' });
   }
 });

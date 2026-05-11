@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
+  appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   dbGetProducts: (tenantId: string) => ipcRenderer.invoke('db:getProducts', tenantId),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
@@ -18,11 +19,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   authSaveToken: (payload: any) => ipcRenderer.invoke('auth:saveToken', payload),
   authGetToken: () => ipcRenderer.invoke('auth:getToken'),
   authClearToken: () => ipcRenderer.invoke('auth:clearToken'),
+  onDeepLink: (callback: (token: string) => void) => {
+    ipcRenderer.on('auth:deep-link', (_event, token) => callback(token));
+  },
 
   // Hardware APIs
-  printReceipt: (data: string) => ipcRenderer.invoke('hardware:printReceipt', data),
-  openCashDrawer: () => ipcRenderer.invoke('hardware:openCashDrawer'),
-  printBarcode: (barcode: string) => ipcRenderer.invoke('hardware:printBarcode', barcode),
+  printReceipt: (tenant_id: string, data: string) => ipcRenderer.invoke('hardware:printReceipt', { tenant_id, textData: data }),
+  openCashDrawer: (tenant_id: string) => ipcRenderer.invoke('hardware:openCashDrawer', tenant_id),
+  printBarcode: (tenant_id: string, barcode: string) => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode }),
   
   onBarcodeScanned: (callback: (code: string) => void) => {
     ipcRenderer.on('hardware:barcode', (_event, code) => callback(code));
