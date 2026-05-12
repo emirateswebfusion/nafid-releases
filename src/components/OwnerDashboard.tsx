@@ -1,4 +1,4 @@
-import { ShoppingBag, Users, Receipt, LayoutDashboard, Settings, Package, ArrowRight, Store, LogOut } from 'lucide-react';
+import { ShoppingBag, Users, Receipt, LayoutDashboard, Settings, Package, ArrowRight, LogOut } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';

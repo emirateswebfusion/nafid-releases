@@ -26,7 +26,7 @@ export function LoginScreen() {
     owner_password: '',
     owner_name: '',
   });
-  
+
   const [resetToken, setResetToken] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
@@ -114,7 +114,10 @@ export function LoginScreen() {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-2">
-            <img src="/logo.png" alt="Vendora Logo" className="w-12 h-12 object-contain" />
+            {/* <div className="p-2.5 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-xl">
+              <ShoppingBag className="w-7 h-7 text-white" />
+            </div> */}
+            <img src="./logo.png" alt="Vendora Logo" className="w-12 h-12 object-contain" />
             <span className="text-3xl font-black text-white tracking-tight">Vendora</span>
           </div>
           <p className="text-neutral-400 text-sm ml-1">Retail POS Platform</p>
@@ -330,8 +333,8 @@ export function LoginScreen() {
           {tab === 'forgot-password' && (
             <form onSubmit={handleForgotPassword} className="space-y-5">
               <div>
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => { setTab('login'); setError(''); setSuccessMsg(''); }}
                   className="text-xs text-neutral-500 hover:text-neutral-300 mb-4 transition-colors flex items-center gap-1"
                 >
