@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Receipt, Search, Calendar, User, Phone, Tag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 
 export function SalesHistory({ onClose }: { onClose: () => void }) {

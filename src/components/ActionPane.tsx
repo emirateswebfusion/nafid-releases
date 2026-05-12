@@ -147,7 +147,7 @@ export function ActionPane() {
             <XCircle className="w-4 h-4" />
           </button>
           <button
-            onClick={() => useAuthStore.getState().logout()}
+            onClick={() => logout()}
             className="p-1.5 text-neutral-500 hover:text-red-400 hover:bg-neutral-800 rounded-lg transition-colors"
             title="Sign Out"
           >

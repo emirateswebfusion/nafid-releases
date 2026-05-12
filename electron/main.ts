@@ -77,6 +77,7 @@ function createWindow() {
       nodeIntegration: false,
     },
     autoHideMenuBar: true,
+    icon: path.join(__dirname, '..', 'build', 'icon.png'),
   });
 
   if (!app.isPackaged) {

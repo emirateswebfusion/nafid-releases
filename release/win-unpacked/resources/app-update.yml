@@ -1,0 +1,5 @@
+owner: iamajmalsaleem
+repo: vendora-pos
+provider: github
+releaseType: release
+updaterCacheDirName: vendora-updater

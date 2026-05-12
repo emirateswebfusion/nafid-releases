@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { X, Users, UserPlus, Trash2, Mail, Shield, Key, Save, Loader2 } from 'lucide-react';
+import { X, Users, UserPlus, Mail, Shield, Key, Save, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
 interface StaffMember {

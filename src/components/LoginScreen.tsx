@@ -114,9 +114,7 @@ export function LoginScreen() {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-xl">
-              <ShoppingBag className="w-7 h-7 text-white" />
-            </div>
+            <img src="/logo.png" alt="Vendora Logo" className="w-12 h-12 object-contain" />
             <span className="text-3xl font-black text-white tracking-tight">Vendora</span>
           </div>
           <p className="text-neutral-400 text-sm ml-1">Retail POS Platform</p>

@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import type { ShopDomain } from '../store/cartStore';

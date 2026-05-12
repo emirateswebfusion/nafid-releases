@@ -249,12 +249,6 @@ The output will be located in the `/release` folder.
 - [ ] **Audit Logging:** Track all product edits and price changes.
 - [ ] **Multi-store:** Better support for inventory movement between branches.
 
-### Done ✅
-- [x] **Packaging:** Windows/Mac installers with `electron-builder`.
-- [x] **Auto-Update:** Professional distribution with `electron-updater`.
-- [x] **Hardware Settings UI:** Runtime printer/scale configuration.
-- [x] **Password Recovery:** Full forgot/reset flow with deep-link support.
-
 ---
 
 ## 🐛 7. Troubleshooting

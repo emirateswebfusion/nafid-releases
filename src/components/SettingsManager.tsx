@@ -11,7 +11,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   const [printer, setPrinter] = useState({ type: 'network', ip: '192.168.1.100', port: 9100 });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
-  const { shopDomain, setDomain } = useCartStore();
+  const { shopDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [localDomain, setLocalDomain] = useState(shopDomain || 'GENERAL');
