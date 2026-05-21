@@ -135,7 +135,7 @@ function printBarcodeUSB(barcode: string, deviceName: string): Promise<void> {
     });
 
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}` });
     } else {
       printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}`);
     }
