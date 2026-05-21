@@ -29,7 +29,7 @@ interface RegisterData {
   owner_name: string;
 }
 
-const CLOUD_API = import.meta.env.VITE_CLOUD_API || 'http://localhost:3001';
+const CLOUD_API = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
 
 export const useAuthStore = create<AuthState>()((set) => ({
   isAuthenticated: false,
@@ -86,7 +86,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
     try {
       // Reset local store confirmation state before logging in
       useCartStore.getState().resetDomainConfirmation();
-      const res = await fetch(`${apiBase}/auth/login`, {
+      const baseUrl = apiBase.replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -130,14 +131,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
       }
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: 'Cannot reach server. Check your network connection.' };
+      return { success: false, error: `Cannot reach server (${apiBase}). Check your network connection.` };
     }
   },
 
   // ── Register: create tenant + first OWNER ────────────────────────────────
   register: async (data, apiBase = CLOUD_API) => {
     try {
-      const res = await fetch(`${apiBase}/auth/register`, {
+      const baseUrl = apiBase.replace(/\/$/, '');
+      const res = await fetch(`${baseUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
