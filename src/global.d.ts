@@ -19,6 +19,8 @@ export interface IElectronAPI {
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string }>;
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
   printBarcode: (tenant_id: string, barcode: string) => Promise<{ success: boolean; error?: string }>;
+  getPrinters: () => Promise<any[]>;
+  printReady: () => Promise<{ success: boolean; error?: string }>;
   onBarcodeScanned: (callback: (code: string) => void) => void;
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;

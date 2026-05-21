@@ -9,8 +9,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  const [printer, setPrinter] = useState({ type: 'network', ip: '192.168.1.100', port: 9100 });
+  const [printer, setPrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
+  const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
@@ -27,8 +28,16 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       const { tenantId } = useAuthStore.getState();
       const p = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
       const s = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scale_config' });
-      if (p) setPrinter(p);
+      if (p) setPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...p });
       if (s) setScale(s);
+      
+      try {
+        const pr = await window.electronAPI.getPrinters();
+        setOsPrinters(pr || []);
+      } catch (err) {
+        console.error('Failed to get printers', err);
+      }
+      
       setLoading(false);
     }
   };
@@ -46,17 +55,21 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           if (!res.success) throw new Error(res.error);
         }
 
-        await window.electronAPI.settingsSet({ 
+        const resPrinter = await window.electronAPI.settingsSet({ 
           tenant_id: tenantId || 'global', 
           key: 'printer_config', 
           value: printer 
         });
-        await window.electronAPI.settingsSet({ 
+        if (!resPrinter.success) throw new Error(resPrinter.error);
+        
+        const resScale = await window.electronAPI.settingsSet({ 
           tenant_id: tenantId || 'global', 
           key: 'scale_config', 
           value: scale 
         });
-        setMessage({ type: 'success', text: 'Settings saved successfully! Please restart the app to apply hardware changes.' });
+        if (!resScale.success) throw new Error(resScale.error);
+
+        setMessage({ type: 'success', text: `Saved! USB Printer: ${printer.deviceName || 'None'}. Please restart app.` });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
@@ -180,25 +193,55 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   <h3 className="font-bold text-lg">Thermal Printer (ESC/POS)</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Printer IP Address</label>
-                    <input 
-                      type="text"
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                      value={printer.ip}
-                      onChange={(e) => setPrinter({...printer, ip: e.target.value})}
-                      placeholder="192.168.1.100"
-                    />
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Connection Type</label>
+                    <select
+                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all appearance-none"
+                      value={printer.type || 'network'}
+                      onChange={(e) => setPrinter({...printer, type: e.target.value})}
+                    >
+                      <option value="network">Network (TCP/IP)</option>
+                      <option value="usb">USB (OS Print Queue)</option>
+                    </select>
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Port</label>
-                    <input 
-                      type="number"
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                      value={printer.port}
-                      onChange={(e) => setPrinter({...printer, port: parseInt(e.target.value) || 9100})}
-                    />
-                  </div>
+                  
+                  {printer.type === 'network' ? (
+                    <>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Printer IP Address</label>
+                        <input 
+                          type="text"
+                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
+                          value={printer.ip}
+                          onChange={(e) => setPrinter({...printer, ip: e.target.value})}
+                          placeholder="192.168.1.100"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Port</label>
+                        <input 
+                          type="number"
+                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
+                          value={printer.port}
+                          onChange={(e) => setPrinter({...printer, port: parseInt(e.target.value) || 9100})}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-2">
+                      <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Select USB Printer</label>
+                      <select
+                        className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all appearance-none"
+                        value={printer.deviceName || ''}
+                        onChange={(e) => setPrinter({...printer, deviceName: e.target.value})}
+                      >
+                        <option value="">-- Select a printer --</option>
+                        {osPrinters.map(p => (
+                          <option key={p.name} value={p.name}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </section>
 

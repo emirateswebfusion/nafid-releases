@@ -11,7 +11,18 @@ import { OwnerDashboard } from './components/OwnerDashboard';
 import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 
+import { PrintBarcodeView } from './components/PrintBarcodeView';
+
 function App() {
+  const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (window.location.hash.startsWith('#/print-barcode')) {
+      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+      setPrintBarcodeData(urlParams.get('barcode'));
+    }
+  }, []);
+
   const { currentUserRole, addItem } = useCartStore();
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const [showInventoryManager, setShowInventoryManager] = useState(false);
@@ -88,6 +99,10 @@ function App() {
       window.removeEventListener('open-settings-manager', handleOpenSettings);
     };
   }, [addItem]);
+
+  if (printBarcodeData) {
+    return <PrintBarcodeView barcode={printBarcodeData} />;
+  }
 
   if (isSyncing) {
     return (

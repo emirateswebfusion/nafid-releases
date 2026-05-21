@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printReceipt: (tenant_id: string, data: string) => ipcRenderer.invoke('hardware:printReceipt', { tenant_id, textData: data }),
   openCashDrawer: (tenant_id: string) => ipcRenderer.invoke('hardware:openCashDrawer', tenant_id),
   printBarcode: (tenant_id: string, barcode: string) => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode }),
+  getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
+  printReady: () => ipcRenderer.invoke('hardware:printReady'),
   
   onBarcodeScanned: (callback: (code: string) => void) => {
     ipcRenderer.on('hardware:barcode', (_event, code) => callback(code));

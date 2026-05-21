@@ -140,6 +140,28 @@ export function initDb() {
     console.warn('[DB Migration] Could not create unique indexes. Duplicate data might exist.', e.message);
   }
 
+  // Migrate settings table to include tenant_id if it's missing
+  try {
+    const settingsInfo = db.prepare(`PRAGMA table_info(settings)`).all();
+    if (!settingsInfo.some((c: any) => c.name === 'tenant_id')) {
+      console.log('[DB Migration] Upgrading settings table to support tenant_id...');
+      db.exec(`
+        CREATE TABLE settings_new (
+            tenant_id TEXT DEFAULT 'global',
+            key TEXT NOT NULL,
+            value TEXT,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (tenant_id, key)
+        );
+        INSERT INTO settings_new (key, value, updated_at) SELECT key, value, updated_at FROM settings;
+        DROP TABLE settings;
+        ALTER TABLE settings_new RENAME TO settings;
+      `);
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to migrate settings table', e.message);
+  }
+
   // Ensure defaults for is_deleted are set for legacy data
   db.exec("UPDATE products SET is_deleted = 0 WHERE is_deleted IS NULL");
 
