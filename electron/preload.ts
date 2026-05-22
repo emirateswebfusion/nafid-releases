@@ -3,6 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
+  appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
   dbGetProducts: (tenantId: string) => ipcRenderer.invoke('db:getProducts', tenantId),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
@@ -26,7 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Hardware APIs
   printReceipt: (tenant_id: string, data: string) => ipcRenderer.invoke('hardware:printReceipt', { tenant_id, textData: data }),
   openCashDrawer: (tenant_id: string) => ipcRenderer.invoke('hardware:openCashDrawer', tenant_id),
-  printBarcode: (tenant_id: string, barcode: string) => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode }),
+  printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string) => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode, price, name }),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: () => ipcRenderer.invoke('hardware:printReady'),
   

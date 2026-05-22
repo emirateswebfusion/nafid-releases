@@ -18,6 +18,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [localDomain, setLocalDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [changingPass, setChangingPass] = useState(false);
+  const [appVersion, setAppVersion] = useState('v1.0.0');
 
   useEffect(() => {
     loadSettings();
@@ -36,6 +37,13 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         setOsPrinters(pr || []);
       } catch (err) {
         console.error('Failed to get printers', err);
+      }
+      
+      try {
+        const v = await window.electronAPI.appGetVersion();
+        if (v) setAppVersion(`v${v}`);
+      } catch (err) {
+        console.error('Failed to get app version', err);
       }
       
       setLoading(false);
@@ -82,8 +90,12 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     setCheckingUpdate(true);
     setMessage(null);
     try {
-      await window.electronAPI.appCheckForUpdates();
-      setMessage({ type: 'success', text: 'Update check initiated. Please check for notification.' });
+      const res = await window.electronAPI.appCheckForUpdates();
+      if (res && res.success === false) {
+        setMessage({ type: 'error', text: res.error });
+      } else {
+        setMessage({ type: 'success', text: 'Update check complete. Please check for notification if an update is available.' });
+      }
     } catch (err: any) {
       setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` });
     } finally {
@@ -291,7 +303,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <RefreshCw className={clsx("w-5 h-5 text-purple-400", checkingUpdate && "animate-spin")} />
                     <div>
                       <h3 className="font-bold text-lg">System Updates</h3>
-                      <p className="text-xs text-neutral-500">Current Version: v1.0.0</p>
+                      <p className="text-xs text-neutral-500">Current Version: {appVersion}</p>
                     </div>
                   </div>
                   <button

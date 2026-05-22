@@ -139,7 +139,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
     
     if (window.electronAPI) {
-      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode);
+      // Fallback for hot-reloading without electron restart
+      localStorage.setItem('printBarcodePrice', formData.base_price.toString());
+      localStorage.setItem('printBarcodeName', formData.name);
+      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name);
       if (res.success) {
         setStatusMessage({ text: 'Barcode printed successfully!', type: 'success' });
       } else {
@@ -353,17 +356,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     {formData.sku_barcode && (
                       <div className="flex flex-col items-center p-3 bg-white rounded-lg">
                         <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
-                        <button onClick={printBarcode} className="mt-2 flex items-center gap-2 px-4 py-1.5 bg-neutral-900 text-white text-xs rounded hover:bg-neutral-800 w-full justify-center transition-colors">
-                          <Printer className="w-3.5 h-3.5" /> Print Barcode Label
-                        </button>
-                        {statusMessage && (
-                          <div className={clsx(
-                            "mt-2 px-4 py-2 rounded-lg text-xs font-bold text-center animate-pulse w-full",
-                            statusMessage.type === 'success' ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
-                          )}>
-                            {statusMessage.text}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -450,13 +442,29 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
             {/* Footer */}
             <div className="p-6 border-t border-neutral-800 flex justify-between items-center shrink-0">
-              <button onClick={() => setView('list')} className="px-5 py-2.5 text-neutral-400 hover:text-white transition-colors">
-                ← Cancel
+              <div className="flex items-center gap-4">
+                <button onClick={() => setView('list')} className="px-5 py-2.5 text-neutral-400 hover:text-white transition-colors">
+                  ← Cancel
+                </button>
+                {statusMessage && (
+                  <div className={clsx(
+                    "px-4 py-2 rounded-lg text-xs font-bold text-center animate-pulse",
+                    statusMessage.type === 'success' ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                  )}>
+                    {statusMessage.text}
+                  </div>
+                )}
+              </div>
+            <div className="flex gap-3">
+              <button onClick={printBarcode} className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-bold flex items-center gap-2 transition-colors">
+                <Printer className="w-5 h-5" />
+                Print Label
               </button>
               <button onClick={handleSave} disabled={loading} className="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-800 text-white rounded-lg font-bold flex items-center gap-2 shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all">
                 <Save className="w-5 h-5" />
                 {loading ? 'Saving...' : view === 'edit' ? 'Update Product' : 'Add to Inventory'}
               </button>
+            </div>
             </div>
           </>
         )}

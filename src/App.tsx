@@ -15,11 +15,19 @@ import { PrintBarcodeView } from './components/PrintBarcodeView';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
+  const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
+  const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
       setPrintBarcodeData(urlParams.get('barcode'));
+      
+      const paramPrice = urlParams.get('price');
+      setPrintBarcodePrice(paramPrice !== null ? paramPrice : localStorage.getItem('printBarcodePrice'));
+      
+      const paramName = urlParams.get('name');
+      setPrintBarcodeName(paramName !== null ? paramName : localStorage.getItem('printBarcodeName'));
     }
   }, []);
 
@@ -101,7 +109,7 @@ function App() {
   }, [addItem]);
 
   if (printBarcodeData) {
-    return <PrintBarcodeView barcode={printBarcodeData} />;
+    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} name={printBarcodeName || undefined} />;
   }
 
   if (isSyncing) {

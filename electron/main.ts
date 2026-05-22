@@ -149,7 +149,9 @@ app.whenReady().then(async () => {
   // }, 60 * 60 * 1000);
 
   // Initial check
-  autoUpdater.checkForUpdatesAndNotify();
+  autoUpdater.checkForUpdatesAndNotify().catch(err => {
+    console.error('[Updater] Initial check error:', err.message);
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -158,8 +160,22 @@ app.on('window-all-closed', () => {
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
 
-ipcMain.handle('app:checkForUpdates', () => {
-  return autoUpdater.checkForUpdatesAndNotify();
+ipcMain.handle('app:getVersion', () => app.getVersion());
+
+ipcMain.handle('app:checkForUpdates', async () => {
+  try {
+    const result = await autoUpdater.checkForUpdatesAndNotify();
+    // result contains complex objects (like CancellationToken) that cannot be cloned over IPC.
+    // We only return the updateInfo which is serializable, or just a boolean success.
+    const updateInfo = result?.updateInfo || null;
+    return { success: true, updateInfo };
+  } catch (error: any) {
+    console.error('[Updater] Manual check error:', error);
+    if (error.message && error.message.includes('404')) {
+      return { success: false, error: 'Update check failed: No updates found or repository is private. Please ensure a GitHub token is configured if using a private repository.' };
+    }
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('db:getProducts', (event, tenantId: string) => {
