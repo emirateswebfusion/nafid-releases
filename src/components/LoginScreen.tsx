@@ -419,10 +419,7 @@ export function LoginScreen() {
             </form>
           )}
 
-          <p className="text-center text-neutral-600 text-xs mt-8">
-            Connect your Cloud API server before signing in.
-            <br />Default: <span className="font-mono text-neutral-500">http://localhost:3001</span>
-          </p>
+
         </div>
       </div>
     </div>

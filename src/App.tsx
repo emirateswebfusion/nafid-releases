@@ -12,12 +12,14 @@ import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 
 import { PrintBarcodeView } from './components/PrintBarcodeView';
+import { PrintReceiptView } from './components/PrintReceiptView';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
   const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
   const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
   const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
+  const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -32,6 +34,9 @@ function App() {
 
       const paramQty = urlParams.get('quantity');
       setPrintBarcodeQuantity(paramQty !== null ? parseInt(paramQty, 10) : 1);
+    } else if (window.location.hash.startsWith('#/print-receipt')) {
+      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+      setPrintReceiptData(urlParams.get('text'));
     }
   }, []);
 
@@ -114,6 +119,10 @@ function App() {
 
   if (printBarcodeData) {
     return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} />;
+  }
+
+  if (printReceiptData) {
+    return <PrintReceiptView text={printReceiptData} />;
   }
 
   if (isSyncing) {

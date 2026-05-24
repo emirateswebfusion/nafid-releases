@@ -6,7 +6,7 @@ import dotenv from 'dotenv';
 
 // Load environment variables
 const envPath = app.isPackaged
-  ? path.join(process.resourcesPath, '.env')
+  ? path.join(process.resourcesPath, '.env.production')
   : path.join(__dirname, '..', '.env');
 
 if (fs.existsSync(envPath)) {
@@ -262,7 +262,7 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
   try {
     const db = getDb();
     // Soft delete
-    db.prepare('UPDATE products SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE product_id = ?').run(productId);
+    db.prepare("UPDATE products SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?").run(productId);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

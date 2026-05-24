@@ -40,8 +40,12 @@ export function initPrinter() {
       
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
+      } else if (config.type === 'usb' && config.deviceName) {
+        await printReceiptUSB(textData + '\n\n\n\n\n', config.deviceName);
+      } else if (config.type === 'usb') {
+        throw new Error('USB printing requested but deviceName not configured');
       } else {
-        throw new Error('USB receipt printing is not yet implemented');
+        throw new Error(`Unknown printer type: ${config.type}`);
       }
 
       return { success: true };
@@ -146,7 +150,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         printWindow.close();
         reject(new Error('USB print timeout'));
       }
-    }, 10000);
+    }, 20000);
 
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
       printWindow.webContents.print({
@@ -155,6 +159,53 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         margins: { marginType: 'none' },
         // Convert mm to microns (1 mm = 1000 microns). Default to 50x25mm (approx 2"x1")
         pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
+      }, (success, failureReason) => {
+        clearTimeout(timer);
+        if (!printWindow.isDestroyed()) printWindow.close();
+        
+        if (success) {
+          resolve();
+        } else {
+          reject(new Error(`Print failed: ${failureReason}`));
+        }
+      });
+    });
+  });
+}
+
+function printReceiptUSB(textData: string, deviceName: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const printWindow = new BrowserWindow({
+      show: false,
+      width: 400,
+      height: 600,
+      webPreferences: {
+        preload: path.join(__dirname, '../preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    });
+
+    if (app.isPackaged) {
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-receipt?text=${encodeURIComponent(textData)}` });
+    } else {
+      printWindow.loadURL(`http://localhost:5173/#/print-receipt?text=${encodeURIComponent(textData)}`);
+    }
+
+    const timer = setTimeout(() => {
+      if (!printWindow.isDestroyed()) {
+        printWindow.close();
+        reject(new Error('USB print timeout'));
+      }
+    }, 20000);
+
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
+      printWindow.webContents.print({
+        silent: true,
+        deviceName: deviceName,
+        margins: { marginType: 'none' },
+        // Add a default pageSize for receipts (80mm width, 300mm height) to avoid the "page size is empty" error
+        pageSize: { width: 80000, height: 300000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
         if (!printWindow.isDestroyed()) printWindow.close();

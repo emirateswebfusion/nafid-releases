@@ -61,7 +61,26 @@ export function ActionPane() {
 
       // Print receipt and open cash drawer
       try {
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', `INVOICE ${invoice_number}\nTOTAL: ₹${grandTotal.toFixed(2)}`);
+        let receiptText = `================================\n`;
+        receiptText += `          INVOICE\n`;
+        receiptText += `================================\n`;
+        receiptText += `INV No: ${invoice_number}\n`;
+        receiptText += `--------------------------------\n`;
+        
+        items.forEach(item => {
+          receiptText += `${item.name}\n`;
+          receiptText += `  ${item.quantity} x ${item.base_price.toFixed(2)} = ${(item.quantity * item.base_price).toFixed(2)}\n`;
+        });
+        
+        receiptText += `--------------------------------\n`;
+        receiptText += `SUBTOTAL:      ${subtotal.toFixed(2)}\n`;
+        if (totalTax > 0) receiptText += `TAX:           ${totalTax.toFixed(2)}\n`;
+        if (discount > 0) receiptText += `DISCOUNT:     -${discount.toFixed(2)}\n`;
+        receiptText += `--------------------------------\n`;
+        receiptText += `GRAND TOTAL:   ${grandTotal.toFixed(2)}\n`;
+        receiptText += `================================\n`;
+        
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
         const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
         
         if (!printResult.success || !drawerResult.success) {

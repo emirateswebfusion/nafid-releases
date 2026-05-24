@@ -31,7 +31,7 @@ module.exports = {
     'package.json'
   ],
   extraResources: [
-    '.env'
+    '.env.production'
   ],
   win: {
     target: [
