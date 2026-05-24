@@ -17,6 +17,7 @@ function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
   const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
   const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
+  const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -28,6 +29,9 @@ function App() {
       
       const paramName = urlParams.get('name');
       setPrintBarcodeName(paramName !== null ? paramName : localStorage.getItem('printBarcodeName'));
+
+      const paramQty = urlParams.get('quantity');
+      setPrintBarcodeQuantity(paramQty !== null ? parseInt(paramQty, 10) : 1);
     }
   }, []);
 
@@ -109,7 +113,7 @@ function App() {
   }, [addItem]);
 
   if (printBarcodeData) {
-    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} name={printBarcodeName || undefined} />;
+    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} />;
   }
 
   if (isSyncing) {

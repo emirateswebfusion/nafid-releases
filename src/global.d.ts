@@ -19,7 +19,7 @@ export interface IElectronAPI {
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => Promise<{ success: boolean; error?: string }>;
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string }>;
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
-  printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string) => Promise<{ success: boolean; error?: string }>;
+  printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number) => Promise<{ success: boolean; error?: string }>;
   getPrinters: () => Promise<any[]>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
   onBarcodeScanned: (callback: (code: string) => void) => void;

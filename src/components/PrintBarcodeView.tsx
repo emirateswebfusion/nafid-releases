@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import Barcode from 'react-barcode';
 
-export function PrintBarcodeView({ barcode, price, name }: { barcode: string; price?: number; name?: string }) {
+export function PrintBarcodeView({ barcode, price, name, quantity = 1 }: { barcode: string; price?: number; name?: string; quantity?: number }) {
   useEffect(() => {
     // Give react-barcode a tiny bit of time to render the SVG/Canvas
     const timer = setTimeout(() => {
@@ -10,10 +10,10 @@ export function PrintBarcodeView({ barcode, price, name }: { barcode: string; pr
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [barcode]);
+  }, [barcode, quantity]);
 
-  return (
-    <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', backgroundColor: 'white', margin: 0, padding: '4px 0 0 0', boxSizing: 'border-box' }}>
+  const labels = Array.from({ length: quantity }, (_, i) => (
+    <div key={i} style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', backgroundColor: 'white', margin: 0, padding: '4px 0 0 0', boxSizing: 'border-box', pageBreakAfter: 'always' }}>
       {price !== undefined && !isNaN(price) && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
           <div style={{ fontWeight: 'bold', fontSize: '12px', color: 'black', whiteSpace: 'nowrap' }}>
@@ -31,6 +31,12 @@ export function PrintBarcodeView({ barcode, price, name }: { barcode: string; pr
         The react-barcode defaults usually work for standard labels.
       */}
       <Barcode value={barcode} format="CODE128" width={1.8} height={40} displayValue={true} fontSize={12} margin={0} />
+    </div>
+  ));
+
+  return (
+    <div style={{ width: '100%', height: '100%', backgroundColor: 'white' }}>
+      {labels}
     </div>
   );
 }

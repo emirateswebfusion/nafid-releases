@@ -55,6 +55,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [printQuantity, setPrintQuantity] = useState(1);
 
   // Load products on mount
   useEffect(() => {
@@ -142,9 +143,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       // Fallback for hot-reloading without electron restart
       localStorage.setItem('printBarcodePrice', formData.base_price.toString());
       localStorage.setItem('printBarcodeName', formData.name);
-      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name);
+      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name, printQuantity);
       if (res.success) {
-        setStatusMessage({ text: 'Barcode printed successfully!', type: 'success' });
+        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
       } else {
         setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
       }
@@ -456,6 +457,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             <div className="flex gap-3">
+              <div className="flex items-center gap-2 bg-neutral-800 rounded-lg p-1 px-2 border border-neutral-700">
+                <span className="text-neutral-400 text-sm">Qty:</span>
+                <input 
+                  type="number" 
+                  min="1" 
+                  value={printQuantity} 
+                  onChange={e => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))} 
+                  className="w-12 bg-transparent text-white focus:outline-none text-center font-bold" 
+                />
+              </div>
               <button onClick={printBarcode} className="px-5 py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg font-bold flex items-center gap-2 transition-colors">
                 <Printer className="w-5 h-5" />
                 Print Label

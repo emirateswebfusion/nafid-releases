@@ -254,6 +254,28 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       </select>
                     </div>
                   )}
+                  {printer.type === 'usb' && (
+                    <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Label Width (mm)</label>
+                        <input 
+                          type="number"
+                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
+                          value={printer.labelWidthMm || 50}
+                          onChange={(e) => setPrinter({...printer, labelWidthMm: parseInt(e.target.value) || 50})}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Label Height (mm)</label>
+                        <input 
+                          type="number"
+                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
+                          value={printer.labelHeightMm || 25}
+                          onChange={(e) => setPrinter({...printer, labelHeightMm: parseInt(e.target.value) || 25})}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </section>
 

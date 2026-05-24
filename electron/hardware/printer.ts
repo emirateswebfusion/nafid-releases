@@ -66,8 +66,8 @@ export function initPrinter() {
     }
   });
 
-  ipcMain.handle('hardware:printBarcode', async (event, { tenant_id, barcode, price, name }: { tenant_id: string; barcode: string; price?: number; name?: string }) => {
-    console.log(`[Hardware] Printing Barcode: ${barcode} for tenant: ${tenant_id}`);
+  ipcMain.handle('hardware:printBarcode', async (event, { tenant_id, barcode, price, name, quantity = 1 }: { tenant_id: string; barcode: string; price?: number; name?: string; quantity?: number }) => {
+    console.log(`[Hardware] Printing Barcode: ${barcode} (Qty: ${quantity}) for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id);
     try {
       // Basic ESC/POS Barcode Command (CODE128)
@@ -75,12 +75,13 @@ export function initPrinter() {
       const gsBarcode = Buffer.from([
         0x1D, 0x6B, 0x49, barcodeData.length, ...barcodeData
       ]);
-      const finalBuffer = Buffer.concat([ESC_INIT, gsBarcode, Buffer.from('\n\n\n'), ESC_CUT]);
+      const singleLabelBuffer = Buffer.concat([ESC_INIT, gsBarcode, Buffer.from('\n\n\n'), ESC_CUT]);
+      const finalBuffer = Buffer.concat(Array(quantity).fill(singleLabelBuffer));
       
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
       } else if (config.type === 'usb' && config.deviceName) {
-        await printBarcodeUSB(barcode, config.deviceName, price, name);
+        await printBarcodeUSB(barcode, config.deviceName, price, name, quantity, config.labelWidthMm, config.labelHeightMm);
       } else if (config.type === 'usb') {
         throw new Error('USB printing requested but deviceName not configured');
       } else {
@@ -121,7 +122,7 @@ function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise
   });
 }
 
-function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string): Promise<void> {
+function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
@@ -135,9 +136,9 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
 
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}`);
+      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}`);
     }
 
     const timer = setTimeout(() => {
@@ -152,8 +153,8 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         silent: true,
         deviceName: deviceName,
         margins: { marginType: 'none' },
-        // Use 2"x1" typical barcode label size in microns (1 inch = 25.4 mm = 25400 microns)
-        pageSize: { width: 50800, height: 25400 }
+        // Convert mm to microns (1 mm = 1000 microns). Default to 50x25mm (approx 2"x1")
+        pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
         if (!printWindow.isDestroyed()) printWindow.close();
