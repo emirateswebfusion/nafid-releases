@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Store, ArrowRight, Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench } from 'lucide-react';
 import clsx from 'clsx';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 
 type Tab = 'login' | 'register' | 'forgot-password' | 'reset-password';
 const DOMAIN_OPTIONS = ['GENERAL', 'HARDWARE', 'JEWELRY', 'GROCERY'];
@@ -103,68 +105,60 @@ export function LoginScreen() {
   }, []);
 
   return (
-    <div className="min-h-screen w-screen bg-neutral-950 flex select-none">
+    <div className="min-h-screen w-screen bg-background flex select-none">
 
       {/* ── Left Branding Panel ─────────────────────────────────────────── */}
-      <div className="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden">
-        {/* Animated gradient bg */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-900/40 via-neutral-900 to-emerald-900/30" />
-        <div className="absolute top-[-100px] left-[-100px] w-[500px] h-[500px] rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-[-100px] right-[-100px] w-[400px] h-[400px] rounded-full bg-emerald-500/10 blur-3xl" />
-
+      <div className="hidden lg:flex w-[45%] flex-col justify-between p-12 relative overflow-hidden bg-muted border-r border-border">
         <div className="relative">
           <div className="flex items-center gap-3 mb-2">
-            {/* <div className="p-2.5 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-xl">
-              <ShoppingBag className="w-7 h-7 text-white" />
-            </div> */}
             <img src="./logo.png" alt="Vendora Logo" className="w-12 h-12 object-contain" />
-            <span className="text-3xl font-black text-white tracking-tight">Vendora</span>
+            <span className="text-3xl font-black text-foreground tracking-tight">Vendora</span>
           </div>
-          <p className="text-neutral-400 text-sm ml-1">Retail POS Platform</p>
+          <p className="text-muted-foreground text-sm ml-1">Retail POS Platform</p>
         </div>
 
         <div className="relative space-y-6">
-          <h1 className="text-4xl font-black text-white leading-tight">
+          <h1 className="text-4xl font-black text-foreground leading-tight">
             Your complete<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+            <span className="text-primary">
               retail command center.
             </span>
           </h1>
-          <p className="text-neutral-400 leading-relaxed">
+          <p className="text-muted-foreground leading-relaxed">
             Offline-first billing, hardware integration, GST compliance, and real-time cloud sync — all in one place.
           </p>
 
           <div className="grid grid-cols-3 gap-4 pt-4">
             {[
-              { icon: ShoppingBag, label: 'General Retail', color: 'text-blue-400' },
-              { icon: Wrench, label: 'Hardware Stores', color: 'text-orange-400' },
-              { icon: Gem, label: 'Jewelry Shops', color: 'text-yellow-400' },
-            ].map(({ icon: Icon, label, color }) => (
-              <div key={label} className="flex flex-col items-center gap-2 p-4 bg-neutral-800/40 rounded-xl border border-neutral-700/40">
-                <Icon className={clsx('w-6 h-6', color)} />
-                <span className="text-xs text-neutral-400 text-center">{label}</span>
+              { icon: ShoppingBag, label: 'General Retail' },
+              { icon: Wrench, label: 'Hardware Stores' },
+              { icon: Gem, label: 'Jewelry Shops' },
+            ].map(({ icon: Icon, label }) => (
+              <div key={label} className="flex flex-col items-center gap-2 p-4 bg-background rounded-xl border border-border shadow-sm">
+                <Icon className="w-6 h-6 text-primary" />
+                <span className="text-xs text-muted-foreground text-center font-medium">{label}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <p className="relative text-neutral-600 text-xs">© {new Date().getFullYear()} Vendora POS. All rights reserved.</p>
+        <p className="relative text-muted-foreground text-xs">© {new Date().getFullYear()} Vendora POS. All rights reserved.</p>
       </div>
 
       {/* ── Right Auth Panel ────────────────────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center p-8">
+      <div className="flex-1 flex items-center justify-center p-8 bg-background">
         <div className="w-full max-w-md">
 
           {/* Tab toggle */}
           {tab !== 'forgot-password' && tab !== 'reset-password' && (
-            <div className="flex bg-neutral-900 border border-neutral-800 p-1 rounded-xl mb-8">
+            <div className="flex bg-muted p-1 rounded-xl mb-8 border border-border">
               {(['login', 'register'] as Tab[]).filter(t => t === 'login' || t === 'register').map(t => (
                 <button
                   key={t}
                   onClick={() => { setTab(t); setError(''); setSuccessMsg(''); }}
                   className={clsx(
                     'flex-1 py-2.5 rounded-lg text-sm font-semibold capitalize transition-all duration-300',
-                    tab === t ? 'bg-white text-neutral-900 shadow' : 'text-neutral-500 hover:text-neutral-300'
+                    tab === t ? 'bg-background text-foreground shadow' : 'text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {t === 'login' ? 'Sign In' : 'Create Account'}
@@ -177,28 +171,27 @@ export function LoginScreen() {
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-white">Welcome back</h2>
-                <p className="text-neutral-500 text-sm mt-1">Sign in to your Vendora account</p>
+                <h2 className="text-2xl font-bold text-foreground">Welcome back</h2>
+                <p className="text-muted-foreground text-sm mt-1">Sign in to your Vendora account</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Email</label>
-                  <input
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                  <Input
                     type="email" value={email} onChange={e => setEmail(e.target.value)}
                     placeholder="owner@yourshop.com"
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Password</label>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
                   <div className="relative">
-                    <input
+                    <Input
                       type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-neutral-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                      className="pr-12"
                     />
-                    <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors">
+                    <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -209,31 +202,31 @@ export function LoginScreen() {
                 <button
                   type="button"
                   onClick={() => { setTab('forgot-password'); setError(''); setSuccessMsg(''); }}
-                  className="text-xs text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                  className="text-xs text-primary hover:underline transition-colors font-medium"
                 >
                   Forgot Password?
                 </button>
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-xl">
                   {error}
                 </div>
               )}
 
               {successMsg && (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-3 rounded-xl text-center">
+                <div className="bg-primary/10 border border-primary/30 text-primary text-sm px-4 py-3 rounded-xl text-center">
                   {successMsg}
                 </div>
               )}
 
-              <button
+              <Button
                 type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-neutral-900 rounded-xl font-bold hover:bg-neutral-100 transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg"
+                className="w-full py-6 text-base font-bold shadow-sm"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ArrowRight className="w-5 h-5 mr-2" />}
                 {loading ? 'Signing In...' : 'Sign In'}
-              </button>
+              </Button>
             </form>
           )}
 
@@ -241,26 +234,26 @@ export function LoginScreen() {
           {tab === 'register' && (
             <form onSubmit={handleRegister} className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-white">Create your shop</h2>
-                <p className="text-neutral-500 text-sm mt-1">Set up your Vendora account in seconds</p>
+                <h2 className="text-2xl font-bold text-foreground">Create your shop</h2>
+                <p className="text-muted-foreground text-sm mt-1">Set up your Vendora account in seconds</p>
               </div>
 
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-400 mb-1.5">Shop Name</label>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Shop Name</label>
                     <div className="relative">
-                      <Store className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-                      <input
+                      <Store className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
                         type="text" value={reg.shop_name} onChange={e => setReg(r => ({ ...r, shop_name: e.target.value }))}
                         placeholder="My Awesome Store"
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 pl-11 text-white placeholder-neutral-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 focus:outline-none transition-all"
+                        className="pl-9"
                       />
                     </div>
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-400 mb-1.5">Business Type</label>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Business Type</label>
                     <div className="grid grid-cols-4 gap-2">
                       {DOMAIN_OPTIONS.map(d => (
                         <button
@@ -269,8 +262,8 @@ export function LoginScreen() {
                           className={clsx(
                             'py-2 px-1 rounded-lg text-xs font-semibold border transition-all',
                             reg.domain_type === d
-                              ? 'border-blue-500 bg-blue-500/20 text-blue-400'
-                              : 'border-neutral-700 text-neutral-500 hover:border-neutral-600'
+                              ? 'border-primary bg-primary/10 text-primary'
+                              : 'border-border text-muted-foreground hover:border-muted-foreground/50'
                           )}
                         >
                           {d}
@@ -280,32 +273,30 @@ export function LoginScreen() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-neutral-400 mb-1.5">Your Name</label>
-                    <input
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Your Name</label>
+                    <Input
                       type="text" value={reg.owner_name} onChange={e => setReg(r => ({ ...r, owner_name: e.target.value }))}
                       placeholder="Full Name"
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-neutral-400 mb-1.5">Email</label>
-                    <input
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                    <Input
                       type="email" value={reg.owner_email} onChange={e => setReg(r => ({ ...r, owner_email: e.target.value }))}
                       placeholder="you@shop.com"
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
                     />
                   </div>
 
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium text-neutral-400 mb-1.5">Password</label>
+                    <label className="block text-sm font-medium text-foreground mb-1.5">Password</label>
                     <div className="relative">
-                      <input
+                      <Input
                         type={showPassword ? 'text' : 'password'} value={reg.owner_password} onChange={e => setReg(r => ({ ...r, owner_password: e.target.value }))}
                         placeholder="Choose a strong password"
-                        className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
+                        className="pr-12"
                       />
-                      <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors">
+                      <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                         {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
@@ -314,18 +305,18 @@ export function LoginScreen() {
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-xl">
                   {error}
                 </div>
               )}
 
-              <button
+              <Button
                 type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-gradient-to-r from-blue-600 to-emerald-600 text-white rounded-xl font-bold hover:from-blue-500 hover:to-emerald-500 transition-all active:scale-[0.98] disabled:opacity-60 shadow-[0_10px_30px_rgba(5,150,105,0.25)]"
+                className="w-full py-6 text-base font-bold shadow-sm"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ArrowRight className="w-5 h-5 mr-2" />}
                 {loading ? 'Creating Account...' : 'Create Account & Start'}
-              </button>
+              </Button>
             </form>
           )}
 
@@ -336,45 +327,44 @@ export function LoginScreen() {
                 <button
                   type="button"
                   onClick={() => { setTab('login'); setError(''); setSuccessMsg(''); }}
-                  className="text-xs text-neutral-500 hover:text-neutral-300 mb-4 transition-colors flex items-center gap-1"
+                  className="text-xs text-muted-foreground hover:text-foreground mb-4 transition-colors flex items-center gap-1"
                 >
                   <ArrowRight className="w-3 h-3 rotate-180" /> Back to Login
                 </button>
-                <h2 className="text-2xl font-bold text-white">Forgot Password</h2>
-                <p className="text-neutral-500 text-sm mt-1">Enter your email to receive a reset link</p>
+                <h2 className="text-2xl font-bold text-foreground">Forgot Password</h2>
+                <p className="text-muted-foreground text-sm mt-1">Enter your email to receive a reset link</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">Email</label>
-                  <input
+                  <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                  <Input
                     type="email" value={email} onChange={e => setEmail(e.target.value)}
                     placeholder="owner@yourshop.com"
-                    className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
                   />
                 </div>
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-xl">
                   {error}
                 </div>
               )}
 
               {successMsg && (
-                <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-sm px-4 py-3 rounded-xl text-center">
+                <div className="bg-primary/10 border border-primary/30 text-primary text-sm px-4 py-3 rounded-xl text-center">
                   {successMsg}
                 </div>
               )}
 
               {!successMsg && (
-                <button
+                <Button
                   type="submit" disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-neutral-900 rounded-xl font-bold hover:bg-neutral-100 transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg"
+                  className="w-full py-6 text-base font-bold shadow-sm"
                 >
-                  {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                  {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ArrowRight className="w-5 h-5 mr-2" />}
                   {loading ? 'Sending link...' : 'Send Reset Link'}
-                </button>
+                </Button>
               )}
             </form>
           )}
@@ -383,20 +373,20 @@ export function LoginScreen() {
           {tab === 'reset-password' && (
             <form onSubmit={handleResetPassword} className="space-y-5">
               <div>
-                <h2 className="text-2xl font-bold text-white">Reset Password</h2>
-                <p className="text-neutral-500 text-sm mt-1">Enter your new password</p>
+                <h2 className="text-2xl font-bold text-foreground">Reset Password</h2>
+                <p className="text-muted-foreground text-sm mt-1">Enter your new password</p>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-neutral-400 mb-1.5">New Password</label>
+                  <label className="block text-sm font-medium text-foreground mb-1.5">New Password</label>
                   <div className="relative">
-                    <input
+                    <Input
                       type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)}
                       placeholder="••••••••"
-                      className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-3 pr-12 text-white placeholder-neutral-600 focus:border-blue-500 focus:outline-none transition-all"
+                      className="pr-12"
                     />
-                    <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-neutral-500 hover:text-neutral-300 transition-colors">
+                    <button type="button" onClick={() => setShowPassword(p => !p)} className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
                   </div>
@@ -404,18 +394,18 @@ export function LoginScreen() {
               </div>
 
               {error && (
-                <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm px-4 py-3 rounded-xl">
+                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-xl">
                   {error}
                 </div>
               )}
 
-              <button
+              <Button
                 type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-white text-neutral-900 rounded-xl font-bold hover:bg-neutral-100 transition-all active:scale-[0.98] disabled:opacity-60 shadow-lg"
+                className="w-full py-6 text-base font-bold shadow-sm"
               >
-                {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <ArrowRight className="w-5 h-5" />}
+                {loading ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <ArrowRight className="w-5 h-5 mr-2" />}
                 {loading ? 'Resetting...' : 'Reset Password'}
-              </button>
+              </Button>
             </form>
           )}
 

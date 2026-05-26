@@ -4,6 +4,8 @@ import { Search, Trash2, Scale, Ruler, Package, X } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 
 export function CartPane() {
   const { items, updateQuantity, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
@@ -15,7 +17,6 @@ export function CartPane() {
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
-  // Handle Search logic
   useEffect(() => {
     if (searchQuery.length < 2) {
       setResults([]);
@@ -30,18 +31,17 @@ export function CartPane() {
           const filtered = products.filter((p: any) => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             (p.sku_barcode && p.sku_barcode.includes(searchQuery))
-          ).slice(0, 8); // Top 8 results
+          ).slice(0, 8);
           setResults(filtered);
           setSelectedIndex(0);
         }
       }
     };
 
-    const timeout = setTimeout(performSearch, 150); // Debounce
+    const timeout = setTimeout(performSearch, 150);
     return () => clearTimeout(timeout);
   }, [searchQuery]);
 
-  // Handle Click Outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
@@ -93,25 +93,25 @@ export function CartPane() {
   });
 
   return (
-    <div className="flex flex-col h-full w-[60%] border-r border-neutral-800 bg-neutral-950">
+    <div className="flex flex-col h-full w-[60%] border-r border-border bg-background">
       {/* Top Bar with Search */}
-      <div className="p-4 border-b border-neutral-800 bg-neutral-900/50 flex items-center gap-4 relative">
+      <div className="p-4 border-b border-border bg-muted/30 flex items-center gap-4 relative">
         <div ref={searchContainerRef} className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500" />
-          <input 
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+          <Input 
             ref={searchInputRef}
             type="text" 
             placeholder="Search products or scan barcode... [F2]"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full bg-neutral-950 border border-neutral-700 rounded-lg py-3 pl-11 pr-10 text-neutral-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-neutral-600"
+            className="w-full pl-11 pr-10 py-5 bg-background shadow-sm"
           />
           
           {searchQuery && (
             <button 
               onClick={() => { setSearchQuery(''); setResults([]); searchInputRef.current?.focus(); }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-neutral-800 rounded-full text-neutral-500 hover:text-white transition-colors"
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground hover:text-foreground transition-colors"
             >
               <X className="w-4 h-4" />
             </button>
@@ -119,8 +119,8 @@ export function CartPane() {
 
           {/* Search Results Dropdown */}
           {results.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-2 bg-neutral-900 border border-neutral-800 rounded-xl shadow-2xl z-50 overflow-hidden">
-              <div className="p-2 border-b border-neutral-800 text-[10px] font-bold text-neutral-500 uppercase tracking-widest bg-neutral-950/50">
+            <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-lg z-50 overflow-hidden">
+              <div className="p-2 border-b border-border text-[10px] font-bold text-muted-foreground uppercase tracking-widest bg-muted/50">
                 Found {results.length} matching products
               </div>
               <div className="max-h-80 overflow-y-auto">
@@ -129,24 +129,24 @@ export function CartPane() {
                     key={p.product_id}
                     onClick={() => handleSelectProduct(p)}
                     className={clsx(
-                      "w-full flex items-center justify-between p-3 transition-colors text-left border-b border-neutral-800/50 last:border-0",
-                      i === selectedIndex ? "bg-blue-600 text-white" : "hover:bg-neutral-800 text-neutral-300"
+                      "w-full flex items-center justify-between p-3 transition-colors text-left border-b border-border/50 last:border-0",
+                      i === selectedIndex ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
                     )}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={clsx("p-2 rounded-lg", i === selectedIndex ? "bg-white/20" : "bg-neutral-800 text-neutral-400")}>
+                      <div className={clsx("p-2 rounded-lg", i === selectedIndex ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground")}>
                         <Package className="w-4 h-4" />
                       </div>
                       <div>
                         <div className="font-bold text-sm">{p.name}</div>
-                        <div className={clsx("text-[10px] font-mono", i === selectedIndex ? "text-blue-100" : "text-neutral-500")}>
+                        <div className={clsx("text-[10px] font-mono", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                           {p.sku_barcode || 'NO BARCODE'} • {p.category || 'General'}
                         </div>
                       </div>
                     </div>
                     <div className="text-right">
                       <div className="font-black">₹{p.base_price.toFixed(2)}</div>
-                      <div className={clsx("text-[10px]", i === selectedIndex ? "text-blue-100" : "text-neutral-500")}>
+                      <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                         Stock: {p.current_stock}
                       </div>
                     </div>
@@ -159,21 +159,21 @@ export function CartPane() {
         
         {/* Domain-Specific Hardware Toggles */}
         {shopDomain === 'JEWELRY' && (
-          <button className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-neutral-300 transition-colors flex items-center gap-2">
+          <Button variant="outline" className="h-auto py-3 flex items-center gap-2">
             <Scale className="w-5 h-5 text-yellow-500" />
             <span className="font-semibold text-sm">Read Scale</span>
-          </button>
+          </Button>
         )}
         {shopDomain === 'HARDWARE' && (
-          <button className="px-4 py-3 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-lg text-neutral-300 transition-colors flex items-center gap-2">
+          <Button variant="outline" className="h-auto py-3 flex items-center gap-2">
             <Ruler className="w-5 h-5 text-orange-400" />
             <span className="font-semibold text-sm">Custom Cut</span>
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Table Header */}
-      <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-neutral-800 text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+      <div className="grid grid-cols-12 gap-4 px-6 py-3 border-b border-border text-xs font-semibold text-muted-foreground uppercase tracking-wider bg-muted/10">
         <div className="col-span-5">Item</div>
         <div className="col-span-2 text-right">Price</div>
         <div className="col-span-2 text-center">Qty</div>
@@ -184,50 +184,50 @@ export function CartPane() {
       {/* Cart Items */}
       <div className="flex-1 overflow-y-auto">
         {items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-neutral-600">
-            <div className="text-4xl mb-2">🛒</div>
+          <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+            <div className="text-4xl mb-2 opacity-50">🛒</div>
             <p>Cart is empty</p>
-            <p className="text-xs mt-1">Scan a barcode to add items</p>
+            <p className="text-xs mt-1 opacity-70">Scan a barcode to add items</p>
           </div>
         ) : (
-          <div className="divide-y divide-neutral-800/50">
+          <div className="divide-y divide-border">
             {items.map((item, index) => {
               const itemTotal = item.base_price * item.quantity;
               const isLastItem = index === items.length - 1;
 
               return (
-                <div key={item.product_id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-neutral-900/30 transition-colors border-b border-neutral-800/30">
+                <div key={item.product_id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
                   <div className="col-span-5">
-                    <h3 className="text-neutral-200 font-medium">{item.name}</h3>
+                    <h3 className="text-foreground font-medium">{item.name}</h3>
                     <div className="flex gap-3 text-xs mt-1">
-                      <span className="text-neutral-500">Tax: {item.tax_rate_percent}%</span>
+                      <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
                       {currentUserRole === 'OWNER' && item.purchase_price > 0 && (
-                        <span className="text-emerald-500/70 font-mono bg-emerald-500/10 px-1.5 rounded">
+                        <span className="text-primary font-mono bg-primary/10 px-1.5 rounded">
                           Margin: {((item.base_price - item.purchase_price) / item.base_price * 100).toFixed(1)}%
                         </span>
                       )}
                     </div>
                   </div>
-                  <div className="col-span-2 text-right text-neutral-300">
+                  <div className="col-span-2 text-right text-foreground">
                     ₹{item.base_price.toFixed(2)}
                   </div>
                   <div className="col-span-2 flex justify-center">
-                    <input 
+                    <Input 
                       ref={isLastItem ? qtyInputRef : null}
                       type="number"
                       min="1"
-                      className="w-16 bg-neutral-900 border border-neutral-700 rounded text-center py-1 text-neutral-200 focus:outline-none focus:border-blue-500"
+                      className="w-20 text-center h-8 px-2"
                       value={item.quantity}
                       onChange={(e) => updateQuantity(item.product_id, parseInt(e.target.value) || 1)}
                     />
                   </div>
-                  <div className="col-span-2 text-right font-medium text-blue-400">
+                  <div className="col-span-2 text-right font-medium text-primary">
                     ₹{itemTotal.toFixed(2)}
                   </div>
                   <div className="col-span-1 flex justify-center">
                     <button 
                       onClick={() => removeItem(item.product_id)}
-                      className="text-neutral-600 hover:text-red-400 transition-colors p-1"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

@@ -127,19 +127,18 @@ function App() {
 
   if (isSyncing) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-neutral-950 overflow-hidden relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-blue-500/10 via-transparent to-transparent opacity-50" />
+      <div className="flex h-screen w-screen items-center justify-center bg-background overflow-hidden relative">
         <div className="flex flex-col items-center gap-8 relative z-10 text-center px-6">
           <div className="relative">
-            <div className="w-24 h-24 border-4 border-blue-500/20 rounded-full" />
-            <div className="absolute inset-0 w-24 h-24 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-24 h-24 border-4 border-primary/20 rounded-full" />
+            <div className="absolute inset-0 w-24 h-24 border-4 border-primary border-t-transparent rounded-full animate-spin" />
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 bg-blue-500 rounded-full animate-pulse opacity-50" />
+              <div className="w-12 h-12 bg-primary rounded-full animate-pulse opacity-50" />
             </div>
           </div>
           <div>
-            <h1 className="text-3xl font-black text-white mb-2 tracking-tight">Synchronizing Shop Data</h1>
-            <p className="text-neutral-500 max-w-sm leading-relaxed">
+            <h1 className="text-3xl font-black text-foreground mb-2 tracking-tight">Synchronizing Shop Data</h1>
+            <p className="text-muted-foreground max-w-sm leading-relaxed">
               We're pulling your latest products, inventory, and sales history from the cloud.
             </p>
           </div>
@@ -150,10 +149,10 @@ function App() {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen w-screen items-center justify-center bg-neutral-950">
+      <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-neutral-500 text-sm">Starting Vendora...</p>
+          <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+          <p className="text-muted-foreground text-sm">Starting Vendora...</p>
         </div>
       </div>
     );
@@ -164,7 +163,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-neutral-950 font-sans text-white select-none">
+    <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground select-none">
       {currentUserRole === 'OWNER' && <DomainWizard />}
       {showInventoryManager && <InventoryManager onClose={() => setShowInventoryManager(false)} />}
       {showSalesHistory && <SalesHistory onClose={() => setShowSalesHistory(false)} />}

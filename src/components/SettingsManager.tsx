@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { X, Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key } from 'lucide-react';
+import { Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
+import { Modal } from './ui/Modal';
+import { Button } from './ui/Button';
+import { Input } from './ui/Input';
 
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
@@ -133,291 +136,271 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl rounded-3xl flex flex-col overflow-hidden shadow-2xl">
-        
-        {/* Header */}
-        <div className="p-6 border-b border-neutral-800 flex items-center justify-between bg-neutral-900/50">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-neutral-800 text-neutral-400 rounded-2xl">
-              <Settings className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold text-white">Settings</h1>
-              <p className="text-neutral-500 text-sm">Configure your hardware, domain, and system updates</p>
-            </div>
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      title={
+        <div className="flex items-center gap-3">
+          <Settings className="w-5 h-5 text-muted-foreground" />
+          <div>
+            <div className="text-lg font-bold">Settings</div>
+            <div className="text-xs text-muted-foreground font-normal">Configure your hardware, domain, and system updates</div>
           </div>
-          <button 
-            onClick={onClose}
-            className="p-2 hover:bg-neutral-800 rounded-full transition-colors text-neutral-400 hover:text-white"
-          >
-            <X className="w-6 h-6" />
-          </button>
         </div>
-
-        <div className="p-8 space-y-8 overflow-y-auto max-h-[70vh]">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12 gap-4">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-              <p className="text-neutral-500">Loading configurations...</p>
-            </div>
-          ) : (
-            <>
-              {/* Business Domain Section (Only for Owners) */}
-              {role === 'OWNER' && (
-                <section className="space-y-4">
-                  <div className="flex items-center gap-3 text-white">
-                    <Layout className="w-5 h-5 text-blue-400" />
-                    <h3 className="font-bold text-lg">Business Configuration</h3>
-                  </div>
-                  <p className="text-sm text-neutral-500">Updating this will change how Vendora handles products and hardware connections for your entire shop.</p>
-                  
-                  <div className="grid grid-cols-3 gap-4">
-                    {[
-                      { id: 'GENERAL', name: 'Retail', icon: ShoppingCart },
-                      { id: 'HARDWARE', name: 'Hardware', icon: Wrench },
-                      { id: 'JEWELRY', name: 'Jewelry', icon: Gem }
-                    ].map((d) => (
-                      <button
-                        key={d.id}
-                        onClick={() => setLocalDomain(d.id as any)}
-                        className={clsx(
-                          "flex flex-col items-center gap-3 p-4 rounded-xl border transition-all",
-                          localDomain === d.id 
-                            ? "bg-blue-500/10 border-blue-500 text-blue-400 shadow-lg shadow-blue-500/5"
-                            : "bg-neutral-950 border-neutral-800 text-neutral-500 hover:border-neutral-700"
-                        )}
-                      >
-                        <d.icon className="w-6 h-6" />
-                        <span className="text-xs font-bold uppercase tracking-widest">{d.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {role === 'OWNER' && <div className="h-px bg-neutral-800" />}
-
-              {/* Printer Section */}
+      }
+    >
+      <div className="space-y-8">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-12 gap-4">
+            <Loader2 className="w-8 h-8 text-primary animate-spin" />
+            <p className="text-muted-foreground">Loading configurations...</p>
+          </div>
+        ) : (
+          <>
+            {/* Business Domain Section (Only for Owners) */}
+            {role === 'OWNER' && (
               <section className="space-y-4">
-                <div className="flex items-center gap-3 text-white">
-                  <Printer className="w-5 h-5 text-blue-400" />
-                  <h3 className="font-bold text-lg">Thermal Printer (ESC/POS)</h3>
+                <div className="flex items-center gap-3 text-foreground">
+                  <Layout className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold text-lg">Business Configuration</h3>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Connection Type</label>
-                    <select
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all appearance-none"
-                      value={printer.type || 'network'}
-                      onChange={(e) => setPrinter({...printer, type: e.target.value})}
+                <p className="text-sm text-muted-foreground">Updating this will change how Vendora handles products and hardware connections for your entire shop.</p>
+                
+                <div className="grid grid-cols-3 gap-4">
+                  {[
+                    { id: 'GENERAL', name: 'Retail', icon: ShoppingCart },
+                    { id: 'HARDWARE', name: 'Hardware', icon: Wrench },
+                    { id: 'JEWELRY', name: 'Jewelry', icon: Gem }
+                  ].map((d) => (
+                    <button
+                      key={d.id}
+                      onClick={() => setLocalDomain(d.id as any)}
+                      className={clsx(
+                        "flex flex-col items-center gap-3 p-4 rounded-xl border transition-all",
+                        localDomain === d.id 
+                          ? "bg-primary/10 border-primary text-primary"
+                          : "bg-background border-border text-muted-foreground hover:border-muted-foreground/50"
+                      )}
                     >
-                      <option value="network">Network (TCP/IP)</option>
-                      <option value="usb">USB (OS Print Queue)</option>
-                    </select>
-                  </div>
-                  
-                  {printer.type === 'network' ? (
-                    <>
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Printer IP Address</label>
-                        <input 
-                          type="text"
-                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                          value={printer.ip}
-                          onChange={(e) => setPrinter({...printer, ip: e.target.value})}
-                          placeholder="192.168.1.100"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Port</label>
-                        <input 
-                          type="number"
-                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                          value={printer.port}
-                          onChange={(e) => setPrinter({...printer, port: parseInt(e.target.value) || 9100})}
-                        />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="col-span-2">
-                      <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Select USB Printer</label>
-                      <select
-                        className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all appearance-none"
-                        value={printer.deviceName || ''}
-                        onChange={(e) => setPrinter({...printer, deviceName: e.target.value})}
-                      >
-                        <option value="">-- Select a printer --</option>
-                        {osPrinters.map(p => (
-                          <option key={p.name} value={p.name}>{p.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {printer.type === 'usb' && (
-                    <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Label Width (mm)</label>
-                        <input 
-                          type="number"
-                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                          value={printer.labelWidthMm || 50}
-                          onChange={(e) => setPrinter({...printer, labelWidthMm: parseInt(e.target.value) || 50})}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Label Height (mm)</label>
-                        <input 
-                          type="number"
-                          className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-blue-500 transition-all"
-                          value={printer.labelHeightMm || 25}
-                          onChange={(e) => setPrinter({...printer, labelHeightMm: parseInt(e.target.value) || 25})}
-                        />
-                      </div>
-                    </div>
-                  )}
+                      <d.icon className="w-6 h-6" />
+                      <span className="text-xs font-bold uppercase tracking-widest">{d.name}</span>
+                    </button>
+                  ))}
                 </div>
               </section>
+            )}
 
-              <div className="h-px bg-neutral-800" />
+            {role === 'OWNER' && <div className="h-px bg-border" />}
 
-              {/* Weighing Scale Section */}
-              <section className="space-y-4">
-                <div className="flex items-center gap-3 text-white">
-                  <Scale className="w-5 h-5 text-emerald-400" />
-                  <h3 className="font-bold text-lg">Electronic Weighing Scale</h3>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Serial Port (COM/tty)</label>
-                    <input 
-                      type="text"
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-all"
-                      value={scale.path}
-                      onChange={(e) => setScale({...scale, path: e.target.value})}
-                      placeholder="COM3"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">Baud Rate</label>
-                    <select
-                      className="w-full bg-neutral-950 border border-neutral-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-all appearance-none"
-                      value={scale.baudRate}
-                      onChange={(e) => setScale({...scale, baudRate: parseInt(e.target.value)})}
-                    >
-                      <option value="2400">2400</option>
-                      <option value="4800">4800</option>
-                      <option value="9600">9600</option>
-                      <option value="19200">19200</option>
-                      <option value="38400">38400</option>
-                      <option value="115200">115200</option>
-                    </select>
-                  </div>
-                </div>
-              </section>
-
-              <div className="h-px bg-neutral-800" />
-
-              {/* Version & Update Section */}
-              <section className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-white">
-                    <RefreshCw className={clsx("w-5 h-5 text-purple-400", checkingUpdate && "animate-spin")} />
-                    <div>
-                      <h3 className="font-bold text-lg">System Updates</h3>
-                      <p className="text-xs text-neutral-500">Current Version: {appVersion}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleCheckUpdate}
-                    disabled={checkingUpdate}
-                    className="px-4 py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg text-xs font-bold transition-all flex items-center gap-2 disabled:opacity-50"
+            {/* Printer Section */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 text-foreground">
+                <Printer className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg">Thermal Printer (ESC/POS)</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Connection Type</label>
+                  <select
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    value={printer.type || 'network'}
+                    onChange={(e) => setPrinter({...printer, type: e.target.value})}
                   >
-                    {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                    {checkingUpdate ? 'Checking...' : 'Check for Updates'}
-                  </button>
-                </div>
-              </section>
-
-              <div className="h-px bg-neutral-800" />
-
-              {/* Security Section */}
-              <section className="space-y-4 pb-4">
-                <div className="flex items-center gap-3 text-white">
-                  <Lock className="w-5 h-5 text-orange-400" />
-                  <h3 className="font-bold text-lg">Security</h3>
+                    <option value="network">Network (TCP/IP)</option>
+                    <option value="usb">USB (OS Print Queue)</option>
+                  </select>
                 </div>
                 
-                <form onSubmit={handleChangePassword} className="space-y-4 bg-neutral-950 p-6 rounded-2xl border border-neutral-800">
-                  <p className="text-xs text-neutral-500 mb-2 font-medium uppercase tracking-widest">Change Password</p>
-                  
-                  <div className="grid grid-cols-1 gap-4">
-                    <div className="relative">
-                      <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-600" />
-                      <input 
-                        type="password"
-                        placeholder="Current Password"
-                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 pl-11 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                        value={pass.old}
-                        onChange={(e) => setPass({...pass, old: e.target.value})}
+                {printer.type === 'network' ? (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Printer IP Address</label>
+                      <Input 
+                        type="text"
+                        value={printer.ip}
+                        onChange={(e) => setPrinter({...printer, ip: e.target.value})}
+                        placeholder="192.168.1.100"
                       />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <input 
-                        type="password"
-                        placeholder="New Password"
-                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                        value={pass.new}
-                        onChange={(e) => setPass({...pass, new: e.target.value})}
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Port</label>
+                      <Input 
+                        type="number"
+                        value={printer.port}
+                        onChange={(e) => setPrinter({...printer, port: parseInt(e.target.value) || 9100})}
                       />
-                      <input 
-                        type="password"
-                        placeholder="Confirm New Password"
-                        className="w-full bg-neutral-900 border border-neutral-800 rounded-xl px-4 py-3 text-white text-sm focus:outline-none focus:border-orange-500 transition-all"
-                        value={pass.confirm}
-                        onChange={(e) => setPass({...pass, confirm: e.target.value})}
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Select USB Printer</label>
+                    <select
+                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                      value={printer.deviceName || ''}
+                      onChange={(e) => setPrinter({...printer, deviceName: e.target.value})}
+                    >
+                      <option value="">-- Select a printer --</option>
+                      {osPrinters.map(p => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {printer.type === 'usb' && (
+                  <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Width (mm)</label>
+                      <Input 
+                        type="number"
+                        value={printer.labelWidthMm || 50}
+                        onChange={(e) => setPrinter({...printer, labelWidthMm: parseInt(e.target.value) || 50})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Height (mm)</label>
+                      <Input 
+                        type="number"
+                        value={printer.labelHeightMm || 25}
+                        onChange={(e) => setPrinter({...printer, labelHeightMm: parseInt(e.target.value) || 25})}
                       />
                     </div>
                   </div>
-                  
-                  <button
-                    type="submit"
-                    disabled={changingPass}
-                    className="w-full py-3 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
-                  >
-                    {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                    Update Password
-                  </button>
-                </form>
-              </section>
+                )}
+              </div>
+            </section>
 
-              {message && (
-                <div className={clsx(
-                  "p-4 rounded-2xl border flex gap-3 text-sm animate-in fade-in slide-in-from-top-2",
-                  message.type === 'success' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400"
-                )}>
-                  <Info className="w-5 h-5 shrink-0" />
-                  <p>{message.text}</p>
+            <div className="h-px bg-border" />
+
+            {/* Weighing Scale Section */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 text-foreground">
+                <Scale className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg">Electronic Weighing Scale</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Serial Port (COM/tty)</label>
+                  <Input 
+                    type="text"
+                    value={scale.path}
+                    onChange={(e) => setScale({...scale, path: e.target.value})}
+                    placeholder="COM3"
+                  />
                 </div>
-              )}
-            </>
-          )}
-        </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Baud Rate</label>
+                  <select
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    value={scale.baudRate}
+                    onChange={(e) => setScale({...scale, baudRate: parseInt(e.target.value)})}
+                  >
+                    <option value="2400">2400</option>
+                    <option value="4800">4800</option>
+                    <option value="9600">9600</option>
+                    <option value="19200">19200</option>
+                    <option value="38400">38400</option>
+                    <option value="115200">115200</option>
+                  </select>
+                </div>
+              </div>
+            </section>
 
-        {/* Footer */}
-        {!loading && (
-          <div className="p-6 border-t border-neutral-800 bg-neutral-900/50 flex justify-end">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex items-center gap-2 px-8 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all active:scale-[0.98] disabled:opacity-50"
-            >
-              {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-              Save Configuration
-            </button>
-          </div>
+            <div className="h-px bg-border" />
+
+            {/* Version & Update Section */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-foreground">
+                  <RefreshCw className={clsx("w-5 h-5 text-primary", checkingUpdate && "animate-spin")} />
+                  <div>
+                    <h3 className="font-bold text-lg">System Updates</h3>
+                    <p className="text-xs text-muted-foreground">Current Version: {appVersion}</p>
+                  </div>
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleCheckUpdate}
+                  disabled={checkingUpdate}
+                  className="flex items-center gap-2"
+                >
+                  {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+                  {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+                </Button>
+              </div>
+            </section>
+
+            <div className="h-px bg-border" />
+
+            {/* Security Section */}
+            <section className="space-y-4 pb-4">
+              <div className="flex items-center gap-3 text-foreground">
+                <Lock className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg">Security</h3>
+              </div>
+              
+              <form onSubmit={handleChangePassword} className="space-y-4 bg-muted/50 p-6 rounded-2xl border border-border">
+                <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-widest">Change Password</p>
+                
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="relative">
+                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input 
+                      type="password"
+                      placeholder="Current Password"
+                      className="pl-11"
+                      value={pass.old}
+                      onChange={(e) => setPass({...pass, old: e.target.value})}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Input 
+                      type="password"
+                      placeholder="New Password"
+                      value={pass.new}
+                      onChange={(e) => setPass({...pass, new: e.target.value})}
+                    />
+                    <Input 
+                      type="password"
+                      placeholder="Confirm New Password"
+                      value={pass.confirm}
+                      onChange={(e) => setPass({...pass, confirm: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                <Button
+                  type="submit"
+                  disabled={changingPass}
+                  className="w-full flex items-center justify-center gap-2"
+                >
+                  {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                  Update Password
+                </Button>
+              </form>
+            </section>
+
+            {message && (
+              <div className={clsx(
+                "p-4 rounded-2xl border flex gap-3 text-sm animate-in fade-in slide-in-from-top-2",
+                message.type === 'success' ? "bg-primary/10 border-primary/30 text-primary" : "bg-destructive/10 border-destructive/30 text-destructive"
+              )}>
+                <Info className="w-5 h-5 shrink-0" />
+                <p>{message.text}</p>
+              </div>
+            )}
+            
+            <div className="pt-4 flex justify-end gap-3 border-t border-border">
+              <Button variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Configuration
+              </Button>
+            </div>
+          </>
         )}
       </div>
-    </div>
+    </Modal>
   );
 }

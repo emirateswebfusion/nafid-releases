@@ -3,6 +3,12 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 
+const initTheme = () => {
+  const theme = localStorage.getItem('vendora-theme') || 'light';
+  document.documentElement.classList.add(theme);
+};
+initTheme();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />

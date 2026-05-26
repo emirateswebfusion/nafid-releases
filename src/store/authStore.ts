@@ -176,6 +176,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   // ── Logout ────────────────────────────────────────────────────────────────
   logout: async () => {
     if (window.electronAPI) await window.electronAPI.authClearToken();
+    useCartStore.getState().clearCart();
     set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, shopName: null });
   },
 
