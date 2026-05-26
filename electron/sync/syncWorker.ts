@@ -183,12 +183,12 @@ async function pullProducts(token: string) {
 
     const upsert = db.prepare(`
       INSERT INTO products (
-        product_id, tenant_id, name, sku_barcode, category, hsn_sac_code,
+        product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
         sync_status
       ) VALUES (
-        @product_id, @tenant_id, @name, @sku_barcode, @category, @hsn_sac_code,
+        @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
         @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
         @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
         'SYNCED'
@@ -196,6 +196,7 @@ async function pullProducts(token: string) {
       ON CONFLICT(product_id) DO UPDATE SET
         name = excluded.name,
         sku_barcode = excluded.sku_barcode,
+        item_code = excluded.item_code,
         category = excluded.category,
         hsn_sac_code = excluded.hsn_sac_code,
         purchase_price = excluded.purchase_price,
@@ -219,6 +220,7 @@ async function pullProducts(token: string) {
           tenant_id: tenantId,
           name: p.name,
           sku_barcode: p.sku_barcode || null,
+          item_code: p.item_code || null,
           category: p.category || null,
           hsn_sac_code: p.hsn_sac_code || null,
           purchase_price: p.purchase_price ?? 0,

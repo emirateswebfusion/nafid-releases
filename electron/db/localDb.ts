@@ -33,6 +33,7 @@ export function initDb() {
         tenant_id TEXT,
         name TEXT NOT NULL,
         sku_barcode TEXT,
+        item_code TEXT,
         category TEXT,
         hsn_sac_code TEXT,
         purchase_price REAL DEFAULT 0,
@@ -95,7 +96,7 @@ export function initDb() {
   const schemaMap: any = {
     products: [
         'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 
-        'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status'
+        'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code'
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 

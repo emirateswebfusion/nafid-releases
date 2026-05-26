@@ -141,13 +141,14 @@ router.post('/products', async (req: Request, res: Response) => {
       await withTenantContext(req.auth!.tenant_id, async (client) => {
         await client.query(
           `INSERT INTO products (
-            product_id, tenant_id, name, sku_barcode, category, hsn_sac_code,
+            product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
             purchase_price, base_price, tax_rate_percent, uom,
             brand_manufacturer, current_stock, reorder_level, domain_attributes, is_deleted
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
           ON CONFLICT (product_id) DO UPDATE SET
             name = EXCLUDED.name,
             sku_barcode = EXCLUDED.sku_barcode,
+            item_code = EXCLUDED.item_code,
             category = EXCLUDED.category,
             hsn_sac_code = EXCLUDED.hsn_sac_code,
             purchase_price = EXCLUDED.purchase_price,
@@ -161,7 +162,7 @@ router.post('/products', async (req: Request, res: Response) => {
             is_deleted = EXCLUDED.is_deleted,
             updated_at = NOW()`,
           [
-            p.product_id, req.auth!.tenant_id, p.name, p.sku_barcode, p.category,
+            p.product_id, req.auth!.tenant_id, p.name, p.sku_barcode, p.item_code, p.category,
             p.hsn_sac_code, p.purchase_price ?? 0, p.base_price, p.tax_rate_percent ?? 0,
             p.uom ?? 'Pcs', p.brand_manufacturer, p.current_stock ?? 0,
             p.reorder_level ?? 0,

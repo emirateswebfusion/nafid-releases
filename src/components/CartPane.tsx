@@ -30,6 +30,7 @@ export function CartPane() {
         if (Array.isArray(products)) {
           const filtered = products.filter((p: any) => 
             p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (p.item_code && p.item_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
             (p.sku_barcode && p.sku_barcode.includes(searchQuery))
           ).slice(0, 8);
           setResults(filtered);
@@ -140,7 +141,7 @@ export function CartPane() {
                       <div>
                         <div className="font-bold text-sm">{p.name}</div>
                         <div className={clsx("text-[10px] font-mono", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                          {p.sku_barcode || 'NO BARCODE'} • {p.category || 'General'}
+                          {p.item_code ? <span className="font-bold">{p.item_code}</span> : ''} {p.sku_barcode || 'NO BARCODE'} • {p.category || 'General'}
                         </div>
                       </div>
                     </div>

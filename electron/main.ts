@@ -193,17 +193,18 @@ ipcMain.handle('db:addProduct', (event, p) => {
     const db = getDb();
     const stmt = db.prepare(`
       INSERT INTO products (
-        product_id, tenant_id, name, sku_barcode, category, hsn_sac_code,
+        product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
         is_deleted, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `);
     stmt.run(
       p.product_id,
       p.tenant_id,
       p.name,
       p.sku_barcode,
+      p.item_code,
       p.category,
       p.hsn_sac_code,
       p.purchase_price,
@@ -228,7 +229,7 @@ ipcMain.handle('db:updateProduct', (event, p) => {
     const db = getDb();
     const stmt = db.prepare(`
       UPDATE products 
-      SET tenant_id = ?, name = ?, sku_barcode = ?, category = ?, hsn_sac_code = ?, 
+      SET tenant_id = ?, name = ?, sku_barcode = ?, item_code = ?, category = ?, hsn_sac_code = ?, 
           purchase_price = ?, base_price = ?, is_gst_applicable = ?, tax_rate_percent = ?,
           uom = ?, brand_manufacturer = ?, current_stock = ?, reorder_level = ?, 
           domain_attributes = ?, is_deleted = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
@@ -238,6 +239,7 @@ ipcMain.handle('db:updateProduct', (event, p) => {
       p.tenant_id,
       p.name,
       p.sku_barcode,
+      p.item_code,
       p.category,
       p.hsn_sac_code,
       p.purchase_price,

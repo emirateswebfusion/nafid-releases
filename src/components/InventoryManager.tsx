@@ -12,6 +12,7 @@ interface Product {
   product_id: string;
   tenant_id: string;
   name: string;
+  item_code: string;
   sku_barcode: string;
   category: string;
   brand_manufacturer: string;
@@ -28,6 +29,7 @@ interface Product {
 }
 
 const DEFAULT_FORM = {
+  item_code: '',
   sku_barcode: '',
   name: '',
   category: '',
@@ -87,6 +89,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const openEdit = (product: Product) => {
     setEditingProduct(product);
     setFormData({
+      item_code: product.item_code || '',
       sku_barcode: product.sku_barcode || '',
       name: product.name,
       category: product.category || '',
@@ -132,7 +135,18 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     }));
 
   const generateBarcode = () => {
-    const code = Math.floor(100000000000 + Math.random() * 900000000000).toString();
+    let prefix = formData.item_code || '';
+    if (prefix.length > 12) {
+      prefix = prefix.substring(0, 12);
+    }
+    const remainingLength = 12 - prefix.length;
+    let code = prefix;
+    if (remainingLength > 0) {
+      const min = Math.pow(10, remainingLength - 1);
+      const max = Math.pow(10, remainingLength) - 1;
+      const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
+      code += randomPart;
+    }
     handleInputChange('sku_barcode', code);
   };
 
@@ -189,6 +203,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   // ── Filtered list ────────────────────────────────────────────────────────
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.item_code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.sku_barcode || '').includes(searchQuery) ||
     (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -273,7 +288,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       <div className="flex items-center gap-2">
                         <div>
                           <p className="text-foreground font-semibold text-sm">{p.name}</p>
-                          <p className="text-muted-foreground text-xs font-mono mt-0.5">{p.sku_barcode}</p>
+                          <p className="text-muted-foreground text-xs font-mono mt-0.5">
+                            {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
+                            {p.sku_barcode}
+                          </p>
                           <div className="flex gap-2 mt-1">
                             {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded font-medium">{p.category}</span>}
                             {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded font-medium">{p.brand_manufacturer}</span>}
@@ -337,6 +355,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Item Name *</label>
                       <input type="text" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
                     </div>
+                    <div>
+                      <label className="text-sm font-semibold text-muted-foreground mb-1.5 block">Item Code</label>
+                      <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest shadow-sm uppercase" />
+                    </div>
                     <div className="grid grid-cols-2 gap-5">
                       <div>
                         <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Category</label>
@@ -349,20 +371,21 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
 
-                  {/* Barcode Panel */}
                   <div className="bg-muted/30 p-5 rounded-2xl border border-border flex flex-col justify-center">
-                    <div className="flex justify-between items-center mb-3">
-                      <label className="text-sm font-semibold text-muted-foreground">Barcode *</label>
-                      <button onClick={generateBarcode} className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-md transition-colors">
-                        <RefreshCw className="w-3 h-3" /> Auto Generate
-                      </button>
-                    </div>
-                    <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest mb-4 shadow-sm" />
-                    {formData.sku_barcode && (
-                      <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
-                        <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-sm font-semibold text-muted-foreground">Barcode *</label>
+                        <button onClick={generateBarcode} className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-md transition-colors">
+                          <RefreshCw className="w-3 h-3" /> Auto Generate
+                        </button>
                       </div>
-                    )}
+                      <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest mb-4 shadow-sm" />
+                      {formData.sku_barcode && (
+                        <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
+                          <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </section>
