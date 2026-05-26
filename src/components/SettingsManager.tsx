@@ -247,7 +247,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
                 {printer.type === 'usb' && (
-                  <div className="col-span-2 grid grid-cols-2 gap-4 mt-2">
+                  <div className="col-span-2 grid grid-cols-3 gap-4 mt-2">
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Width (mm)</label>
                       <Input 
@@ -262,6 +262,16 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                         type="number"
                         value={printer.labelHeightMm || 25}
                         onChange={(e) => setPrinter({...printer, labelHeightMm: parseInt(e.target.value) || 25})}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Columns</label>
+                      <Input 
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={printer.labelColumns || 1}
+                        onChange={(e) => setPrinter({...printer, labelColumns: parseInt(e.target.value) || 1})}
                       />
                     </div>
                   </div>

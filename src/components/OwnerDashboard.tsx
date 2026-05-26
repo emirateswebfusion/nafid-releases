@@ -9,7 +9,7 @@ import { Button } from './ui/Button';
 export function OwnerDashboard() {
     const { shopName } = useAuthStore();
     const { setRole } = useCartStore();
-    const { isDarkMode, toggleTheme } = useThemeStore();
+    const { theme, toggleTheme } = useThemeStore();
 
     const cards = [
         {
@@ -92,7 +92,7 @@ export function OwnerDashboard() {
                         className="h-10 w-10 rounded-xl text-foreground hover:bg-muted"
                         title="Toggle Theme"
                     >
-                        {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
                     </Button>
                     <Button
                         variant="outline"

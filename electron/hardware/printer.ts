@@ -85,7 +85,7 @@ export function initPrinter() {
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
       } else if (config.type === 'usb' && config.deviceName) {
-        await printBarcodeUSB(barcode, config.deviceName, price, name, quantity, config.labelWidthMm, config.labelHeightMm);
+        await printBarcodeUSB(barcode, config.deviceName, price, name, quantity, config.labelWidthMm, config.labelHeightMm, config.labelColumns);
       } else if (config.type === 'usb') {
         throw new Error('USB printing requested but deviceName not configured');
       } else {
@@ -126,7 +126,7 @@ function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise
   });
 }
 
-function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number): Promise<void> {
+function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number, columns?: number): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
@@ -140,9 +140,9 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
 
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}`);
+      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}`);
     }
 
     const timer = setTimeout(() => {
