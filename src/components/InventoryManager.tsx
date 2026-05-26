@@ -25,6 +25,9 @@ interface Product {
   hsn_sac_code: string;
   tax_rate_percent: number;
   domain_attributes: string; // JSON string from SQLite
+  discount_percent?: number | null;
+  discount_flat?: number | null;
+  offer_price?: number | null;
   sync_status: string;
 }
 
@@ -43,6 +46,9 @@ const DEFAULT_FORM = {
   hsn_sac_code: '',
   tax_rate_percent: 0,
   domain_attributes: {} as Record<string, any>,
+  discount_percent: '' as string | number | null,
+  discount_flat: '' as string | number | null,
+  offer_price: '' as string | number | null,
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -105,6 +111,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       domain_attributes: (() => {
         try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; }
       })(),
+      discount_percent: product.discount_percent ?? '',
+      discount_flat: product.discount_flat ?? '',
+      offer_price: product.offer_price ?? '',
     });
     setView('edit');
   };
@@ -125,14 +134,54 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleInputChange = (field: string, value: any) =>
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: string, value: any) => {
+    setFormData(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'base_price' && next.discount_percent !== undefined && next.discount_percent !== '') {
+        const pct = parseFloat(next.discount_percent as string);
+        if (!isNaN(pct)) {
+          next.discount_flat = value ? ((value * pct) / 100).toFixed(2) : '';
+        }
+      }
+      return next;
+    });
+  };
 
   const handleDomainAttrChange = (field: string, value: any) =>
     setFormData(prev => ({
       ...prev,
       domain_attributes: { ...prev.domain_attributes, [field]: value }
     }));
+
+  const handleDiscountPercentChange = (val: string) => {
+    const percent = parseFloat(val);
+    if (isNaN(percent) || val === '') {
+      setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
+      return;
+    }
+    const base = formData.base_price || 0;
+    const flat = base ? ((base * percent) / 100).toFixed(2) : '';
+    setFormData(prev => ({ ...prev, discount_percent: val, discount_flat: flat, offer_price: '' }));
+  };
+
+  const handleDiscountFlatChange = (val: string) => {
+    const flat = parseFloat(val);
+    if (isNaN(flat) || val === '') {
+      setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
+      return;
+    }
+    const base = formData.base_price || 0;
+    const percent = base ? ((flat / base) * 100).toFixed(2) : '';
+    setFormData(prev => ({ ...prev, discount_percent: percent, discount_flat: val, offer_price: '' }));
+  };
+
+  const handleOfferPriceChange = (val: string) => {
+    if (val === '') {
+      setFormData(prev => ({ ...prev, offer_price: '' }));
+      return;
+    }
+    setFormData(prev => ({ ...prev, offer_price: val, discount_percent: '', discount_flat: '' }));
+  };
 
   const generateBarcode = () => {
     let prefix = formData.item_code || '';
@@ -183,6 +232,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset' }),
       ...formData,
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
+      discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
+      discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
+      offer_price: formData.offer_price === '' ? null : Number(formData.offer_price),
     };
 
     if (window.electronAPI) {
@@ -422,9 +474,66 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              {/* Section 3: Statutory */}
+              {/* Section 3: Discount & Offers */}
               <section>
-                <h3 className="text-lg font-bold text-purple-500 mb-4 border-b border-border pb-2">3. Statutory & Tax</h3>
+                <h3 className="text-lg font-bold text-blue-500 mb-4 border-b border-border pb-2">3. Discount & Offers</h3>
+                <div className="grid grid-cols-2 gap-8">
+                  {/* Discount Block */}
+                  <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-foreground">Discount</h4>
+                      <span className="text-xs text-muted-foreground">Applies to selling price</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Percentage (%)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.discount_percent || ''}
+                          onChange={e => handleDiscountPercentChange(e.target.value)}
+                          disabled={!!formData.offer_price}
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Flat Amount (₹)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={formData.discount_flat || ''}
+                          onChange={e => handleDiscountFlatChange(e.target.value)}
+                          disabled={!!formData.offer_price}
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Offer Block */}
+                  <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-foreground">Offer</h4>
+                      <span className="text-xs text-muted-foreground">Overrides selling price</span>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Final Offer Price (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={formData.offer_price || ''}
+                        onChange={e => handleOfferPriceChange(e.target.value)}
+                        disabled={!!formData.discount_percent || !!formData.discount_flat}
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Section 4: Statutory */}
+              <section>
+                <h3 className="text-lg font-bold text-purple-500 mb-4 border-b border-border pb-2">4. Statutory & Tax</h3>
                 <div className="grid grid-cols-3 gap-6">
                   <div className="flex items-center gap-3 bg-muted/30 border border-border p-4 rounded-xl">
                     <input type="checkbox" id="gst" checked={formData.is_gst_applicable} onChange={e => handleInputChange('is_gst_applicable', e.target.checked)} className="w-5 h-5 accent-primary rounded cursor-pointer" />
@@ -443,9 +552,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              {/* Section 4: Domain Attributes */}
+              {/* Section 5: Domain Attributes */}
               <section>
-                <h3 className="text-lg font-bold text-amber-500 mb-4 border-b border-border pb-2">4. Domain Fields — {shopDomain}</h3>
+                <h3 className="text-lg font-bold text-amber-500 mb-4 border-b border-border pb-2">5. Domain Fields — {shopDomain}</h3>
                 <div className="grid grid-cols-2 gap-5 bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20">
                   {shopDomain === 'HARDWARE' && (<>
                     <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />

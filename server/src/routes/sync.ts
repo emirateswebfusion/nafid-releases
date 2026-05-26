@@ -143,8 +143,9 @@ router.post('/products', async (req: Request, res: Response) => {
           `INSERT INTO products (
             product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
             purchase_price, base_price, tax_rate_percent, uom,
-            brand_manufacturer, current_stock, reorder_level, domain_attributes, is_deleted
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+            brand_manufacturer, current_stock, reorder_level, domain_attributes,
+            discount_percent, discount_flat, offer_price, is_deleted
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
           ON CONFLICT (product_id) DO UPDATE SET
             name = EXCLUDED.name,
             sku_barcode = EXCLUDED.sku_barcode,
@@ -159,6 +160,9 @@ router.post('/products', async (req: Request, res: Response) => {
             current_stock = EXCLUDED.current_stock,
             reorder_level = EXCLUDED.reorder_level,
             domain_attributes = EXCLUDED.domain_attributes,
+            discount_percent = EXCLUDED.discount_percent,
+            discount_flat = EXCLUDED.discount_flat,
+            offer_price = EXCLUDED.offer_price,
             is_deleted = EXCLUDED.is_deleted,
             updated_at = NOW()`,
           [
@@ -167,6 +171,7 @@ router.post('/products', async (req: Request, res: Response) => {
             p.uom ?? 'Pcs', p.brand_manufacturer, p.current_stock ?? 0,
             p.reorder_level ?? 0,
             p.domain_attributes ? JSON.stringify(p.domain_attributes) : null,
+            p.discount_percent ?? null, p.discount_flat ?? null, p.offer_price ?? null,
             p.is_deleted ?? false
           ]
         );

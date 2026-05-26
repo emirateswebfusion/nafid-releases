@@ -44,7 +44,8 @@ router.post('/', requireOwner, async (req: Request, res: Response) => {
   const {
     product_id, name, sku_barcode, item_code, category, hsn_sac_code,
     purchase_price, base_price, is_gst_applicable, tax_rate_percent,
-    uom, brand_manufacturer, current_stock, reorder_level, domain_attributes
+    uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
+    discount_percent, discount_flat, offer_price
   } = req.body;
 
   if (!name || !base_price) {
@@ -57,14 +58,16 @@ router.post('/', requireOwner, async (req: Request, res: Response) => {
         `INSERT INTO products (
           product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
           purchase_price, base_price, is_gst_applicable, tax_rate_percent,
-          uom, brand_manufacturer, current_stock, reorder_level, domain_attributes
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+          uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
+          discount_percent, discount_flat, offer_price
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
         RETURNING *`,
         [
           product_id, req.auth!.tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
           purchase_price ?? 0, base_price, is_gst_applicable ?? true, tax_rate_percent ?? 0,
           uom ?? 'Pcs', brand_manufacturer, current_stock ?? 0, reorder_level ?? 0,
-          domain_attributes ? JSON.stringify(domain_attributes) : null
+          domain_attributes ? JSON.stringify(domain_attributes) : null,
+          discount_percent ?? null, discount_flat ?? null, offer_price ?? null
         ]
       );
       return rows[0];
@@ -80,7 +83,8 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
   const {
     name, sku_barcode, item_code, category, hsn_sac_code,
     purchase_price, base_price, is_gst_applicable, tax_rate_percent,
-    uom, brand_manufacturer, current_stock, reorder_level, domain_attributes
+    uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
+    discount_percent, discount_flat, offer_price
   } = req.body;
 
   try {
@@ -90,7 +94,8 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
           name=$1, sku_barcode=$2, item_code=$15, category=$3, hsn_sac_code=$4,
           purchase_price=$5, base_price=$6, is_gst_applicable=$7, tax_rate_percent=$8,
           uom=$9, brand_manufacturer=$10, current_stock=$11, reorder_level=$12,
-          domain_attributes=$13, updated_at=NOW()
+          domain_attributes=$13, discount_percent=$16, discount_flat=$17, offer_price=$18,
+          updated_at=NOW()
         WHERE product_id=$14
         RETURNING *`,
         [
@@ -98,7 +103,8 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
           purchase_price, base_price, is_gst_applicable, tax_rate_percent,
           uom, brand_manufacturer, current_stock, reorder_level,
           domain_attributes ? JSON.stringify(domain_attributes) : null,
-          req.params.id, item_code
+          req.params.id, item_code,
+          discount_percent ?? null, discount_flat ?? null, offer_price ?? null
         ]
       );
       return rows[0];

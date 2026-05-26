@@ -45,6 +45,9 @@ export function initDb() {
         current_stock REAL DEFAULT 0,
         reorder_level REAL DEFAULT 0,
         domain_attributes TEXT DEFAULT '{}',
+        discount_percent REAL,
+        discount_flat REAL,
+        offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -96,7 +99,8 @@ export function initDb() {
   const schemaMap: any = {
     products: [
         'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 
-        'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code'
+        'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code',
+        'discount_percent', 'discount_flat', 'offer_price'
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
@@ -118,7 +122,12 @@ export function initDb() {
       if (!existingCols.includes(col)) {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
-        const type = (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) ? 'REAL DEFAULT 0' : 'TEXT';
+        let type = 'TEXT';
+        if (['discount_percent', 'discount_flat', 'offer_price'].includes(col)) {
+          type = 'REAL';
+        } else if (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) {
+          type = 'REAL DEFAULT 0';
+        }
         db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
       }
     }

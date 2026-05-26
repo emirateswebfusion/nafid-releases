@@ -196,8 +196,9 @@ ipcMain.handle('db:addProduct', (event, p) => {
         product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
+        discount_percent, discount_flat, offer_price,
         is_deleted, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `);
     stmt.run(
       p.product_id,
@@ -216,6 +217,9 @@ ipcMain.handle('db:addProduct', (event, p) => {
       p.current_stock,
       p.reorder_level,
       p.domain_attributes ? JSON.stringify(p.domain_attributes) : '{}',
+      p.discount_percent ?? null,
+      p.discount_flat ?? null,
+      p.offer_price ?? null,
       p.is_deleted ?? 0
     );
     return { success: true };
@@ -232,7 +236,8 @@ ipcMain.handle('db:updateProduct', (event, p) => {
       SET tenant_id = ?, name = ?, sku_barcode = ?, item_code = ?, category = ?, hsn_sac_code = ?, 
           purchase_price = ?, base_price = ?, is_gst_applicable = ?, tax_rate_percent = ?,
           uom = ?, brand_manufacturer = ?, current_stock = ?, reorder_level = ?, 
-          domain_attributes = ?, is_deleted = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          domain_attributes = ?, discount_percent = ?, discount_flat = ?, offer_price = ?, 
+          is_deleted = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE product_id = ?
     `);
     stmt.run(
@@ -251,6 +256,9 @@ ipcMain.handle('db:updateProduct', (event, p) => {
       p.current_stock,
       p.reorder_level,
       p.domain_attributes ? JSON.stringify(p.domain_attributes) : '{}',
+      p.discount_percent ?? null,
+      p.discount_flat ?? null,
+      p.offer_price ?? null,
       p.is_deleted ?? 0,
       p.product_id
     );

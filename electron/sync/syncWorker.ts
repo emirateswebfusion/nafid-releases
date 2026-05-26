@@ -186,11 +186,13 @@ async function pullProducts(token: string) {
         product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
+        discount_percent, discount_flat, offer_price,
         sync_status
       ) VALUES (
         @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
         @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
         @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
+        @discount_percent, @discount_flat, @offer_price,
         'SYNCED'
       )
       ON CONFLICT(product_id) DO UPDATE SET
@@ -209,6 +211,9 @@ async function pullProducts(token: string) {
         reorder_level = excluded.reorder_level,
         is_deleted = excluded.is_deleted,
         domain_attributes = excluded.domain_attributes,
+        discount_percent = excluded.discount_percent,
+        discount_flat = excluded.discount_flat,
+        offer_price = excluded.offer_price,
         sync_status = 'SYNCED'
       WHERE products.sync_status != 'PENDING'
     `);
@@ -233,6 +238,9 @@ async function pullProducts(token: string) {
           reorder_level: p.reorder_level ?? 0,
           is_deleted: p.is_deleted ? 1 : 0,
           domain_attributes: p.domain_attributes ? JSON.stringify(p.domain_attributes) : '{}',
+          discount_percent: p.discount_percent ?? null,
+          discount_flat: p.discount_flat ?? null,
+          offer_price: p.offer_price ?? null,
         });
       }
     });
