@@ -17,6 +17,7 @@ import { PrintReceiptView } from './components/PrintReceiptView';
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
   const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
+  const [printBarcodeSp, setPrintBarcodeSp] = useState<string | null>(null);
   const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
   const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
   const [printBarcodeColumns, setPrintBarcodeColumns] = useState<number>(1);
@@ -29,6 +30,9 @@ function App() {
       
       const paramPrice = urlParams.get('price');
       setPrintBarcodePrice(paramPrice !== null ? paramPrice : localStorage.getItem('printBarcodePrice'));
+      
+      const paramSp = urlParams.get('sp');
+      setPrintBarcodeSp(paramSp !== null ? paramSp : localStorage.getItem('printBarcodeSp'));
       
       const paramName = urlParams.get('name');
       setPrintBarcodeName(paramName !== null ? paramName : localStorage.getItem('printBarcodeName'));
@@ -122,7 +126,7 @@ function App() {
   }, [addItem]);
 
   if (printBarcodeData) {
-    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} />;
+    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} />;
   }
 
   if (printReceiptData) {

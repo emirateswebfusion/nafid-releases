@@ -205,9 +205,26 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     
     if (window.electronAPI) {
       // Fallback for hot-reloading without electron restart
+      let sp: number | undefined;
+      if (formData.offer_price) {
+        sp = Number(formData.offer_price);
+      } else if (formData.discount_flat) {
+        sp = (formData.base_price || 0) - Number(formData.discount_flat);
+      } else if (formData.discount_percent) {
+        sp = (formData.base_price || 0) * (1 - Number(formData.discount_percent) / 100);
+      }
+      if (sp !== undefined && sp === formData.base_price) {
+         sp = undefined;
+      }
+      
       localStorage.setItem('printBarcodePrice', formData.base_price.toString());
+      if (sp !== undefined) {
+        localStorage.setItem('printBarcodeSp', sp.toString());
+      } else {
+        localStorage.removeItem('printBarcodeSp');
+      }
       localStorage.setItem('printBarcodeName', formData.name);
-      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name, printQuantity);
+      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name, printQuantity, sp);
       if (res.success) {
         setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
       } else {
