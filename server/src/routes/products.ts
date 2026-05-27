@@ -12,7 +12,8 @@ router.get('/', async (req: Request, res: Response) => {
   try {
     const products = await withTenantContext(req.auth!.tenant_id, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM products WHERE is_deleted = false ORDER BY name ASC`
+        `SELECT * FROM products WHERE is_deleted = false AND tenant_id = $1 ORDER BY name ASC`,
+        [req.auth!.tenant_id]
       );
       return rows;
     });
@@ -27,8 +28,8 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const products = await withTenantContext(req.auth!.tenant_id, async (client) => {
       const { rows } = await client.query(
-        `SELECT * FROM products WHERE product_id = $1`,
-        [req.params.id]
+        `SELECT * FROM products WHERE product_id = $1 AND tenant_id = $2`,
+        [req.params.id, req.auth!.tenant_id]
       );
       return rows;
     });
@@ -96,7 +97,7 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
           uom=$9, brand_manufacturer=$10, current_stock=$11, reorder_level=$12,
           domain_attributes=$13, discount_percent=$16, discount_flat=$17, offer_price=$18,
           updated_at=NOW()
-        WHERE product_id=$14
+        WHERE product_id=$14 AND tenant_id=$19
         RETURNING *`,
         [
           name, sku_barcode, category, hsn_sac_code,
@@ -104,7 +105,8 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
           uom, brand_manufacturer, current_stock, reorder_level,
           domain_attributes ? JSON.stringify(domain_attributes) : null,
           req.params.id, item_code,
-          discount_percent ?? null, discount_flat ?? null, offer_price ?? null
+          discount_percent ?? null, discount_flat ?? null, offer_price ?? null,
+          req.auth!.tenant_id
         ]
       );
       return rows[0];
@@ -120,7 +122,7 @@ router.put('/:id', requireOwner, async (req: Request, res: Response) => {
 router.delete('/:id', requireOwner, async (req: Request, res: Response) => {
   try {
     await withTenantContext(req.auth!.tenant_id, async (client) => {
-      await client.query('UPDATE products SET is_deleted = true, updated_at = NOW() WHERE product_id = $1', [req.params.id]);
+      await client.query('UPDATE products SET is_deleted = true, updated_at = NOW() WHERE product_id = $1 AND tenant_id = $2', [req.params.id, req.auth!.tenant_id]);
     });
     return res.json({ success: true });
   } catch (err: any) {

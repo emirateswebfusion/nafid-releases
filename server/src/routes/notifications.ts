@@ -30,8 +30,8 @@ router.patch('/:id/read', async (req: Request, res: Response) => {
   try {
     await withTenantContext(req.auth!.tenant_id, async (client) => {
       await client.query(
-        `UPDATE notifications SET is_read = true WHERE notification_id = $1`,
-        [req.params.id]
+        `UPDATE notifications SET is_read = true WHERE notification_id = $1 AND tenant_id = $2`,
+        [req.params.id, req.auth!.tenant_id]
       );
     });
     return res.json({ success: true });

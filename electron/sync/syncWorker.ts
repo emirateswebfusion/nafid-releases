@@ -12,7 +12,10 @@ function notifyRenderer() {
 
 const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1'); // Default 1 minute
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINS * 60 * 1000;
-const CLOUD_API_BASE = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+
+function getCloudApiBase() {
+  return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+}
 
 function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
   try {
@@ -60,8 +63,8 @@ async function runSyncCycle() {
   // 1. Push local changes up (products first so stock/notifications are current)
   // 2. Pull latest data down from cloud (ensures new devices get caught up)
   try {
-    await syncProducts(config.jwt_token);
-    await syncInvoices(config.jwt_token);
+    await syncProducts(config.jwt_token, config.tenant_id);
+    await syncInvoices(config.jwt_token, config.tenant_id);
     await pullProducts(config.jwt_token);
     await pullInvoices(config.jwt_token);
     await pullUsers(config.jwt_token);
@@ -74,9 +77,9 @@ async function runSyncCycle() {
 // Pushes all products with sync_status = 'PENDING' to the cloud.
 // This includes stock changes from checkouts, new products, and edits.
 // The cloud endpoint triggers low-stock notifications if current_stock <= reorder_level.
-async function syncProducts(token: string) {
+async function syncProducts(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING'`).all() as any[];
+  const pending = db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} products to cloud...`);
@@ -89,7 +92,7 @@ async function syncProducts(token: string) {
       domain_attributes: (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })(),
     }));
 
-    const response = await fetch(`${CLOUD_API_BASE}/api/sync/products`, {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/products`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ products }),
@@ -104,8 +107,8 @@ async function syncProducts(token: string) {
     console.log(`[SyncWorker] Product sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
 
     if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ?`);
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
       tx(result.synced);
     }
   } catch (err: any) {
@@ -115,22 +118,22 @@ async function syncProducts(token: string) {
 
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 // Pushes invoices with sync_status = 'PENDING' along with their line items.
-async function syncInvoices(token: string) {
+async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pendingInvoices = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING'`).all() as any[];
+  const pendingInvoices = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pendingInvoices.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pendingInvoices.length} invoices to cloud...`);
 
   // Attach line items to each invoice
-  const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`);
+  const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?`);
   const invoicesWithItems = pendingInvoices.map((inv: any) => ({
     ...inv,
-    items: getItems.all(inv.invoice_id),
+    items: getItems.all(inv.invoice_id, tenantId),
   }));
 
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/api/sync/invoices`, {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/invoices`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ invoices: invoicesWithItems }),
@@ -145,8 +148,8 @@ async function syncInvoices(token: string) {
     console.log(`[SyncWorker] Invoice sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
 
     if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ?`);
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
+      const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND tenant_id = ?`);
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
       tx(result.synced);
     }
   } catch (err: any) {
@@ -164,7 +167,7 @@ async function pullProducts(token: string) {
   const db = getDb();
 
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/api/products`, {
+    const response = await fetch(`${getCloudApiBase()}/api/products`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -220,28 +223,46 @@ async function pullProducts(token: string) {
 
     const tx = db.transaction((products: any[]) => {
       for (const p of products) {
-        upsert.run({
-          product_id: p.product_id,
-          tenant_id: tenantId,
-          name: p.name,
-          sku_barcode: p.sku_barcode || null,
-          item_code: p.item_code || null,
-          category: p.category || null,
-          hsn_sac_code: p.hsn_sac_code || null,
-          purchase_price: p.purchase_price ?? 0,
-          base_price: p.base_price,
-          is_gst_applicable: 1,
-          tax_rate_percent: p.tax_rate_percent ?? 0,
-          uom: p.uom || 'Pcs',
-          brand_manufacturer: p.brand_manufacturer || null,
-          current_stock: p.current_stock ?? 0,
-          reorder_level: p.reorder_level ?? 0,
-          is_deleted: p.is_deleted ? 1 : 0,
-          domain_attributes: p.domain_attributes ? JSON.stringify(p.domain_attributes) : '{}',
-          discount_percent: p.discount_percent ?? null,
-          discount_flat: p.discount_flat ?? null,
-          offer_price: p.offer_price ?? null,
-        });
+        let currentP = { ...p };
+        let retryCount = 0;
+        let success = false;
+        while (retryCount < 2 && !success) {
+          try {
+            upsert.run({
+              product_id: currentP.product_id,
+              tenant_id: tenantId,
+              name: currentP.name,
+              sku_barcode: currentP.sku_barcode || null,
+              item_code: currentP.item_code || null,
+              category: currentP.category || null,
+              hsn_sac_code: currentP.hsn_sac_code || null,
+              purchase_price: currentP.purchase_price ?? 0,
+              base_price: currentP.base_price,
+              is_gst_applicable: currentP.is_gst_applicable === false ? 0 : 1,
+              tax_rate_percent: currentP.tax_rate_percent ?? 0,
+              uom: currentP.uom || 'Pcs',
+              brand_manufacturer: currentP.brand_manufacturer || null,
+              current_stock: currentP.current_stock ?? 0,
+              reorder_level: currentP.reorder_level ?? 0,
+              is_deleted: currentP.is_deleted ? 1 : 0,
+              domain_attributes: currentP.domain_attributes ? JSON.stringify(currentP.domain_attributes) : '{}',
+              discount_percent: currentP.discount_percent ?? null,
+              discount_flat: currentP.discount_flat ?? null,
+              offer_price: currentP.offer_price ?? null,
+            });
+            success = true;
+          } catch (e: any) {
+            if (e.message?.includes('UNIQUE constraint failed')) {
+              const suffix = currentP.product_id.substring(0, 4).toUpperCase();
+              if (e.message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
+              if (e.message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
+              if (e.message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
+              retryCount++;
+            } else {
+              throw e;
+            }
+          }
+        }
       }
     });
 
@@ -260,7 +281,7 @@ async function pullInvoices(token: string) {
   const db = getDb();
 
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/api/sync/invoices`, {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/invoices`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
     });
@@ -277,13 +298,14 @@ async function pullInvoices(token: string) {
       INSERT INTO invoices (
         invoice_id, tenant_id, invoice_number, invoice_type,
         customer_name, customer_phone, subtotal, tax_total,
-        discount_total, grand_total, user_id, sync_status, created_at
+        discount_total, grand_total, payment_method, user_id, sync_status, created_at
       ) VALUES (
         @invoice_id, @tenant_id, @invoice_number, @invoice_type,
         @customer_name, @customer_phone, @subtotal, @tax_total,
-        @discount_total, @grand_total, @user_id, 'SYNCED', @created_at
+        @discount_total, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at
       )
       ON CONFLICT(invoice_id) DO UPDATE SET
+        payment_method = EXCLUDED.payment_method,
         user_id = EXCLUDED.user_id,
         sync_status = 'SYNCED'
     `);
@@ -291,38 +313,61 @@ async function pullInvoices(token: string) {
     const upsertItem = db.prepare(`
       INSERT INTO invoice_items (
         item_id, invoice_id, tenant_id, product_id,
-        quantity, unit_price, tax_amount, total
+        name, quantity, unit_price, tax_amount, total
       ) VALUES (
         @item_id, @invoice_id, @tenant_id, @product_id,
-        @quantity, @unit_price, @tax_amount, @total
+        @name, @quantity, @unit_price, @tax_amount, @total
       )
-      ON CONFLICT(item_id) DO NOTHING
+      ON CONFLICT(item_id) DO UPDATE SET
+        name = excluded.name,
+        quantity = excluded.quantity,
+        unit_price = excluded.unit_price,
+        tax_amount = excluded.tax_amount,
+        total = excluded.total
     `);
 
     const tx = db.transaction((invoices: any[]) => {
       for (const inv of invoices) {
-        upsertInv.run({
-          invoice_id: inv.invoice_id,
-          tenant_id: inv.tenant_id,
-          invoice_number: inv.invoice_number,
-          invoice_type: inv.invoice_type,
-          customer_name: inv.customer_name || null,
-          customer_phone: inv.customer_phone || null,
-          subtotal: inv.subtotal,
-          tax_total: inv.tax_total,
-          discount_total: inv.discount_total ?? 0,
-          grand_total: inv.grand_total,
-          user_id: inv.user_id || null,
-          created_at: inv.created_at,
-        });
+        let currentInv = { ...inv };
+        let retryCount = 0;
+        let success = false;
+        while (retryCount < 2 && !success) {
+          try {
+            upsertInv.run({
+              invoice_id: currentInv.invoice_id,
+              tenant_id: currentInv.tenant_id,
+              invoice_number: currentInv.invoice_number,
+              invoice_type: currentInv.invoice_type,
+              customer_name: currentInv.customer_name || null,
+              customer_phone: currentInv.customer_phone || null,
+              subtotal: currentInv.subtotal,
+              tax_total: currentInv.tax_total,
+              discount_total: currentInv.discount_total ?? 0,
+              grand_total: currentInv.grand_total,
+              payment_method: currentInv.payment_method || 'CASH',
+              user_id: currentInv.user_id || null,
+              created_at: currentInv.created_at,
+            });
+            success = true;
+          } catch (e: any) {
+            if (e.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
+              const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
+              currentInv.invoice_number = `${currentInv.invoice_number}-C${suffix}`;
+              retryCount++;
+            } else {
+              throw e;
+            }
+          }
+        }
 
-        if (Array.isArray(inv.items)) {
-          for (const item of inv.items) {
+        if (success && Array.isArray(currentInv.items)) {
+          for (const item of currentInv.items) {
             upsertItem.run({
               item_id: item.item_id,
-              invoice_id: inv.invoice_id,
-              tenant_id: inv.tenant_id,
+              invoice_id: currentInv.invoice_id,
+              tenant_id: currentInv.tenant_id,
               product_id: item.product_id,
+              name: item.name || null,
               quantity: item.quantity,
               unit_price: item.unit_price,
               tax_amount: item.tax_amount,
@@ -347,7 +392,7 @@ async function pullUsers(token: string) {
   const db = getDb();
 
   try {
-    const response = await fetch(`${CLOUD_API_BASE}/auth/staff`, {
+    const response = await fetch(`${getCloudApiBase()}/auth/staff`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
     });

@@ -23,46 +23,78 @@ router.post('/invoices', async (req: Request, res: Response) => {
   const failed: { invoice_id: string; error: string }[] = [];
 
   for (const inv of invoices) {
-    try {
-      await withTenantContext(req.auth!.tenant_id, async (client) => {
-        // 1. Upsert invoice header — idempotent on (tenant_id, invoice_number)
-        const { rowCount } = await client.query(
-          `INSERT INTO invoices (
-            invoice_id, tenant_id, invoice_number, invoice_type,
-            customer_name, customer_phone, subtotal, tax_total,
-            discount_total, grand_total, user_id, created_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-          ON CONFLICT (tenant_id, invoice_number) DO NOTHING`,
-          [
-            inv.invoice_id, req.auth!.tenant_id, inv.invoice_number,
-            inv.invoice_type, inv.customer_name, inv.customer_phone,
-            inv.subtotal, inv.tax_total, inv.discount_total ?? 0,
-            inv.grand_total, inv.user_id, inv.created_at ?? new Date()
-          ]
-        );
+    let currentInv = { ...inv };
+    let retryCount = 0;
+    let success = false;
 
-        // Only insert items if this is a new invoice (not a duplicate)
-        if (rowCount && rowCount > 0 && Array.isArray(inv.items)) {
-          for (const item of inv.items) {
-            // 2. Insert invoice line item
-            await client.query(
-              `INSERT INTO invoice_items (
-                item_id, invoice_id, tenant_id, product_id,
-                quantity, unit_price, tax_amount, total
-              ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-              ON CONFLICT (item_id) DO NOTHING`,
-              [
-                item.item_id, inv.invoice_id, req.auth!.tenant_id,
-                item.product_id, item.quantity, item.unit_price,
-                item.tax_amount, item.total
-              ]
-            );
+    while (retryCount < 2 && !success) {
+      try {
+        await withTenantContext(req.auth!.tenant_id, async (client) => {
+          // 1. Upsert invoice header — idempotent on invoice_id
+          const { rowCount } = await client.query(
+            `INSERT INTO invoices (
+              invoice_id, tenant_id, invoice_number, invoice_type,
+              customer_name, customer_phone, subtotal, tax_total,
+              discount_total, grand_total, payment_method, user_id, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+            ON CONFLICT (invoice_id) DO UPDATE SET
+              customer_name = EXCLUDED.customer_name,
+              customer_phone = EXCLUDED.customer_phone,
+              subtotal = EXCLUDED.subtotal,
+              tax_total = EXCLUDED.tax_total,
+              discount_total = EXCLUDED.discount_total,
+              grand_total = EXCLUDED.grand_total,
+              payment_method = EXCLUDED.payment_method,
+              invoice_type = EXCLUDED.invoice_type
+            WHERE invoices.tenant_id = EXCLUDED.tenant_id`,
+            [
+              currentInv.invoice_id, req.auth!.tenant_id, currentInv.invoice_number,
+              currentInv.invoice_type, currentInv.customer_name, currentInv.customer_phone,
+              currentInv.subtotal, currentInv.tax_total, currentInv.discount_total ?? 0,
+              currentInv.grand_total, currentInv.payment_method ?? 'CASH', currentInv.user_id, currentInv.created_at ?? new Date()
+            ]
+          );
+
+          if (Array.isArray(currentInv.items)) {
+            for (const item of currentInv.items) {
+              // 2. Insert invoice line item
+              await client.query(
+                `INSERT INTO invoice_items (
+                  item_id, invoice_id, tenant_id, product_id,
+                  name, quantity, unit_price, tax_amount, total
+                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+                ON CONFLICT (item_id) DO UPDATE SET
+                  name = EXCLUDED.name,
+                  quantity = EXCLUDED.quantity,
+                  unit_price = EXCLUDED.unit_price,
+                  tax_amount = EXCLUDED.tax_amount,
+                  total = EXCLUDED.total
+                WHERE invoice_items.tenant_id = EXCLUDED.tenant_id`,
+                [
+                  item.item_id, currentInv.invoice_id, req.auth!.tenant_id,
+                  item.product_id, item.name, item.quantity, item.unit_price,
+                  item.tax_amount, item.total
+                ]
+              );
+            }
           }
+        });
+        synced.push(currentInv.invoice_id);
+        success = true;
+      } catch (err: any) {
+        if (err.code === '23505' && err.constraint === 'uq_invoice_number_tenant') {
+          // Auto-resolve invoice number collision
+          const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
+          currentInv.invoice_number = `${currentInv.invoice_number}-${suffix}`;
+          retryCount++;
+        } else {
+          failed.push({ invoice_id: currentInv.invoice_id, error: err.message });
+          break; // Stop retrying on non-unique constraint errors
         }
-      });
-      synced.push(inv.invoice_id);
-    } catch (err: any) {
-      failed.push({ invoice_id: inv.invoice_id, error: err.message });
+      }
+    }
+    if (!success && retryCount >= 2) {
+      failed.push({ invoice_id: currentInv.invoice_id, error: 'Max retries reached for unique constraint resolution' });
     }
   }
 
@@ -137,53 +169,74 @@ router.post('/products', async (req: Request, res: Response) => {
   const failed: { product_id: string; error: string }[] = [];
 
   for (const p of products) {
-    try {
-      await withTenantContext(req.auth!.tenant_id, async (client) => {
-        await client.query(
-          `INSERT INTO products (
-            product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
-            purchase_price, base_price, tax_rate_percent, uom,
-            brand_manufacturer, current_stock, reorder_level, domain_attributes,
-            discount_percent, discount_flat, offer_price, is_deleted
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-          ON CONFLICT (product_id) DO UPDATE SET
-            name = EXCLUDED.name,
-            sku_barcode = EXCLUDED.sku_barcode,
-            item_code = EXCLUDED.item_code,
-            category = EXCLUDED.category,
-            hsn_sac_code = EXCLUDED.hsn_sac_code,
-            purchase_price = EXCLUDED.purchase_price,
-            base_price = EXCLUDED.base_price,
-            tax_rate_percent = EXCLUDED.tax_rate_percent,
-            uom = EXCLUDED.uom,
-            brand_manufacturer = EXCLUDED.brand_manufacturer,
-            current_stock = EXCLUDED.current_stock,
-            reorder_level = EXCLUDED.reorder_level,
-            domain_attributes = EXCLUDED.domain_attributes,
-            discount_percent = EXCLUDED.discount_percent,
-            discount_flat = EXCLUDED.discount_flat,
-            offer_price = EXCLUDED.offer_price,
-            is_deleted = EXCLUDED.is_deleted,
-            updated_at = NOW()`,
-          [
-            p.product_id, req.auth!.tenant_id, p.name, p.sku_barcode, p.item_code, p.category,
-            p.hsn_sac_code, p.purchase_price ?? 0, p.base_price, p.tax_rate_percent ?? 0,
-            p.uom ?? 'Pcs', p.brand_manufacturer, p.current_stock ?? 0,
-            p.reorder_level ?? 0,
-            p.domain_attributes ? JSON.stringify(p.domain_attributes) : null,
-            p.discount_percent ?? null, p.discount_flat ?? null, p.offer_price ?? null,
-            p.is_deleted ?? false
-          ]
-        );
+    let currentP = { ...p };
+    let retryCount = 0;
+    let success = false;
 
-        // Check for low stock — send alert if at or below reorder level
-        if ((p.current_stock ?? 0) <= (p.reorder_level ?? 0) && (p.reorder_level ?? 0) > 0) {
-          await sendLowStockAlert(req.auth!.tenant_id, p);
+    while (retryCount < 2 && !success) {
+      try {
+        await withTenantContext(req.auth!.tenant_id, async (client) => {
+          await client.query(
+            `INSERT INTO products (
+              product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
+              purchase_price, base_price, is_gst_applicable, tax_rate_percent, uom,
+              brand_manufacturer, current_stock, reorder_level, domain_attributes,
+              discount_percent, discount_flat, offer_price, is_deleted
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+            ON CONFLICT (product_id) DO UPDATE SET
+              name = EXCLUDED.name,
+              sku_barcode = EXCLUDED.sku_barcode,
+              item_code = EXCLUDED.item_code,
+              category = EXCLUDED.category,
+              hsn_sac_code = EXCLUDED.hsn_sac_code,
+              purchase_price = EXCLUDED.purchase_price,
+              base_price = EXCLUDED.base_price,
+              is_gst_applicable = EXCLUDED.is_gst_applicable,
+              tax_rate_percent = EXCLUDED.tax_rate_percent,
+              uom = EXCLUDED.uom,
+              brand_manufacturer = EXCLUDED.brand_manufacturer,
+              current_stock = EXCLUDED.current_stock,
+              reorder_level = EXCLUDED.reorder_level,
+              domain_attributes = EXCLUDED.domain_attributes,
+              discount_percent = EXCLUDED.discount_percent,
+              discount_flat = EXCLUDED.discount_flat,
+              offer_price = EXCLUDED.offer_price,
+              is_deleted = EXCLUDED.is_deleted,
+              updated_at = NOW()
+            WHERE products.tenant_id = EXCLUDED.tenant_id`,
+            [
+              currentP.product_id, req.auth!.tenant_id, currentP.name, currentP.sku_barcode, currentP.item_code, currentP.category,
+              currentP.hsn_sac_code, currentP.purchase_price ?? 0, currentP.base_price, currentP.is_gst_applicable ?? true, currentP.tax_rate_percent ?? 0,
+              currentP.uom ?? 'Pcs', currentP.brand_manufacturer, currentP.current_stock ?? 0,
+              currentP.reorder_level ?? 0,
+              currentP.domain_attributes ? JSON.stringify(currentP.domain_attributes) : null,
+              currentP.discount_percent ?? null, currentP.discount_flat ?? null, currentP.offer_price ?? null,
+              currentP.is_deleted ?? false
+            ]
+          );
+
+          // Check for low stock — send alert if at or below reorder level
+          if ((currentP.current_stock ?? 0) <= (currentP.reorder_level ?? 0) && (currentP.reorder_level ?? 0) > 0) {
+            await sendLowStockAlert(req.auth!.tenant_id, currentP);
+          }
+        });
+        synced.push(currentP.product_id);
+        success = true;
+      } catch (err: any) {
+        if (err.code === '23505' && (err.constraint === 'uq_product_name_tenant' || err.constraint === 'uq_product_sku_tenant' || err.constraint === 'uq_product_item_code_tenant')) {
+          const suffix = currentP.product_id.substring(0, 4).toUpperCase();
+          if (err.constraint === 'uq_product_name_tenant') currentP.name = `${currentP.name} (${suffix})`;
+          if (err.constraint === 'uq_product_sku_tenant') currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
+          if (err.constraint === 'uq_product_item_code_tenant') currentP.item_code = `${currentP.item_code}-${suffix}`;
+          retryCount++;
+        } else {
+          failed.push({ product_id: currentP.product_id, error: err.message });
+          break;
         }
-      });
-      synced.push(p.product_id);
-    } catch (err: any) {
-      failed.push({ product_id: p.product_id, error: err.message });
+      }
+    }
+    if (!success && retryCount >= 2) {
+      failed.push({ product_id: currentP.product_id, error: 'Max retries reached for unique constraint resolution' });
     }
   }
 

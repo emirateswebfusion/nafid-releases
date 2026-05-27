@@ -22,7 +22,7 @@ export function ActionPane() {
 
     if (window.electronAPI) {
       const invoice_id = uuidv4();
-      const invoice_number = `INV-${Date.now()}`;
+      const invoice_number = `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
 
       const lineItems = items.map((item) => {
         const taxAmount = invoiceType === 'GST'
