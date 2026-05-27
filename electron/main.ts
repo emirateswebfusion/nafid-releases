@@ -279,6 +279,20 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
   }
 });
 
+ipcMain.handle('db:adjustStock', (event, { product_id, delta }) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE products 
+      SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE product_id = ?
+    `).run(delta, product_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('db:checkout', (event, payload) => {
   const { items, ...invoice } = payload;
   const db = getDb();
