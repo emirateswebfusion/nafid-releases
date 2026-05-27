@@ -65,6 +65,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [printQuantity, setPrintQuantity] = useState(1);
+  const [printPrice, setPrintPrice] = useState(true);
 
   // Load products on mount
   useEffect(() => {
@@ -216,15 +217,27 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       if (sp !== undefined && sp === formData.base_price) {
          sp = undefined;
       }
-      
-      localStorage.setItem('printBarcodePrice', formData.base_price.toString());
-      if (sp !== undefined) {
-        localStorage.setItem('printBarcodeSp', sp.toString());
+      if (printPrice) {
+        localStorage.setItem('printBarcodePrice', formData.base_price.toString());
+        if (sp !== undefined) {
+          localStorage.setItem('printBarcodeSp', sp.toString());
+        } else {
+          localStorage.removeItem('printBarcodeSp');
+        }
       } else {
+        localStorage.removeItem('printBarcodePrice');
         localStorage.removeItem('printBarcodeSp');
       }
       localStorage.setItem('printBarcodeName', formData.name);
-      const res = await window.electronAPI.printBarcode(tenantId || 'global', formData.sku_barcode, formData.base_price, formData.name, printQuantity, sp);
+
+      const res = await window.electronAPI.printBarcode(
+        tenantId || 'global', 
+        formData.sku_barcode, 
+        printPrice ? formData.base_price : undefined, 
+        formData.name, 
+        printQuantity, 
+        printPrice ? sp : undefined
+      );
       if (res.success) {
         setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
       } else {
@@ -619,6 +632,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     onChange={e => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))} 
                     className="w-12 bg-transparent text-foreground focus:outline-none text-center font-bold" 
                   />
+                </div>
+                <div className="flex items-center gap-2 bg-muted rounded-xl p-1 px-3 border border-border">
+                  <input 
+                    type="checkbox" 
+                    id="print_price" 
+                    checked={printPrice} 
+                    onChange={e => setPrintPrice(e.target.checked)} 
+                    className="w-4 h-4 accent-primary rounded cursor-pointer" 
+                  />
+                  <label htmlFor="print_price" className="text-muted-foreground text-sm font-semibold cursor-pointer select-none whitespace-nowrap">Show Price</label>
                 </div>
                 <button onClick={printBarcode} className="px-6 py-3 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm">
                   <Printer className="w-5 h-5" />
