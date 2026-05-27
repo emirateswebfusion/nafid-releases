@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import Barcode from 'react-barcode';
 
-export function PrintBarcodeView({ barcode, price, sp, name, quantity = 1, columns = 1 }: { barcode: string; price?: number; sp?: number; name?: string; quantity?: number; columns?: number }) {
+export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1 }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number }) {
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
   };
@@ -32,7 +32,7 @@ export function PrintBarcodeView({ barcode, price, sp, name, quantity = 1, colum
                   <div style={{ fontWeight: 'bold', fontSize: '12px', color: 'black', whiteSpace: 'nowrap' }}>
                     MRP ₹{formatPrice(price)}
                     {sp !== undefined && !isNaN(sp) && (
-                      <span style={{ marginLeft: '3ch' }}>SP ₹{formatPrice(sp)}</span>
+                      <span style={{ marginLeft: '3ch' }}>{spType} ₹{formatPrice(sp)}</span>
                     )}
                   </div>
                 </div>

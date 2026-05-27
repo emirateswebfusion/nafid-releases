@@ -207,12 +207,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     if (window.electronAPI) {
       // Fallback for hot-reloading without electron restart
       let sp: number | undefined;
+      let spType: 'SP' | 'OFF' = 'SP';
       if (formData.offer_price) {
         sp = Number(formData.offer_price);
+        spType = 'OFF';
       } else if (formData.discount_flat) {
         sp = (formData.base_price || 0) - Number(formData.discount_flat);
+        spType = 'SP';
       } else if (formData.discount_percent) {
         sp = (formData.base_price || 0) * (1 - Number(formData.discount_percent) / 100);
+        spType = 'SP';
       }
       if (sp !== undefined && sp === formData.base_price) {
          sp = undefined;
@@ -221,12 +225,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         localStorage.setItem('printBarcodePrice', formData.base_price.toString());
         if (sp !== undefined) {
           localStorage.setItem('printBarcodeSp', sp.toString());
+          localStorage.setItem('printBarcodeSpType', spType);
         } else {
           localStorage.removeItem('printBarcodeSp');
+          localStorage.removeItem('printBarcodeSpType');
         }
       } else {
         localStorage.removeItem('printBarcodePrice');
         localStorage.removeItem('printBarcodeSp');
+        localStorage.removeItem('printBarcodeSpType');
       }
       localStorage.setItem('printBarcodeName', formData.name);
 
@@ -236,7 +243,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         printPrice ? formData.base_price : undefined, 
         formData.name, 
         printQuantity, 
-        printPrice ? sp : undefined
+        printPrice ? sp : undefined,
+        printPrice ? spType : undefined
       );
       if (res.success) {
         setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
