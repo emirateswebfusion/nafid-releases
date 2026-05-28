@@ -66,6 +66,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [printQuantity, setPrintQuantity] = useState(1);
   const [printPrice, setPrintPrice] = useState(true);
+  const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
 
   // Load products on mount
   useEffect(() => {
@@ -259,9 +260,71 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const printProductLabel = async (p: Product) => {
+    if (!p.sku_barcode) return;
+    setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
+    
+    if (window.electronAPI) {
+      let sp: number | undefined;
+      let spType: 'SP' | 'OFF' = 'SP';
+      if (p.offer_price) {
+        sp = Number(p.offer_price);
+        spType = 'OFF';
+      } else if (p.discount_flat) {
+        sp = (p.base_price || 0) - Number(p.discount_flat);
+        spType = 'SP';
+      } else if (p.discount_percent) {
+        sp = (p.base_price || 0) * (1 - Number(p.discount_percent) / 100);
+        spType = 'SP';
+      }
+      if (sp !== undefined && sp === p.base_price) {
+         sp = undefined;
+      }
+      if (printPrice) {
+        localStorage.setItem('printBarcodePrice', p.base_price.toString());
+        if (sp !== undefined) {
+          localStorage.setItem('printBarcodeSp', sp.toString());
+          localStorage.setItem('printBarcodeSpType', spType);
+        } else {
+          localStorage.removeItem('printBarcodeSp');
+          localStorage.removeItem('printBarcodeSpType');
+        }
+      } else {
+        localStorage.removeItem('printBarcodePrice');
+        localStorage.removeItem('printBarcodeSp');
+        localStorage.removeItem('printBarcodeSpType');
+      }
+      localStorage.setItem('printBarcodeName', p.name);
+
+      const res = await window.electronAPI.printBarcode(
+        tenantId || 'global', 
+        p.sku_barcode, 
+        printPrice ? p.base_price : undefined, 
+        p.name, 
+        printQuantity, 
+        printPrice ? sp : undefined,
+        printPrice ? spType : undefined
+      );
+      if (res.success) {
+        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
+        setTimeout(() => setPrintModalProduct(null), 2000);
+      } else {
+        setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
+      }
+      
+      setTimeout(() => setStatusMessage(null), 3000);
+    } else {
+      setStatusMessage({ text: 'Print command dispatched (mock)', type: 'success' });
+      setTimeout(() => {
+        setPrintModalProduct(null);
+        setStatusMessage(null);
+      }, 2000);
+    }
+  };
+
   const handleSave = async () => {
     if (!formData.name || !formData.sku_barcode || formData.base_price <= 0) {
-      alert('Please fill in Name, Barcode, and a valid Selling Price.');
+      alert('Please fill in Name, Barcode, and a valid MRP.');
       return;
     }
     setLoading(true);
@@ -355,9 +418,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-2 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0 bg-muted/5">
               <div className="col-span-4">Product</div>
-              <div className="col-span-1 text-center">UOM</div>
+              <div className="col-span-1 text-center">Unit</div>
               <div className="col-span-2 text-right">Purchase</div>
-              <div className="col-span-2 text-right">Selling</div>
+              <div className="col-span-2 text-right">MRP</div>
               <div className="col-span-2 text-center">Stock</div>
               <div className="col-span-1 text-center">Actions</div>
             </div>
@@ -409,6 +472,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
                     {/* Actions */}
                     <div className="col-span-1 flex items-center justify-center gap-2">
+                      <button onClick={() => { setPrintModalProduct(p); setPrintQuantity(1); setPrintPrice(true); }} className="p-2 text-muted-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors" title="Print Barcode">
+                        <Printer className="w-4 h-4" />
+                      </button>
                       <button onClick={() => openEdit(p)} className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors" title="Edit">
                         <Pencil className="w-4 h-4" />
                       </button>
@@ -425,7 +491,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             {products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
               <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-3 flex items-center gap-2 text-amber-600 text-sm">
                 <AlertTriangle className="w-5 h-5" />
-                <span className="font-semibold">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) are at or below reorder level</span>
+                <span className="font-semibold">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) are at or below Low Stock Alert</span>
               </div>
             )}
           </div>
@@ -486,9 +552,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 <div className="grid grid-cols-5 gap-5">
                   {[
                     { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
-                    { label: 'Selling Price *', field: 'base_price', prefix: '₹' },
+                    { label: 'MRP *', field: 'base_price', prefix: '₹' },
                     { label: 'Current Stock', field: 'current_stock' },
-                    { label: 'Reorder Level', field: 'reorder_level' },
+                    { label: 'Low Stock Alert', field: 'reorder_level' },
                   ].map(({ label, field, prefix }) => (
                     <div key={field}>
                       <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
@@ -504,7 +570,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     </div>
                   ))}
                   <div>
-                    <label className="block text-sm font-semibold text-muted-foreground mb-1.5">UOM</label>
+                    <label className="block text-sm font-semibold text-muted-foreground mb-1.5 whitespace-nowrap">Measuring Unit (UOM)</label>
                     <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none">
                       {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
@@ -520,7 +586,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-foreground">Discount</h4>
-                      <span className="text-xs text-muted-foreground">Applies to selling price</span>
+                      <span className="text-xs text-muted-foreground">Applies to MRP</span>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
@@ -552,7 +618,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
                     <div className="flex items-center justify-between">
                       <h4 className="font-semibold text-foreground">Offer</h4>
-                      <span className="text-xs text-muted-foreground">Overrides selling price</span>
+                      <span className="text-xs text-muted-foreground">Overrides MRP</span>
                     </div>
                     <div>
                       <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Final Offer Price (₹)</label>
@@ -664,6 +730,59 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+      
+      {printModalProduct && (
+        <Modal
+          isOpen={true}
+          onClose={() => setPrintModalProduct(null)}
+          title="Print Barcode Label"
+          className="max-w-md"
+        >
+          <div className="flex flex-col gap-6">
+             <div className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col items-center justify-center text-center">
+                <Barcode value={printModalProduct.sku_barcode} height={40} displayValue={false} margin={0} width={1.5} background="transparent" />
+                <p className="font-bold text-foreground mt-3">{printModalProduct.name}</p>
+                <p className="text-sm font-mono text-muted-foreground">{printModalProduct.sku_barcode}</p>
+             </div>
+             
+             <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Number of Labels</label>
+                  <input type="number" min="1" value={printQuantity} onChange={e => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
+                </div>
+                
+                <div className="flex items-center gap-3 bg-muted/10 border border-border p-4 rounded-xl hover:bg-muted/30 transition-colors">
+                  <input type="checkbox" id="modal_print_price" checked={printPrice} onChange={e => setPrintPrice(e.target.checked)} className="w-5 h-5 accent-primary rounded cursor-pointer" />
+                  <label htmlFor="modal_print_price" className="text-foreground font-semibold cursor-pointer select-none flex-1">
+                    Show Price on Label
+                  </label>
+                </div>
+             </div>
+             
+             <div className="flex justify-between items-center mt-2 border-t border-border pt-6">
+                <div className="flex-1">
+                  {statusMessage && (
+                    <div className={clsx(
+                      "px-4 py-2.5 rounded-xl text-sm font-bold text-center animate-pulse border",
+                      statusMessage.type === 'success' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
+                    )}>
+                      {statusMessage.text}
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-end gap-3 ml-4">
+                  <button onClick={() => { setPrintModalProduct(null); setStatusMessage(null); }} className="px-5 py-2.5 text-muted-foreground font-semibold hover:text-foreground transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={() => printProductLabel(printModalProduct)} className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold flex items-center gap-2 shadow-sm transition-all">
+                    <Printer className="w-5 h-5" />
+                    Print Labels
+                  </button>
+                </div>
+             </div>
+          </div>
+        </Modal>
+      )}
     </Modal>
   );
 }
