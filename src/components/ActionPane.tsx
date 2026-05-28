@@ -26,7 +26,7 @@ export function ActionPane() {
 
       const lineItems = items.map((item) => {
         const taxAmount = invoiceType === 'GST'
-          ? item.base_price * item.quantity * (item.tax_rate_percent / 100)
+          ? item.base_price * Number(item.quantity) * (item.tax_rate_percent / 100)
           : 0;
         return {
           item_id: uuidv4(),
@@ -35,7 +35,7 @@ export function ActionPane() {
           quantity: item.quantity,
           unit_price: item.base_price,
           tax_amount: taxAmount,
-          total: item.base_price * item.quantity + taxAmount,
+          total: item.base_price * Number(item.quantity) + taxAmount,
         };
       });
 
@@ -70,7 +70,7 @@ export function ActionPane() {
         
         items.forEach(item => {
           receiptText += `${item.name}\n`;
-          receiptText += `  ${item.quantity} x ${item.base_price.toFixed(2)} = ${(item.quantity * item.base_price).toFixed(2)}\n`;
+          receiptText += `  ${item.quantity} x ${item.base_price.toFixed(2)} = ${(Number(item.quantity) * item.base_price).toFixed(2)}\n`;
         });
         
         receiptText += `--------------------------------\n`;

@@ -193,7 +193,7 @@ export function CartPane() {
         ) : (
           <div className="divide-y divide-border">
             {items.map((item, index) => {
-              const itemTotal = item.base_price * item.quantity;
+              const itemTotal = item.base_price * Number(item.quantity);
               const isLastItem = index === items.length - 1;
 
               return (

@@ -1,11 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
-import { ShoppingBag, Users, Receipt, LayoutDashboard, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, Users, Receipt, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
-import { Button } from './ui/Button';
 
 export function OwnerDashboard() {
     const { shopName } = useAuthStore();

@@ -217,10 +217,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         sp = Number(formData.offer_price);
         spType = 'OFF';
       } else if (formData.discount_flat) {
-        sp = (formData.base_price || 0) - Number(formData.discount_flat);
+        sp = (Number(formData.base_price) || 0) - Number(formData.discount_flat);
         spType = 'SP';
       } else if (formData.discount_percent) {
-        sp = (formData.base_price || 0) * (1 - Number(formData.discount_percent) / 100);
+        sp = (Number(formData.base_price) || 0) * (1 - Number(formData.discount_percent) / 100);
         spType = 'SP';
       }
       if (sp !== undefined && sp === formData.base_price) {
@@ -245,14 +245,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const res = await window.electronAPI.printBarcode(
         tenantId || 'global', 
         formData.sku_barcode, 
-        printPrice ? formData.base_price : undefined, 
+        printPrice ? Number(formData.base_price) : undefined, 
         formData.name, 
         Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
         printPrice ? spType : undefined
       );
       if (res.success) {
-        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
+        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${Number(printQuantity) > 1 ? 's' : ''})!`, type: 'success' });
       } else {
         setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
       }
@@ -310,7 +310,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         printPrice ? spType : undefined
       );
       if (res.success) {
-        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${printQuantity > 1 ? 's' : ''})!`, type: 'success' });
+        setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${Number(printQuantity) > 1 ? 's' : ''})!`, type: 'success' });
         setTimeout(() => setPrintModalProduct(null), 2000);
       } else {
         setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
@@ -327,7 +327,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.sku_barcode || formData.base_price <= 0) {
+    if (!formData.name || !formData.sku_barcode || Number(formData.base_price) <= 0) {
       alert('Please fill in Name, Barcode, and a valid MRP.');
       return;
     }
