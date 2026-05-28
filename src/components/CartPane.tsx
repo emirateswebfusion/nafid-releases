@@ -219,7 +219,7 @@ export function CartPane() {
                       min="1"
                       className="w-20 text-center h-8 px-2"
                       value={item.quantity}
-                      onChange={(e) => updateQuantity(item.product_id, parseInt(e.target.value) || 1)}
+                      onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
                     />
                   </div>
                   <div className="col-span-2 text-right font-medium text-primary">

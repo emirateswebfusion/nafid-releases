@@ -66,10 +66,19 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           if (!res.success) throw new Error(res.error);
         }
 
+        // Format numbers correctly before saving
+        const formattedPrinter = {
+          ...printer,
+          port: Number(printer.port) || 9100,
+          labelWidthMm: Number(printer.labelWidthMm) || 50,
+          labelHeightMm: Number(printer.labelHeightMm) || 25,
+          labelColumns: Number(printer.labelColumns) || 1,
+        };
+
         const resPrinter = await window.electronAPI.settingsSet({ 
           tenant_id: tenantId || 'global', 
           key: 'printer_config', 
-          value: printer 
+          value: formattedPrinter 
         });
         if (!resPrinter.success) throw new Error(resPrinter.error);
         
@@ -225,9 +234,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Port</label>
                       <Input 
-                        type="number"
-                        value={printer.port}
-                        onChange={(e) => setPrinter({...printer, port: parseInt(e.target.value) || 9100})}
+                        type="text"
+                        inputMode="numeric"
+                        value={printer.port ?? 9100}
+                        onChange={(e) => setPrinter({...printer, port: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
                       />
                     </div>
                   </>
@@ -251,27 +261,28 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Width (mm)</label>
                       <Input 
-                        type="number"
-                        value={printer.labelWidthMm || 50}
-                        onChange={(e) => setPrinter({...printer, labelWidthMm: parseInt(e.target.value) || 50})}
+                        type="text"
+                        inputMode="numeric"
+                        value={printer.labelWidthMm ?? 50}
+                        onChange={(e) => setPrinter({...printer, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Height (mm)</label>
                       <Input 
-                        type="number"
-                        value={printer.labelHeightMm || 25}
-                        onChange={(e) => setPrinter({...printer, labelHeightMm: parseInt(e.target.value) || 25})}
+                        type="text"
+                        inputMode="numeric"
+                        value={printer.labelHeightMm ?? 25}
+                        onChange={(e) => setPrinter({...printer, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
                       />
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Columns</label>
                       <Input 
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={printer.labelColumns || 1}
-                        onChange={(e) => setPrinter({...printer, labelColumns: parseInt(e.target.value) || 1})}
+                        type="text"
+                        inputMode="numeric"
+                        value={printer.labelColumns ?? 1}
+                        onChange={(e) => setPrinter({...printer, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
                       />
                     </div>
                   </div>

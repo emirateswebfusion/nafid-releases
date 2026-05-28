@@ -7,7 +7,7 @@ export interface CartItem {
   base_price: number;
   purchase_price: number;
   tax_rate_percent: number;
-  quantity: number;
+  quantity: number | string;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -27,7 +27,7 @@ interface CartState {
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (productId: string) => void;
-  updateQuantity: (productId: string, quantity: number) => void;
+  updateQuantity: (productId: string, quantity: number | string) => void;
   setDiscount: (discount: number) => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
@@ -100,7 +100,7 @@ export const useCartTotals = () => {
   let totalTax = 0;
 
   items.forEach(item => {
-    const itemTotal = item.base_price * item.quantity;
+    const itemTotal = item.base_price * (Number(item.quantity) || 0);
     subtotal += itemTotal;
 
     if (invoiceType === 'GST') {

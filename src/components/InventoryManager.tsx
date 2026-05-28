@@ -38,10 +38,10 @@ const DEFAULT_FORM = {
   category: '',
   brand_manufacturer: '',
   uom: 'Pcs',
-  purchase_price: 0,
-  base_price: 0,
-  current_stock: 0,
-  reorder_level: 0,
+  purchase_price: '' as string | number,
+  base_price: '' as string | number,
+  current_stock: '' as string | number,
+  reorder_level: '' as string | number,
   is_gst_applicable: true,
   hsn_sac_code: '',
   tax_rate_percent: 0,
@@ -64,7 +64,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-  const [printQuantity, setPrintQuantity] = useState(1);
+  const [printQuantity, setPrintQuantity] = useState<number | string>(1);
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
 
@@ -103,10 +103,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       category: product.category || '',
       brand_manufacturer: product.brand_manufacturer || '',
       uom: product.uom || 'Pcs',
-      purchase_price: product.purchase_price || 0,
-      base_price: product.base_price,
-      current_stock: product.current_stock,
-      reorder_level: product.reorder_level,
+      purchase_price: product.purchase_price || '',
+      base_price: product.base_price || '',
+      current_stock: product.current_stock ?? '',
+      reorder_level: product.reorder_level ?? '',
       is_gst_applicable: product.is_gst_applicable === 1,
       hsn_sac_code: product.hsn_sac_code || '',
       tax_rate_percent: product.tax_rate_percent || 0,
@@ -156,24 +156,24 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     }));
 
   const handleDiscountPercentChange = (val: string) => {
-    const percent = parseFloat(val);
-    if (isNaN(percent) || val === '') {
+    if (val === '') {
       setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
       return;
     }
-    const base = formData.base_price || 0;
-    const flat = base ? ((base * percent) / 100).toFixed(2) : '';
+    const percent = parseFloat(val);
+    const base = Number(formData.base_price) || 0;
+    const flat = base && !isNaN(percent) ? ((base * percent) / 100).toFixed(2) : '';
     setFormData(prev => ({ ...prev, discount_percent: val, discount_flat: flat, offer_price: '' }));
   };
 
   const handleDiscountFlatChange = (val: string) => {
-    const flat = parseFloat(val);
-    if (isNaN(flat) || val === '') {
+    if (val === '') {
       setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
       return;
     }
-    const base = formData.base_price || 0;
-    const percent = base ? ((flat / base) * 100).toFixed(2) : '';
+    const flat = parseFloat(val);
+    const base = Number(formData.base_price) || 0;
+    const percent = base && !isNaN(flat) ? ((flat / base) * 100).toFixed(2) : '';
     setFormData(prev => ({ ...prev, discount_percent: percent, discount_flat: val, offer_price: '' }));
   };
 
@@ -243,7 +243,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         formData.sku_barcode, 
         printPrice ? formData.base_price : undefined, 
         formData.name, 
-        printQuantity, 
+        Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
         printPrice ? spType : undefined
       );
@@ -301,7 +301,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         p.sku_barcode, 
         printPrice ? p.base_price : undefined, 
         p.name, 
-        printQuantity, 
+        Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
         printPrice ? spType : undefined
       );
@@ -332,6 +332,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     const payload = {
       ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset' }),
       ...formData,
+      purchase_price: Number(formData.purchase_price) || 0,
+      base_price: Number(formData.base_price) || 0,
+      current_stock: Number(formData.current_stock) || 0,
+      reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
       discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
@@ -562,9 +566,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
                         <input
                           type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
                           value={(formData as any)[field]}
-                          onChange={e => handleInputChange(field, parseFloat(e.target.value) || 0)}
-                          className={clsx('w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm', prefix && 'pl-8', field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold')}
+                          onChange={e => handleInputChange(field, e.target.value)}
+                          className={clsx('w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', prefix && 'pl-8', field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold')}
                         />
                       </div>
                     </div>
@@ -594,10 +599,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         <input
                           type="number"
                           step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
                           value={formData.discount_percent || ''}
                           onChange={e => handleDiscountPercentChange(e.target.value)}
                           disabled={!!formData.offer_price}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
                         />
                       </div>
                       <div>
@@ -605,10 +611,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         <input
                           type="number"
                           step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
                           value={formData.discount_flat || ''}
                           onChange={e => handleDiscountFlatChange(e.target.value)}
                           disabled={!!formData.offer_price}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
                         />
                       </div>
                     </div>
@@ -625,10 +632,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       <input
                         type="number"
                         step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={formData.offer_price || ''}
                         onChange={e => handleOfferPriceChange(e.target.value)}
                         disabled={!!formData.discount_percent || !!formData.discount_flat}
-                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50"
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
                       />
                     </div>
                   </div>
@@ -702,9 +710,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <input 
                     type="number" 
                     min="1" 
+                    onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={printQuantity} 
-                    onChange={e => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))} 
-                    className="w-12 bg-transparent text-foreground focus:outline-none text-center font-bold" 
+                    onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)} 
+                    className="w-12 bg-transparent text-foreground focus:outline-none text-center font-bold no-spinners" 
                   />
                 </div>
                 <div className="flex items-center gap-2 bg-muted rounded-xl p-1 px-3 border border-border">
@@ -748,7 +757,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
              <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Number of Labels</label>
-                  <input type="number" min="1" value={printQuantity} onChange={e => setPrintQuantity(Math.max(1, parseInt(e.target.value) || 1))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
+                  <input type="number" min="1" onWheel={e => (e.target as HTMLInputElement).blur()} value={printQuantity} onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners" />
                 </div>
                 
                 <div className="flex items-center gap-3 bg-muted/10 border border-border p-4 rounded-xl hover:bg-muted/30 transition-colors">
