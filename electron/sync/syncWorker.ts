@@ -190,13 +190,13 @@ async function pullProducts(token: string) {
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
         discount_percent, discount_flat, offer_price,
-        sync_status
+        sync_status, created_at, updated_at
       ) VALUES (
         @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
         @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
         @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
         @discount_percent, @discount_flat, @offer_price,
-        'SYNCED'
+        'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(product_id) DO UPDATE SET
         name = excluded.name,
@@ -217,6 +217,8 @@ async function pullProducts(token: string) {
         discount_percent = excluded.discount_percent,
         discount_flat = excluded.discount_flat,
         offer_price = excluded.offer_price,
+        created_at = COALESCE(products.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
         sync_status = 'SYNCED'
       WHERE products.sync_status != 'PENDING'
     `);
@@ -249,6 +251,8 @@ async function pullProducts(token: string) {
               discount_percent: currentP.discount_percent ?? null,
               discount_flat: currentP.discount_flat ?? null,
               offer_price: currentP.offer_price ?? null,
+              created_at: currentP.created_at ?? new Date().toISOString(),
+              updated_at: currentP.updated_at ?? new Date().toISOString(),
             });
             success = true;
           } catch (e: any) {

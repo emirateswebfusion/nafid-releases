@@ -197,8 +197,8 @@ ipcMain.handle('db:addProduct', (event, p) => {
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
         discount_percent, discount_flat, offer_price,
-        is_deleted, sync_status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        is_deleted, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       p.product_id,

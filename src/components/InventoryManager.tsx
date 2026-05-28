@@ -30,6 +30,8 @@ interface Product {
   discount_flat?: number | null;
   offer_price?: number | null;
   sync_status: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 const DEFAULT_FORM = {
@@ -63,6 +65,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('name');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -361,13 +364,26 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setLoading(false);
   };
 
-  // ── Filtered list ────────────────────────────────────────────────────────
+  // ── Filtered and Sorted list ──────────────────────────────────────────────
   const filtered = products.filter(p =>
     p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.item_code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (p.sku_barcode || '').includes(searchQuery) ||
     (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  ).sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'created_at') {
+      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return timeB - timeA;
+    }
+    if (sortBy === 'updated_at') {
+      const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
+      const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      return timeB - timeA;
+    }
+    return 0;
+  });
 
   return (
     <Modal
@@ -413,6 +429,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <select
+                value={sortBy}
+                onChange={e => setSortBy(e.target.value as any)}
+                className="bg-background border border-border rounded-lg py-2 px-3 text-sm text-foreground focus:border-primary focus:outline-none"
+              >
+                <option value="name">Sort by Name</option>
+                <option value="created_at">Sort by Added Date (Desc)</option>
+                <option value="updated_at">Sort by Updated Date (Desc)</option>
+              </select>
               <button onClick={openAdd} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
                 <Plus className="w-4 h-4" /> Add Product
               </button>

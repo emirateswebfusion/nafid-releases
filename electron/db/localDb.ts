@@ -50,6 +50,7 @@ export function initDb() {
         offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(tenant_id, name)
     );
@@ -100,7 +101,7 @@ export function initDb() {
     products: [
         'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 
         'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code',
-        'discount_percent', 'discount_flat', 'offer_price'
+        'discount_percent', 'discount_flat', 'offer_price', 'created_at'
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
@@ -127,6 +128,8 @@ export function initDb() {
           type = 'REAL';
         } else if (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) {
           type = 'REAL DEFAULT 0';
+        } else if (col === 'created_at' || col === 'updated_at') {
+          type = 'DATETIME'; // SQLite does not allow CURRENT_TIMESTAMP in ALTER TABLE ADD COLUMN
         }
         db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
       }
@@ -174,6 +177,10 @@ export function initDb() {
 
   // Ensure defaults for is_deleted are set for legacy data
   db.exec("UPDATE products SET is_deleted = 0 WHERE is_deleted IS NULL");
+
+  // Backfill created_at and updated_at for existing rows
+  db.exec("UPDATE products SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
+  db.exec("UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
 
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();

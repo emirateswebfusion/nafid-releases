@@ -181,8 +181,8 @@ router.post('/products', async (req: Request, res: Response) => {
               product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
               purchase_price, base_price, is_gst_applicable, tax_rate_percent, uom,
               brand_manufacturer, current_stock, reorder_level, domain_attributes,
-              discount_percent, discount_flat, offer_price, is_deleted
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+              discount_percent, discount_flat, offer_price, is_deleted, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
             ON CONFLICT (product_id) DO UPDATE SET
               name = EXCLUDED.name,
               sku_barcode = EXCLUDED.sku_barcode,
@@ -202,7 +202,8 @@ router.post('/products', async (req: Request, res: Response) => {
               discount_flat = EXCLUDED.discount_flat,
               offer_price = EXCLUDED.offer_price,
               is_deleted = EXCLUDED.is_deleted,
-              updated_at = NOW()
+              created_at = COALESCE(products.created_at, EXCLUDED.created_at),
+              updated_at = EXCLUDED.updated_at
             WHERE products.tenant_id = EXCLUDED.tenant_id`,
             [
               currentP.product_id, req.auth!.tenant_id, currentP.name, currentP.sku_barcode, currentP.item_code, currentP.category,
@@ -211,7 +212,9 @@ router.post('/products', async (req: Request, res: Response) => {
               currentP.reorder_level ?? 0,
               currentP.domain_attributes ? JSON.stringify(currentP.domain_attributes) : null,
               currentP.discount_percent ?? null, currentP.discount_flat ?? null, currentP.offer_price ?? null,
-              currentP.is_deleted ?? false
+              currentP.is_deleted ?? false,
+              currentP.created_at ?? new Date(),
+              currentP.updated_at ?? new Date()
             ]
           );
 
