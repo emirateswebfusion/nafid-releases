@@ -29,10 +29,10 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
             <>
               {price !== undefined && !isNaN(price) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                  <div style={{ fontWeight: 'bold', fontSize: '12px', color: 'black', whiteSpace: 'nowrap' }}>
+                  <div style={{ fontSize: '10px', color: 'black', whiteSpace: 'nowrap' }}>
                     MRP ₹{formatPrice(price)}
                     {sp !== undefined && !isNaN(sp) && (
-                      <span style={{ marginLeft: '3ch' }}>{spType} ₹{formatPrice(sp)}</span>
+                      <span style={{ marginLeft: '2ch' }}>{spType} ₹{formatPrice(sp)}</span>
                     )}
                   </div>
                 </div>
@@ -41,13 +41,15 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
                 Width and height tweaked to prevent clipping on standard 50x25mm labels.
               */}
               <Barcode value={barcode} format="CODE128" width={1.3} height={30} displayValue={false} margin={0} />
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {barcode}
-                  {name && (
-                    <span style={{ marginLeft: '3ch' }}>{name}</span>
-                  )}
                 </div>
+                {name && (
+                  <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '0px' }}>
+                    {name}
+                  </div>
+                )}
               </div>
             </>
           )}
