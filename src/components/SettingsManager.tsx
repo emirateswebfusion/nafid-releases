@@ -402,11 +402,18 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
             {message && (
               <div className={clsx(
-                "p-4 rounded-2xl border flex gap-3 text-sm animate-in fade-in slide-in-from-top-2",
+                "p-4 rounded-2xl border flex gap-3 text-sm animate-in fade-in slide-in-from-top-2 items-center",
                 message.type === 'success' ? "bg-primary/10 border-primary/30 text-primary" : "bg-destructive/10 border-destructive/30 text-destructive"
               )}>
                 <Info className="w-5 h-5 shrink-0" />
-                <p>{message.text}</p>
+                <div className="flex-1 flex justify-between items-center gap-4">
+                  <p>{message.text}</p>
+                  {message.text.toLowerCase().includes('restart app') && (
+                    <button onClick={() => window.location.reload()} className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors shrink-0 shadow-sm">
+                      Restart App
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             

@@ -359,13 +359,20 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
 
     if (!tenant_id) return []; // Safety: always require tenant_id
 
+    const selectQuery = `
+      SELECT i.*, u.name as cashier_name 
+      FROM invoices i 
+      LEFT JOIN users u ON i.user_id = u.user_id 
+      WHERE i.tenant_id = ?
+    `;
+
     // If Cashier: strictly filter by their ID within the tenant
     if (role === 'CASHIER' && user_id) {
-      return db.prepare('SELECT * FROM invoices WHERE tenant_id = ? AND user_id = ? ORDER BY created_at DESC').all(tenant_id, user_id);
+      return db.prepare(`${selectQuery} AND i.user_id = ? ORDER BY i.created_at DESC`).all(tenant_id, user_id);
     }
 
     // If Owner: show all for THIS tenant only
-    return db.prepare('SELECT * FROM invoices WHERE tenant_id = ? ORDER BY created_at DESC').all(tenant_id);
+    return db.prepare(`${selectQuery} ORDER BY i.created_at DESC`).all(tenant_id);
   } catch (error: any) {
     return { error: error.message };
   }

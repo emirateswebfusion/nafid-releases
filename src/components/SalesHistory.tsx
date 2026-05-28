@@ -110,9 +110,17 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                     </span>
                   </div>
                   <div className={clsx("font-bold text-lg", selectedInvoice?.invoice_id === inv.invoice_id ? "text-primary" : "text-foreground")}>₹{inv.grand_total.toFixed(2)}</div>
-                  <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
-                    <Calendar className="w-3 h-3" />
-                    {new Date(inv.created_at).toLocaleString()}
+                  <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3 h-3" />
+                      {new Date(inv.created_at).toLocaleString()}
+                    </div>
+                    {inv.cashier_name && (
+                      <div className="flex items-center gap-1 font-medium truncate max-w-[100px]" title={inv.cashier_name}>
+                        <User className="w-3 h-3" />
+                        {inv.cashier_name}
+                      </div>
+                    )}
                   </div>
                 </button>
               ))
@@ -138,6 +146,12 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                         {selectedInvoice.invoice_type}
                       </span>
                     </div>
+                    {selectedInvoice.cashier_name && (
+                      <div className="flex items-center gap-2 text-xs">
+                        <User className="w-4 h-4" />
+                        <span>Billed by: <span className="font-bold text-foreground">{selectedInvoice.cashier_name}</span></span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div className="text-right">
