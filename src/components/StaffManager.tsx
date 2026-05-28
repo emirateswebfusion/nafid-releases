@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { Skeleton } from './ui/Skeleton';
 
 interface StaffMember {
   user_id: string;
@@ -111,10 +112,18 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
             <div className="flex-1 overflow-y-auto py-4 space-y-2">
               {fetching ? (
-                <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground py-12">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                  <span className="text-xs">Loading staff records...</span>
-                </div>
+                Array.from({ length: 4 }).map((_, i) => (
+                  <div key={`skel-${i}`} className="flex items-center justify-between p-3 rounded-xl border border-border bg-background">
+                    <div className="flex items-center gap-3 w-1/2">
+                      <Skeleton className="w-10 h-10 rounded-full shrink-0" />
+                      <div className="space-y-2 w-full">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-5 w-16 rounded" />
+                  </div>
+                ))
               ) : staff.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-12">
                   <Users className="w-12 h-12 opacity-20 mb-2" />

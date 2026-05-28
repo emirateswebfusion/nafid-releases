@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from 'react';
 import { ShoppingBag, Users, Receipt, LayoutDashboard, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -10,6 +11,18 @@ export function OwnerDashboard() {
     const { shopName } = useAuthStore();
     const { setRole } = useCartStore();
     const { theme, toggleTheme } = useThemeStore();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
 
     const cards = [
         {
@@ -65,49 +78,49 @@ export function OwnerDashboard() {
             {/* Header */}
             <div className="p-8 pb-4 flex justify-between items-end relative z-10 border-b border-border bg-card">
                 <div>
-                    <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <LayoutDashboard className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-widest">Control Center</span>
-                    </div>
                     <h1 className="text-4xl font-black text-foreground tracking-tight">
                         Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
                     </h1>
                     <p className="text-muted-foreground mt-2">Manage your shop operations and staff from one place.</p>
                 </div>
 
-                <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-4 bg-muted p-4 rounded-xl border border-border">
-                        <div className="text-right">
-                            <p className="text-xs font-bold text-muted-foreground uppercase">Current Session</p>
-                            <p className="text-sm font-bold text-foreground">Owner Mode</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center font-bold text-primary-foreground shadow-sm">
-                            {shopName?.[0].toUpperCase() || 'A'}
-                        </div>
-                    </div>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={toggleTheme}
-                        className="h-10 w-10 rounded-xl text-foreground hover:bg-muted"
-                        title="Toggle Theme"
+                <div className="flex items-center gap-4 relative" ref={menuRef}>
+                    <button 
+                        onClick={() => setMenuOpen(!menuOpen)}
+                        className="w-12 h-12 rounded-full bg-primary flex items-center justify-center font-bold text-xl text-primary-foreground shadow-sm hover:scale-105 transition-transform"
                     >
-                        {theme === 'dark' ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="icon"
-                        onClick={() => useAuthStore.getState().logout()}
-                        className="h-10 w-10 rounded-xl text-foreground hover:text-destructive hover:bg-destructive/10 hover:border-destructive/30"
-                        title="Logout"
-                    >
-                        <LogOut className="w-5 h-5" />
-                    </Button>
+                        {shopName?.[0].toUpperCase() || 'A'}
+                    </button>
+
+                    {menuOpen && (
+                        <div className="absolute right-0 top-[110%] w-56 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
+                            <div className="p-4 border-b border-border bg-muted/30">
+                                <p className="text-sm font-bold text-foreground truncate">{shopName || 'Admin'}</p>
+                                <p className="text-[10px] text-muted-foreground uppercase mt-1 tracking-widest font-bold">Owner</p>
+                            </div>
+                            <div className="p-2 space-y-1">
+                                <button 
+                                    onClick={() => { toggleTheme(); setMenuOpen(false); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-left"
+                                >
+                                    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                                    Toggle Theme
+                                </button>
+                                <button 
+                                    onClick={() => useAuthStore.getState().logout()}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left"
+                                >
+                                    <LogOut className="w-4 h-4" />
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Grid Content */}
-            <div className="flex-1 p-8 grid grid-cols-5 gap-4 relative z-10 items-stretch overflow-hidden">
+            <div className="flex-1 p-8 grid grid-cols-5 gap-4 relative z-0 items-stretch overflow-hidden">
                 {cards.map((card) => (
                     <Card
                         key={card.id}
@@ -141,7 +154,7 @@ export function OwnerDashboard() {
             </div>
 
             {/* Footer Stats Placeholder */}
-            <div className="p-8 border-t border-border bg-card relative z-10">
+            <div className="p-8 border-t border-border bg-card relative z-0">
                 <div className="flex items-center gap-8">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Sales (Today)</span>

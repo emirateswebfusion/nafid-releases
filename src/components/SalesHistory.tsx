@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
+import { Skeleton } from './ui/Skeleton';
 
 export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -85,7 +86,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
 
           <div className="flex-1 overflow-y-auto p-2 space-y-2 h-full">
             {loading ? (
-              <div className="p-4 text-center text-muted-foreground">Loading history...</div>
+              Array.from({ length: 6 }).map((_, i) => (
+                <div key={`skel-${i}`} className="w-full text-left p-4 rounded-xl border bg-background border-border">
+                  <div className="flex justify-between items-start mb-2">
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-4 w-16 rounded-full" />
+                  </div>
+                  <Skeleton className="h-6 w-24 mb-2" />
+                  <div className="flex items-center justify-between mt-2">
+                    <Skeleton className="h-3 w-32" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))
             ) : filteredInvoices.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">No records found</div>
             ) : (

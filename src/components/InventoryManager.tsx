@@ -6,6 +6,7 @@ import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
+import { Skeleton } from './ui/Skeleton';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {
@@ -59,6 +60,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   // View state: 'list' | 'add' | 'edit'
   const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
   const [loading, setLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -81,11 +83,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   }, []);
 
   const loadProducts = async () => {
+    setIsFetching(true);
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
       const result = await window.electronAPI.dbGetProducts(tenantId || '');
       if (Array.isArray(result)) setProducts(result);
     }
+    setIsFetching(false);
   };
 
   const openAdd = () => {
@@ -383,13 +387,20 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       }
+      closeButton={
+        view !== 'list' ? (
+          <button onClick={() => setView('list')} className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-sm font-bold rounded-lg transition-colors border border-border shadow-sm">
+            Back to List
+          </button>
+        ) : undefined
+      }
     >
-      <div className="flex flex-col h-full overflow-hidden -mx-6 -my-6">
+      <div className="flex flex-col h-full overflow-hidden">
         
         {/* Action Header inside modal */}
-        <div className="flex justify-between items-center p-4 border-b border-border bg-muted/10 shrink-0">
-          <div className="flex-1 max-w-md">
-            {view === 'list' && (
+        {view === 'list' && (
+          <div className="flex justify-between items-center p-4 border-b border-border bg-muted/10 shrink-0">
+            <div className="flex-1 max-w-md">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                 <input
@@ -400,21 +411,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   className="w-full bg-background border border-border rounded-lg py-2.5 pl-10 pr-4 text-foreground focus:border-primary focus:outline-none placeholder:text-muted-foreground"
                 />
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {view !== 'list' && (
-              <button onClick={() => setView('list')} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
-                ← Back to List
-              </button>
-            )}
-            {view === 'list' && (
-              <button onClick={openAdd} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={openAdd} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
                 <Plus className="w-4 h-4" /> Add Product
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
         {view === 'list' && (
@@ -431,7 +435,37 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
             {/* Rows */}
             <div className="flex-1 overflow-y-auto divide-y divide-border">
-              {filtered.length === 0 ? (
+              {isFetching ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
+                    <div className="col-span-4">
+                      <div className="flex items-center gap-2">
+                        <div className="space-y-2 w-full">
+                          <Skeleton className="h-4 w-3/4" />
+                          <Skeleton className="h-3 w-1/2" />
+                          <div className="flex gap-2 mt-1">
+                            <Skeleton className="h-4 w-12" />
+                            <Skeleton className="h-4 w-16" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="col-span-1 flex justify-center"><Skeleton className="h-4 w-8" /></div>
+                    <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                    <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                    <div className="col-span-2 flex justify-center gap-2">
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                      <Skeleton className="h-5 w-10" />
+                      <Skeleton className="h-6 w-6 rounded-full" />
+                    </div>
+                    <div className="col-span-1 flex justify-center gap-2">
+                      <Skeleton className="h-8 w-8 rounded-lg" />
+                      <Skeleton className="h-8 w-8 rounded-lg" />
+                      <Skeleton className="h-8 w-8 rounded-lg" />
+                    </div>
+                  </div>
+                ))
+              ) : filtered.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
                   <PackagePlus className="w-12 h-12 mb-3" />
                   <p className="font-medium text-foreground">No products found</p>
@@ -665,34 +699,31 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </section>
 
               {/* Section 5: Domain Attributes */}
-              <section>
-                <h3 className="text-lg font-bold text-amber-500 mb-4 border-b border-border pb-2">5. Domain Fields — {shopDomain}</h3>
-                <div className="grid grid-cols-2 gap-5 bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20">
-                  {shopDomain === 'HARDWARE' && (<>
-                    <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />
-                    <DomainField label="Material" value={formData.domain_attributes['material'] || ''} onChange={v => handleDomainAttrChange('material', v)} />
-                    <DomainField label="Batch Number" value={formData.domain_attributes['batch_number'] || ''} onChange={v => handleDomainAttrChange('batch_number', v)} />
-                    <DomainField label="Expiry Date" type="date" value={formData.domain_attributes['expiry_date'] || ''} onChange={v => handleDomainAttrChange('expiry_date', v)} />
-                  </>)}
-                  {shopDomain === 'JEWELRY' && (<>
-                    <DomainField label="Purity (e.g. 22K)" value={formData.domain_attributes['purity'] || ''} onChange={v => handleDomainAttrChange('purity', v)} />
-                    <DomainField label="Weight (Grams)" type="number" value={formData.domain_attributes['weight_grams'] || ''} onChange={v => handleDomainAttrChange('weight_grams', v)} />
-                    <DomainField label="Making Charge %" type="number" value={formData.domain_attributes['making_charge_pct'] || ''} onChange={v => handleDomainAttrChange('making_charge_pct', v)} />
-                    <DomainField label="Hallmark HUID" value={formData.domain_attributes['hallmark_huid'] || ''} onChange={v => handleDomainAttrChange('hallmark_huid', v)} />
-                  </>)}
-                  {shopDomain === 'GENERAL' && (
-                    <div className="col-span-2 text-muted-foreground text-sm font-medium text-center py-6">
-                      No domain-specific attributes required for General Retail.
-                    </div>
-                  )}
-                </div>
-              </section>
+              {shopDomain !== 'GENERAL' && (
+                <section>
+                  <h3 className="text-lg font-bold text-amber-500 mb-4 border-b border-border pb-2">5. Domain Fields — {shopDomain}</h3>
+                  <div className="grid grid-cols-2 gap-5 bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20">
+                    {shopDomain === 'HARDWARE' && (<>
+                      <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />
+                      <DomainField label="Material" value={formData.domain_attributes['material'] || ''} onChange={v => handleDomainAttrChange('material', v)} />
+                      <DomainField label="Batch Number" value={formData.domain_attributes['batch_number'] || ''} onChange={v => handleDomainAttrChange('batch_number', v)} />
+                      <DomainField label="Expiry Date" type="date" value={formData.domain_attributes['expiry_date'] || ''} onChange={v => handleDomainAttrChange('expiry_date', v)} />
+                    </>)}
+                    {shopDomain === 'JEWELRY' && (<>
+                      <DomainField label="Purity (e.g. 22K)" value={formData.domain_attributes['purity'] || ''} onChange={v => handleDomainAttrChange('purity', v)} />
+                      <DomainField label="Weight (Grams)" type="number" value={formData.domain_attributes['weight_grams'] || ''} onChange={v => handleDomainAttrChange('weight_grams', v)} />
+                      <DomainField label="Making Charge %" type="number" value={formData.domain_attributes['making_charge_pct'] || ''} onChange={v => handleDomainAttrChange('making_charge_pct', v)} />
+                      <DomainField label="Hallmark HUID" value={formData.domain_attributes['hallmark_huid'] || ''} onChange={v => handleDomainAttrChange('hallmark_huid', v)} />
+                    </>)}
+                  </div>
+                </section>
+              )}
             </div>
 
             {/* Footer */}
             <div className="p-6 border-t border-border bg-card flex justify-between items-center shrink-0">
               <div className="flex items-center gap-4">
-                <button onClick={() => setView('list')} className="px-5 py-2.5 text-muted-foreground font-semibold hover:text-foreground transition-colors">
+                <button onClick={() => setView('list')} className="px-6 py-3 bg-muted hover:bg-muted/80 border border-border text-foreground font-bold rounded-xl transition-all shadow-sm">
                   Cancel
                 </button>
                 {statusMessage && (
