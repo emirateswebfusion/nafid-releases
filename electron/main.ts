@@ -7,11 +7,7 @@ import log from 'electron-log/main';
 
 // Initialize and configure structured logging
 log.initialize();
-log.transports.file.format = (msg) => JSON.stringify({
-  timestamp: msg.date,
-  level: msg.level,
-  data: msg.data
-});
+log.transports.file.format = '[{y}-{m}-{d} {h}:{i}:{s}.{ms}] [{level}] {text}';
 Object.assign(console, log.functions);
 
 process.on('uncaughtException', (err) => {
