@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 
 contextBridge.exposeInMainWorld('electronAPI', {
+  logError: (message: string, error?: any) => ipcRenderer.invoke('log:error', { message, error }),
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),

@@ -1,4 +1,5 @@
 export interface IElectronAPI {
+  logError: (message: string, error?: any) => Promise<void>;
   ping: () => Promise<string>;
   appCheckForUpdates: () => Promise<any>;
   appGetVersion: () => Promise<string>;

@@ -3,6 +3,23 @@ import path from 'path';
 import fs from 'fs';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
+import log from 'electron-log/main';
+
+// Initialize and configure structured logging
+log.initialize();
+log.transports.file.format = (msg) => JSON.stringify({
+  timestamp: msg.date,
+  level: msg.level,
+  data: msg.data
+});
+Object.assign(console, log.functions);
+
+process.on('uncaughtException', (err) => {
+  log.error('Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled Rejection:', reason);
+});
 
 // Load environment variables
 const envPath = app.isPackaged
@@ -159,6 +176,10 @@ app.on('window-all-closed', () => {
 });
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) => {
+  log.error('[Frontend Error]', payload.message, payload.error || '');
+});
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 

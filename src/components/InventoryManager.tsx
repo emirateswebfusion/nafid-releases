@@ -330,15 +330,39 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   };
 
   const handleSave = async () => {
-    if (!formData.name || !formData.sku_barcode || Number(formData.base_price) <= 0) {
-      alert('Please fill in Name, Barcode, and a valid MRP.');
+    if (!formData.name || Number(formData.base_price) <= 0) {
+      setStatusMessage({ text: 'Please fill in Name and a valid MRP.', type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
       return;
     }
+
+    let finalBarcode = formData.sku_barcode;
+    if (!finalBarcode) {
+      let prefix = formData.item_code || '';
+      if (prefix.length > 12) {
+        prefix = prefix.substring(0, 12);
+      }
+      const remainingLength = 12 - prefix.length;
+      let code = prefix;
+      if (remainingLength > 0) {
+        const min = Math.pow(10, remainingLength - 1);
+        const max = Math.pow(10, remainingLength) - 1;
+        const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
+        code += randomPart;
+      }
+      finalBarcode = code;
+      // Don't just setFormData, pass it directly to payload since state update is async
+      setFormData(prev => ({ ...prev, sku_barcode: code }));
+      setStatusMessage({ text: 'Barcode auto-generated.', type: 'success' });
+      setTimeout(() => setStatusMessage(null), 2000);
+    }
+    
     setLoading(true);
 
     const payload = {
       ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset' }),
       ...formData,
+      sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
       base_price: Number(formData.base_price) || 0,
       current_stock: Number(formData.current_stock) || 0,
@@ -358,7 +382,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         await loadProducts();
         setView('list');
       } else {
-        alert('Failed to save: ' + res.error);
+        setStatusMessage({ text: 'Failed to save: ' + res.error, type: 'error' });
+        setTimeout(() => setStatusMessage(null), 4000);
       }
     }
     setLoading(false);
@@ -496,7 +521,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <p className="font-medium text-foreground">No products found</p>
                   <p className="text-sm mt-1">Click "Add Product" to seed your inventory</p>
                 </div>
-              ) : filtered.map(p => {
+              ) : filtered.slice(0, 100).map(p => {
                 const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
                 return (
                   <div key={p.product_id} className="grid grid-cols-12 gap-2 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
@@ -555,6 +580,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-3 flex items-center gap-2 text-amber-600 text-sm">
                 <AlertTriangle className="w-5 h-5" />
                 <span className="font-semibold">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) are at or below Low Stock Alert</span>
+              </div>
+            )}
+            {/* Show limited results message */}
+            {filtered.length > 100 && (
+              <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-3 text-center text-muted-foreground text-sm">
+                Showing top 100 of {filtered.length} products. Use the search bar to find more.
               </div>
             )}
           </div>
