@@ -475,10 +475,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             {/* Table Header */}
             <div className="grid grid-cols-12 gap-2 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0 bg-muted/5">
-              <div className="col-span-4">Product</div>
+              <div className="col-span-3">Product</div>
               <div className="col-span-1 text-center">Unit</div>
-              <div className="col-span-2 text-right">Purchase</div>
+              <div className="col-span-1 text-right">Purchase</div>
               <div className="col-span-2 text-right">MRP</div>
+              <div className="col-span-2 text-right text-emerald-500 font-bold">Final Price</div>
               <div className="col-span-2 text-center">Stock</div>
               <div className="col-span-1 text-center">Actions</div>
             </div>
@@ -488,7 +489,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               {isFetching ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
-                    <div className="col-span-4">
+                    <div className="col-span-3">
                       <div className="flex items-center gap-2">
                         <div className="space-y-2 w-full">
                           <Skeleton className="h-4 w-3/4" />
@@ -501,6 +502,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                     <div className="col-span-1 flex justify-center"><Skeleton className="h-4 w-8" /></div>
+                    <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                     <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                     <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                     <div className="col-span-2 flex justify-center gap-2">
@@ -523,9 +525,20 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               ) : filtered.slice(0, 100).map(p => {
                 const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
+                
+                let finalPrice: number | null = null;
+                if (p.offer_price) {
+                  finalPrice = Number(p.offer_price);
+                } else if (p.discount_flat) {
+                  finalPrice = Number(p.base_price) - Number(p.discount_flat);
+                } else if (p.discount_percent) {
+                  finalPrice = Number(p.base_price) * (1 - Number(p.discount_percent) / 100);
+                }
+                if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
+
                 return (
                   <div key={p.product_id} className="grid grid-cols-12 gap-2 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
-                    <div className="col-span-4">
+                    <div className="col-span-3">
                       <div className="flex items-center gap-2">
                         <div>
                           <p className="text-foreground font-semibold text-sm">{p.name}</p>
@@ -541,8 +554,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                     <div className="col-span-1 text-center text-muted-foreground text-sm font-medium">{p.uom}</div>
-                    <div className="col-span-2 text-right text-muted-foreground text-sm font-medium">₹{Number(p.purchase_price).toFixed(2)}</div>
-                    <div className="col-span-2 text-right text-primary font-bold text-sm">₹{Number(p.base_price).toFixed(2)}</div>
+                    <div className="col-span-1 text-right text-muted-foreground text-sm font-medium">₹{Number(p.purchase_price).toFixed(2)}</div>
+                    <div className="col-span-2 text-right">
+                      <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
+                        ₹{Number(p.base_price).toFixed(2)}
+                      </span>
+                    </div>
+                    <div className="col-span-2 text-right text-emerald-500 font-bold text-sm">
+                      {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
+                    </div>
 
                     {/* Stock with +/- */}
                     <div className="col-span-2 flex items-center justify-center gap-2">
@@ -598,7 +618,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
               {/* Section 1: Core */}
               <section>
-                <h3 className="text-lg font-bold text-primary mb-4 border-b border-border pb-2">1. Core Identifiers</h3>
+                <h3 className="text-lg font-bold text-primary mb-4 border-b border-border pb-2">1. Basic Details</h3>
                 <div className="grid grid-cols-2 gap-8">
                   <div className="space-y-5">
                     <div>
