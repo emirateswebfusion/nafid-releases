@@ -154,6 +154,57 @@ export function initDb() {
     console.warn('[DB Migration] Could not create unique indexes. Duplicate data might exist.', e.message);
   }
 
+  // Fix inline constraint for products table by recreating it if needed
+  try {
+    const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as any;
+    if (tableSql && tableSql.sql.includes('UNIQUE(tenant_id, name)') && !tableSql.sql.includes('brand_manufacturer')) {
+      console.log('[DB Migration] Recreating products table to fix inline UNIQUE constraint...');
+      db.exec('PRAGMA foreign_keys=off;');
+      
+      const migrateTable = db.transaction(() => {
+        db.exec('ALTER TABLE products RENAME TO products_old;');
+        db.exec(`
+          CREATE TABLE products (
+              product_id TEXT PRIMARY KEY,
+              tenant_id TEXT,
+              name TEXT NOT NULL,
+              sku_barcode TEXT,
+              item_code TEXT,
+              category TEXT,
+              hsn_sac_code TEXT,
+              purchase_price REAL DEFAULT 0,
+              base_price REAL NOT NULL,
+              is_gst_applicable INTEGER DEFAULT 1,
+              tax_rate_percent REAL DEFAULT 0,
+              uom TEXT DEFAULT 'Pcs',
+              brand_manufacturer TEXT,
+              current_stock REAL DEFAULT 0,
+              reorder_level REAL DEFAULT 0,
+              domain_attributes TEXT DEFAULT '{}',
+              discount_percent REAL,
+              discount_flat REAL,
+              offer_price REAL,
+              is_deleted INTEGER DEFAULT 0,
+              sync_status TEXT DEFAULT 'SYNCED',
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(tenant_id, name, brand_manufacturer)
+          );
+        `);
+        const columnsInfo = db.prepare("PRAGMA table_info(products_old)").all();
+        const columnNames = columnsInfo.map((c: any) => c.name).join(', ');
+        db.exec(`INSERT INTO products (${columnNames}) SELECT ${columnNames} FROM products_old;`);
+        db.exec('DROP TABLE products_old;');
+      });
+      
+      migrateTable();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] Products table recreated successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to recreate products table for constraint update:', e.message);
+  }
+
   // Migrate settings table to include tenant_id if it's missing
   try {
     const settingsInfo = db.prepare(`PRAGMA table_info(settings)`).all();

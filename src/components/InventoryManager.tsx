@@ -382,7 +382,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         await loadProducts();
         setView('list');
       } else {
-        setStatusMessage({ text: 'Failed to save: ' + res.error, type: 'error' });
+        let errorMessage = res.error || 'Unknown error occurred';
+        if (errorMessage.includes('UNIQUE constraint failed')) {
+          errorMessage = 'A product with this exact Name and Brand already exists.';
+        }
+        setStatusMessage({ text: 'Failed to save: ' + errorMessage, type: 'error' });
         setTimeout(() => setStatusMessage(null), 4000);
       }
     }
@@ -398,13 +402,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   ).sort((a, b) => {
     if (sortBy === 'name') return a.name.localeCompare(b.name);
     if (sortBy === 'created_at') {
-      const timeA = a.created_at ? new Date(a.created_at).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at).getTime() : 0;
+      const timeA = a.created_at ? new Date(a.created_at + (a.created_at.includes('Z') ? '' : 'Z')).getTime() : 0;
+      const timeB = b.created_at ? new Date(b.created_at + (b.created_at.includes('Z') ? '' : 'Z')).getTime() : 0;
       return timeB - timeA;
     }
     if (sortBy === 'updated_at') {
-      const timeA = a.updated_at ? new Date(a.updated_at).getTime() : 0;
-      const timeB = b.updated_at ? new Date(b.updated_at).getTime() : 0;
+      const timeA = a.updated_at ? new Date(a.updated_at + (a.updated_at.includes('Z') ? '' : 'Z')).getTime() : 0;
+      const timeB = b.updated_at ? new Date(b.updated_at + (b.updated_at.includes('Z') ? '' : 'Z')).getTime() : 0;
       return timeB - timeA;
     }
     return 0;
