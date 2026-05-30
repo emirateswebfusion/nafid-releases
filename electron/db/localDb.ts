@@ -157,7 +157,7 @@ export function initDb() {
   // Fix inline constraint for products table by recreating it if needed
   try {
     const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as any;
-    if (tableSql && tableSql.sql.includes('UNIQUE(tenant_id, name)') && !tableSql.sql.includes('brand_manufacturer')) {
+    if (tableSql && !/UNIQUE\s*\([^)]*brand_manufacturer[^)]*\)/i.test(tableSql.sql)) {
       console.log('[DB Migration] Recreating products table to fix inline UNIQUE constraint...');
       db.exec('PRAGMA foreign_keys=off;');
       
