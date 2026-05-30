@@ -52,7 +52,7 @@ export function initDb() {
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(tenant_id, name)
+        UNIQUE(tenant_id, name, brand_manufacturer)
     );
 
     CREATE TABLE IF NOT EXISTS invoices (
@@ -147,7 +147,8 @@ export function initDb() {
 
   // Ensure unique indexes for existing installations
   try {
-    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_name_tenant ON products(tenant_id, name)");
+    db.exec("DROP INDEX IF EXISTS idx_uq_product_name_tenant");
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_name_brand_tenant ON products(tenant_id, name, brand_manufacturer)");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_invoice_number_tenant ON invoices(tenant_id, invoice_number)");
   } catch (e: any) {
     console.warn('[DB Migration] Could not create unique indexes. Duplicate data might exist.', e.message);
