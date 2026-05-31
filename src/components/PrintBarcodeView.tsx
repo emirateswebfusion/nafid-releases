@@ -1,7 +1,10 @@
 import { useEffect } from 'react';
 import Barcode from 'react-barcode';
+import { useAuthStore } from '../store/authStore';
 
 export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1 }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number }) {
+  const shopName = useAuthStore((state) => state.shopName);
+
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
   };
@@ -27,9 +30,14 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
         <div key={colIndex} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '4px 0 0 0', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && (
             <>
+              {shopName && (
+                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: '0px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+                  {shopName}
+                </div>
+              )}
               {price !== undefined && !isNaN(price) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                  <div style={{ fontSize: '10px', color: 'black', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                  <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap' }}>
                     MRP ₹{formatPrice(price)}
                     {sp !== undefined && !isNaN(sp) && (
                       <span style={{ marginLeft: '2ch' }}>{spType} ₹{formatPrice(sp)}</span>
