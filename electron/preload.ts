@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
-  dbGetProducts: (tenantId: string) => ipcRenderer.invoke('db:getProducts', tenantId),
+  dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
   dbDeleteProduct: (product_id: string) => ipcRenderer.invoke('db:deleteProduct', product_id),

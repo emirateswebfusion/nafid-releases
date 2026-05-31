@@ -195,11 +195,43 @@ ipcMain.handle('app:checkForUpdates', async () => {
   }
 });
 
-ipcMain.handle('db:getProducts', (event, tenantId: string) => {
+ipcMain.handle('db:getProducts', (event, arg: any) => {
   try {
     const db = getDb();
+    const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return [];
-    return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name ASC').all(tenantId);
+
+    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy)) {
+      return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name ASC').all(tenantId);
+    }
+
+    const { limit, offset, search, sortBy, barcode } = arg;
+    let query = 'SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0';
+    const params: any[] = [tenantId];
+
+    if (barcode) {
+       query += ' AND (sku_barcode = ? OR item_code = ?)';
+       params.push(barcode, barcode);
+    } else if (search) {
+       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
+       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (sortBy === 'created_at') query += ' ORDER BY created_at DESC';
+    else if (sortBy === 'updated_at') query += ' ORDER BY updated_at DESC';
+    else if (sortBy === 'stock') query += ' ORDER BY current_stock ASC';
+    else query += ' ORDER BY name ASC';
+
+    if (limit) {
+       query += ' LIMIT ?';
+       params.push(limit);
+    }
+    if (offset) {
+       query += ' OFFSET ?';
+       params.push(offset);
+    }
+
+    return db.prepare(query).all(...params);
   } catch (error: any) {
     return { error: error.message };
   }
@@ -369,27 +401,44 @@ ipcMain.handle('db:checkout', (event, payload) => {
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role } = filters || {};
+    const { user_id, tenant_id, role, limit, offset, search } = filters || {};
 
     if (!tenant_id) return []; // Safety: always require tenant_id
 
-    const selectQuery = `
+    let query = `
       SELECT i.*, u.name as cashier_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
       WHERE i.tenant_id = ?
     `;
+    const params: any[] = [tenant_id];
 
     // If Cashier: strictly filter by their ID within the tenant
     if (role === 'CASHIER' && user_id) {
-      return db.prepare(`${selectQuery} AND i.user_id = ? ORDER BY i.created_at DESC`).all(tenant_id, user_id);
+      query += ' AND i.user_id = ?';
+      params.push(user_id);
     }
 
-    // If Owner: show all for THIS tenant only
-    return db.prepare(`${selectQuery} ORDER BY i.created_at DESC`).all(tenant_id);
+    if (search) {
+      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    query += ' ORDER BY i.created_at DESC';
+
+    if (limit) {
+      query += ' LIMIT ?';
+      params.push(limit);
+    }
+    if (offset) {
+      query += ' OFFSET ?';
+      params.push(offset);
+    }
+
+    return db.prepare(query).all(...params);
   } catch (error: any) {
     return { error: error.message };
   }

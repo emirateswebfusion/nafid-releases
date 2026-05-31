@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle } from 'lucide-react';
@@ -73,27 +73,73 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
 
-  // Load products on mount
-  useEffect(() => {
-    loadProducts();
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const LIMIT = 50;
 
+  // Load products when search or sort changes (reset)
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setOffset(0);
+      setHasMore(true);
+      loadProducts(true);
+    }, 300); // debounce search
+    return () => clearTimeout(timeout);
+  }, [searchQuery, sortBy]);
+
+  // Sync listener
+  useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
         console.log('[InventoryManager] Data updated via sync. Refreshing list...');
-        loadProducts();
+        loadProducts(true); // reset list on sync update
       });
     }
   }, []);
 
-  const loadProducts = async () => {
+  const loadProducts = async (reset = false) => {
     setIsFetching(true);
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
-      const result = await window.electronAPI.dbGetProducts(tenantId || '');
-      if (Array.isArray(result)) setProducts(result);
+      const currentOffset = reset ? 0 : offset;
+      const result = await window.electronAPI.dbGetProducts({
+        tenant_id: tenantId,
+        limit: LIMIT,
+        offset: currentOffset,
+        search: searchQuery,
+        sortBy: sortBy
+      });
+      if (Array.isArray(result)) {
+        if (reset) {
+          setProducts(result);
+        } else {
+          setProducts(prev => {
+             // filter out duplicates just in case
+             const existingIds = new Set(prev.map(p => p.product_id));
+             return [...prev, ...result.filter(p => !existingIds.has(p.product_id))];
+          });
+        }
+        setOffset(currentOffset + result.length);
+        setHasMore(result.length === LIMIT);
+      }
     }
     setIsFetching(false);
   };
+
+  // Intersection Observer for infinite scrolling
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (isFetching || !hasMore || view !== 'list') return;
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        loadProducts(false);
+      }
+    }, { threshold: 1.0 });
+
+    if (node) observer.current.observe(node);
+  }, [isFetching, hasMore, view, offset]);
 
   const openAdd = () => {
     setFormData({ ...DEFAULT_FORM });
@@ -393,26 +439,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setLoading(false);
   };
 
-  // ── Filtered and Sorted list ──────────────────────────────────────────────
-  const filtered = products.filter(p =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.item_code || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.sku_barcode || '').includes(searchQuery) ||
-    (p.category || '').toLowerCase().includes(searchQuery.toLowerCase())
-  ).sort((a, b) => {
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    if (sortBy === 'created_at') {
-      const timeA = a.created_at ? new Date(a.created_at + (a.created_at.includes('Z') ? '' : 'Z')).getTime() : 0;
-      const timeB = b.created_at ? new Date(b.created_at + (b.created_at.includes('Z') ? '' : 'Z')).getTime() : 0;
-      return timeB - timeA;
-    }
-    if (sortBy === 'updated_at') {
-      const timeA = a.updated_at ? new Date(a.updated_at + (a.updated_at.includes('Z') ? '' : 'Z')).getTime() : 0;
-      const timeB = b.updated_at ? new Date(b.updated_at + (b.updated_at.includes('Z') ? '' : 'Z')).getTime() : 0;
-      return timeB - timeA;
-    }
-    return 0;
-  });
+  // No frontend filtering/sorting needed anymore, it's done in the backend
+  const filtered = products;
 
   return (
     <Modal
@@ -490,7 +518,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
             {/* Rows */}
             <div className="flex-1 overflow-y-auto divide-y divide-border">
-              {isFetching ? (
+              {isFetching && offset === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
                     <div className="col-span-3">
@@ -527,7 +555,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <p className="font-medium text-foreground">No products found</p>
                   <p className="text-sm mt-1">Click "Add Product" to seed your inventory</p>
                 </div>
-              ) : filtered.slice(0, 100).map(p => {
+              ) : filtered.map(p => {
                 const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
                 
                 let finalPrice: number | null = null;
@@ -597,19 +625,29 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   </div>
                 );
               })}
+
+              {/* Infinite Scroll Target */}
+              {hasMore && (
+                <div ref={lastElementRef} className="py-6 flex justify-center items-center shrink-0">
+                  <div className="flex gap-1 items-center text-muted-foreground text-sm font-medium">
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>Loading more items...</span>
+                  </div>
+                </div>
+              )}
             </div>
 
+            {!hasMore && products.length > 0 && (
+              <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-muted-foreground text-sm font-medium">
+                End of inventory list ({products.length} total items)
+              </div>
+            )}
+            
             {/* Low Stock summary bar */}
             {products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
               <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-3 flex items-center gap-2 text-amber-600 text-sm">
                 <AlertTriangle className="w-5 h-5" />
                 <span className="font-semibold">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) are at or below Low Stock Alert</span>
-              </div>
-            )}
-            {/* Show limited results message */}
-            {filtered.length > 100 && (
-              <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-3 text-center text-muted-foreground text-sm">
-                Showing top 100 of {filtered.length} products. Use the search bar to find more.
               </div>
             )}
           </div>

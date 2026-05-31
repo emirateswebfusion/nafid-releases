@@ -70,7 +70,7 @@ function App() {
     if (isAuthenticated && !syncChecked && window.electronAPI) {
       const runSync = async () => {
         const { tenantId } = useAuthStore.getState();
-        const result = await window.electronAPI.dbGetProducts(tenantId || '');
+        const result = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1 });
         console.log('[App] Initial Product Check:', result);
         
         if (Array.isArray(result) && result.length === 0) {
@@ -101,18 +101,16 @@ function App() {
     if (window.electronAPI) {
       window.electronAPI.onBarcodeScanned(async (code) => {
         const { tenantId } = useAuthStore.getState();
-        const products = await window.electronAPI.dbGetProducts(tenantId || '');
-        if (Array.isArray(products)) {
-          const match = products.find((p: any) => p.sku_barcode === code);
-          if (match) {
-            addItem({
-              product_id: match.product_id,
-              name: match.name,
-              base_price: match.base_price,
-              purchase_price: match.purchase_price ?? 0,
-              tax_rate_percent: match.tax_rate_percent ?? 0,
-            });
-          }
+        const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code, limit: 1 });
+        if (Array.isArray(products) && products.length > 0) {
+          const match = products[0];
+          addItem({
+            product_id: match.product_id,
+            name: match.name,
+            base_price: match.base_price,
+            purchase_price: match.purchase_price ?? 0,
+            tax_rate_percent: match.tax_rate_percent ?? 0,
+          });
         }
       });
 

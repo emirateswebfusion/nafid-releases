@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Receipt, Search, Calendar, User, Phone, Tag } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Receipt, Search, Calendar, User, Phone, Tag, RefreshCw } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
@@ -13,30 +13,74 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    loadInvoices();
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetching, setIsFetching] = useState(false);
+  const LIMIT = 30;
 
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      setOffset(0);
+      setHasMore(true);
+      loadInvoices(true);
+    }, 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
+
+  useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
         console.log('[SalesHistory] Data updated via sync. Refreshing list...');
-        loadInvoices();
+        loadInvoices(true);
       });
     }
   }, []);
 
-  const loadInvoices = async () => {
+  const loadInvoices = async (reset = false) => {
+    setIsFetching(true);
     if (window.electronAPI) {
       const { userId, role, tenantId } = useAuthStore.getState();
+      const currentOffset = reset ? 0 : offset;
       
       const data = await window.electronAPI.dbGetInvoices({ 
         user_id: userId, 
         tenant_id: tenantId,
-        role: role 
+        role: role,
+        limit: LIMIT,
+        offset: currentOffset,
+        search: search
       });
-      setInvoices(Array.isArray(data) ? data : []);
+      
+      if (Array.isArray(data)) {
+        if (reset) {
+          setInvoices(data);
+        } else {
+          setInvoices(prev => {
+            const existingIds = new Set(prev.map(i => i.invoice_id));
+            return [...prev, ...data.filter(i => !existingIds.has(i.invoice_id))];
+          });
+        }
+        setOffset(currentOffset + data.length);
+        setHasMore(data.length === LIMIT);
+      }
       setLoading(false);
+      setIsFetching(false);
     }
   };
+
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastElementRef = useCallback((node: HTMLDivElement | null) => {
+    if (isFetching || !hasMore) return;
+    if (observer.current) observer.current.disconnect();
+
+    observer.current = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        loadInvoices(false);
+      }
+    }, { threshold: 1.0 });
+
+    if (node) observer.current.observe(node);
+  }, [isFetching, hasMore, offset]);
 
   const handleSelectInvoice = async (inv: any) => {
     setSelectedInvoice(inv);
@@ -46,10 +90,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const filteredInvoices = invoices.filter(inv => 
-    inv.invoice_number.toLowerCase().includes(search.toLowerCase()) ||
-    (inv.customer_name && inv.customer_name.toLowerCase().includes(search.toLowerCase()))
-  );
+  const filteredInvoices = invoices; // filtering is done on backend
 
   return (
     <Modal
@@ -137,6 +178,12 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                   </div>
                 </button>
               ))
+            )}
+            
+            {hasMore && (
+              <div ref={lastElementRef} className="py-4 flex justify-center items-center shrink-0">
+                <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+              </div>
             )}
           </div>
         </div>

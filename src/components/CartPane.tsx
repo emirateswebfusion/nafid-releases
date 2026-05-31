@@ -26,14 +26,13 @@ export function CartPane() {
     const performSearch = async () => {
       if (window.electronAPI) {
         const { tenantId } = useAuthStore.getState();
-        const products = await window.electronAPI.dbGetProducts(tenantId || '');
+        const products = await window.electronAPI.dbGetProducts({ 
+          tenant_id: tenantId, 
+          search: searchQuery, 
+          limit: 8 
+        });
         if (Array.isArray(products)) {
-          const filtered = products.filter((p: any) => 
-            p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            (p.item_code && p.item_code.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            (p.sku_barcode && p.sku_barcode.includes(searchQuery))
-          ).slice(0, 8);
-          setResults(filtered);
+          setResults(products);
           setSelectedIndex(0);
         }
       }
