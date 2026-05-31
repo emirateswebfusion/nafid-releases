@@ -237,6 +237,27 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
   }
 });
 
+ipcMain.handle('db:getProductsCount', (event, arg: any) => {
+  try {
+    const db = getDb();
+    const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
+    if (!tenantId) return 0;
+
+    let query = 'SELECT COUNT(*) as count FROM products WHERE tenant_id = ? AND is_deleted = 0';
+    const params: any[] = [tenantId];
+    
+    if (arg?.search) {
+       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
+       params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`);
+    }
+
+    const result = db.prepare(query).get(...params) as { count: number };
+    return result ? result.count : 0;
+  } catch (error: any) {
+    return 0;
+  }
+});
+
 ipcMain.handle('db:addProduct', (event, p) => {
   try {
     const db = getDb();

@@ -4,6 +4,7 @@ export interface IElectronAPI {
   appCheckForUpdates: () => Promise<any>;
   appGetVersion: () => Promise<string>;
   dbGetProducts: (params: any) => Promise<any[]>;
+  dbGetProductsCount: (params: any) => Promise<number>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;

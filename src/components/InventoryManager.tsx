@@ -75,6 +75,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
   const LIMIT = 50;
 
   // Load products when search or sort changes (reset)
@@ -109,6 +110,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         search: searchQuery,
         sortBy: sortBy
       });
+
+      if (reset) {
+        const count = await window.electronAPI.dbGetProductsCount({
+          tenant_id: tenantId,
+          search: searchQuery
+        });
+        setTotalCount(count);
+      }
+
       if (Array.isArray(result)) {
         if (reset) {
           setProducts(result);
@@ -456,7 +466,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             <h2 className="text-2xl font-bold">
               {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
             </h2>
-            {view === 'list' && <p className="text-muted-foreground text-sm font-normal">{products.length} items in stock</p>}
+            {view === 'list' && <p className="text-muted-foreground text-sm font-normal">{totalCount !== null ? totalCount : '...'} items in stock</p>}
           </div>
         </div>
       }
@@ -639,7 +649,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
             {!hasMore && products.length > 0 && (
               <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-muted-foreground text-sm font-medium">
-                End of inventory list ({products.length} total items)
+                End of inventory list ({totalCount !== null ? totalCount : products.length} total items)
               </div>
             )}
             
