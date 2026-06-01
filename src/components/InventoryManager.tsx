@@ -72,6 +72,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printQuantity, setPrintQuantity] = useState<number | string>(1);
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
+  const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -187,15 +188,34 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     if (!confirm(`Delete "${product.name}"? This cannot be undone.`)) return;
     if (window.electronAPI) {
       const res = await window.electronAPI.dbDeleteProduct(product.product_id);
-      if (res.success) { await loadProducts(); }
-      else alert('Delete failed: ' + res.error);
+      if (res.success) {
+        setProducts(prev => prev.filter(p => p.product_id !== product.product_id));
+        setTotalCount(prev => prev !== null ? prev - 1 : null);
+      } else {
+        alert('Delete failed: ' + res.error);
+      }
     }
   };
 
   const handleAdjustStock = async (product: Product, delta: number) => {
     if (window.electronAPI) {
-      const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta });
-      if (res.success) await loadProducts();
+      setAdjustingStockId(product.product_id);
+      try {
+        const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta });
+        if (res.success) {
+          setProducts(prev => prev.map(p => 
+            p.product_id === product.product_id 
+              ? { ...p, current_stock: Number(p.current_stock) + delta } 
+              : p
+          ));
+        } else {
+          alert('Failed to adjust stock: ' + res.error);
+        }
+      } catch (err: any) {
+        alert('Failed to adjust stock: ' + err.message);
+      } finally {
+        setAdjustingStockId(null);
+      }
     }
   };
 
@@ -435,7 +455,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         : await window.electronAPI.dbAddProduct(payload);
 
       if (res.success) {
-        await loadProducts();
+        setOffset(0);
+        setHasMore(true);
+        await loadProducts(true);
         setView('list');
       } else {
         let errorMessage = res.error || 'Unknown error occurred';
@@ -608,14 +630,28 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
                     {/* Stock with +/- */}
                     <div className="col-span-2 flex items-center justify-center gap-2">
-                      <button onClick={() => handleAdjustStock(p, -1)} className="p-1 text-muted-foreground hover:text-destructive transition-colors">
+                      <button 
+                        onClick={() => handleAdjustStock(p, -1)} 
+                        disabled={adjustingStockId === p.product_id}
+                        className="p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+                      >
                         <Minus className="w-4 h-4" />
                       </button>
-                      <span className={clsx('text-sm font-bold w-12 text-center', isLowStock ? 'text-amber-500' : 'text-foreground')}>
-                        {Number(p.current_stock).toFixed(0)}
-                        {isLowStock && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                      <span className={clsx('text-sm font-bold w-12 text-center flex items-center justify-center', isLowStock ? 'text-amber-500' : 'text-foreground')}>
+                        {adjustingStockId === p.product_id ? (
+                           <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+                        ) : (
+                           <>
+                             {Number(p.current_stock).toFixed(0)}
+                             {isLowStock && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                           </>
+                        )}
                       </span>
-                      <button onClick={() => handleAdjustStock(p, 1)} className="p-1 text-muted-foreground hover:text-emerald-500 transition-colors">
+                      <button 
+                        onClick={() => handleAdjustStock(p, 1)} 
+                        disabled={adjustingStockId === p.product_id}
+                        className="p-1 text-muted-foreground hover:text-emerald-500 transition-colors disabled:opacity-50"
+                      >
                         <Plus className="w-4 h-4" />
                       </button>
                     </div>

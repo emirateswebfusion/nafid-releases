@@ -202,7 +202,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (!tenantId) return [];
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy)) {
-      return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name ASC').all(tenantId);
+      return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC, product_id ASC').all(tenantId);
     }
 
     const { limit, offset, search, sortBy, barcode } = arg;
@@ -217,10 +217,10 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    if (sortBy === 'created_at') query += ' ORDER BY created_at DESC';
-    else if (sortBy === 'updated_at') query += ' ORDER BY updated_at DESC';
-    else if (sortBy === 'stock') query += ' ORDER BY current_stock ASC';
-    else query += ' ORDER BY name ASC';
+    if (sortBy === 'created_at') query += ' ORDER BY created_at DESC, product_id ASC';
+    else if (sortBy === 'updated_at') query += ' ORDER BY updated_at DESC, product_id ASC';
+    else if (sortBy === 'stock') query += ' ORDER BY current_stock ASC, product_id ASC';
+    else query += ' ORDER BY name COLLATE NOCASE ASC, product_id ASC';
 
     if (limit) {
        query += ' LIMIT ?';
@@ -448,7 +448,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY i.created_at DESC';
+    query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
 
     if (limit) {
       query += ' LIMIT ?';
