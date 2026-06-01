@@ -30,6 +30,9 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
+  // Run initial sync cycle immediately on app startup
+  runSyncCycle().catch(err => console.error('[SyncWorker] Initial startup sync error:', err.message));
+  
   setInterval(runSyncCycle, SYNC_INTERVAL_MS);
 }
 
