@@ -159,7 +159,7 @@ router.get('/staff', async (req: Request, res: Response) => {
   try {
     const auth: any = jwt.verify(header.slice(7), process.env.JWT_SECRET!);
     const users = await query(
-      `SELECT user_id, name, email, role, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at DESC`,
+      `SELECT user_id, name, email, role, created_at FROM users WHERE tenant_id = $1 ORDER BY created_at DESC, user_id ASC`,
       [auth.tenant_id]
     );
     return res.json(users);

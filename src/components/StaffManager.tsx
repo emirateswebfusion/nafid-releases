@@ -66,7 +66,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       });
       const data = await res.json();
       if (res.ok) {
-        await fetchStaff();
+        setStaff(prev => [...prev, {
+          user_id: data.user_id,
+          name: formData.name || formData.email,
+          email: formData.email,
+          role: formData.role,
+          created_at: new Date().toISOString()
+        }]);
         setView('list');
         setFormData({ name: '', email: '', password: '', role: 'CASHIER' });
       } else {

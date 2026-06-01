@@ -73,6 +73,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
+  const [hasNewSyncData, setHasNewSyncData] = useState(false);
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -93,8 +94,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
-        console.log('[InventoryManager] Data updated via sync. Refreshing list...');
-        loadProducts(true); // reset list on sync update
+        console.log('[InventoryManager] Data updated via sync. Prompting refresh...');
+        setHasNewSyncData(true);
       });
     }
   }, []);
@@ -455,9 +456,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         : await window.electronAPI.dbAddProduct(payload);
 
       if (res.success) {
-        setOffset(0);
-        setHasMore(true);
-        await loadProducts(true);
+        if (view === 'edit') {
+          // Optimistic update for edit
+          setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload } as Product : p));
+        } else {
+          // Optimistic update for add
+          setProducts(prev => [payload as Product, ...prev]);
+          setTotalCount(prev => prev !== null ? prev + 1 : null);
+        }
         setView('list');
       } else {
         let errorMessage = res.error || 'Unknown error occurred';
@@ -549,7 +555,23 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             </div>
 
             {/* Rows */}
-            <div className="flex-1 overflow-y-auto divide-y divide-border">
+            <div className="flex-1 overflow-y-auto divide-y divide-border relative">
+              {hasNewSyncData && (
+                <div className="sticky top-2 z-10 mx-4 mb-2">
+                  <button 
+                    onClick={() => {
+                      setHasNewSyncData(false);
+                      setOffset(0);
+                      setHasMore(true);
+                      loadProducts(true);
+                    }}
+                    className="w-full bg-primary text-primary-foreground font-bold text-sm py-2 px-4 rounded-xl shadow-lg border border-primary-foreground/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all animate-in fade-in slide-in-from-top-4"
+                  >
+                    <RefreshCw className="w-4 h-4" />
+                    New data synced — Click to refresh
+                  </button>
+                </div>
+              )}
               {isFetching && offset === 0 ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">

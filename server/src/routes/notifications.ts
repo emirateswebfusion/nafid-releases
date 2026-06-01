@@ -13,7 +13,7 @@ router.get('/', async (req: Request, res: Response) => {
       const { rows } = await client.query(
         `SELECT * FROM notifications
          WHERE tenant_id = $1
-         ORDER BY created_at DESC
+         ORDER BY created_at DESC, notification_id ASC
          LIMIT 50`,
         [req.auth!.tenant_id]
       );

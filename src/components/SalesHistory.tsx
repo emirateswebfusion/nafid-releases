@@ -12,6 +12,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [hasNewSyncData, setHasNewSyncData] = useState(false);
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -30,8 +31,8 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
-        console.log('[SalesHistory] Data updated via sync. Refreshing list...');
-        loadInvoices(true);
+        console.log('[SalesHistory] Data updated via sync. Prompting refresh...');
+        setHasNewSyncData(true);
       });
     }
   }, []);
@@ -125,7 +126,24 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-2 space-y-2 h-full">
+          <div className="flex-1 overflow-y-auto p-2 space-y-2 h-full relative">
+            {hasNewSyncData && (
+              <div className="sticky top-2 z-10 mx-2 mb-4">
+                <button 
+                  onClick={() => {
+                    setHasNewSyncData(false);
+                    setOffset(0);
+                    setHasMore(true);
+                    loadInvoices(true);
+                  }}
+                  className="w-full bg-primary text-primary-foreground font-bold text-sm py-2 px-4 rounded-xl shadow-lg border border-primary-foreground/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all animate-in fade-in slide-in-from-top-4"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                  New data synced — Click to refresh
+                </button>
+              </div>
+            )}
+            
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
                 <div key={`skel-${i}`} className="w-full text-left p-4 rounded-xl border bg-background border-border">

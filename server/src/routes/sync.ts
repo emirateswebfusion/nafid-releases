@@ -120,7 +120,7 @@ router.get('/invoices', async (req: Request, res: Response) => {
     const invoices = await withTenantContext(req.auth!.tenant_id, async (client) => {
       // 1. Fetch invoices
       const invResult = await client.query(
-        `SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 1000`,
+        `SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC, invoice_id ASC LIMIT 1000`,
         [req.auth!.tenant_id]
       );
       
