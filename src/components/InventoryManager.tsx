@@ -333,6 +333,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       );
       if (res.success) {
         setStatusMessage({ text: `Barcode printed successfully (${printQuantity} label${Number(printQuantity) > 1 ? 's' : ''})!`, type: 'success' });
+        setPrintQuantity(1);
       } else {
         setStatusMessage({ text: `Print Failed: ${res.error || 'Printer not connected'}`, type: 'error' });
       }
@@ -341,6 +342,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       setTimeout(() => setStatusMessage(null), 3000);
     } else {
       alert('Print command dispatched (mock)');
+      setPrintQuantity(1);
     }
   };
 
@@ -437,7 +439,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setLoading(true);
 
     const payload = {
-      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset' }),
+      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending' }),
       ...formData,
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
@@ -445,6 +447,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       current_stock: Number(formData.current_stock) || 0,
       reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
+      domain_attributes: JSON.stringify(formData.domain_attributes),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
       discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
       offer_price: formData.offer_price === '' ? null : Number(formData.offer_price),
@@ -468,7 +471,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       } else {
         let errorMessage = res.error || 'Unknown error occurred';
         if (errorMessage.includes('UNIQUE constraint failed')) {
-          errorMessage = 'A product with this exact Name and Brand already exists.';
+          if (errorMessage.includes('sku_barcode')) {
+            errorMessage = 'A product with this barcode already exists.';
+          } else {
+            errorMessage = 'A product with this exact Name and Brand already exists.';
+          }
         }
         setStatusMessage({ text: 'Failed to save: ' + errorMessage, type: 'error' });
         setTimeout(() => setStatusMessage(null), 4000);

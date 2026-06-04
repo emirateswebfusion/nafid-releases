@@ -52,7 +52,8 @@ export function initDb() {
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(tenant_id, name, brand_manufacturer)
+        UNIQUE(tenant_id, name, brand_manufacturer),
+        UNIQUE(tenant_id, sku_barcode)
     );
 
     CREATE TABLE IF NOT EXISTS invoices (
@@ -149,15 +150,26 @@ export function initDb() {
   try {
     db.exec("DROP INDEX IF EXISTS idx_uq_product_name_tenant");
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_name_brand_tenant ON products(tenant_id, name, brand_manufacturer)");
+  } catch (e: any) {
+    console.warn('[DB Migration] Could not create unique index for name/brand. Duplicate data might exist.', e.message);
+  }
+
+  try {
+    db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_product_barcode_tenant ON products(tenant_id, sku_barcode)");
+  } catch (e: any) {
+    console.warn('[DB Migration] Could not create unique index for barcode. Duplicate data might exist.', e.message);
+  }
+
+  try {
     db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_uq_invoice_number_tenant ON invoices(tenant_id, invoice_number)");
   } catch (e: any) {
-    console.warn('[DB Migration] Could not create unique indexes. Duplicate data might exist.', e.message);
+    console.warn('[DB Migration] Could not create unique index for invoice number. Duplicate data might exist.', e.message);
   }
 
   // Fix inline constraint for products table by recreating it if needed
   try {
     const tableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='products'").get() as any;
-    if (tableSql && !/UNIQUE\s*\([^)]*brand_manufacturer[^)]*\)/i.test(tableSql.sql)) {
+    if (tableSql && (!/UNIQUE\s*\([^)]*brand_manufacturer[^)]*\)/i.test(tableSql.sql) || !/UNIQUE\s*\([^)]*sku_barcode[^)]*\)/i.test(tableSql.sql))) {
       console.log('[DB Migration] Recreating products table to fix inline UNIQUE constraint...');
       db.exec('PRAGMA foreign_keys=off;');
       
@@ -188,7 +200,8 @@ export function initDb() {
               sync_status TEXT DEFAULT 'SYNCED',
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-              UNIQUE(tenant_id, name, brand_manufacturer)
+              UNIQUE(tenant_id, name, brand_manufacturer),
+              UNIQUE(tenant_id, sku_barcode)
           );
         `);
         const columnsInfo = db.prepare("PRAGMA table_info(products_old)").all();

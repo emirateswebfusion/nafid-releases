@@ -13,7 +13,7 @@ export const pool = new Pool({
   ssl: process.env.PG_SSL === 'true' ? { rejectUnauthorized: false } : false,
   max: 20,                   // Max connections in pool
   idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  connectionTimeoutMillis: 10000, // Increased to 10s for Neon DB cold start
 });
 
 pool.on('connect', () => console.log('[DB] New PostgreSQL client connected'));
