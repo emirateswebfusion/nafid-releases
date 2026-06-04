@@ -65,22 +65,25 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
-  // Initial Sync Logic (Run once after auth if DB is empty)
+  // Reset syncChecked when user logs out
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setSyncChecked(false);
+    }
+  }, [isAuthenticated]);
+
+  // Sync Logic (Run every time after auth or on app restart)
   useEffect(() => {
     if (isAuthenticated && !syncChecked && window.electronAPI) {
       const runSync = async () => {
-        const { tenantId } = useAuthStore.getState();
-        const result = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1 });
-        console.log('[App] Initial Product Check:', result);
-        
-        if (Array.isArray(result) && result.length === 0) {
-          console.log('[App] New system detected. Starting initial cloud pull...');
-          setIsSyncing(true);
+        console.log('[App] System authenticated. Starting cloud pull...');
+        setIsSyncing(true);
+        try {
           await window.electronAPI.runInitialSync();
-          setIsSyncing(false);
-        } else if (result && 'error' in result) {
-          console.error('[App] Database error on startup:', result.error);
+        } catch (error) {
+          console.error('[App] Sync failed:', error);
         }
+        setIsSyncing(false);
         setSyncChecked(true);
       };
       runSync();
