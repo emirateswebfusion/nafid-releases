@@ -217,8 +217,8 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    if (sortBy === 'created_at') query += ' ORDER BY created_at DESC, product_id ASC';
-    else if (sortBy === 'updated_at') query += ' ORDER BY updated_at DESC, product_id ASC';
+    if (sortBy === 'created_at') query += ' ORDER BY datetime(created_at) DESC, product_id ASC';
+    else if (sortBy === 'updated_at') query += ' ORDER BY datetime(updated_at) DESC, product_id ASC';
     else if (sortBy === 'stock') query += ' ORDER BY current_stock ASC, product_id ASC';
     else query += ' ORDER BY name COLLATE NOCASE ASC, product_id ASC';
 
@@ -448,7 +448,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
+    query += ' ORDER BY datetime(i.created_at) DESC, i.invoice_id ASC';
 
     if (limit) {
       query += ' LIMIT ?';
