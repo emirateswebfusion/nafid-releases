@@ -178,40 +178,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
-            {/* Business Domain Section (Only for Owners) */}
-            {role === 'OWNER' && (
-              <section className="space-y-4">
-                <div className="flex items-center gap-3 text-foreground">
-                  <Layout className="w-5 h-5 text-primary" />
-                  <h3 className="font-bold text-lg">Business Configuration</h3>
-                </div>
-                <p className="text-sm text-muted-foreground">Updating this will change how Vendora handles products and hardware connections for your entire shop.</p>
-                
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { id: 'GENERAL', name: 'Retail', icon: ShoppingCart },
-                    { id: 'HARDWARE', name: 'Hardware', icon: Wrench },
-                    { id: 'JEWELRY', name: 'Jewelry', icon: Gem }
-                  ].map((d) => (
-                    <button
-                      key={d.id}
-                      onClick={() => setLocalDomain(d.id as any)}
-                      className={clsx(
-                        "flex flex-col items-center gap-3 p-4 rounded-xl border transition-all",
-                        localDomain === d.id 
-                          ? "bg-primary/10 border-primary text-primary"
-                          : "bg-background border-border text-muted-foreground hover:border-muted-foreground/50"
-                      )}
-                    >
-                      <d.icon className="w-6 h-6" />
-                      <span className="text-xs font-bold uppercase tracking-widest">{d.name}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
 
-            {role === 'OWNER' && <div className="h-px bg-border" />}
 
             {role === 'OWNER' && (
               <section className="space-y-4">

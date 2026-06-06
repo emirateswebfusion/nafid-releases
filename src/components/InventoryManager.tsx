@@ -65,7 +65,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('name');
+  const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
+  const [filterDate, setFilterDate] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -89,7 +90,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       loadProducts(true);
     }, 300); // debounce search
     return () => clearTimeout(timeout);
-  }, [searchQuery, sortBy]);
+  }, [searchQuery, sortBy, filterDate]);
 
   // Sync listener
   useEffect(() => {
@@ -147,13 +148,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         limit: LIMIT,
         offset: currentOffset,
         search: searchQuery,
-        sortBy: sortBy
+        sortBy: sortBy,
+        filterDate: filterDate
       });
 
       if (reset) {
         const count = await window.electronAPI.dbGetProductsCount({
           tenant_id: tenantId,
-          search: searchQuery
+          search: searchQuery,
+          filterDate: filterDate
         });
         setTotalCount(count);
       }
@@ -471,6 +474,38 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const downloadCsv = async () => {
+    setStatusMessage({ text: 'Generating CSV...', type: 'success' });
+    if (window.electronAPI) {
+      const { tenantId } = useAuthStore.getState();
+      const result = await window.electronAPI.dbGetProducts({
+        tenant_id: tenantId,
+        filterDate: filterDate,
+        limit: 100000 
+      });
+      if (Array.isArray(result) && result.length > 0) {
+        const headers = ['Name', 'Item Code', 'Barcode', 'Category', 'Brand', 'UOM', 'Purchase Price', 'MRP', 'Discount Percentage', 'Offer Price', 'Current Stock', 'Added Date'];
+        const csvContent = [
+          headers.join(','),
+          ...result.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.item_code || ''}","${p.sku_barcode || ''}","${p.category || ''}","${p.brand_manufacturer || ''}","${p.uom || ''}",${p.purchase_price || 0},${p.base_price || 0},${p.discount_percent || 0},${p.offer_price || 0},${p.current_stock || 0},"${p.created_at || ''}"`)
+        ].join('\n');
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filterDate ? `products_${filterDate}.csv` : 'products_all.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setStatusMessage({ text: 'CSV Downloaded', type: 'success' });
+      } else {
+        setStatusMessage({ text: 'No products to download for this date', type: 'error' });
+      }
+    }
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   const handleSave = async () => {
     if (!formData.name || Number(formData.base_price) <= 0) {
       setStatusMessage({ text: 'Please fill in Name and a valid MRP.', type: 'error' });
@@ -594,6 +629,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <input 
+                type="date"
+                value={filterDate}
+                onChange={e => setFilterDate(e.target.value)}
+                className="bg-background border border-border rounded-lg py-2 px-3 text-sm text-foreground focus:border-primary focus:outline-none"
+              />
+              <button onClick={downloadCsv} className="p-2 text-muted-foreground hover:text-primary transition-colors bg-muted rounded-lg" title="Download CSV">
+                <Save className="w-5 h-5" />
+              </button>
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as any)}

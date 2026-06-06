@@ -201,11 +201,11 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return [];
 
-    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy)) {
+    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate)) {
       return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC, product_id ASC').all(tenantId);
     }
 
-    const { limit, offset, search, sortBy, barcode } = arg;
+    const { limit, offset, search, sortBy, barcode, filterDate } = arg;
     let query = 'SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0';
     const params: any[] = [tenantId];
 
@@ -215,6 +215,11 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     } else if (search) {
        query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (filterDate) {
+       query += ' AND date(created_at, \'localtime\') = ?';
+       params.push(filterDate);
     }
 
     if (sortBy === 'created_at') query += ' ORDER BY datetime(created_at) DESC, product_id ASC';
@@ -249,6 +254,11 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     if (arg?.search) {
        query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
        params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`);
+    }
+
+    if (arg?.filterDate) {
+       query += ' AND date(created_at, \'localtime\') = ?';
+       params.push(arg.filterDate);
     }
 
     const result = db.prepare(query).get(...params) as { count: number };
