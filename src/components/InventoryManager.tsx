@@ -204,15 +204,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         });
         if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
           const lastBarcode = lastProduct[0].sku_barcode;
-          const match = lastBarcode.match(/^(.*?)\d+$/);
+          const match = lastBarcode.match(/^(.*?)(\d+)$/);
           if (match) {
-            const prefix = match[1];
-            const numStr = lastBarcode.substring(prefix.length);
+            const numStr = match[2];
             const nextNum = (BigInt(numStr) + 1n).toString();
-            nextBarcode = prefix + nextNum.padStart(numStr.length, '0');
+            nextBarcode = nextNum.padStart(numStr.length, '0');
           } else {
-            // If the barcode doesn't end with a number, try to append '1' to it
-            nextBarcode = lastBarcode + '1';
+            // If the barcode doesn't end with a number, default to '1'
+            nextBarcode = '1';
           }
         }
       } catch (err) {
