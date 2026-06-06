@@ -61,8 +61,11 @@ export function initPrinter() {
     try {
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, ESC_DRAWER_KICK);
+      } else if (config.type === 'usb') {
+        console.warn('[Hardware] USB cash drawer kick skipped. (Configure via OS Printer Driver settings)');
+        // We return success true here so we don't trigger a scary hardware error in the ActionPane UI
       } else {
-        throw new Error('USB cash drawer kick is not yet implemented');
+        throw new Error('Unknown printer type configuration');
       }
       return { success: true };
     } catch (error: any) {

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Receipt, Search, Calendar, User, Phone, Tag, RefreshCw } from 'lucide-react';
+import { Receipt, Search, Calendar, User, Phone, Tag, RefreshCw, Printer } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
@@ -232,9 +232,42 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-muted-foreground text-xs uppercase font-bold tracking-widest mb-1">Grand Total</div>
-                  <div className="text-5xl font-black text-primary">₹{selectedInvoice.grand_total.toFixed(2)}</div>
+                <div className="text-right flex flex-col items-end gap-4">
+                  <div>
+                    <div className="text-muted-foreground text-xs uppercase font-bold tracking-widest mb-1">Grand Total</div>
+                    <div className="text-5xl font-black text-primary">₹{selectedInvoice.grand_total.toFixed(2)}</div>
+                  </div>
+                  <button 
+                    onClick={async () => {
+                      if (!selectedInvoice || !window.electronAPI) return;
+                      try {
+                        const { tenantId } = useAuthStore.getState();
+                        let receiptText = `================================\n`;
+                        receiptText += `          INVOICE (REPRINT)\n`;
+                        receiptText += `================================\n`;
+                        receiptText += `INV No: ${selectedInvoice.invoice_number}\n`;
+                        receiptText += `--------------------------------\n`;
+                        items.forEach(item => {
+                          receiptText += `${item.name}\n`;
+                          receiptText += `  ${item.quantity} x ${item.unit_price.toFixed(2)} = ${item.total.toFixed(2)}\n`;
+                        });
+                        receiptText += `--------------------------------\n`;
+                        receiptText += `SUBTOTAL:      ${selectedInvoice.subtotal.toFixed(2)}\n`;
+                        if (selectedInvoice.tax_total > 0) receiptText += `TAX:           ${selectedInvoice.tax_total.toFixed(2)}\n`;
+                        if (selectedInvoice.discount_total > 0) receiptText += `DISCOUNT:     -${selectedInvoice.discount_total.toFixed(2)}\n`;
+                        receiptText += `--------------------------------\n`;
+                        receiptText += `GRAND TOTAL:   ${selectedInvoice.grand_total.toFixed(2)}\n`;
+                        receiptText += `================================\n`;
+                        await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+                      } catch (err) {
+                        console.error('Failed to reprint', err);
+                      }
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-colors text-sm font-bold"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Reprint Receipt
+                  </button>
                 </div>
               </div>
 

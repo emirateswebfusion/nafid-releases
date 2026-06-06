@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, Tags } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -45,7 +45,7 @@ const DEFAULT_FORM = {
   base_price: '' as string | number,
   current_stock: '' as string | number,
   reorder_level: '' as string | number,
-  is_gst_applicable: true,
+  is_gst_applicable: false,
   hsn_sac_code: '',
   tax_rate_percent: 0,
   domain_attributes: {} as Record<string, any>,
@@ -74,6 +74,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
   const [hasNewSyncData, setHasNewSyncData] = useState(false);
+  const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -99,6 +100,42 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       });
     }
   }, []);
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' })
+        .then(res => {
+          if (res) setPriceCoding(res);
+        })
+        .catch(console.error);
+    }
+  }, [tenantId]);
+
+  const applyPriceCodeToBarcode = () => {
+    if (!priceCoding || !formData.purchase_price) return;
+    
+    const priceStr = String(formData.purchase_price).replace(/\D/g, '');
+    if (!priceStr) return;
+    
+    let codedPrice = '';
+    let hasMapping = false;
+    for (const char of priceStr) {
+      const mapped = priceCoding[char];
+      if (mapped) {
+        codedPrice += mapped;
+        hasMapping = true;
+      }
+    }
+    
+    if (hasMapping && codedPrice) {
+      setFormData(prev => ({
+        ...prev,
+        sku_barcode: codedPrice + (prev.sku_barcode || '')
+      }));
+      setStatusMessage({ text: `Appended ${codedPrice} to barcode`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 2000);
+    }
+  };
 
   const loadProducts = async (reset = false) => {
     setIsFetching(true);
@@ -153,8 +190,34 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     if (node) observer.current.observe(node);
   }, [isFetching, hasMore, view, offset]);
 
-  const openAdd = () => {
-    setFormData({ ...DEFAULT_FORM });
+  const openAdd = async () => {
+    let nextBarcode = '';
+    if (window.electronAPI) {
+      try {
+        const lastProduct = await window.electronAPI.dbGetProducts({
+          tenant_id: tenantId,
+          limit: 1,
+          sortBy: 'created_at'
+        });
+        if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
+          const lastBarcode = lastProduct[0].sku_barcode;
+          const match = lastBarcode.match(/^(.*?)\d+$/);
+          if (match) {
+            const prefix = match[1];
+            const numStr = lastBarcode.substring(prefix.length);
+            const nextNum = (BigInt(numStr) + 1n).toString();
+            nextBarcode = prefix + nextNum.padStart(numStr.length, '0');
+          } else {
+            // If the barcode doesn't end with a number, try to append '1' to it
+            nextBarcode = lastBarcode + '1';
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch last barcode", err);
+      }
+    }
+
+    setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode });
     setEditingProduct(null);
     setView('add');
   };
@@ -501,7 +564,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             <h2 className="text-2xl font-bold">
               {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
             </h2>
-            {view === 'list' && <p className="text-muted-foreground text-sm font-normal">{totalCount !== null ? totalCount : '...'} items in stock</p>}
+            {view === 'list' && <p className="text-muted-foreground text-sm font-normal">{totalCount !== null ? totalCount : '...'} products in stock</p>}
           </div>
         </div>
       }
@@ -714,7 +777,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
             {!hasMore && products.length > 0 && (
               <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-muted-foreground text-sm font-medium">
-                End of inventory list ({totalCount !== null ? totalCount : products.length} total items)
+                End of inventory list ({totalCount !== null ? totalCount : products.length} total products)
               </div>
             )}
             
@@ -786,21 +849,41 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     { label: 'MRP *', field: 'base_price', prefix: '₹' },
                     { label: 'Current Stock', field: 'current_stock' },
                     { label: 'Low Stock Alert', field: 'reorder_level' },
-                  ].map(({ label, field, prefix }) => (
-                    <div key={field}>
-                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
-                      <div className="relative">
-                        {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
-                        <input
-                          type="number" step="0.01"
-                          onWheel={e => (e.target as HTMLInputElement).blur()}
-                          value={(formData as any)[field]}
-                          onChange={e => handleInputChange(field, e.target.value)}
-                          className={clsx('w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', prefix && 'pl-8', field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold')}
-                        />
+                  ].map(({ label, field, prefix }) => {
+                    const isPurchasePrice = field === 'purchase_price';
+                    const showCodedIcon = isPurchasePrice && priceCoding && Object.values(priceCoding).some(v => v);
+
+                    return (
+                      <div key={field}>
+                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
+                        <div className="relative">
+                          {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={(formData as any)[field]}
+                            onChange={e => handleInputChange(field, e.target.value)}
+                            className={clsx(
+                              'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', 
+                              prefix && 'pl-8', 
+                              showCodedIcon && 'pr-10',
+                              field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
+                            )}
+                          />
+                          {showCodedIcon && (
+                            <button
+                              type="button"
+                              title="Add coded price to barcode"
+                              onClick={applyPriceCodeToBarcode}
+                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-md transition-colors"
+                            >
+                              <Tags className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   <div>
                     <label className="block text-sm font-semibold text-muted-foreground mb-1.5 whitespace-nowrap">Measuring Unit (UOM)</label>
                     <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none">

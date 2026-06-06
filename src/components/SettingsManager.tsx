@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key } from 'lucide-react';
+import { Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key, Tags } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -22,6 +22,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [changingPass, setChangingPass] = useState(false);
   const [appVersion, setAppVersion] = useState('v1.0.0');
+  const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
+    '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
+  });
 
   useEffect(() => {
     loadSettings();
@@ -32,8 +35,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       const { tenantId } = useAuthStore.getState();
       const p = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
       const s = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scale_config' });
+      const pCoding = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' });
       if (p) setPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...p });
       if (s) setScale(s);
+      if (pCoding) setPriceCoding(pCoding);
       
       try {
         const pr = await window.electronAPI.getPrinters();
@@ -88,6 +93,13 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           value: scale 
         });
         if (!resScale.success) throw new Error(resScale.error);
+
+        const resPriceCoding = await window.electronAPI.settingsSet({ 
+          tenant_id: tenantId || 'global', 
+          key: 'price_coding', 
+          value: priceCoding 
+        });
+        if (!resPriceCoding.success) throw new Error(resPriceCoding.error);
 
         setMessage({ type: 'success', text: `Saved! USB Printer: ${printer.deviceName || 'None'}. Please restart app.` });
       }
@@ -194,6 +206,33 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       <d.icon className="w-6 h-6" />
                       <span className="text-xs font-bold uppercase tracking-widest">{d.name}</span>
                     </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {role === 'OWNER' && <div className="h-px bg-border" />}
+
+            {role === 'OWNER' && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-3 text-foreground">
+                  <Tags className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold text-lg">Purchase Price Coding</h3>
+                </div>
+                <p className="text-sm text-muted-foreground">Assign alphabets to each digit to code your purchase prices.</p>
+                <div className="grid grid-cols-5 gap-4">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+                    <div key={digit} className="flex items-center gap-2 bg-muted/20 p-2 rounded-xl border border-border">
+                      <span className="font-bold text-lg w-6 text-center text-muted-foreground">{digit}</span>
+                      <span className="text-muted-foreground">=</span>
+                      <Input 
+                        type="text"
+                        maxLength={1}
+                        value={priceCoding[digit.toString()] || ''}
+                        onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })}
+                        className="text-center font-bold"
+                      />
+                    </div>
                   ))}
                 </div>
               </section>

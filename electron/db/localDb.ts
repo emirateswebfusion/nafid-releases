@@ -174,9 +174,8 @@ export function initDb() {
       db.exec('PRAGMA foreign_keys=off;');
       
       const migrateTable = db.transaction(() => {
-        db.exec('ALTER TABLE products RENAME TO products_old;');
         db.exec(`
-          CREATE TABLE products (
+          CREATE TABLE products_new (
               product_id TEXT PRIMARY KEY,
               tenant_id TEXT,
               name TEXT NOT NULL,
@@ -204,10 +203,11 @@ export function initDb() {
               UNIQUE(tenant_id, sku_barcode)
           );
         `);
-        const columnsInfo = db.prepare("PRAGMA table_info(products_old)").all();
+        const columnsInfo = db.prepare("PRAGMA table_info(products)").all();
         const columnNames = columnsInfo.map((c: any) => c.name).join(', ');
-        db.exec(`INSERT INTO products (${columnNames}) SELECT ${columnNames} FROM products_old;`);
-        db.exec('DROP TABLE products_old;');
+        db.exec(`INSERT INTO products_new (${columnNames}) SELECT ${columnNames} FROM products;`);
+        db.exec('DROP TABLE products;');
+        db.exec('ALTER TABLE products_new RENAME TO products;');
       });
       
       migrateTable();
@@ -216,6 +216,41 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to recreate products table for constraint update:', e.message);
+  }
+
+  // Repair corrupted invoice_items foreign key pointing to products_old
+  try {
+    const invItemsInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as any;
+    if (invItemsInfo && invItemsInfo.sql.includes('products_old')) {
+      console.log('[DB Migration] Repairing corrupted invoice_items foreign key...');
+      db.exec('PRAGMA foreign_keys=off;');
+      const repairTable = db.transaction(() => {
+         db.exec(`
+          CREATE TABLE invoice_items_new (
+              item_id TEXT PRIMARY KEY,
+              invoice_id TEXT NOT NULL,
+              tenant_id TEXT,
+              product_id TEXT NOT NULL,
+              name TEXT,
+              quantity REAL NOT NULL,
+              unit_price REAL NOT NULL,
+              tax_amount REAL DEFAULT 0,
+              total REAL NOT NULL,
+              FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id),
+              FOREIGN KEY (product_id) REFERENCES products(product_id)
+          );
+         `);
+         const cols = db.prepare("PRAGMA table_info(invoice_items)").all().map((c: any) => c.name).join(', ');
+         db.exec(`INSERT INTO invoice_items_new (${cols}) SELECT ${cols} FROM invoice_items;`);
+         db.exec('DROP TABLE invoice_items;');
+         db.exec('ALTER TABLE invoice_items_new RENAME TO invoice_items;');
+      });
+      repairTable();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] invoice_items repaired successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to repair invoice_items table:', e.message);
   }
 
   // Migrate settings table to include tenant_id if it's missing
