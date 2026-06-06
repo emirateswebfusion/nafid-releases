@@ -1,3 +1,14 @@
+# Vendora v1.3.1 Release Notes
+
+## New Features & Enhancements
+- **Inventory Management**:
+  - Implemented auto-increment logic for new product barcodes to skip alphabetic prefixes, generating purely numeric barcodes.
+- **Settings**:
+  - Added "Purchase Price Coding" feature for Owners to map price digits to specific alphabets.
+
+## Bug Fixes
+- Fixed TypeScript declaration errors and unused imports in SettingsManager.tsx.
+
 # Vendora v1.3.0 Release Notes
 
 ## New Features & Enhancements
