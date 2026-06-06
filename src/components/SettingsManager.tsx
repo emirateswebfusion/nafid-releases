@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, Printer, Scale, Save, Loader2, Info, Layout, ShoppingCart, Wrench, Gem, RefreshCw, Download, Lock, Key, Tags } from 'lucide-react';
+import { Settings, Printer, Scale, Save, Loader2, Info, RefreshCw, Download, Lock, Key, Tags } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -18,7 +18,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const { shopDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
-  const [localDomain, setLocalDomain] = useState(shopDomain || 'GENERAL');
+  const [localDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [changingPass, setChangingPass] = useState(false);
   const [appVersion, setAppVersion] = useState('v1.0.0');
