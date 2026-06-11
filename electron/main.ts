@@ -161,10 +161,10 @@ app.whenReady().then(async () => {
   //   autoUpdater.checkForUpdatesAndNotify();
   // }, 60 * 60 * 1000);
 
-  // Initial check
-  autoUpdater.checkForUpdatesAndNotify().catch(err => {
-    console.error('[Updater] Initial check error:', err.message);
-  });
+  // Initial check (Temporarily disabled as repo is private)
+  // autoUpdater.checkForUpdatesAndNotify().catch(err => {
+  //   console.error('[Updater] Initial check error:', err.message);
+  // });
 });
 
 app.on('window-all-closed', () => {
@@ -202,30 +202,30 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (!tenantId) return [];
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate)) {
-      return db.prepare('SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC, product_id ASC').all(tenantId);
+      return db.prepare('SELECT p.*, pg.rate as grade_rate FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC').all(tenantId);
     }
 
     const { limit, offset, search, sortBy, barcode, filterDate } = arg;
-    let query = 'SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0';
+    let query = 'SELECT p.*, pg.rate as grade_rate FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0';
     const params: any[] = [tenantId];
 
     if (barcode) {
-       query += ' AND (sku_barcode = ? OR item_code = ?)';
+       query += ' AND (p.sku_barcode = ? OR p.item_code = ?)';
        params.push(barcode, barcode);
     } else if (search) {
-       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
+       query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
        params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     if (filterDate) {
-       query += ' AND date(created_at, \'localtime\') = ?';
+       query += ' AND date(p.created_at, \'localtime\') = ?';
        params.push(filterDate);
     }
 
-    if (sortBy === 'created_at') query += ' ORDER BY datetime(created_at) DESC, product_id ASC';
-    else if (sortBy === 'updated_at') query += ' ORDER BY datetime(updated_at) DESC, product_id ASC';
-    else if (sortBy === 'stock') query += ' ORDER BY current_stock ASC, product_id ASC';
-    else query += ' ORDER BY name COLLATE NOCASE ASC, product_id ASC';
+    if (sortBy === 'created_at') query += ' ORDER BY datetime(p.created_at) DESC, p.product_id ASC';
+    else if (sortBy === 'updated_at') query += ' ORDER BY datetime(p.updated_at) DESC, p.product_id ASC';
+    else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
+    else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
 
     if (limit) {
        query += ' LIMIT ?';
@@ -277,8 +277,9 @@ ipcMain.handle('db:addProduct', (event, p) => {
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
         discount_percent, discount_flat, offer_price,
-        is_deleted, sync_status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        is_deleted, billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
+        sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       p.product_id,
@@ -300,7 +301,12 @@ ipcMain.handle('db:addProduct', (event, p) => {
       p.discount_percent ?? null,
       p.discount_flat ?? null,
       p.offer_price ?? null,
-      p.is_deleted ?? 0
+      p.is_deleted ?? 0,
+      p.billing_type || 'PIECE',
+      p.grade_id || null,
+      p.pricing_mode || 'FIXED_PRICE',
+      p.average_weight_per_piece ?? null,
+      p.weight_override_allowed ?? 0
     );
     return { success: true };
   } catch (error: any) {
@@ -317,7 +323,9 @@ ipcMain.handle('db:updateProduct', (event, p) => {
           purchase_price = ?, base_price = ?, is_gst_applicable = ?, tax_rate_percent = ?,
           uom = ?, brand_manufacturer = ?, current_stock = ?, reorder_level = ?, 
           domain_attributes = ?, discount_percent = ?, discount_flat = ?, offer_price = ?, 
-          is_deleted = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          is_deleted = ?, billing_type = ?, grade_id = ?, pricing_mode = ?, 
+          average_weight_per_piece = ?, weight_override_allowed = ?,
+          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE product_id = ?
     `);
     stmt.run(
@@ -340,6 +348,11 @@ ipcMain.handle('db:updateProduct', (event, p) => {
       p.discount_flat ?? null,
       p.offer_price ?? null,
       p.is_deleted ?? 0,
+      p.billing_type || 'PIECE',
+      p.grade_id || null,
+      p.pricing_mode || 'FIXED_PRICE',
+      p.average_weight_per_piece ?? null,
+      p.weight_override_allowed ?? 0,
       p.product_id
     );
     return { success: true };
@@ -359,6 +372,85 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
   }
 });
 
+ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
+  try {
+    const db = getDb();
+    const transaction = db.transaction((prods) => {
+      const stmt = db.prepare(`
+        INSERT INTO products (
+          product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
+          purchase_price, base_price, is_gst_applicable, tax_rate_percent,
+          uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
+          discount_percent, discount_flat, offer_price,
+          is_deleted, billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
+          sync_status, print_status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      for (const p of prods) {
+        stmt.run(
+          p.product_id,
+          p.tenant_id,
+          p.name,
+          p.sku_barcode,
+          p.item_code || null,
+          p.category || null,
+          p.hsn_sac_code || null,
+          p.purchase_price || 0,
+          p.base_price || 0,
+          p.is_gst_applicable ?? 1,
+          p.tax_rate_percent || 0,
+          p.uom || 'Pcs',
+          p.brand_manufacturer || null,
+          p.current_stock || 0,
+          p.reorder_level || 0,
+          p.domain_attributes ? JSON.stringify(p.domain_attributes) : '{}',
+          p.discount_percent ?? null,
+          p.discount_flat ?? null,
+          p.offer_price ?? null,
+          0,
+          p.billing_type || 'PIECE',
+          p.grade_id || null,
+          p.pricing_mode || 'FIXED_PRICE',
+          p.average_weight_per_piece ?? null,
+          p.weight_override_allowed ?? 0
+        );
+      }
+    });
+    transaction(products);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updatePrintStatus', (event, productIds: string[]) => {
+  try {
+    const db = getDb();
+    const transaction = db.transaction((ids) => {
+      const stmt = db.prepare("UPDATE products SET print_status = 'PRINTED', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?");
+      for (const id of ids) {
+        stmt.run(id);
+      }
+    });
+    transaction(productIds);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit }: { tenant_id: string, limit: number }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND print_status = 'PENDING' AND current_stock > 0 ORDER BY datetime(created_at) ASC";
+    if (limit) query += ` LIMIT ${limit}`;
+    return db.prepare(query).all(tenant_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
 ipcMain.handle('db:adjustStock', (event, { product_id, delta }) => {
   try {
     const db = getDb();
@@ -367,6 +459,53 @@ ipcMain.handle('db:adjustStock', (event, { product_id, delta }) => {
       SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE product_id = ?
     `).run(delta, product_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getGrades', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare('SELECT * FROM product_grades WHERE tenant_id = ? ORDER BY category, grade_name').all(tenantId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:addGrade', (event, g) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, sync_status) 
+      VALUES (?, ?, ?, ?, ?, 'PENDING')
+    `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateGrade', (event, g) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE product_grades 
+      SET category = ?, grade_name = ?, rate = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+      WHERE grade_id = ?
+    `).run(g.category, g.grade_name, g.rate, g.grade_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
+  try {
+    const db = getDb();
+    db.prepare(`DELETE FROM product_grades WHERE grade_id = ?`).run(gradeId);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

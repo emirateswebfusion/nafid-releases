@@ -59,6 +59,12 @@ export function CartPane() {
       base_price: product.base_price,
       purchase_price: product.purchase_price ?? 0,
       tax_rate_percent: product.tax_rate_percent ?? 0,
+      billing_type: product.billing_type,
+      grade_id: product.grade_id,
+      pricing_mode: product.pricing_mode,
+      average_weight_per_piece: product.average_weight_per_piece,
+      weight_override_allowed: product.weight_override_allowed === 1 || product.weight_override_allowed === true,
+      grade_rate: product.grade_rate,
     });
     setSearchQuery('');
     setResults([]);
@@ -145,7 +151,9 @@ export function CartPane() {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-black">₹{p.base_price.toFixed(2)}</div>
+                      <div className="font-black">
+                        ₹{(p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price).toFixed(2)}
+                      </div>
                       <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                         Stock: {p.current_stock}
                       </div>
@@ -192,7 +200,19 @@ export function CartPane() {
         ) : (
           <div className="divide-y divide-border">
             {items.map((item, index) => {
-              const itemTotal = item.base_price * Number(item.quantity);
+              const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+                ? item.base_price + (item.grade_rate || 0) 
+                : item.base_price;
+                
+              let itemTotal = 0;
+              if (item.billing_type === 'WEIGHT') {
+                const weight = item.calculated_weight || 0;
+                itemTotal = effectiveRate * weight;
+              } else {
+                const qty = Number(item.quantity) || 0;
+                itemTotal = effectiveRate * qty;
+              }
+              
               const isLastItem = index === items.length - 1;
 
               return (
@@ -201,25 +221,48 @@ export function CartPane() {
                     <h3 className="text-foreground font-medium">{item.name}</h3>
                     <div className="flex gap-3 text-xs mt-1">
                       <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
+                      {item.pricing_mode === 'GRADE_RATE' && (
+                        <span className="text-indigo-500 font-medium">Grade Pricing (+₹{item.grade_rate})</span>
+                      )}
                       {currentUserRole === 'OWNER' && item.purchase_price > 0 && (
                         <span className="text-primary font-mono bg-primary/10 px-1.5 rounded">
-                          Margin: {((item.base_price - item.purchase_price) / item.base_price * 100).toFixed(1)}%
+                          Margin: {((effectiveRate - item.purchase_price) / effectiveRate * 100).toFixed(1)}%
                         </span>
                       )}
                     </div>
                   </div>
                   <div className="col-span-2 text-right text-foreground">
-                    ₹{item.base_price.toFixed(2)}
+                    ₹{effectiveRate.toFixed(2)}
                   </div>
-                  <div className="col-span-2 flex justify-center">
-                    <Input 
-                      ref={isLastItem ? qtyInputRef : null}
-                      type="number"
-                      min="1"
-                      className="w-20 text-center h-8 px-2"
-                      value={item.quantity}
-                      onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                    />
+                  <div className="col-span-2 flex justify-center flex-col items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-muted-foreground w-6 text-right font-bold uppercase">Pcs</span>
+                      <Input 
+                        ref={isLastItem ? qtyInputRef : null}
+                        type="number"
+                        min="1"
+                        className="w-16 text-center h-8 px-2"
+                        value={item.quantity}
+                        onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                      />
+                    </div>
+                    {item.billing_type === 'WEIGHT' && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-6 text-right font-bold uppercase">Kg</span>
+                        <Input
+                          type="number"
+                          step="0.001"
+                          className={clsx("w-16 text-center h-8 px-2 text-xs", !item.weight_override_allowed && "bg-muted/50 cursor-not-allowed")}
+                          value={item.calculated_weight || ''}
+                          disabled={!item.weight_override_allowed}
+                          onChange={(e) => {
+                            if (item.weight_override_allowed) {
+                              useCartStore.getState().updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value));
+                            }
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-2 text-right font-medium text-primary">
                     ₹{itemTotal.toFixed(2)}

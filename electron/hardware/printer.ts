@@ -18,7 +18,11 @@ function getPrinterConfig(tenantId: string) {
   }
 }
 
+let currentBulkPrintItems: any[] = [];
+
 export function initPrinter() {
+  ipcMain.handle('hardware:getBulkPrintItems', () => currentBulkPrintItems);
+
   ipcMain.handle('hardware:getPrinters', async (event) => {
     return await event.sender.getPrintersAsync();
   });
@@ -102,6 +106,33 @@ export function initPrinter() {
     }
   });
 
+  ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: any[] }) => {
+    console.log(`[Hardware] Printing Bulk Barcodes (${items.length} items) for tenant: ${tenant_id}`);
+    const config = getPrinterConfig(tenant_id);
+    try {
+      if (config.type === 'network') {
+        const buffers = items.flatMap(item => {
+          const barcodeData = Buffer.from(item.barcode, 'ascii');
+          const gsBarcode = Buffer.from([0x1D, 0x6B, 0x49, barcodeData.length, ...barcodeData]);
+          const singleLabelBuffer = Buffer.concat([ESC_INIT, gsBarcode, Buffer.from('\n\n\n'), ESC_CUT]);
+          return Array(item.quantity).fill(singleLabelBuffer);
+        });
+        const finalBuffer = Buffer.concat(buffers);
+        await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
+      } else if (config.type === 'usb' && config.deviceName) {
+        await printBulkBarcodeUSB(items, config.deviceName, config.labelWidthMm, config.labelHeightMm, config.labelColumns);
+      } else if (config.type === 'usb') {
+        throw new Error('USB printing requested but deviceName not configured');
+      } else {
+        throw new Error(`Unknown printer type: ${config.type}`);
+      }
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Hardware] Bulk Barcode Print Error:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   console.log('[Hardware] Printer service initialized');
 }
 
@@ -161,6 +192,53 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         deviceName: deviceName,
         margins: { marginType: 'none' },
         // Convert mm to microns (1 mm = 1000 microns). Default to 50x25mm (approx 2"x1")
+        pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
+      }, (success, failureReason) => {
+        clearTimeout(timer);
+        if (!printWindow.isDestroyed()) printWindow.close();
+        
+        if (success) {
+          resolve();
+        } else {
+          reject(new Error(`Print failed: ${failureReason}`));
+        }
+      });
+    });
+  });
+}
+
+function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    currentBulkPrintItems = items;
+    const printWindow = new BrowserWindow({
+      show: false,
+      width: 400,
+      height: 400,
+      webPreferences: {
+        preload: path.join(__dirname, '../preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    });
+
+    if (app.isPackaged) {
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-bulk-barcode?columns=${columns || 1}` });
+    } else {
+      printWindow.loadURL(`http://localhost:5173/#/print-bulk-barcode?columns=${columns || 1}`);
+    }
+
+    const timer = setTimeout(() => {
+      if (!printWindow.isDestroyed()) {
+        printWindow.close();
+        reject(new Error('USB bulk print timeout'));
+      }
+    }, 60000); // give it more time for bulk
+
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
+      printWindow.webContents.print({
+        silent: true,
+        deviceName: deviceName,
+        margins: { marginType: 'none' },
         pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);

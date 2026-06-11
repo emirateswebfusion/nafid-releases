@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, Tags } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -29,6 +29,11 @@ interface Product {
   discount_percent?: number | null;
   discount_flat?: number | null;
   offer_price?: number | null;
+  billing_type?: string;
+  grade_id?: string;
+  pricing_mode?: string;
+  average_weight_per_piece?: number | null;
+  weight_override_allowed?: number;
   sync_status: string;
   created_at?: string;
   updated_at?: string;
@@ -52,6 +57,11 @@ const DEFAULT_FORM = {
   discount_percent: '' as string | number | null,
   discount_flat: '' as string | number | null,
   offer_price: '' as string | number | null,
+  billing_type: 'PIECE',
+  grade_id: '',
+  pricing_mode: 'FIXED_PRICE',
+  average_weight_per_piece: '' as string | number | null,
+  weight_override_allowed: false,
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -76,6 +86,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
   const [hasNewSyncData, setHasNewSyncData] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
+  const [grades, setGrades] = useState<any[]>([]);
+  const [isCustomCategory, setIsCustomCategory] = useState(false);
+
+  const configuredCategories = Array.from(new Set(grades.map(g => g.category)));
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -109,34 +123,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           if (res) setPriceCoding(res);
         })
         .catch(console.error);
+
+      window.electronAPI.dbGetGrades(tenantId || 'global')
+        .then(res => {
+          if (Array.isArray(res)) setGrades(res);
+        })
+        .catch(console.error);
     }
   }, [tenantId]);
-
-  const applyPriceCodeToBarcode = () => {
-    if (!priceCoding || !formData.purchase_price) return;
-    
-    const priceStr = String(formData.purchase_price).replace(/\D/g, '');
-    if (!priceStr) return;
-    
-    let codedPrice = '';
-    let hasMapping = false;
-    for (const char of priceStr) {
-      const mapped = priceCoding[char];
-      if (mapped) {
-        codedPrice += mapped;
-        hasMapping = true;
-      }
-    }
-    
-    if (hasMapping && codedPrice) {
-      setFormData(prev => ({
-        ...prev,
-        sku_barcode: codedPrice + (prev.sku_barcode || '')
-      }));
-      setStatusMessage({ text: `Appended ${codedPrice} to barcode`, type: 'success' });
-      setTimeout(() => setStatusMessage(null), 2000);
-    }
-  };
 
   const loadProducts = async (reset = false) => {
     setIsFetching(true);
@@ -204,13 +198,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         });
         if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
           const lastBarcode = lastProduct[0].sku_barcode;
-          const match = lastBarcode.match(/^(.*?)(\d+)$/);
+          const match = lastBarcode.match(/(\d+)[^\d]*$/);
           if (match) {
-            const numStr = match[2];
+            const numStr = match[1];
             const nextNum = (BigInt(numStr) + 1n).toString();
             nextBarcode = nextNum.padStart(numStr.length, '0');
           } else {
-            // If the barcode doesn't end with a number, default to '1'
+            // If the barcode doesn't contain a number, default to '1'
             nextBarcode = '1';
           }
         }
@@ -246,7 +240,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       discount_percent: product.discount_percent ?? '',
       discount_flat: product.discount_flat ?? '',
       offer_price: product.offer_price ?? '',
+      billing_type: product.billing_type || 'PIECE',
+      grade_id: product.grade_id || '',
+      pricing_mode: product.pricing_mode || 'FIXED_PRICE',
+      average_weight_per_piece: product.average_weight_per_piece ?? '',
+      weight_override_allowed: product.weight_override_allowed === 1,
     });
+    setIsCustomCategory(false);
     setView('edit');
   };
 
@@ -288,6 +288,33 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
       const next = { ...prev, [field]: value };
+      
+      if (field === 'purchase_price' && priceCoding) {
+        const oldPriceStr = String(prev.purchase_price).replace(/\D/g, '');
+        let oldCode = '';
+        for (const char of oldPriceStr) {
+          if (priceCoding[char]) oldCode += priceCoding[char];
+        }
+        
+        const newPriceStr = String(value).replace(/\D/g, '');
+        let newCode = '';
+        for (const char of newPriceStr) {
+          if (priceCoding[char]) newCode += priceCoding[char];
+        }
+
+        let currentBarcode = prev.sku_barcode || '';
+        
+        if (oldCode && currentBarcode.endsWith(oldCode)) {
+          currentBarcode = currentBarcode.substring(0, currentBarcode.length - oldCode.length);
+        }
+        
+        if (newCode) {
+           currentBarcode = currentBarcode + newCode;
+        }
+        
+        next.sku_barcode = currentBarcode;
+      }
+
       if (field === 'base_price' && next.discount_percent !== undefined && next.discount_percent !== '') {
         const pct = parseFloat(next.discount_percent as string);
         if (!isNaN(pct)) {
@@ -347,7 +374,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
       code += randomPart;
     }
-    handleInputChange('sku_barcode', code);
+    
+    let priceCode = '';
+    if (priceCoding && formData.purchase_price) {
+      const priceStr = String(formData.purchase_price).replace(/\D/g, '');
+      for (const char of priceStr) {
+        if (priceCoding[char]) priceCode += priceCoding[char];
+      }
+    }
+    handleInputChange('sku_barcode', code + priceCode);
   };
 
   const printBarcode = async () => {
@@ -526,9 +561,17 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
         code += randomPart;
       }
-      finalBarcode = code;
+      
+      let priceCode = '';
+      if (priceCoding && formData.purchase_price) {
+        const priceStr = String(formData.purchase_price).replace(/\D/g, '');
+        for (const char of priceStr) {
+          if (priceCoding[char]) priceCode += priceCoding[char];
+        }
+      }
+      finalBarcode = code + priceCode;
       // Don't just setFormData, pass it directly to payload since state update is async
-      setFormData(prev => ({ ...prev, sku_barcode: code }));
+      setFormData(prev => ({ ...prev, sku_barcode: finalBarcode }));
       setStatusMessage({ text: 'Barcode auto-generated.', type: 'success' });
       setTimeout(() => setStatusMessage(null), 2000);
     }
@@ -548,6 +591,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
       discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
       offer_price: formData.offer_price === '' ? null : Number(formData.offer_price),
+      billing_type: formData.billing_type,
+      grade_id: formData.grade_id || null,
+      pricing_mode: formData.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
+      average_weight_per_piece: formData.average_weight_per_piece === '' ? null : Number(formData.average_weight_per_piece),
+      weight_override_allowed: formData.weight_override_allowed ? 1 : 0,
     };
 
     if (window.electronAPI) {
@@ -855,7 +903,31 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     <div className="grid grid-cols-2 gap-5">
                       <div>
                         <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Category</label>
-                        <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
+                        {isCustomCategory || configuredCategories.length === 0 ? (
+                          <div className="flex gap-2">
+                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" placeholder="Custom Category" />
+                             {configuredCategories.length > 0 && (
+                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
+                             )}
+                          </div>
+                        ) : (
+                          <select 
+                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
+                            onChange={e => {
+                              if (e.target.value === 'CUSTOM') {
+                                setIsCustomCategory(true);
+                                handleInputChange('category', '');
+                              } else {
+                                handleInputChange('category', e.target.value);
+                              }
+                            }} 
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
+                          >
+                            <option value="">-- Select Category --</option>
+                            {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
+                            <option value="CUSTOM">Custom...</option>
+                          </select>
+                        )}
                       </div>
                       <div>
                         <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Brand / Mfg</label>
@@ -883,50 +955,92 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              {/* Section 2: Inventory & Pricing */}
+              {/* Section 2: Billing & Grades */}
               <section>
-                <h3 className="text-lg font-bold text-emerald-500 mb-4 border-b border-border pb-2">2. Inventory & Pricing</h3>
+                <h3 className="text-lg font-bold text-indigo-500 mb-4 border-b border-border pb-2">2. Billing Setup & Grades</h3>
+                <div className="grid grid-cols-2 gap-8">
+                  <div className="space-y-5">
+                    <div>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Billing Type</label>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange('billing_type', 'PIECE')}
+                          className={clsx('py-3 px-4 rounded-xl border text-sm font-bold transition-all', formData.billing_type === 'PIECE' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted/50')}
+                        >
+                          Piece-Based
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleInputChange('billing_type', 'WEIGHT')}
+                          className={clsx('py-3 px-4 rounded-xl border text-sm font-bold transition-all', formData.billing_type === 'WEIGHT' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted/50')}
+                        >
+                          Weight-Based
+                        </button>
+                      </div>
+                    </div>
+                    {formData.billing_type === 'WEIGHT' && (
+                      <div className="grid grid-cols-2 gap-5 p-4 bg-muted/10 border border-border rounded-xl">
+                        <div>
+                          <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Avg Weight / Piece (Kg)</label>
+                          <input type="number" step="0.001" value={formData.average_weight_per_piece || ''} onChange={e => handleInputChange('average_weight_per_piece', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
+                        </div>
+                        <div className="flex items-center mt-6">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={!!formData.weight_override_allowed} onChange={e => handleInputChange('weight_override_allowed', e.target.checked)} className="w-5 h-5 rounded border-border text-primary focus:ring-primary" />
+                            <span className="text-sm font-medium text-foreground">Allow weight override during billing</span>
+                          </label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  
+                    {grades.filter(g => g.category === formData.category).length > 0 && (
+                      <div className="p-4 bg-muted/10 border border-border rounded-xl">
+                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Select Grade</label>
+                        <select 
+                          value={formData.grade_id} 
+                          onChange={e => handleInputChange('grade_id', e.target.value)} 
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
+                        >
+                          <option value="">-- No Grade Selected --</option>
+                          {grades.filter(g => g.category === formData.category).map(g => (
+                            <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                </div>
+              </section>
+
+              {/* Section 3: Inventory & Pricing */}
+              <section>
+                <h3 className="text-lg font-bold text-emerald-500 mb-4 border-b border-border pb-2">3. Inventory & Pricing</h3>
                 <div className="grid grid-cols-5 gap-5">
                   {[
                     { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
                     { label: 'MRP *', field: 'base_price', prefix: '₹' },
                     { label: 'Current Stock', field: 'current_stock' },
                     { label: 'Low Stock Alert', field: 'reorder_level' },
-                  ].map(({ label, field, prefix }) => {
-                    const isPurchasePrice = field === 'purchase_price';
-                    const showCodedIcon = isPurchasePrice && priceCoding && Object.values(priceCoding).some(v => v);
-
-                    return (
-                      <div key={field}>
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
-                        <div className="relative">
-                          {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
-                          <input
-                            type="number" step="0.01"
-                            onWheel={e => (e.target as HTMLInputElement).blur()}
-                            value={(formData as any)[field]}
-                            onChange={e => handleInputChange(field, e.target.value)}
-                            className={clsx(
-                              'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', 
-                              prefix && 'pl-8', 
-                              showCodedIcon && 'pr-10',
-                              field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
-                            )}
-                          />
-                          {showCodedIcon && (
-                            <button
-                              type="button"
-                              title="Add coded price to barcode"
-                              onClick={applyPriceCodeToBarcode}
-                              className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-md transition-colors"
-                            >
-                              <Tags className="w-4 h-4" />
-                            </button>
+                  ].map(({ label, field, prefix }) => (
+                    <div key={field}>
+                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
+                      <div className="relative">
+                        {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
+                        <input
+                          type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={(formData as any)[field]}
+                          onChange={e => handleInputChange(field, e.target.value)}
+                          className={clsx(
+                            'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', 
+                            prefix && 'pl-8', 
+                            field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                           )}
-                        </div>
+                        />
                       </div>
-                    );
-                  })}
+                    </div>
+                  ))}
                   <div>
                     <label className="block text-sm font-semibold text-muted-foreground mb-1.5 whitespace-nowrap">Measuring Unit (UOM)</label>
                     <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none">
@@ -936,9 +1050,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              {/* Section 3: Discount & Offers */}
+              {/* Section 4: Discount & Offers */}
               <section>
-                <h3 className="text-lg font-bold text-blue-500 mb-4 border-b border-border pb-2">3. Discount & Offers</h3>
+                <h3 className="text-lg font-bold text-blue-500 mb-4 border-b border-border pb-2">4. Discount & Offers</h3>
                 <div className="grid grid-cols-2 gap-8">
                   {/* Discount Block */}
                   <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
@@ -996,9 +1110,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
 
-              {/* Section 4: Statutory */}
+              {/* Section 5: Taxes & Config */}
               <section>
-                <h3 className="text-lg font-bold text-purple-500 mb-4 border-b border-border pb-2">4. Statutory & Tax</h3>
+                <h3 className="text-lg font-bold text-orange-500 mb-4 border-b border-border pb-2">5. Taxes & Config</h3>
                 <div className="grid grid-cols-3 gap-6">
                   <div className="flex items-center gap-3 bg-muted/30 border border-border p-4 rounded-xl">
                     <input type="checkbox" id="gst" checked={formData.is_gst_applicable} onChange={e => handleInputChange('is_gst_applicable', e.target.checked)} className="w-5 h-5 accent-primary rounded cursor-pointer" />

@@ -13,6 +13,7 @@ import { useAuthStore } from './store/authStore';
 
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
+import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
@@ -23,6 +24,7 @@ function App() {
   const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
   const [printBarcodeColumns, setPrintBarcodeColumns] = useState<number>(1);
   const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
+  const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -49,6 +51,8 @@ function App() {
     } else if (window.location.hash.startsWith('#/print-receipt')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
       setPrintReceiptData(urlParams.get('text'));
+    } else if (window.location.hash.startsWith('#/print-bulk-barcode')) {
+      setShowPrintBulkBarcode(true);
     }
   }, []);
 
@@ -136,6 +140,10 @@ function App() {
 
   if (printReceiptData) {
     return <PrintReceiptView text={printReceiptData} />;
+  }
+
+  if (showPrintBulkBarcode) {
+    return <PrintBulkBarcodeView />;
   }
 
   if (isSyncing) {

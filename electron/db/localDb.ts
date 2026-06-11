@@ -28,6 +28,18 @@ export function initDb() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS product_grades (
+        grade_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        category TEXT NOT NULL,
+        grade_name TEXT NOT NULL,
+        rate REAL NOT NULL DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, category, grade_name)
+    );
+
     CREATE TABLE IF NOT EXISTS products (
         product_id TEXT PRIMARY KEY,
         tenant_id TEXT,
@@ -49,7 +61,13 @@ export function initDb() {
         discount_flat REAL,
         offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
+        billing_type TEXT DEFAULT 'PIECE',
+        grade_id TEXT,
+        pricing_mode TEXT DEFAULT 'FIXED_PRICE',
+        average_weight_per_piece REAL,
+        weight_override_allowed INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
+        print_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(tenant_id, name, brand_manufacturer),
@@ -99,10 +117,15 @@ export function initDb() {
 
   // Migration: Add missing columns if they don't exist (Idempotent)
   const schemaMap: any = {
+    product_grades: [
+        'tenant_id', 'category', 'grade_name', 'rate', 'sync_status', 'created_at', 'updated_at'
+    ],
     products: [
         'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 
         'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code',
-        'discount_percent', 'discount_flat', 'offer_price', 'created_at'
+        'discount_percent', 'discount_flat', 'offer_price', 'created_at',
+        'billing_type', 'grade_id', 'pricing_mode', 'average_weight_per_piece', 'weight_override_allowed',
+        'print_status'
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
@@ -125,7 +148,11 @@ export function initDb() {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (['discount_percent', 'discount_flat', 'offer_price'].includes(col)) {
+        if (col === 'weight_override_allowed') {
+          type = 'INTEGER DEFAULT 0';
+        } else if (col === 'print_status') {
+          type = "TEXT DEFAULT 'PENDING'";
+        } else if (['discount_percent', 'discount_flat', 'offer_price', 'average_weight_per_piece', 'rate'].includes(col)) {
           type = 'REAL';
         } else if (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) {
           type = 'REAL DEFAULT 0';
@@ -145,6 +172,32 @@ export function initDb() {
         db.exec("UPDATE invoices SET grand_total = total_amount WHERE grand_total = 0 AND total_amount > 0");
      }
   } catch (e) {}
+
+  // Sanitize empty string sku_barcodes to NULL before applying unique constraints
+  // SQLite treats multiple NULLs as distinct, but multiple empty strings as duplicates
+  try {
+    db.exec("UPDATE products SET sku_barcode = NULL WHERE trim(sku_barcode) = ''");
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to sanitize empty sku_barcodes:', e.message);
+  }
+
+  // Deduplicate actual sku_barcode conflicts before applying unique constraints
+  try {
+    db.exec(`
+      UPDATE products 
+      SET sku_barcode = sku_barcode || '-dup-' || substr(product_id, 1, 4),
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE product_id NOT IN (
+          SELECT MIN(product_id)
+          FROM products
+          WHERE sku_barcode IS NOT NULL
+          GROUP BY tenant_id, sku_barcode
+      ) AND sku_barcode IS NOT NULL
+    `);
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to deduplicate sku_barcodes:', e.message);
+  }
 
   // Ensure unique indexes for existing installations
   try {
@@ -196,7 +249,13 @@ export function initDb() {
               discount_flat REAL,
               offer_price REAL,
               is_deleted INTEGER DEFAULT 0,
+              billing_type TEXT DEFAULT 'PIECE',
+              grade_id TEXT,
+              pricing_mode TEXT DEFAULT 'FIXED_PRICE',
+              average_weight_per_piece REAL,
+              weight_override_allowed INTEGER DEFAULT 0,
               sync_status TEXT DEFAULT 'SYNCED',
+              print_status TEXT DEFAULT 'PENDING',
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               UNIQUE(tenant_id, name, brand_manufacturer),

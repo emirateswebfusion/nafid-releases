@@ -42,25 +42,6 @@ export function ActionPane() {
       setIsCheckingOut(true);
       setHardwareError(null);
 
-      const result = await window.electronAPI.dbCheckout({
-        invoice_id,
-        tenant_id: tenantId || 'unset',
-        user_id: useAuthStore.getState().userId || 'unset',
-        invoice_number,
-        invoice_type: invoiceType,
-        subtotal,
-        tax_total: totalTax,
-        discount_total: discount,
-        grand_total: grandTotal,
-        items: lineItems,
-      });
-
-      if (!result.success) {
-        alert('Checkout failed: ' + result.error);
-        setIsCheckingOut(false);
-        return;
-      }
-
       try {
         let receiptText = `================================\n`;
         receiptText += `          INVOICE\n`;
@@ -82,13 +63,40 @@ export function ActionPane() {
         receiptText += `================================\n`;
         
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
         
-        if (!printResult.success || !drawerResult.success) {
-          setHardwareError(`Hardware connection issue: ${printResult.error || drawerResult.error || 'Check printer'}`);
+        if (!printResult.success) {
+          setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
+          setIsCheckingOut(false);
+          return;
+        }
+
+        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
+        if (!drawerResult.success) {
+          setHardwareError(`Hardware connection issue: ${drawerResult.error || 'Check drawer'}`);
+        }
+
+        const result = await window.electronAPI.dbCheckout({
+          invoice_id,
+          tenant_id: tenantId || 'unset',
+          user_id: useAuthStore.getState().userId || 'unset',
+          invoice_number,
+          invoice_type: invoiceType,
+          subtotal,
+          tax_total: totalTax,
+          discount_total: discount,
+          grand_total: grandTotal,
+          items: lineItems,
+        });
+
+        if (!result.success) {
+          alert('Checkout failed: ' + result.error);
+          setIsCheckingOut(false);
+          return;
         }
       } catch (e) {
         setHardwareError('Communication error with hardware services.');
+        setIsCheckingOut(false);
+        return;
       }
     }
 

@@ -66,8 +66,10 @@ async function runSyncCycle() {
   // 1. Push local changes up (products first so stock/notifications are current)
   // 2. Pull latest data down from cloud (ensures new devices get caught up)
   try {
+    await syncGrades(config.jwt_token, config.tenant_id);
     await syncProducts(config.jwt_token, config.tenant_id);
     await syncInvoices(config.jwt_token, config.tenant_id);
+    await pullGrades(config.jwt_token);
     await pullProducts(config.jwt_token);
     await pullInvoices(config.jwt_token);
     await pullUsers(config.jwt_token);
@@ -119,6 +121,39 @@ async function syncProducts(token: string, tenantId: string) {
   }
 }
 
+// ── Product Grades Sync (Edge → Cloud) ───────────────────────────────────────────
+async function syncGrades(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM product_grades WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} product grades to cloud...`);
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/product_grades`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ product_grades: pending }),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Grade sync failed: HTTP ${response.status}`);
+      return;
+    }
+
+    const result: any = await response.json();
+    console.log(`[SyncWorker] Grade sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
+
+    if (result.synced?.length > 0) {
+      const updateStmt = db.prepare(`UPDATE product_grades SET sync_status = 'SYNCED' WHERE grade_id = ? AND tenant_id = ?`);
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(result.synced);
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Grade sync fetch failed:', err.message);
+  }
+}
+
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 // Pushes invoices with sync_status = 'PENDING' along with their line items.
 async function syncInvoices(token: string, tenantId: string) {
@@ -160,6 +195,70 @@ async function syncInvoices(token: string, tenantId: string) {
   }
 }
 
+// ── Pull Product Grades (Cloud → Edge) ─────────────────────────────────────────────
+async function pullGrades(token: string) {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/product_grades`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull grades failed: HTTP ${response.status}`);
+      return;
+    }
+
+    const cloudGrades: any[] = await response.json();
+    if (!Array.isArray(cloudGrades) || cloudGrades.length === 0) return;
+
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id || '';
+
+    const upsert = db.prepare(`
+      INSERT INTO product_grades (
+        grade_id, tenant_id, category, grade_name, rate,
+        sync_status, created_at, updated_at
+      ) VALUES (
+        @grade_id, @tenant_id, @category, @grade_name, @rate,
+        'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(grade_id) DO UPDATE SET
+        category = excluded.category,
+        grade_name = excluded.grade_name,
+        rate = excluded.rate,
+        created_at = COALESCE(product_grades.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE product_grades.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((grades: any[]) => {
+      for (const g of grades) {
+        try {
+          upsert.run({
+            grade_id: g.grade_id,
+            tenant_id: tenantId,
+            category: g.category,
+            grade_name: g.grade_name,
+            rate: g.rate,
+            created_at: g.created_at ?? new Date().toISOString(),
+            updated_at: g.updated_at ?? new Date().toISOString(),
+          });
+        } catch (e: any) {
+           console.error('[SyncWorker] Error pulling grade:', e.message);
+        }
+      }
+    });
+
+    tx(cloudGrades);
+    console.log(`[SyncWorker] Pulled ${cloudGrades.length} grades from cloud.`);
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull grades failed:', err.message);
+  }
+}
+
 // ── Pull Products (Cloud → Edge) ─────────────────────────────────────────────
 // Fetches all products for this tenant from the Cloud API and upserts them
 // into local SQLite. This ensures a new device gets the full product catalog
@@ -193,12 +292,14 @@ async function pullProducts(token: string) {
         purchase_price, base_price, is_gst_applicable, tax_rate_percent,
         uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
         discount_percent, discount_flat, offer_price,
+        billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
         sync_status, created_at, updated_at
       ) VALUES (
         @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
         @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
         @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
         @discount_percent, @discount_flat, @offer_price,
+        @billing_type, @grade_id, @pricing_mode, @average_weight_per_piece, @weight_override_allowed,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(product_id) DO UPDATE SET
@@ -220,6 +321,11 @@ async function pullProducts(token: string) {
         discount_percent = excluded.discount_percent,
         discount_flat = excluded.discount_flat,
         offer_price = excluded.offer_price,
+        billing_type = excluded.billing_type,
+        grade_id = excluded.grade_id,
+        pricing_mode = excluded.pricing_mode,
+        average_weight_per_piece = excluded.average_weight_per_piece,
+        weight_override_allowed = excluded.weight_override_allowed,
         created_at = COALESCE(products.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
         sync_status = 'SYNCED'
@@ -254,6 +360,11 @@ async function pullProducts(token: string) {
               discount_percent: currentP.discount_percent ?? null,
               discount_flat: currentP.discount_flat ?? null,
               offer_price: currentP.offer_price ?? null,
+              billing_type: currentP.billing_type || 'PIECE',
+              grade_id: currentP.grade_id || null,
+              pricing_mode: currentP.pricing_mode || 'FIXED_PRICE',
+              average_weight_per_piece: currentP.average_weight_per_piece ?? null,
+              weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
               created_at: currentP.created_at ?? new Date().toISOString(),
               updated_at: currentP.updated_at ?? new Date().toISOString(),
             });

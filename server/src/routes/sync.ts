@@ -181,8 +181,10 @@ router.post('/products', async (req: Request, res: Response) => {
               product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
               purchase_price, base_price, is_gst_applicable, tax_rate_percent, uom,
               brand_manufacturer, current_stock, reorder_level, domain_attributes,
-              discount_percent, discount_flat, offer_price, is_deleted, created_at, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+              discount_percent, discount_flat, offer_price, is_deleted,
+              billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
+              created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
             ON CONFLICT (product_id) DO UPDATE SET
               name = EXCLUDED.name,
               sku_barcode = EXCLUDED.sku_barcode,
@@ -202,6 +204,11 @@ router.post('/products', async (req: Request, res: Response) => {
               discount_flat = EXCLUDED.discount_flat,
               offer_price = EXCLUDED.offer_price,
               is_deleted = EXCLUDED.is_deleted,
+              billing_type = EXCLUDED.billing_type,
+              grade_id = EXCLUDED.grade_id,
+              pricing_mode = EXCLUDED.pricing_mode,
+              average_weight_per_piece = EXCLUDED.average_weight_per_piece,
+              weight_override_allowed = EXCLUDED.weight_override_allowed,
               created_at = COALESCE(products.created_at, EXCLUDED.created_at),
               updated_at = EXCLUDED.updated_at
             WHERE products.tenant_id = EXCLUDED.tenant_id`,
@@ -213,6 +220,8 @@ router.post('/products', async (req: Request, res: Response) => {
               currentP.domain_attributes ? JSON.stringify(currentP.domain_attributes) : null,
               currentP.discount_percent ?? null, currentP.discount_flat ?? null, currentP.offer_price ?? null,
               currentP.is_deleted ?? false,
+              currentP.billing_type || 'PIECE', currentP.grade_id || null, currentP.pricing_mode || 'FIXED_PRICE',
+              currentP.average_weight_per_piece ?? null, !!currentP.weight_override_allowed,
               currentP.created_at ?? new Date(),
               currentP.updated_at ?? new Date()
             ]
@@ -240,6 +249,65 @@ router.post('/products', async (req: Request, res: Response) => {
     }
     if (!success && retryCount >= 2) {
       failed.push({ product_id: currentP.product_id, error: 'Max retries reached for unique constraint resolution' });
+    }
+  }
+
+  return res.json({ synced_count: synced.length, failed_count: failed.length, synced, failed });
+});
+
+/**
+ * GET /api/sync/product_grades
+ */
+router.get('/product_grades', async (req: Request, res: Response) => {
+  try {
+    const grades = await withTenantContext(req.auth!.tenant_id, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM product_grades WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+        [req.auth!.tenant_id]
+      );
+      return result.rows;
+    });
+    return res.json(grades);
+  } catch (err: any) {
+    console.error('[Sync] GET product_grades error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/sync/product_grades
+ */
+router.post('/product_grades', async (req: Request, res: Response) => {
+  const grades: any[] = req.body.product_grades;
+  if (!Array.isArray(grades) || grades.length === 0) {
+    return res.status(400).json({ error: 'product_grades array is required' });
+  }
+
+  const synced: string[] = [];
+  const failed: { grade_id: string; error: string }[] = [];
+
+  for (const g of grades) {
+    try {
+      await withTenantContext(req.auth!.tenant_id, async (client) => {
+        await client.query(
+          `INSERT INTO product_grades (
+            grade_id, tenant_id, category, grade_name, rate, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+          ON CONFLICT (grade_id) DO UPDATE SET
+            category = EXCLUDED.category,
+            grade_name = EXCLUDED.grade_name,
+            rate = EXCLUDED.rate,
+            updated_at = EXCLUDED.updated_at
+          WHERE product_grades.tenant_id = EXCLUDED.tenant_id`,
+          [
+            g.grade_id, req.auth!.tenant_id, g.category, g.grade_name, g.rate,
+            g.created_at ?? new Date(), g.updated_at ?? new Date()
+          ]
+        );
+      });
+      synced.push(g.grade_id);
+    } catch (err: any) {
+      failed.push({ grade_id: g.grade_id, error: err.message });
     }
   }
 

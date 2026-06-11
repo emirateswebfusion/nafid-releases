@@ -8,6 +8,13 @@ export interface CartItem {
   purchase_price: number;
   tax_rate_percent: number;
   quantity: number | string;
+  billing_type?: string;
+  grade_id?: string;
+  pricing_mode?: string;
+  average_weight_per_piece?: number;
+  weight_override_allowed?: boolean | number;
+  calculated_weight?: number;
+  grade_rate?: number;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -28,6 +35,7 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
+  updateWeight: (productId: string, weight: number) => void;
   setDiscount: (discount: number) => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
@@ -55,14 +63,22 @@ export const useCartStore = create<CartState>()(
           const existingItem = state.items.find(i => i.product_id === newItem.product_id);
           if (existingItem) {
             return {
-              items: state.items.map(i =>
-                i.product_id === newItem.product_id
-                  ? { ...i, quantity: Number(i.quantity) + 1 }
-                  : i
-              ),
+              items: state.items.map(i => {
+                if (i.product_id === newItem.product_id) {
+                  const newQuantity = Number(i.quantity) + 1;
+                  const newWeight = i.billing_type === 'WEIGHT' && i.average_weight_per_piece 
+                    ? newQuantity * i.average_weight_per_piece 
+                    : i.calculated_weight;
+                  return { ...i, quantity: newQuantity, calculated_weight: newWeight };
+                }
+                return i;
+              }),
             };
           }
-          return { items: [...state.items, { ...newItem, quantity: 1 }] };
+          const initialWeight = newItem.billing_type === 'WEIGHT' && newItem.average_weight_per_piece
+            ? 1 * newItem.average_weight_per_piece
+            : undefined;
+          return { items: [...state.items, { ...newItem, quantity: 1, calculated_weight: initialWeight }] };
         }),
 
       removeItem: (productId) =>
@@ -72,8 +88,21 @@ export const useCartStore = create<CartState>()(
 
       updateQuantity: (productId, quantity) =>
         set((state) => ({
+          items: state.items.map(i => {
+            if (i.product_id === productId) {
+               const newWeight = i.billing_type === 'WEIGHT' && i.average_weight_per_piece 
+                    ? Number(quantity) * i.average_weight_per_piece 
+                    : i.calculated_weight;
+               return { ...i, quantity, calculated_weight: newWeight };
+            }
+            return i;
+          }),
+        })),
+        
+      updateWeight: (productId, weight) =>
+        set((state) => ({
           items: state.items.map(i =>
-            i.product_id === productId ? { ...i, quantity } : i
+            i.product_id === productId ? { ...i, calculated_weight: weight } : i
           ),
         })),
 
@@ -100,7 +129,19 @@ export const useCartTotals = () => {
   let totalTax = 0;
 
   items.forEach(item => {
-    const itemTotal = item.base_price * (Number(item.quantity) || 0);
+    const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+      ? item.base_price + (item.grade_rate || 0) 
+      : item.base_price;
+      
+    let itemTotal = 0;
+    if (item.billing_type === 'WEIGHT') {
+      const weight = item.calculated_weight || 0;
+      itemTotal = effectiveRate * weight;
+    } else {
+      const qty = Number(item.quantity) || 0;
+      itemTotal = effectiveRate * qty;
+    }
+    
     subtotal += itemTotal;
 
     if (invoiceType === 'GST') {

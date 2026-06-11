@@ -6,11 +6,14 @@ import { useAuthStore } from '../store/authStore';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
+import { SettingsGrades } from './SettingsGrades';
+import { BulkOnboardingTab } from './BulkOnboardingTab';
 
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [activeTab, setActiveTab] = useState<'general' | 'grades' | 'security' | 'bulk'>('general');
 
   const [printer, setPrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
@@ -178,9 +181,28 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           </div>
         ) : (
           <>
+            <div className="flex border-b border-border mb-6">
+              <button 
+                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'general' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+                onClick={() => setActiveTab('general')}
+              >General</button>
+              <button 
+                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'grades' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+                onClick={() => setActiveTab('grades')}
+              >Categories & Grades</button>
+              <button 
+                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'security' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+                onClick={() => setActiveTab('security')}
+              >Security</button>
+              <button 
+                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'bulk' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+                onClick={() => setActiveTab('bulk')}
+              >Bulk Onboarding</button>
+            </div>
 
-
-            {role === 'OWNER' && (
+            {activeTab === 'general' && (
+              <div className="space-y-8 animate-in fade-in">
+                {role === 'OWNER' && (
               <section className="space-y-4">
                 <div className="flex items-center gap-3 text-foreground">
                   <Tags className="w-5 h-5 text-primary" />
@@ -357,7 +379,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </section>
 
             <div className="h-px bg-border" />
+              </div>
+            )}
 
+            {activeTab === 'grades' && (
+              <div className="animate-in fade-in">
+                <SettingsGrades />
+              </div>
+            )}
+
+            {activeTab === 'security' && (
+              <div className="animate-in fade-in">
             {/* Security Section */}
             <section className="space-y-4 pb-4">
               <div className="flex items-center gap-3 text-foreground">
@@ -405,6 +437,14 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 </Button>
               </form>
             </section>
+            </div>
+            )}
+
+            {activeTab === 'bulk' && (
+              <div className="animate-in fade-in">
+                <BulkOnboardingTab />
+              </div>
+            )}
 
             {message && (
               <div className={clsx(
@@ -423,14 +463,16 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               </div>
             )}
             
-            <div className="pt-4 flex justify-end gap-3 border-t border-border">
+            <div className="pt-4 flex justify-end gap-3 border-t border-border mt-8">
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Save Configuration
-              </Button>
+              {activeTab !== 'grades' && activeTab !== 'bulk' && (
+                <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Save Configuration
+                </Button>
+              )}
             </div>
           </>
         )}

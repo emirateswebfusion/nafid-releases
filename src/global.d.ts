@@ -9,9 +9,16 @@ export interface IElectronAPI {
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
   dbAdjustStock: (args: { product_id: string; delta: number }) => Promise<{ success: boolean; error?: string }>;
+  dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;
+  dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
+  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number }) => Promise<any[]>;
   dbCheckout: (payload: any) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
+  dbGetGrades: (tenantId: string) => Promise<any[]>;
+  dbAddGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteGrade: (grade_id: string) => Promise<{ success: boolean; error?: string }>;
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; shop_name: string; domain_type?: string }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; shop_name: string; domain_type?: string } | null>;
@@ -22,6 +29,8 @@ export interface IElectronAPI {
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string }>;
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => Promise<{ success: boolean; error?: string }>;
+  printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => Promise<{ success: boolean; error?: string }>;
+  getBulkPrintItems: () => Promise<any[]>;
   getPrinters: () => Promise<any[]>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
   onBarcodeScanned: (callback: (code: string) => void) => void;
