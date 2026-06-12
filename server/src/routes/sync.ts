@@ -183,8 +183,8 @@ router.post('/products', async (req: Request, res: Response) => {
               brand_manufacturer, current_stock, reorder_level, domain_attributes,
               discount_percent, discount_flat, offer_price, is_deleted,
               billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
-              created_at, updated_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
+              print_status, created_at, updated_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
             ON CONFLICT (product_id) DO UPDATE SET
               name = EXCLUDED.name,
               sku_barcode = EXCLUDED.sku_barcode,
@@ -209,6 +209,7 @@ router.post('/products', async (req: Request, res: Response) => {
               pricing_mode = EXCLUDED.pricing_mode,
               average_weight_per_piece = EXCLUDED.average_weight_per_piece,
               weight_override_allowed = EXCLUDED.weight_override_allowed,
+              print_status = EXCLUDED.print_status,
               created_at = COALESCE(products.created_at, EXCLUDED.created_at),
               updated_at = EXCLUDED.updated_at
             WHERE products.tenant_id = EXCLUDED.tenant_id`,
@@ -222,6 +223,7 @@ router.post('/products', async (req: Request, res: Response) => {
               currentP.is_deleted ?? false,
               currentP.billing_type || 'PIECE', currentP.grade_id || null, currentP.pricing_mode || 'FIXED_PRICE',
               currentP.average_weight_per_piece ?? null, !!currentP.weight_override_allowed,
+              currentP.print_status || 'PENDING',
               currentP.created_at ?? new Date(),
               currentP.updated_at ?? new Date()
             ]

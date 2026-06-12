@@ -246,7 +246,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       average_weight_per_piece: product.average_weight_per_piece ?? '',
       weight_override_allowed: product.weight_override_allowed === 1,
     });
-    setIsCustomCategory(false);
+    setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
     setView('edit');
   };
 
@@ -363,26 +363,28 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   const generateBarcode = () => {
     let prefix = formData.item_code || '';
-    if (prefix.length > 12) {
-      prefix = prefix.substring(0, 12);
-    }
-    const remainingLength = 12 - prefix.length;
-    let code = prefix;
-    if (remainingLength > 0) {
-      const min = Math.pow(10, remainingLength - 1);
-      const max = Math.pow(10, remainingLength) - 1;
-      const randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
-      code += randomPart;
-    }
-    
     let priceCode = '';
+    
     if (priceCoding && formData.purchase_price) {
       const priceStr = String(formData.purchase_price).replace(/\D/g, '');
       for (const char of priceStr) {
         if (priceCoding[char]) priceCode += priceCoding[char];
       }
     }
-    handleInputChange('sku_barcode', code + priceCode);
+
+    if (prefix.length + priceCode.length > 10) {
+      prefix = prefix.substring(0, Math.max(0, 10 - priceCode.length));
+    }
+    
+    const remainingLength = 10 - prefix.length - priceCode.length;
+    let randomPart = '';
+    if (remainingLength > 0) {
+      const min = Math.pow(10, remainingLength - 1);
+      const max = Math.pow(10, remainingLength) - 1;
+      randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
+    }
+    
+    handleInputChange('sku_barcode', prefix + randomPart + priceCode);
   };
 
   const printBarcode = async () => {

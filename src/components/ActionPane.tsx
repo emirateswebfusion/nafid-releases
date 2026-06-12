@@ -8,6 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
 
 export function ActionPane() {
   const { items, invoiceType, setInvoiceType, clearCart, setDiscount, currentUserRole, setRole } = useCartStore();
@@ -25,17 +26,34 @@ export function ActionPane() {
       const invoice_number = `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
 
       const lineItems = items.map((item) => {
+        const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+          ? item.base_price + (item.grade_rate || 0) 
+          : item.base_price;
+          
+        const pieceCount = Number(item.quantity) || 0;
+        
+        let itemTotal = 0;
+        if (item.billing_type === 'WEIGHT') {
+          const weightToUse = item.calculated_weight || 0;
+          itemTotal = effectiveRate * weightToUse;
+        } else {
+          itemTotal = effectiveRate * pieceCount;
+        }
+        
+        const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
+        
         const taxAmount = invoiceType === 'GST'
-          ? item.base_price * Number(item.quantity) * (item.tax_rate_percent / 100)
+          ? itemTotal * (item.tax_rate_percent / 100)
           : 0;
+
         return {
           item_id: uuidv4(),
           product_id: item.product_id,
           name: item.name,
-          quantity: item.quantity,
-          unit_price: item.base_price,
+          quantity: pieceCount,
+          unit_price: ratePerPiece,
           tax_amount: taxAmount,
-          total: item.base_price * Number(item.quantity) + taxAmount,
+          total: itemTotal,
         };
       });
 
@@ -43,24 +61,45 @@ export function ActionPane() {
       setHardwareError(null);
 
       try {
-        let receiptText = `================================\n`;
-        receiptText += `          INVOICE\n`;
-        receiptText += `================================\n`;
-        receiptText += `INV No: ${invoice_number}\n`;
-        receiptText += `--------------------------------\n`;
-        
-        items.forEach(item => {
-          receiptText += `${item.name}\n`;
-          receiptText += `  ${item.quantity} x ${item.base_price.toFixed(2)} = ${(Number(item.quantity) * item.base_price).toFixed(2)}\n`;
-        });
-        
-        receiptText += `--------------------------------\n`;
-        receiptText += `SUBTOTAL:      ${subtotal.toFixed(2)}\n`;
-        if (totalTax > 0) receiptText += `TAX:           ${totalTax.toFixed(2)}\n`;
-        if (discount > 0) receiptText += `DISCOUNT:     -${discount.toFixed(2)}\n`;
-        receiptText += `--------------------------------\n`;
-        receiptText += `GRAND TOTAL:   ${grandTotal.toFixed(2)}\n`;
-        receiptText += `================================\n`;
+        const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+        const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+
+        const receiptData: ReceiptData = {
+          shopName: shopName || 'My Shop',
+          invoiceNumber: invoice_number,
+          date: new Date().toLocaleString(),
+          cashierName: useAuthStore.getState().role || undefined,
+          items: items.map(item => {
+            const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+              ? item.base_price + (item.grade_rate || 0) 
+              : item.base_price;
+              
+            const pieceCount = Number(item.quantity) || 0;
+            
+            let itemTotal = 0;
+            if (item.billing_type === 'WEIGHT') {
+              const weightToUse = item.calculated_weight || 0;
+              itemTotal = effectiveRate * weightToUse;
+            } else {
+              itemTotal = effectiveRate * pieceCount;
+            }
+            
+            const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
+            
+            return {
+              name: item.name,
+              quantity: pieceCount,
+              unit_price: ratePerPiece,
+              total: itemTotal
+            };
+          }),
+          subtotal,
+          tax: totalTax,
+          discount,
+          grandTotal
+        };
+
+        const receiptText = generateReceiptText(receiptData, receiptWidthCm);
         
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
         

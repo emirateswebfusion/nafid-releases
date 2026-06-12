@@ -8,11 +8,16 @@ const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
 const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
 const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
 
-function getPrinterConfig(tenantId: string) {
+function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tenantId || 'global');
-    return row ? JSON.parse(row.value) : { type: 'usb', ip: '192.168.1.100', port: 9100 };
+    const key = type === 'receipt' ? 'receipt_printer_config' : 'barcode_printer_config';
+    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tenantId || 'global', key);
+    if (row) return JSON.parse(row.value);
+    
+    // Fallback to legacy printer_config
+    const legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tenantId || 'global');
+    return legacyRow ? JSON.parse(legacyRow.value) : { type: 'usb', ip: '192.168.1.100', port: 9100 };
   } catch {
     return { type: 'usb', ip: '192.168.1.100', port: 9100 };
   }
@@ -35,7 +40,7 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:printReceipt', async (event, { tenant_id, textData }: { tenant_id: string; textData: string }) => {
     console.log(`[Hardware] Received Print Request for tenant: ${tenant_id}`);
-    const config = getPrinterConfig(tenant_id);
+    const config = getPrinterConfig(tenant_id, 'receipt');
     
     try {
       // Construct raw buffer
@@ -61,7 +66,7 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:openCashDrawer', async (event, tenant_id: string) => {
     console.log(`[Hardware] Kick RJ11 Cash Drawer for tenant: ${tenant_id}`);
-    const config = getPrinterConfig(tenant_id);
+    const config = getPrinterConfig(tenant_id, 'receipt');
     try {
       if (config.type === 'network') {
         await sendToNetworkPrinter(config.ip, config.port || 9100, ESC_DRAWER_KICK);
@@ -79,7 +84,7 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:printBarcode', async (event, { tenant_id, barcode, price, name, quantity = 1, sp, spType }: { tenant_id: string; barcode: string; price?: number; name?: string; quantity?: number; sp?: number; spType?: string }) => {
     console.log(`[Hardware] Printing Barcode: ${barcode} (Qty: ${quantity}) for tenant: ${tenant_id}`);
-    const config = getPrinterConfig(tenant_id);
+    const config = getPrinterConfig(tenant_id, 'barcode');
     try {
       // Basic ESC/POS Barcode Command (CODE128)
       const barcodeData = Buffer.from(barcode, 'ascii');
@@ -108,7 +113,7 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:printBulkBarcodes', async (event, { tenant_id, items }: { tenant_id: string; items: any[] }) => {
     console.log(`[Hardware] Printing Bulk Barcodes (${items.length} items) for tenant: ${tenant_id}`);
-    const config = getPrinterConfig(tenant_id);
+    const config = getPrinterConfig(tenant_id, 'barcode');
     try {
       if (config.type === 'network') {
         const buffers = items.flatMap(item => {
@@ -195,7 +200,11 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
+        
+        // Delay window close to allow PDF software spoolers to finish writing to disk
+        setTimeout(() => {
+          if (!printWindow.isDestroyed()) printWindow.close();
+        }, 3000);
         
         if (success) {
           resolve();
@@ -242,7 +251,9 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
+        setTimeout(() => {
+          if (!printWindow.isDestroyed()) printWindow.close();
+        }, 3000);
         
         if (success) {
           resolve();
@@ -289,7 +300,9 @@ function printReceiptUSB(textData: string, deviceName: string): Promise<void> {
         pageSize: { width: 80000, height: 300000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
-        if (!printWindow.isDestroyed()) printWindow.close();
+        setTimeout(() => {
+          if (!printWindow.isDestroyed()) printWindow.close();
+        }, 3000);
         
         if (success) {
           resolve();

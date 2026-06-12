@@ -5,6 +5,7 @@ import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { Skeleton } from './ui/Skeleton';
+import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
 
 export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -242,22 +243,28 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                       if (!selectedInvoice || !window.electronAPI) return;
                       try {
                         const { tenantId } = useAuthStore.getState();
-                        let receiptText = `================================\n`;
-                        receiptText += `          INVOICE (REPRINT)\n`;
-                        receiptText += `================================\n`;
-                        receiptText += `INV No: ${selectedInvoice.invoice_number}\n`;
-                        receiptText += `--------------------------------\n`;
-                        items.forEach(item => {
-                          receiptText += `${item.name}\n`;
-                          receiptText += `  ${item.quantity} x ${item.unit_price.toFixed(2)} = ${item.total.toFixed(2)}\n`;
-                        });
-                        receiptText += `--------------------------------\n`;
-                        receiptText += `SUBTOTAL:      ${selectedInvoice.subtotal.toFixed(2)}\n`;
-                        if (selectedInvoice.tax_total > 0) receiptText += `TAX:           ${selectedInvoice.tax_total.toFixed(2)}\n`;
-                        if (selectedInvoice.discount_total > 0) receiptText += `DISCOUNT:     -${selectedInvoice.discount_total.toFixed(2)}\n`;
-                        receiptText += `--------------------------------\n`;
-                        receiptText += `GRAND TOTAL:   ${selectedInvoice.grand_total.toFixed(2)}\n`;
-                        receiptText += `================================\n`;
+                        const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+                        const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+
+                        const receiptData: ReceiptData = {
+                          shopName: useAuthStore.getState().shopName || 'My Shop',
+                          invoiceNumber: selectedInvoice.invoice_number,
+                          date: new Date(selectedInvoice.created_at).toLocaleString(),
+                          cashierName: selectedInvoice.cashier_name,
+                          items: items.map(item => ({
+                            name: item.name,
+                            quantity: Number(item.quantity) || 0,
+                            unit_price: item.unit_price,
+                            total: item.total
+                          })),
+                          subtotal: selectedInvoice.subtotal,
+                          tax: selectedInvoice.tax_total,
+                          discount: selectedInvoice.discount_total,
+                          grandTotal: selectedInvoice.grand_total,
+                          isReprint: true
+                        };
+
+                        const receiptText = generateReceiptText(receiptData, receiptWidthCm);
                         await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
                       } catch (err) {
                         console.error('Failed to reprint', err);

@@ -11,6 +11,7 @@ export interface IElectronAPI {
   dbAdjustStock: (args: { product_id: string; delta: number }) => Promise<{ success: boolean; error?: string }>;
   dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
+  dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number }) => Promise<any[]>;
   dbCheckout: (payload: any) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;

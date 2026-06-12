@@ -7,15 +7,17 @@ import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
-import { BulkOnboardingTab } from './BulkOnboardingTab';
+import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'general' | 'grades' | 'security' | 'bulk'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'grades' | 'security'>('general');
+  const [showBulkSheet, setShowBulkSheet] = useState(false);
 
-  const [printer, setPrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
+  const [barcodePrinter, setBarcodePrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
+  const [receiptPrinter, setReceiptPrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 });
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
@@ -36,10 +38,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const loadSettings = async () => {
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
-      const p = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
+      const pBarcode = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config' });
+      const pReceipt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const pLegacy = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
       const s = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scale_config' });
       const pCoding = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' });
-      if (p) setPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...p });
+      
+      if (pBarcode) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pBarcode });
+      else if (pLegacy) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pLegacy });
+
+      if (pReceipt) setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...pReceipt });
+      else if (pLegacy) setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...pLegacy });
       if (s) setScale(s);
       if (pCoding) setPriceCoding(pCoding);
       
@@ -75,20 +84,33 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         }
 
         // Format numbers correctly before saving
-        const formattedPrinter = {
-          ...printer,
-          port: Number(printer.port) || 9100,
-          labelWidthMm: Number(printer.labelWidthMm) || 50,
-          labelHeightMm: Number(printer.labelHeightMm) || 25,
-          labelColumns: Number(printer.labelColumns) || 1,
+        const formattedBarcodePrinter = {
+          ...barcodePrinter,
+          port: Number(barcodePrinter.port) || 9100,
+          labelWidthMm: Number(barcodePrinter.labelWidthMm) || 50,
+          labelHeightMm: Number(barcodePrinter.labelHeightMm) || 25,
+          labelColumns: Number(barcodePrinter.labelColumns) || 1,
         };
 
-        const resPrinter = await window.electronAPI.settingsSet({ 
+        const formattedReceiptPrinter = {
+          ...receiptPrinter,
+          port: Number(receiptPrinter.port) || 9100,
+          receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8,
+        };
+
+        const resBarcode = await window.electronAPI.settingsSet({ 
           tenant_id: tenantId || 'global', 
-          key: 'printer_config', 
-          value: formattedPrinter 
+          key: 'barcode_printer_config', 
+          value: formattedBarcodePrinter 
         });
-        if (!resPrinter.success) throw new Error(resPrinter.error);
+        if (!resBarcode.success) throw new Error(resBarcode.error);
+        
+        const resReceipt = await window.electronAPI.settingsSet({ 
+          tenant_id: tenantId || 'global', 
+          key: 'receipt_printer_config', 
+          value: formattedReceiptPrinter 
+        });
+        if (!resReceipt.success) throw new Error(resReceipt.error);
         
         const resScale = await window.electronAPI.settingsSet({ 
           tenant_id: tenantId || 'global', 
@@ -104,7 +126,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         });
         if (!resPriceCoding.success) throw new Error(resPriceCoding.error);
 
-        setMessage({ type: 'success', text: `Saved! USB Printer: ${printer.deviceName || 'None'}. Please restart app.` });
+        setMessage({ type: 'success', text: `Saved! Settings updated. Please restart app.` });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
@@ -194,14 +216,24 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'security' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
                 onClick={() => setActiveTab('security')}
               >Security</button>
-              <button 
-                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'bulk' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-                onClick={() => setActiveTab('bulk')}
-              >Bulk Onboarding</button>
             </div>
 
             {activeTab === 'general' && (
               <div className="space-y-8 animate-in fade-in">
+                {role === 'OWNER' && (
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/20">
+                      <div>
+                        <h3 className="font-bold text-lg text-primary">Bulk Import & Printing</h3>
+                        <p className="text-sm text-muted-foreground">Import products from Excel and print barcode labels in bulk.</p>
+                      </div>
+                      <Button onClick={() => setShowBulkSheet(true)}>
+                        Open Bulk Import Sheet
+                      </Button>
+                    </div>
+                  </section>
+                )}
+
                 {role === 'OWNER' && (
               <section className="space-y-4">
                 <div className="flex items-center gap-3 text-foreground">
@@ -229,33 +261,33 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
             {role === 'OWNER' && <div className="h-px bg-border" />}
 
-            {/* Printer Section */}
+            {/* Barcode Printer Section */}
             <section className="space-y-4">
               <div className="flex items-center gap-3 text-foreground">
                 <Printer className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg">Thermal Printer (ESC/POS)</h3>
+                <h3 className="font-bold text-lg">Barcode Label Printer</h3>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Connection Type</label>
                   <select
                     className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                    value={printer.type || 'network'}
-                    onChange={(e) => setPrinter({...printer, type: e.target.value})}
+                    value={barcodePrinter.type || 'network'}
+                    onChange={(e) => setBarcodePrinter({...barcodePrinter, type: e.target.value})}
                   >
                     <option value="network">Network (TCP/IP)</option>
                     <option value="usb">USB (OS Print Queue)</option>
                   </select>
                 </div>
                 
-                {printer.type === 'network' ? (
+                {barcodePrinter.type === 'network' ? (
                   <>
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Printer IP Address</label>
                       <Input 
                         type="text"
-                        value={printer.ip}
-                        onChange={(e) => setPrinter({...printer, ip: e.target.value})}
+                        value={barcodePrinter.ip}
+                        onChange={(e) => setBarcodePrinter({...barcodePrinter, ip: e.target.value})}
                         placeholder="192.168.1.100"
                       />
                     </div>
@@ -264,8 +296,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       <Input 
                         type="text"
                         inputMode="numeric"
-                        value={printer.port ?? 9100}
-                        onChange={(e) => setPrinter({...printer, port: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
+                        value={barcodePrinter.port ?? 9100}
+                        onChange={(e) => setBarcodePrinter({...barcodePrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
                       />
                     </div>
                   </>
@@ -274,8 +306,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Select USB Printer</label>
                     <select
                       className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                      value={printer.deviceName || ''}
-                      onChange={(e) => setPrinter({...printer, deviceName: e.target.value})}
+                      value={barcodePrinter.deviceName || ''}
+                      onChange={(e) => setBarcodePrinter({...barcodePrinter, deviceName: e.target.value})}
                     >
                       <option value="">-- Select a printer --</option>
                       {osPrinters.map(p => (
@@ -284,15 +316,15 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     </select>
                   </div>
                 )}
-                {printer.type === 'usb' && (
+                {barcodePrinter.type === 'usb' && (
                   <div className="col-span-2 grid grid-cols-3 gap-4 mt-2">
                     <div>
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Width (mm)</label>
                       <Input 
                         type="text"
                         inputMode="numeric"
-                        value={printer.labelWidthMm ?? 50}
-                        onChange={(e) => setPrinter({...printer, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
+                        value={barcodePrinter.labelWidthMm ?? 50}
+                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
                       />
                     </div>
                     <div>
@@ -300,8 +332,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       <Input 
                         type="text"
                         inputMode="numeric"
-                        value={printer.labelHeightMm ?? 25}
-                        onChange={(e) => setPrinter({...printer, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
+                        value={barcodePrinter.labelHeightMm ?? 25}
+                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
                       />
                     </div>
                     <div>
@@ -309,12 +341,84 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       <Input 
                         type="text"
                         inputMode="numeric"
-                        value={printer.labelColumns ?? 1}
-                        onChange={(e) => setPrinter({...printer, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\\D/g, '')})}
+                        value={barcodePrinter.labelColumns ?? 1}
+                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
                       />
                     </div>
                   </div>
                 )}
+              </div>
+            </section>
+
+            <div className="h-px bg-border" />
+
+            {/* Receipt Printer Section */}
+            <section className="space-y-4">
+              <div className="flex items-center gap-3 text-foreground">
+                <Printer className="w-5 h-5 text-primary" />
+                <h3 className="font-bold text-lg">Bill Receipt Printer</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Connection Type</label>
+                  <select
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                    value={receiptPrinter.type || 'network'}
+                    onChange={(e) => setReceiptPrinter({...receiptPrinter, type: e.target.value})}
+                  >
+                    <option value="network">Network (TCP/IP)</option>
+                    <option value="usb">USB (OS Print Queue)</option>
+                  </select>
+                </div>
+                
+                {receiptPrinter.type === 'network' ? (
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Printer IP Address</label>
+                      <Input 
+                        type="text"
+                        value={receiptPrinter.ip}
+                        onChange={(e) => setReceiptPrinter({...receiptPrinter, ip: e.target.value})}
+                        placeholder="192.168.1.100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Port</label>
+                      <Input 
+                        type="text"
+                        inputMode="numeric"
+                        value={receiptPrinter.port ?? 9100}
+                        onChange={(e) => setReceiptPrinter({...receiptPrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="col-span-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Select USB Printer</label>
+                    <select
+                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                      value={receiptPrinter.deviceName || ''}
+                      onChange={(e) => setReceiptPrinter({...receiptPrinter, deviceName: e.target.value})}
+                    >
+                      <option value="">-- Select a printer --</option>
+                      {osPrinters.map(p => (
+                        <option key={p.name} value={p.name}>{p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Receipt Width (cm)</label>
+                  <Input 
+                    type="text"
+                    inputMode="decimal"
+                    value={receiptPrinter.receiptWidthCm ?? 5.8}
+                    onChange={(e) => setReceiptPrinter({...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '')})}
+                    placeholder="e.g. 5.8 or 8.0"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">Standard sizes are 5.8cm (58mm) and 8.0cm (80mm). This sets the layout character width.</p>
+                </div>
               </div>
             </section>
 
@@ -440,11 +544,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </div>
             )}
 
-            {activeTab === 'bulk' && (
-              <div className="animate-in fade-in">
-                <BulkOnboardingTab />
-              </div>
-            )}
+
 
             {message && (
               <div className={clsx(
@@ -467,7 +567,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              {activeTab !== 'grades' && activeTab !== 'bulk' && (
+              {activeTab !== 'grades' && (
                 <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
                   {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
                   Save Configuration
@@ -477,6 +577,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           </>
         )}
       </div>
+      
+      {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
     </Modal>
   );
 }

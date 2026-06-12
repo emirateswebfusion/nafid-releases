@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbAdjustStock: (args: { product_id: string; delta: number }) => ipcRenderer.invoke('db:adjustStock', args),
   dbBulkImportProducts: (products: any[]) => ipcRenderer.invoke('db:bulkImportProducts', products),
   dbUpdatePrintStatus: (productIds: string[]) => ipcRenderer.invoke('db:updatePrintStatus', productIds),
+  dbResetPrintStatus: (tenant_id: string) => ipcRenderer.invoke('db:resetPrintStatus', tenant_id),
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number }) => ipcRenderer.invoke('db:getPendingPrintProducts', params),
   dbCheckout: (payload: any) => ipcRenderer.invoke('db:checkout', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),

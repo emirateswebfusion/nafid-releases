@@ -384,9 +384,14 @@ ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
           discount_percent, discount_flat, offer_price,
           is_deleted, billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
           sync_status, print_status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', 'PENDING', ?, ?)
       `);
+      
+      const now = new Date();
       for (const p of prods) {
+        now.setMilliseconds(now.getMilliseconds() + 1);
+        const timestamp = now.toISOString();
+        
         stmt.run(
           p.product_id,
           p.tenant_id,
@@ -412,7 +417,9 @@ ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
           p.grade_id || null,
           p.pricing_mode || 'FIXED_PRICE',
           p.average_weight_per_piece ?? null,
-          p.weight_override_allowed ?? 0
+          p.weight_override_allowed ?? 0,
+          timestamp,
+          timestamp
         );
       }
     });
@@ -427,12 +434,23 @@ ipcMain.handle('db:updatePrintStatus', (event, productIds: string[]) => {
   try {
     const db = getDb();
     const transaction = db.transaction((ids) => {
-      const stmt = db.prepare("UPDATE products SET print_status = 'PRINTED', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?");
+      const stmt = db.prepare("UPDATE products SET print_status = 'PRINTED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?");
       for (const id of ids) {
         stmt.run(id);
       }
     });
     transaction(productIds);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:resetPrintStatus', (event, tenant_id: string) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return { success: false, error: 'Tenant ID required' };
+    db.prepare("UPDATE products SET print_status = 'PRINTED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND print_status = 'PENDING' AND is_deleted = 0").run(tenant_id);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
