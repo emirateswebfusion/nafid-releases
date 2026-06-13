@@ -487,7 +487,7 @@ ipcMain.handle('db:getGrades', (event, tenantId: string) => {
   try {
     const db = getDb();
     if (!tenantId) return [];
-    return db.prepare('SELECT * FROM product_grades WHERE tenant_id = ? ORDER BY category, grade_name').all(tenantId);
+    return db.prepare('SELECT * FROM product_grades WHERE tenant_id = ? AND is_deleted = 0 ORDER BY category, grade_name').all(tenantId);
   } catch (error: any) {
     return { error: error.message };
   }
@@ -497,8 +497,8 @@ ipcMain.handle('db:addGrade', (event, g) => {
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, sync_status) 
-      VALUES (?, ?, ?, ?, ?, 'PENDING')
+      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, is_deleted, sync_status) 
+      VALUES (?, ?, ?, ?, ?, 0, 'PENDING')
     `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate);
     return { success: true };
   } catch (error: any) {
@@ -523,7 +523,7 @@ ipcMain.handle('db:updateGrade', (event, g) => {
 ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
   try {
     const db = getDb();
-    db.prepare(`DELETE FROM product_grades WHERE grade_id = ?`).run(gradeId);
+    db.prepare(`UPDATE product_grades SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE grade_id = ?`).run(gradeId);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

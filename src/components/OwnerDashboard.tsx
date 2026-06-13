@@ -144,7 +144,7 @@ export function OwnerDashboard() {
                             <CardDescription className="text-sm leading-relaxed mb-6">{card.desc}</CardDescription>
                             
                             <div className="mt-auto flex items-center gap-2 text-xs font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                                <span>Open Tool</span>
+                                <span>Open</span>
                                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                             </div>
                         </CardContent>

@@ -293,16 +293,17 @@ router.post('/product_grades', async (req: Request, res: Response) => {
       await withTenantContext(req.auth!.tenant_id, async (client) => {
         await client.query(
           `INSERT INTO product_grades (
-            grade_id, tenant_id, category, grade_name, rate, created_at, updated_at
-          ) VALUES ($1,$2,$3,$4,$5,$6,$7)
+            grade_id, tenant_id, category, grade_name, rate, is_deleted, created_at, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
           ON CONFLICT (grade_id) DO UPDATE SET
             category = EXCLUDED.category,
             grade_name = EXCLUDED.grade_name,
             rate = EXCLUDED.rate,
+            is_deleted = EXCLUDED.is_deleted,
             updated_at = EXCLUDED.updated_at
           WHERE product_grades.tenant_id = EXCLUDED.tenant_id`,
           [
-            g.grade_id, req.auth!.tenant_id, g.category, g.grade_name, g.rate,
+            g.grade_id, req.auth!.tenant_id, g.category, g.grade_name, g.rate, g.is_deleted ?? false,
             g.created_at ?? new Date(), g.updated_at ?? new Date()
           ]
         );

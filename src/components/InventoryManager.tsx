@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -220,6 +220,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
+    const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
     setFormData({
       item_code: product.item_code || '',
       sku_barcode: product.sku_barcode || '',
@@ -241,8 +242,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       discount_flat: product.discount_flat ?? '',
       offer_price: product.offer_price ?? '',
       billing_type: product.billing_type || 'PIECE',
-      grade_id: product.grade_id || '',
-      pricing_mode: product.pricing_mode || 'FIXED_PRICE',
+      grade_id: validGradeId,
+      pricing_mode: validGradeId ? (product.pricing_mode || 'FIXED_PRICE') : 'FIXED_PRICE',
       average_weight_per_piece: product.average_weight_per_piece ?? '',
       weight_override_allowed: product.weight_override_allowed === 1,
     });
@@ -654,8 +655,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       }
       closeButton={
         view !== 'list' ? (
-          <button onClick={() => setView('list')} className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-sm font-bold rounded-lg transition-colors border border-border shadow-sm">
-            Back to List
+          <button onClick={() => setView('list')} className="p-2 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground rounded-lg transition-colors border border-border shadow-sm">
+            <X className="w-5 h-5" />
           </button>
         ) : undefined
       }
@@ -776,12 +777,18 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
                 
                 let finalPrice: number | null = null;
+                const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+                const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+                const displayMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
+                  ? Number(p.base_price) + gradeRate 
+                  : Number(p.base_price);
+
                 if (p.offer_price) {
                   finalPrice = Number(p.offer_price);
                 } else if (p.discount_flat) {
-                  finalPrice = Number(p.base_price) - Number(p.discount_flat);
+                  finalPrice = displayMrp - Number(p.discount_flat);
                 } else if (p.discount_percent) {
-                  finalPrice = Number(p.base_price) * (1 - Number(p.discount_percent) / 100);
+                  finalPrice = displayMrp * (1 - Number(p.discount_percent) / 100);
                 }
                 if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
 
@@ -804,10 +811,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     </div>
                     <div className="col-span-1 text-center text-muted-foreground text-sm font-medium">{p.uom}</div>
                     <div className="col-span-1 text-right text-muted-foreground text-sm font-medium">₹{Number(p.purchase_price).toFixed(2)}</div>
-                    <div className="col-span-2 text-right">
+                    <div className="col-span-2 flex flex-col items-end justify-center">
                       <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
-                        ₹{Number(p.base_price).toFixed(2)}
+                        ₹{displayMrp.toFixed(2)}
                       </span>
+                      {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
+                        <span className="text-[10px] text-indigo-500 font-medium leading-tight mt-0.5 max-w-[100px] text-right">
+                          incl. Grade Rate (₹{gradeRate})
+                        </span>
+                      )}
                     </div>
                     <div className="col-span-2 text-right text-emerald-500 font-bold text-sm">
                       {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
@@ -903,32 +915,49 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest shadow-sm uppercase" />
                     </div>
                     <div className="grid grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Category</label>
-                        {isCustomCategory || configuredCategories.length === 0 ? (
-                          <div className="flex gap-2">
-                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" placeholder="Custom Category" />
-                             {configuredCategories.length > 0 && (
-                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
-                             )}
+                      <div className="space-y-5">
+                        <div>
+                          <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Category</label>
+                          {isCustomCategory || configuredCategories.length === 0 ? (
+                            <div className="flex gap-2">
+                               <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" placeholder="Custom Category" />
+                               {configuredCategories.length > 0 && (
+                                 <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
+                               )}
+                            </div>
+                          ) : (
+                            <select 
+                              value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
+                              onChange={e => {
+                                if (e.target.value === 'CUSTOM') {
+                                  setIsCustomCategory(true);
+                                  handleInputChange('category', '');
+                                } else {
+                                  handleInputChange('category', e.target.value);
+                                }
+                              }} 
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
+                            >
+                              <option value="">-- Select Category --</option>
+                              {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
+                              <option value="CUSTOM">Custom...</option>
+                            </select>
+                          )}
+                        </div>
+                        {grades.filter(g => g.category === formData.category).length > 0 && (
+                          <div className="p-4 bg-muted/10 border border-border rounded-xl">
+                            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Select Grade</label>
+                            <select 
+                              value={formData.grade_id} 
+                              onChange={e => handleInputChange('grade_id', e.target.value)} 
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
+                            >
+                              <option value="">-- No Grade Selected --</option>
+                              {grades.filter(g => g.category === formData.category).map(g => (
+                                <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
+                              ))}
+                            </select>
                           </div>
-                        ) : (
-                          <select 
-                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
-                            onChange={e => {
-                              if (e.target.value === 'CUSTOM') {
-                                setIsCustomCategory(true);
-                                handleInputChange('category', '');
-                              } else {
-                                handleInputChange('category', e.target.value);
-                              }
-                            }} 
-                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
-                          >
-                            <option value="">-- Select Category --</option>
-                            {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
-                            <option value="CUSTOM">Custom...</option>
-                          </select>
                         )}
                       </div>
                       <div>
@@ -996,22 +1025,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       </div>
                     )}
                   </div>
-                  
-                    {grades.filter(g => g.category === formData.category).length > 0 && (
-                      <div className="p-4 bg-muted/10 border border-border rounded-xl">
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Select Grade</label>
-                        <select 
-                          value={formData.grade_id} 
-                          onChange={e => handleInputChange('grade_id', e.target.value)} 
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
-                        >
-                          <option value="">-- No Grade Selected --</option>
-                          {grades.filter(g => g.category === formData.category).map(g => (
-                            <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
                 </div>
               </section>
 
@@ -1158,9 +1171,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             {/* Footer */}
             <div className="p-6 border-t border-border bg-card flex justify-between items-center shrink-0">
               <div className="flex items-center gap-4">
-                <button onClick={() => setView('list')} className="px-6 py-3 bg-muted hover:bg-muted/80 border border-border text-foreground font-bold rounded-xl transition-all shadow-sm">
-                  Cancel
-                </button>
                 {statusMessage && (
                   <div className={clsx(
                     "px-4 py-2.5 rounded-xl text-sm font-bold text-center animate-pulse border",
