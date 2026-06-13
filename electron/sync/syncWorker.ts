@@ -69,10 +69,12 @@ async function runSyncCycle() {
     await syncGrades(config.jwt_token, config.tenant_id);
     await syncProducts(config.jwt_token, config.tenant_id);
     await syncInvoices(config.jwt_token, config.tenant_id);
+    await syncSettings(config.jwt_token, config.tenant_id);
     await pullGrades(config.jwt_token);
     await pullProducts(config.jwt_token);
     await pullInvoices(config.jwt_token);
     await pullUsers(config.jwt_token);
+    await pullSettings(config.jwt_token);
   } catch (err: any) {
     console.error('[SyncWorker] Sync cycle error:', err.message);
   }
@@ -218,16 +220,17 @@ async function pullGrades(token: string) {
 
     const upsert = db.prepare(`
       INSERT INTO product_grades (
-        grade_id, tenant_id, category, grade_name, rate,
+        grade_id, tenant_id, category, grade_name, rate, is_deleted,
         sync_status, created_at, updated_at
       ) VALUES (
-        @grade_id, @tenant_id, @category, @grade_name, @rate,
+        @grade_id, @tenant_id, @category, @grade_name, @rate, @is_deleted,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(grade_id) DO UPDATE SET
         category = excluded.category,
         grade_name = excluded.grade_name,
         rate = excluded.rate,
+        is_deleted = excluded.is_deleted,
         created_at = COALESCE(product_grades.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
         sync_status = 'SYNCED'
@@ -243,6 +246,7 @@ async function pullGrades(token: string) {
             category: g.category,
             grade_name: g.grade_name,
             rate: g.rate,
+            is_deleted: g.is_deleted ? 1 : 0,
             created_at: g.created_at ?? new Date().toISOString(),
             updated_at: g.updated_at ?? new Date().toISOString(),
           });
@@ -555,5 +559,116 @@ async function pullUsers(token: string) {
     console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
   } catch (err: any) {
     console.error('[SyncWorker] Pull users failed:', err.message);
+  }
+}
+
+// ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
+async function syncSettings(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ? AND key IN ('price_coding', 'barcode_printer_config', 'receipt_printer_config')`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ settings: pending }),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Settings sync failed: HTTP ${response.status}`);
+      return;
+    }
+
+    const result: any = await response.json();
+    console.log(`[SyncWorker] Settings sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
+
+    if (result.synced?.length > 0) {
+      const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND tenant_id = ?`);
+      const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
+      tx(result.synced);
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Settings sync fetch failed:', err.message);
+  }
+}
+
+// ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
+async function pullSettings(token: string) {
+  const db = getDb();
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/settings`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull settings failed: HTTP ${response.status}`);
+      return;
+    }
+
+    const cloudSettings: any[] = await response.json();
+    if (!Array.isArray(cloudSettings) || cloudSettings.length === 0) return;
+
+    // Filter to only the whitelisted keys
+    const whitelistedKeys = ['price_coding', 'barcode_printer_config', 'receipt_printer_config'];
+    const validSettings = cloudSettings.filter(s => whitelistedKeys.includes(s.key));
+
+    if (validSettings.length === 0) return;
+
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id || 'global';
+
+    const localStmt = db.prepare(`SELECT key, value FROM settings WHERE tenant_id = ? AND key = ?`);
+    
+    const upsert = db.prepare(`
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+      VALUES (@tenant_id, @key, @value, 'SYNCED', @updated_at)
+      ON CONFLICT(tenant_id, key) DO UPDATE SET
+        value = excluded.value,
+        sync_status = 'SYNCED',
+        updated_at = excluded.updated_at
+    `);
+
+    const tx = db.transaction((settings: any[]) => {
+      for (const s of settings) {
+        let valueToSave = s.value;
+        
+        if (s.key === 'barcode_printer_config' || s.key === 'receipt_printer_config') {
+           const localData = localStmt.get(tenantId, s.key) as any;
+           if (localData && localData.value) {
+             try {
+               const localObj = JSON.parse(localData.value);
+               if (typeof valueToSave === 'string') {
+                 const cloudObj = JSON.parse(valueToSave);
+                 if (localObj.deviceName) cloudObj.deviceName = localObj.deviceName;
+                 valueToSave = JSON.stringify(cloudObj);
+               } else if (typeof valueToSave === 'object') {
+                 if (localObj.deviceName) valueToSave.deviceName = localObj.deviceName;
+                 valueToSave = JSON.stringify(valueToSave);
+               }
+             } catch(e) {}
+           } else {
+             if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+           }
+        } else {
+           if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+        }
+
+        upsert.run({
+          tenant_id: s.tenant_id || tenantId,
+          key: s.key,
+          value: valueToSave,
+          updated_at: s.updated_at
+        });
+      }
+    });
+
+    tx(validSettings);
+    console.log(`[SyncWorker] Pulled ${validSettings.length} settings from cloud.`);
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull settings failed:', err.message);
   }
 }

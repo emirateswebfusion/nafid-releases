@@ -655,10 +655,11 @@ ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: s
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, updated_at) 
-      VALUES (?, ?, ?, CURRENT_TIMESTAMP) 
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
+      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP) 
       ON CONFLICT(tenant_id, key) DO UPDATE SET 
         value = EXCLUDED.value, 
+        sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
     `).run(tenant_id || 'global', key, JSON.stringify(value));
     return { success: true };

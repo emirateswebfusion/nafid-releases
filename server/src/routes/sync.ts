@@ -317,4 +317,59 @@ router.post('/product_grades', async (req: Request, res: Response) => {
   return res.json({ synced_count: synced.length, failed_count: failed.length, synced, failed });
 });
 
+/**
+ * GET /api/sync/settings
+ */
+router.get('/settings', async (req: Request, res: Response) => {
+  try {
+    const settings = await withTenantContext(req.auth!.tenant_id, async (client) => {
+      const result = await client.query(
+        `SELECT * FROM tenant_settings WHERE tenant_id = $1 ORDER BY updated_at DESC`,
+        [req.auth!.tenant_id]
+      );
+      return result.rows;
+    });
+    return res.json(settings);
+  } catch (err: any) {
+    console.error('[Sync] GET settings error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+/**
+ * POST /api/sync/settings
+ */
+router.post('/settings', async (req: Request, res: Response) => {
+  const settings: any[] = req.body.settings;
+  if (!Array.isArray(settings) || settings.length === 0) {
+    return res.status(400).json({ error: 'settings array is required' });
+  }
+
+  const synced: string[] = [];
+  const failed: { key: string; error: string }[] = [];
+
+  for (const s of settings) {
+    try {
+      await withTenantContext(req.auth!.tenant_id, async (client) => {
+        await client.query(
+          `INSERT INTO tenant_settings (
+            tenant_id, key, value, updated_at
+          ) VALUES ($1,$2,$3,$4)
+          ON CONFLICT (tenant_id, key) DO UPDATE SET
+            value = EXCLUDED.value,
+            updated_at = EXCLUDED.updated_at`,
+          [
+            req.auth!.tenant_id, s.key, s.value, s.updated_at ?? new Date()
+          ]
+        );
+      });
+      synced.push(s.key);
+    } catch (err: any) {
+      failed.push({ key: s.key, error: err.message });
+    }
+  }
+
+  return res.json({ synced_count: synced.length, failed_count: failed.length, synced, failed });
+});
+
 export default router;

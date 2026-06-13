@@ -113,6 +113,7 @@ export function initDb() {
         tenant_id TEXT DEFAULT 'global',
         key TEXT NOT NULL,
         value TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (tenant_id, key)
     );
@@ -139,6 +140,9 @@ export function initDb() {
     ],
     users: [
         'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'
+    ],
+    settings: [
+        'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ]
   };
 
@@ -325,6 +329,7 @@ export function initDb() {
             tenant_id TEXT DEFAULT 'global',
             key TEXT NOT NULL,
             value TEXT,
+            sync_status TEXT DEFAULT 'SYNCED',
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             PRIMARY KEY (tenant_id, key)
         );
