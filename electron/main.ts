@@ -222,8 +222,8 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        params.push(filterDate);
     }
 
-    if (sortBy === 'created_at') query += ' ORDER BY datetime(p.created_at) DESC, p.product_id ASC';
-    else if (sortBy === 'updated_at') query += ' ORDER BY datetime(p.updated_at) DESC, p.product_id ASC';
+    if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
+    else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
     else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
     else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
 
@@ -461,7 +461,7 @@ ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit }: { ten
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND print_status = 'PENDING' AND current_stock > 0 ORDER BY datetime(created_at) ASC";
+    let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND print_status = 'PENDING' AND current_stock > 0 ORDER BY created_at ASC";
     if (limit) query += ` LIMIT ${limit}`;
     return db.prepare(query).all(tenant_id);
   } catch (error: any) {
@@ -615,7 +615,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
-    query += ' ORDER BY datetime(i.created_at) DESC, i.invoice_id ASC';
+    query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
 
     if (limit) {
       query += ' LIMIT ?';

@@ -326,7 +326,7 @@ async function pullProducts(token: string) {
         pricing_mode = excluded.pricing_mode,
         average_weight_per_piece = excluded.average_weight_per_piece,
         weight_override_allowed = excluded.weight_override_allowed,
-        print_status = excluded.print_status,
+        print_status = COALESCE(excluded.print_status, products.print_status),
         created_at = COALESCE(products.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
         sync_status = 'SYNCED'
@@ -366,7 +366,7 @@ async function pullProducts(token: string) {
               pricing_mode: currentP.pricing_mode || 'FIXED_PRICE',
               average_weight_per_piece: currentP.average_weight_per_piece ?? null,
               weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
-              print_status: currentP.print_status || 'PENDING',
+              print_status: currentP.print_status ?? null,
               created_at: currentP.created_at ?? new Date().toISOString(),
               updated_at: currentP.updated_at ?? new Date().toISOString(),
             });

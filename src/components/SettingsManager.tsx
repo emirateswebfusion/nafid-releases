@@ -225,7 +225,6 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/20">
                       <div>
                         <h3 className="font-bold text-lg text-primary">Bulk Import & Printing</h3>
-                        <p className="text-sm text-muted-foreground">Import products from Excel and print barcode labels in bulk.</p>
                       </div>
                       <Button onClick={() => setShowBulkSheet(true)}>
                         Open Bulk Import Sheet
