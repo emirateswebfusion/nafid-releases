@@ -131,7 +131,7 @@ router.get('/invoices', async (req: Request, res: Response) => {
 
       if (search && typeof search === 'string') {
         const lowerSearch = search.toLowerCase();
-        queryStr += ` AND (LOWER(invoice_id) LIKE $2 OR LOWER(customer_phone) LIKE $2)`;
+        queryStr += ` AND (LOWER(invoice_number) LIKE $2 OR LOWER(customer_phone) LIKE $2)`;
         queryParams.push(`%${lowerSearch}%`);
       }
 
