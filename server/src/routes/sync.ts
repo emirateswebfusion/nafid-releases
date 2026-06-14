@@ -120,12 +120,25 @@ router.post('/invoices', async (req: Request, res: Response) => {
  */
 router.get('/invoices', async (req: Request, res: Response) => {
   try {
+    const { search, limit, offset } = req.query;
+    const parsedLimit = parseInt(limit as string) || 1000;
+    const parsedOffset = parseInt(offset as string) || 0;
+
     const invoices = await withTenantContext(req.auth!.tenant_id, async (client) => {
       // 1. Fetch invoices
-      const invResult = await client.query(
-        `SELECT * FROM invoices WHERE tenant_id = $1 ORDER BY created_at DESC, invoice_id ASC LIMIT 1000`,
-        [req.auth!.tenant_id]
-      );
+      let queryStr = `SELECT * FROM invoices WHERE tenant_id = $1`;
+      const queryParams: any[] = [req.auth!.tenant_id];
+
+      if (search && typeof search === 'string') {
+        const lowerSearch = search.toLowerCase();
+        queryStr += ` AND (LOWER(invoice_id) LIKE $2 OR LOWER(customer_phone) LIKE $2)`;
+        queryParams.push(`%${lowerSearch}%`);
+      }
+
+      queryStr += ` ORDER BY created_at DESC, invoice_id ASC LIMIT $${queryParams.length + 1} OFFSET $${queryParams.length + 2}`;
+      queryParams.push(parsedLimit, parsedOffset);
+
+      const invResult = await client.query(queryStr, queryParams);
       
       const invoices = invResult.rows;
       if (invoices.length === 0) return [];
