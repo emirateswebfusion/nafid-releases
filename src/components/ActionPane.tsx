@@ -177,7 +177,7 @@ export function ActionPane() {
     setPastDiscountSuccess(null);
     try {
       const results = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId || 'global', search: pastInvoiceShortcode });
-      const undiscounted = results.filter((inv: any) => !inv.discount_total || inv.discount_total === 0);
+      const undiscounted = results.filter(inv => !inv.discount_total || inv.discount_total === 0);
       setFoundInvoices(undiscounted);
       if (undiscounted.length === 1) {
         setSelectedPastInvoiceId(undiscounted[0].invoice_id);
@@ -537,7 +537,7 @@ export function ActionPane() {
                     <div className="space-y-2">
                       <label className="block text-sm font-medium text-muted-foreground">Select Invoice</label>
                       <div className="space-y-2 max-h-32 overflow-y-auto">
-                        {foundInvoices.map((inv: { invoice_id: string, invoice_number: string, created_at: string, grand_total: number }) => (
+                        {foundInvoices.map(inv => (
                           <div 
                             key={inv.invoice_id} 
                             onClick={() => setSelectedPastInvoiceId(inv.invoice_id)}

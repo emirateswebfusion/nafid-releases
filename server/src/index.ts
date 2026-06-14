@@ -7,7 +7,6 @@ import authRouter from './routes/auth';
 import productsRouter from './routes/products';
 import syncRouter from './routes/sync';
 import notificationsRouter from './routes/notifications';
-import invoicesRouter from './routes/invoices';
 
 dotenv.config();
 
@@ -16,7 +15,7 @@ const PORT = parseInt(process.env.PORT || '3001');
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: true, // Allow any origin for the web app, electron, and dev server
+  origin: ['http://localhost:5173', 'app://'], // Allow Vite dev + Electron renderer
   credentials: true,
 }));
 app.use(express.json({ limit: '10mb' })); // 10MB for large sync batches
@@ -31,7 +30,6 @@ app.use('/auth', authRouter);
 app.use('/api/products', productsRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/notifications', notificationsRouter);
-app.use('/api/invoices', invoicesRouter);
 
 // ── 404 Handler ───────────────────────────────────────────────────────────────
 app.use((_req, res) => {
