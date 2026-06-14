@@ -14,6 +14,8 @@ export interface ReceiptData {
   subtotal: number;
   tax: number;
   discount: number;
+  discountType?: 'FIXED' | 'PERCENTAGE';
+  discountValue?: number;
   grandTotal: number;
   isReprint?: boolean;
 }
@@ -75,7 +77,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
     text += separator + '\n';
     
     data.items.forEach(item => {
-      let name = item.name.length > itemNameWidth ? item.name.substring(0, itemNameWidth - 2) + '..' : item.name;
+      let name = item.name.length > itemNameWidth ? item.name.substring(0, itemNameWidth - 3) + '...' : item.name;
       let qtyStr = `${item.quantity}`;
       let rateStr = item.unit_price.toFixed(2);
       let totalStr = item.total.toFixed(2);
@@ -88,7 +90,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
     text += separator + '\n';
     
     data.items.forEach(item => {
-      text += item.name + '\n';
+      let name = item.name.length > charsPerLine ? item.name.substring(0, charsPerLine - 3) + '...' : item.name;
+      text += name + '\n';
       let qtyRateStr = `  ${item.quantity} x ${item.unit_price.toFixed(2)}`;
       let totalStr = item.total.toFixed(2);
       text += padRight(qtyRateStr, charsPerLine - totalStr.length) + totalStr + '\n';
@@ -107,7 +110,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   }
   
   if (data.discount > 0) {
-    text += padRight('DISCOUNT:', labelWidth) + '  ' + padLeft(`-${data.discount.toFixed(2)}`, bottomTotalWidth) + '\n';
+    let discountLabel = 'DISCOUNT:';
+    if (data.discountType === 'PERCENTAGE' && data.discountValue) {
+      discountLabel = `DISCOUNT (${data.discountValue}%):`;
+    }
+    text += padRight(discountLabel, labelWidth) + '  ' + padLeft(`-${data.discount.toFixed(2)}`, bottomTotalWidth) + '\n';
   }
   
   text += separator + '\n';

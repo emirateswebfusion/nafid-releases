@@ -8,6 +8,8 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
+import { Modal } from './ui/Modal';
+import { Input } from './ui/Input';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
 
 export function ActionPane() {
@@ -17,6 +19,15 @@ export function ActionPane() {
   const { theme, toggleTheme } = useThemeStore();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
+  const [discountModalTab, setDiscountModalTab] = useState<'CURRENT' | 'PAST'>('CURRENT');
+  const [tempDiscountValue, setTempDiscountValue] = useState(0);
+  const [tempDiscountType, setTempDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
+  const [pastInvoiceShortcode, setPastInvoiceShortcode] = useState('');
+  const [foundInvoices, setFoundInvoices] = useState<any[]>([]);
+  const [selectedPastInvoiceId, setSelectedPastInvoiceId] = useState<string | null>(null);
+  const [isApplyingPastDiscount, setIsApplyingPastDiscount] = useState(false);
+  const [pastDiscountSuccess, setPastDiscountSuccess] = useState<string | null>(null);
 
   const handleCheckout = async () => {
     if (grandTotal === 0 || items.length === 0) return;
@@ -96,6 +107,8 @@ export function ActionPane() {
           subtotal,
           tax: totalTax,
           discount,
+          discountType: useCartStore.getState().discountType,
+          discountValue: useCartStore.getState().discountValue,
           grandTotal
         };
 
@@ -123,6 +136,8 @@ export function ActionPane() {
           subtotal,
           tax_total: totalTax,
           discount_total: discount,
+          discount_type: useCartStore.getState().discountType,
+          discount_value: useCartStore.getState().discountValue,
           grand_total: grandTotal,
           items: lineItems,
         });
@@ -143,10 +158,65 @@ export function ActionPane() {
     setIsCheckingOut(false);
   };
 
+  const handleCloseDiscountModal = () => {
+    setIsDiscountModalOpen(false);
+    // Allow modal exit animation to play out before clearing state
+    setTimeout(() => {
+      setDiscountModalTab('CURRENT');
+      setPastDiscountSuccess(null);
+      setPastInvoiceShortcode('');
+      setFoundInvoices([]);
+      setSelectedPastInvoiceId(null);
+      setTempDiscountValue(0);
+      setTempDiscountType('FIXED');
+    }, 200);
+  };
+
+  const handleSearchPastInvoice = async () => {
+    if (!window.electronAPI || !pastInvoiceShortcode) return;
+    setPastDiscountSuccess(null);
+    try {
+      const results = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId || 'global', search: pastInvoiceShortcode });
+      const undiscounted = results.filter(inv => !inv.discount_total || inv.discount_total === 0);
+      setFoundInvoices(undiscounted);
+      if (undiscounted.length === 1) {
+        setSelectedPastInvoiceId(undiscounted[0].invoice_id);
+      } else {
+        setSelectedPastInvoiceId(null);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleApplyPastDiscount = async () => {
+    if (!window.electronAPI || !selectedPastInvoiceId) return;
+    setIsApplyingPastDiscount(true);
+    setPastDiscountSuccess(null);
+    try {
+      const result = await window.electronAPI.dbApplyInvoiceDiscount({
+        invoice_id: selectedPastInvoiceId,
+        discount_type: tempDiscountType,
+        discount_value: tempDiscountValue
+      });
+      if (result.success) {
+        setPastDiscountSuccess('Discount applied successfully to past invoice!');
+      } else {
+        alert('Failed to apply discount: ' + result.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to apply discount');
+    } finally {
+      setIsApplyingPastDiscount(false);
+    }
+  };
+
   useKeyboardShortcuts({
     'F8': () => {
-      const val = prompt('Enter discount amount:');
-      if (val) setDiscount(parseFloat(val));
+      setTempDiscountValue(useCartStore.getState().discountValue);
+      setTempDiscountType(useCartStore.getState().discountType);
+      setIsDiscountModalOpen(true);
     },
     'F12': handleCheckout
   });
@@ -333,8 +403,9 @@ export function ActionPane() {
           variant="outline"
           className="col-span-1 h-auto py-4 flex flex-col gap-2 rounded-xl"
           onClick={() => {
-            const val = prompt('Enter discount amount:');
-            if (val) setDiscount(parseFloat(val));
+            setTempDiscountValue(useCartStore.getState().discountValue);
+            setTempDiscountType(useCartStore.getState().discountType);
+            setIsDiscountModalOpen(true);
           }}
         >
           <Tag className="w-5 h-5" />
@@ -370,6 +441,159 @@ export function ActionPane() {
           )}
         </Button>
       </div>
+
+      <Modal isOpen={isDiscountModalOpen} onClose={handleCloseDiscountModal} title="Apply Bill Discount">
+        <div className="space-y-4">
+          {authRole === 'OWNER' && (
+            <div className="flex gap-2 p-1 bg-muted rounded-lg mb-4">
+              <button 
+                className={clsx('flex-1 py-1.5 rounded-md font-semibold text-sm', discountModalTab === 'CURRENT' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                onClick={() => setDiscountModalTab('CURRENT')}
+              >
+                Current Bill
+              </button>
+              <button 
+                className={clsx('flex-1 py-1.5 rounded-md font-semibold text-sm', discountModalTab === 'PAST' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                onClick={() => { setDiscountModalTab('PAST'); setPastDiscountSuccess(null); }}
+              >
+                Past Bill
+              </button>
+            </div>
+          )}
+
+          {discountModalTab === 'CURRENT' ? (
+            <>
+              <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                <button 
+                  className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'FIXED' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                  onClick={() => setTempDiscountType('FIXED')}
+                >
+                  Fixed Amount (₹)
+                </button>
+                <button 
+                  className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'PERCENTAGE' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                  onClick={() => setTempDiscountType('PERCENTAGE')}
+                >
+                  Percentage (%)
+                </button>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  {tempDiscountType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'}
+                </label>
+                <Input 
+                  type="number" 
+                  min="0"
+                  max={tempDiscountType === 'PERCENTAGE' ? "100" : undefined}
+                  value={tempDiscountValue || ''} 
+                  onChange={(e) => setTempDiscountValue(Number(e.target.value))}
+                  autoFocus
+                  placeholder="0.00"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t border-border">
+                <Button variant="outline" onClick={handleCloseDiscountModal}>Cancel</Button>
+                <Button onClick={() => {
+                  setDiscount(tempDiscountValue, tempDiscountType);
+                  handleCloseDiscountModal();
+                }}>Apply Discount</Button>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-4">
+              {pastDiscountSuccess ? (
+                <div className="p-4 bg-primary/10 text-primary border border-primary/20 rounded-xl text-center space-y-4">
+                  <div className="font-bold">{pastDiscountSuccess}</div>
+                  <div className="flex justify-center gap-2">
+                    <Button variant="outline" onClick={handleCloseDiscountModal}>Close</Button>
+                    <Button onClick={() => {
+                      localStorage.setItem('salesHistoryInitialSearch', pastInvoiceShortcode);
+                      window.dispatchEvent(new CustomEvent('open-sales-history'));
+                      handleCloseDiscountModal();
+                    }}>View in Sales History</Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex gap-2">
+                    <Input 
+                      placeholder="Enter Last 4 Chars of Invoice" 
+                      value={pastInvoiceShortcode}
+                      onChange={(e) => setPastInvoiceShortcode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSearchPastInvoice();
+                        }
+                      }}
+                      className="uppercase"
+                    />
+                    <Button onClick={handleSearchPastInvoice}>Search</Button>
+                  </div>
+
+                  {foundInvoices.length > 0 && (
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-muted-foreground">Select Invoice</label>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {foundInvoices.map(inv => (
+                          <div 
+                            key={inv.invoice_id} 
+                            onClick={() => setSelectedPastInvoiceId(inv.invoice_id)}
+                            className={clsx('p-3 border rounded-xl cursor-pointer flex justify-between items-center transition-colors', selectedPastInvoiceId === inv.invoice_id ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50')}
+                          >
+                            <div className="text-sm">
+                              <div className="font-bold">{inv.invoice_number}</div>
+                              <div className="text-xs text-muted-foreground">{new Date(inv.created_at).toLocaleString()}</div>
+                            </div>
+                            <div className="font-bold text-foreground">₹{inv.grand_total.toFixed(2)}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {selectedPastInvoiceId && (
+                    <>
+                      <div className="flex gap-2 p-1 bg-muted rounded-lg">
+                        <button 
+                          className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'FIXED' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                          onClick={() => setTempDiscountType('FIXED')}
+                        >
+                          Fixed (₹)
+                        </button>
+                        <button 
+                          className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'PERCENTAGE' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                          onClick={() => setTempDiscountType('PERCENTAGE')}
+                        >
+                          Percent (%)
+                        </button>
+                      </div>
+                      
+                      <Input 
+                        type="number" 
+                        min="0"
+                        max={tempDiscountType === 'PERCENTAGE' ? "100" : undefined}
+                        value={tempDiscountValue || ''} 
+                        onChange={(e) => setTempDiscountValue(Number(e.target.value))}
+                        placeholder={tempDiscountType === 'PERCENTAGE' ? "Enter %" : "Enter amount"}
+                      />
+
+                      <div className="flex justify-end gap-2 pt-4 border-t border-border">
+                        <Button variant="outline" onClick={handleCloseDiscountModal}>Cancel</Button>
+                        <Button onClick={handleApplyPastDiscount} disabled={isApplyingPastDiscount}>
+                          {isApplyingPastDiscount ? 'Updating...' : 'Update Bill'}
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 }

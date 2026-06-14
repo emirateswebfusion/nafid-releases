@@ -38,6 +38,14 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     }
   }, []);
 
+  useEffect(() => {
+    const initialSearch = localStorage.getItem('salesHistoryInitialSearch');
+    if (initialSearch) {
+      setSearch(initialSearch);
+      localStorage.removeItem('salesHistoryInitialSearch');
+    }
+  }, []);
+
   const loadInvoices = async (reset = false) => {
     setIsFetching(true);
     if (window.electronAPI) {
@@ -260,6 +268,8 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                           subtotal: selectedInvoice.subtotal,
                           tax: selectedInvoice.tax_total,
                           discount: selectedInvoice.discount_total,
+                          discountType: selectedInvoice.discount_type,
+                          discountValue: selectedInvoice.discount_value,
                           grandTotal: selectedInvoice.grand_total,
                           isReprint: true
                         };
@@ -335,7 +345,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                   </div>
                   {selectedInvoice.discount_total > 0 && (
                     <div className="flex justify-between text-destructive text-sm">
-                      <span>Discount</span>
+                      <span>Discount {selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? `(${selectedInvoice.discount_value}%)` : ''}</span>
                       <span>-₹{selectedInvoice.discount_total.toFixed(2)}</span>
                     </div>
                   )}

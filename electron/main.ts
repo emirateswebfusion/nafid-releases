@@ -538,10 +538,10 @@ ipcMain.handle('db:checkout', (event, payload) => {
     const invStmt = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
-        subtotal, tax_total, discount_total, grand_total, 
+        subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, customer_name, customer_phone, sync_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -552,6 +552,8 @@ ipcMain.handle('db:checkout', (event, payload) => {
       invoice.subtotal,
       invoice.tax_total,
       invoice.discount_total,
+      invoice.discount_type || 'FIXED',
+      invoice.discount_value || 0,
       invoice.grand_total,
       invoice.payment_method || 'CASH',
       invoice.customer_name || null,
@@ -583,6 +585,34 @@ ipcMain.handle('db:checkout', (event, payload) => {
 
   try {
     transaction();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, discount_value }: { invoice_id: string, discount_type: 'FIXED' | 'PERCENTAGE', discount_value: number }) => {
+  try {
+    const db = getDb();
+    
+    const invoice = db.prepare('SELECT subtotal, tax_total FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
+    if (!invoice) return { success: false, error: 'Invoice not found' };
+
+    let discount_total = 0;
+    if (discount_type === 'PERCENTAGE') {
+      discount_total = invoice.subtotal * (discount_value / 100);
+    } else {
+      discount_total = discount_value;
+    }
+
+    const grand_total = invoice.subtotal + invoice.tax_total - discount_total;
+
+    db.prepare(`
+      UPDATE invoices 
+      SET discount_total = ?, discount_type = ?, discount_value = ?, grand_total = ?, sync_status = 'PENDING'
+      WHERE invoice_id = ?
+    `).run(discount_total, discount_type, discount_value, grand_total, invoice_id);
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

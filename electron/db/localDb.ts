@@ -85,6 +85,8 @@ export function initDb() {
         subtotal REAL NOT NULL DEFAULT 0,
         tax_total REAL NOT NULL DEFAULT 0,
         discount_total REAL DEFAULT 0,
+        discount_type TEXT DEFAULT 'FIXED',
+        discount_value REAL DEFAULT 0,
         grand_total REAL NOT NULL DEFAULT 0,
         payment_method TEXT DEFAULT 'CASH',
         user_id TEXT,
@@ -133,7 +135,7 @@ export function initDb() {
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
-        'discount_total', 'grand_total', 'payment_method', 'user_id', 'sync_status'
+        'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'

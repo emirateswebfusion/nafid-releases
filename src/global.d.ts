@@ -13,7 +13,8 @@ export interface IElectronAPI {
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
   dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number }) => Promise<any[]>;
-  dbCheckout: (payload: any) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
+  dbCheckout: (payload: any & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
+  dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;

@@ -24,7 +24,8 @@ export type ShopDomain = 'GENERAL' | 'HARDWARE' | 'JEWELRY' | 'GROCERY';
 interface CartState {
   items: CartItem[];
   invoiceType: InvoiceType;
-  discount: number;
+  discountType: 'FIXED' | 'PERCENTAGE';
+  discountValue: number;
   customerState: string;
   shopState: string;
   currentUserRole: UserRole;
@@ -36,7 +37,7 @@ interface CartState {
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
   updateWeight: (productId: string, weight: number) => void;
-  setDiscount: (discount: number) => void;
+  setDiscount: (value: number, type: 'FIXED' | 'PERCENTAGE') => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
   setRole: (role: UserRole) => void;
@@ -51,7 +52,8 @@ export const useCartStore = create<CartState>()(
     (set) => ({
       items: [],
       invoiceType: 'GST',
-      discount: 0,
+      discountType: 'FIXED',
+      discountValue: 0,
       customerState: 'MH', // Default to same state (Maharashtra)
       shopState: 'MH', // Shop is in MH
       currentUserRole: 'OWNER', // Default to OWNER for demo
@@ -106,14 +108,14 @@ export const useCartStore = create<CartState>()(
           ),
         })),
 
-      setDiscount: (discount) => set({ discount }),
+      setDiscount: (value, type) => set({ discountValue: value, discountType: type }),
       setInvoiceType: (invoiceType) => set({ invoiceType }),
       setCustomerState: (customerState) => set({ customerState }),
       setRole: (role) => set({ currentUserRole: role }),
       setDomain: (domain) => set({ shopDomain: domain }),
       confirmDomain: () => set({ shopDomainConfirmed: true }),
       resetDomainConfirmation: () => set({ shopDomainConfirmed: false }),
-      clearCart: () => set({ items: [], discount: 0 }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED' }),
     }),
     {
       name: 'vendora-cart-storage',
@@ -123,7 +125,7 @@ export const useCartStore = create<CartState>()(
 
 // Derived Selectors
 export const useCartTotals = () => {
-  const { items, invoiceType, discount, shopState, customerState } = useCartStore();
+  const { items, invoiceType, discountType, discountValue, shopState, customerState } = useCartStore();
 
   let subtotal = 0;
   let totalTax = 0;
@@ -133,14 +135,9 @@ export const useCartTotals = () => {
       ? item.base_price + (item.grade_rate || 0) 
       : item.base_price;
       
-    let itemTotal = 0;
-    if (item.billing_type === 'WEIGHT') {
-      const weight = item.calculated_weight || 0;
-      itemTotal = effectiveRate * weight;
-    } else {
-      const qty = Number(item.quantity) || 0;
-      itemTotal = effectiveRate * qty;
-    }
+    const itemTotal = item.billing_type === 'WEIGHT'
+      ? effectiveRate * (item.calculated_weight || 0)
+      : effectiveRate * (Number(item.quantity) || 0);
     
     subtotal += itemTotal;
 
@@ -155,7 +152,11 @@ export const useCartTotals = () => {
   const sgst = invoiceType === 'GST' && !isInterState ? totalTax / 2 : 0;
   const igst = invoiceType === 'GST' && isInterState ? totalTax : 0;
 
-  const grandTotal = subtotal + totalTax - discount;
+  const calculatedDiscount = discountType === 'PERCENTAGE'
+    ? (subtotal * discountValue) / 100
+    : discountValue;
 
-  return { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal };
+  const grandTotal = subtotal + totalTax - calculatedDiscount;
+
+  return { subtotal, cgst, sgst, igst, totalTax, discount: calculatedDiscount, grandTotal };
 };

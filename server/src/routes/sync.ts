@@ -35,14 +35,16 @@ router.post('/invoices', async (req: Request, res: Response) => {
             `INSERT INTO invoices (
               invoice_id, tenant_id, invoice_number, invoice_type,
               customer_name, customer_phone, subtotal, tax_total,
-              discount_total, grand_total, payment_method, user_id, created_at
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+              discount_total, discount_type, discount_value, grand_total, payment_method, user_id, created_at
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
             ON CONFLICT (invoice_id) DO UPDATE SET
               customer_name = EXCLUDED.customer_name,
               customer_phone = EXCLUDED.customer_phone,
               subtotal = EXCLUDED.subtotal,
               tax_total = EXCLUDED.tax_total,
               discount_total = EXCLUDED.discount_total,
+              discount_type = EXCLUDED.discount_type,
+              discount_value = EXCLUDED.discount_value,
               grand_total = EXCLUDED.grand_total,
               payment_method = EXCLUDED.payment_method,
               invoice_type = EXCLUDED.invoice_type
@@ -51,6 +53,7 @@ router.post('/invoices', async (req: Request, res: Response) => {
               currentInv.invoice_id, req.auth!.tenant_id, currentInv.invoice_number,
               currentInv.invoice_type, currentInv.customer_name, currentInv.customer_phone,
               currentInv.subtotal, currentInv.tax_total, currentInv.discount_total ?? 0,
+              currentInv.discount_type || 'FIXED', currentInv.discount_value ?? 0,
               currentInv.grand_total, currentInv.payment_method ?? 'CASH', currentInv.user_id, currentInv.created_at ?? new Date()
             ]
           );

@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbResetPrintStatus: (tenant_id: string) => ipcRenderer.invoke('db:resetPrintStatus', tenant_id),
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number }) => ipcRenderer.invoke('db:getPendingPrintProducts', params),
   dbCheckout: (payload: any) => ipcRenderer.invoke('db:checkout', payload),
+  dbApplyInvoiceDiscount: (payload: any) => ipcRenderer.invoke('db:applyInvoiceDiscount', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
   dbGetGrades: (tenant_id: string) => ipcRenderer.invoke('db:getGrades', tenant_id),

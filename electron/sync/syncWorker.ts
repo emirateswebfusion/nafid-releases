@@ -422,11 +422,11 @@ async function pullInvoices(token: string) {
       INSERT INTO invoices (
         invoice_id, tenant_id, invoice_number, invoice_type,
         customer_name, customer_phone, subtotal, tax_total,
-        discount_total, grand_total, payment_method, user_id, sync_status, created_at
+        discount_total, discount_type, discount_value, grand_total, payment_method, user_id, sync_status, created_at
       ) VALUES (
         @invoice_id, @tenant_id, @invoice_number, @invoice_type,
         @customer_name, @customer_phone, @subtotal, @tax_total,
-        @discount_total, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at
+        @discount_total, @discount_type, @discount_value, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at
       )
       ON CONFLICT(invoice_id) DO UPDATE SET
         payment_method = EXCLUDED.payment_method,
@@ -467,6 +467,8 @@ async function pullInvoices(token: string) {
               subtotal: currentInv.subtotal,
               tax_total: currentInv.tax_total,
               discount_total: currentInv.discount_total ?? 0,
+              discount_type: currentInv.discount_type || 'FIXED',
+              discount_value: currentInv.discount_value ?? 0,
               grand_total: currentInv.grand_total,
               payment_method: currentInv.payment_method || 'CASH',
               user_id: currentInv.user_id || null,
