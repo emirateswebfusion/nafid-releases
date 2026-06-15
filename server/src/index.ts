@@ -5,6 +5,7 @@ import { pool } from './db/pg';
 import { runMigrations } from './db/migrate';
 import authRouter from './routes/auth';
 import productsRouter from './routes/products';
+import invoicesRouter from './routes/invoices';
 import syncRouter from './routes/sync';
 import notificationsRouter from './routes/notifications';
 
@@ -28,6 +29,7 @@ app.get('/health', (_req, res) => {
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.use('/auth', authRouter);
 app.use('/api/products', productsRouter);
+app.use('/api/invoices', invoicesRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/notifications', notificationsRouter);
 

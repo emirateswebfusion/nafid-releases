@@ -585,6 +585,12 @@ ipcMain.handle('db:checkout', (event, payload) => {
 
   try {
     transaction();
+
+    // Trigger immediate background sync so the invoice appears on web portal instantly
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Immediate sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

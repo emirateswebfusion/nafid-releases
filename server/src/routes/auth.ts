@@ -168,6 +168,31 @@ router.get('/staff', async (req: Request, res: Response) => {
   }
 });
 
+// ── DELETE /auth/staff/:id ───────────────────────────────────────────────────
+// Remove a staff member. Only OWNERs can do this.
+router.delete('/staff/:id', async (req: Request, res: Response) => {
+  const header = req.headers.authorization;
+  if (!header) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const auth: any = jwt.verify(header.slice(7), process.env.JWT_SECRET!);
+    if (auth.role !== 'OWNER') {
+      return res.status(403).json({ error: 'Only shop owners can delete staff accounts' });
+    }
+
+    const { id } = req.params;
+    if (id === auth.user_id) {
+      return res.status(400).json({ error: 'Cannot delete your own account' });
+    }
+
+    await query(`DELETE FROM users WHERE user_id = $1 AND tenant_id = $2`, [id, auth.tenant_id]);
+    
+    return res.json({ success: true });
+  } catch (err: any) {
+    console.error('[Auth] Staff deletion error:', err.message);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // ── POST /auth/tenant/domain ────────────────────────────────────────────────
 // Updates the domain_type for a tenant. Only OWNERs can do this.
 router.post('/tenant/domain', async (req: Request, res: Response) => {

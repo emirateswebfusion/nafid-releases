@@ -431,6 +431,10 @@ async function pullInvoices(token: string) {
       ON CONFLICT(invoice_id) DO UPDATE SET
         payment_method = EXCLUDED.payment_method,
         user_id = EXCLUDED.user_id,
+        discount_total = EXCLUDED.discount_total,
+        discount_type = EXCLUDED.discount_type,
+        discount_value = EXCLUDED.discount_value,
+        grand_total = EXCLUDED.grand_total,
         sync_status = 'SYNCED'
     `);
 
