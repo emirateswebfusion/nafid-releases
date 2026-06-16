@@ -208,6 +208,17 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     });
   };
 
+  const getEffectiveMrp = (r: RowData) => {
+    let base = Number(r.mrp) || 0;
+    if (r.grade_id) {
+      const grade = grades.find(g => g.grade_id === r.grade_id);
+      if (grade && grade.rate) {
+        base += Number(grade.rate);
+      }
+    }
+    return base;
+  };
+
   const updateRow = (index: number, field: keyof RowData, value: any) => {
     const newRows = [...rows];
     const row = { ...newRows[index] };
@@ -218,7 +229,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         row.discount_flat = '';
       } else {
         const pct = parseFloat(value);
-        const base = Number(row.mrp) || 0;
+        const base = getEffectiveMrp(row);
         if (!isNaN(pct) && base) {
           row.discount_flat = ((base * pct) / 100).toFixed(2);
           row.offer_price = '';
@@ -230,7 +241,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         row.discount_percent = '';
       } else {
         const flat = parseFloat(value);
-        const base = Number(row.mrp) || 0;
+        const base = getEffectiveMrp(row);
         if (!isNaN(flat) && base) {
           row.discount_percent = ((flat / base) * 100).toFixed(2);
           row.offer_price = '';
@@ -242,17 +253,19 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         row.discount_percent = '';
         row.discount_flat = '';
       }
-    } else if (field === 'mrp') {
-      row.mrp = value;
+    } else if (field === 'mrp' || field === 'grade_id') {
+      if (field === 'mrp') row.mrp = value;
+      if (field === 'grade_id') row.grade_id = value;
+
       if (row.discount_percent) {
         const pct = parseFloat(row.discount_percent);
-        const base = Number(value) || 0;
+        const base = getEffectiveMrp(row);
         if (!isNaN(pct) && base) {
           row.discount_flat = ((base * pct) / 100).toFixed(2);
         }
       } else if (row.discount_flat) {
         const flat = parseFloat(row.discount_flat);
-        const base = Number(value) || 0;
+        const base = getEffectiveMrp(row);
         if (!isNaN(flat) && base) {
           row.discount_percent = ((flat / base) * 100).toFixed(2);
         }
@@ -268,6 +281,20 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
     if (field === 'category') {
       row.grade_id = '';
+      // Recalculate discount if grade is removed
+      if (row.discount_percent) {
+        const pct = parseFloat(row.discount_percent);
+        const base = getEffectiveMrp(row);
+        if (!isNaN(pct) && base) {
+          row.discount_flat = ((base * pct) / 100).toFixed(2);
+        }
+      } else if (row.discount_flat) {
+        const flat = parseFloat(row.discount_flat);
+        const base = getEffectiveMrp(row);
+        if (!isNaN(flat) && base) {
+          row.discount_percent = ((flat / base) * 100).toFixed(2);
+        }
+      }
     }
 
     newRows[index] = row;

@@ -316,6 +316,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         next.sku_barcode = currentBarcode;
       }
 
+      if (field === 'grade_id') {
+        next.pricing_mode = value ? 'GRADE_RATE' : 'FIXED_PRICE';
+      }
+
       if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
         const pct = parseFloat(next.discount_percent as string);
         if (!isNaN(pct)) {
