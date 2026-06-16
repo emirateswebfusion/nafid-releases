@@ -44,10 +44,11 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const [printLimit, setPrintLimit] = useState(1);
   const [printing, setPrinting] = useState(false);
   const [printStatusMsg, setPrintStatusMsg] = useState<{ text: string, type: 'info' | 'success' | 'error' } | null>(null);
+  const [printDate, setPrintDate] = useState('');
+  const [printOnlyPending, setPrintOnlyPending] = useState(true);
 
   useEffect(() => {
     loadGrades();
-    loadPendingPrintCount();
     
     if (window.electronAPI) {
       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' })
@@ -57,6 +58,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         .catch(console.error);
     }
   }, []);
+
+  useEffect(() => {
+    loadPendingPrintCount();
+  }, [printDate, printOnlyPending]);
 
   const loadGrades = async () => {
     if (window.electronAPI) {
@@ -76,8 +81,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const loadPendingPrintCount = async () => {
     if (window.electronAPI) {
       try {
-        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000 });
+        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, only_pending: printOnlyPending });
         setPendingPrintCount(pending.length);
+        setPrintLimit(pending.length);
       } catch (err) {
         console.error(err);
       }
@@ -122,26 +128,26 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       if (r.length < 2 && !r[0]) continue;
       
       // Expected Order:
-      // 0:Name, 1:Barcode, 2:ItemCode, 3:Category, 4:GradeName, 5:PurchasePrice, 6:MRP, 
-      // 7:GST Applicable(Y/N), 8:Tax Rate %, 9:UOM, 10:Brand, 11:Stock, 12:Reorder Level, 
-      // 13:Discount %, 14:Discount Flat, 15:Offer Price, 16:Billing Type, 17:Avg Weight, 18:Weight Override
+      // 0:Name, 1:Barcode, 2:ItemCode, 3:Brand, 4:Category, 5:GradeName, 6:PurchasePrice, 7:MRP,
+      // 8:Stock, 9:Reorder Level, 10:Discount %, 11:Discount Flat, 12:Offer Price,
+      // 13:GST Applicable(Y/N), 14:Tax Rate %, 15:UOM, 16:Billing Type, 17:Avg Weight, 18:Weight Override
       
       const name = r[0] || '';
       const barcode = r[1] || '';
       const itemCode = r[2] || '';
-      const category = r[3] || '';
-      const gradeName = r[4] || '';
-      const purchasePrice = r[5] || '';
-      const mrp = r[6] || '';
-      const isGst = r[7] || 'Y';
-      const taxRate = r[8] || '0';
-      const uom = r[9] || 'Pcs';
-      const brand = r[10] || '';
-      const stock = r[11] || '1';
-      const reorderLvl = r[12] || '0';
-      const discPct = r[13] || '';
-      const discFlat = r[14] || '';
-      const offerPrc = r[15] || '';
+      const brand = r[3] || '';
+      const category = r[4] || '';
+      const gradeName = r[5] || '';
+      const purchasePrice = r[6] || '';
+      const mrp = r[7] || '';
+      const stock = r[8] || '1';
+      const reorderLvl = r[9] || '0';
+      const discPct = r[10] || '';
+      const discFlat = r[11] || '';
+      const offerPrc = r[12] || '';
+      const isGst = r[13] || 'Y';
+      const taxRate = r[14] || '0';
+      const uom = r[15] || 'Pcs';
       const bType = r[16] || 'PIECE';
       const avgWgt = r[17] || '';
       const wOverride = r[18] || 'N';
@@ -397,7 +403,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     try {
       const pendingProducts = await window.electronAPI.dbGetPendingPrintProducts({
         tenant_id: tenantId || 'global',
-        limit: printLimit
+        limit: printLimit,
+        date: printDate || undefined,
+        only_pending: printOnlyPending
       });
 
       if (pendingProducts.length === 0) {
@@ -409,12 +417,38 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       setPrintStatusMsg({ type: 'info', text: `Spooling ${pendingProducts.length} products...` });
 
       // Format for printer
-      const printItems = pendingProducts.map(p => ({
-        barcode: p.sku_barcode,
-        price: p.base_price,
-        name: p.name,
-        quantity: Math.max(1, p.current_stock), 
-      }));
+      const printItems = pendingProducts.map(p => {
+        const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+        const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+        const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
+          ? Number(p.base_price) + gradeRate 
+          : Number(p.base_price);
+
+        let sp: number | undefined;
+        let spType: 'SP' | 'OFF' = 'SP';
+        if (p.offer_price) {
+          sp = Number(p.offer_price);
+          spType = 'OFF';
+        } else if (p.discount_flat) {
+          sp = effectiveMrp - Number(p.discount_flat);
+          spType = 'SP';
+        } else if (p.discount_percent) {
+          sp = effectiveMrp * (1 - Number(p.discount_percent) / 100);
+          spType = 'SP';
+        }
+        if (sp !== undefined && sp === effectiveMrp) {
+           sp = undefined;
+        }
+
+        return {
+          barcode: p.sku_barcode,
+          price: effectiveMrp,
+          name: p.name,
+          quantity: Math.max(1, p.current_stock),
+          sp,
+          spType
+        };
+      });
 
       const printRes = await window.electronAPI.printBulkBarcodes(tenantId || 'global', printItems);
 
@@ -463,7 +497,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
         <div className="flex justify-between items-center shrink-0">
           <div className="text-sm text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg border border-border overflow-hidden whitespace-nowrap overflow-x-auto max-w-[70vw]">
-            <b>Expected Excel Columns:</b> Name → Barcode → Item Code → Category → Grade → Purchase → MRP → GST(Y/N) → Tax% → UOM → Brand → Stock → Reorder Level → Disc% → DiscFlat → OfferPrice → Billing(Piece/Weight) → AvgWgt → WgtOverride(Y/N)
+            <b>Expected Excel Columns:</b> Name → Barcode → Item Code → Brand → Category → Grade → Purchase → MRP → Stock → Reorder Level → Disc% → DiscFlat → OfferPrice → GST(Y/N) → Tax% → UOM → Billing(Piece/Weight) → AvgWgt → WgtOverride(Y/N)
           </div>
           <Button onClick={handleBulkSave} disabled={loading} className="gap-2 shrink-0">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -478,19 +512,19 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                 <th className="px-3 py-3 font-semibold min-w-[200px] sticky left-0 bg-muted/80 backdrop-blur-md z-30">Product Name *</th>
                 <th className="px-3 py-3 font-semibold min-w-[120px]">Barcode</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Item Code</th>
+                <th className="px-3 py-3 font-semibold min-w-[120px]">Brand</th>
                 <th className="px-3 py-3 font-semibold min-w-[150px]">Category</th>
                 <th className="px-3 py-3 font-semibold min-w-[150px]">Grade</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Purchase</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">MRP *</th>
-                <th className="px-3 py-3 font-semibold min-w-[80px]">GST?</th>
-                <th className="px-3 py-3 font-semibold min-w-[80px]">Tax %</th>
-                <th className="px-3 py-3 font-semibold min-w-[80px]">UOM</th>
-                <th className="px-3 py-3 font-semibold min-w-[120px]">Brand</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Stock</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Reorder</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Disc %</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Disc Flat</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Offer Prc</th>
+                <th className="px-3 py-3 font-semibold min-w-[80px]">GST?</th>
+                <th className="px-3 py-3 font-semibold min-w-[80px]">Tax %</th>
+                <th className="px-3 py-3 font-semibold min-w-[80px]">UOM</th>
                 <th className="px-3 py-3 font-semibold min-w-[120px]">Billing</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Avg Wgt / Pc</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Wgt Override?</th>
@@ -516,6 +550,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                     </td>
                     <td className="p-1"><input type="text" value={row.sku_barcode} onChange={(e) => updateRow(index, 'sku_barcode', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" placeholder="Auto" /></td>
                     <td className="p-1"><input type="text" value={row.item_code} onChange={(e) => updateRow(index, 'item_code', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
+                    <td className="p-1"><input type="text" value={row.brand} onChange={(e) => updateRow(index, 'brand', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
                     <td className="p-1">
                       {categories.length > 0 ? (
                         <>
@@ -534,6 +569,11 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                     </td>
                     <td className="p-1"><input type="text" value={row.purchase_price} onChange={(e) => updateRow(index, 'purchase_price', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" placeholder="0" /></td>
                     <td className="p-1"><input type="text" value={row.mrp} onChange={(e) => updateRow(index, 'mrp', e.target.value.replace(/[^0-9.]/g, ''))} className={`w-full bg-transparent px-2 py-1.5 outline-none border ${row.error && row.name && !row.mrp ? 'border-destructive' : 'border-transparent focus:border-primary'} rounded-md font-bold`} placeholder="0" /></td>
+                    <td className="p-1"><input type="text" value={row.stock} onChange={(e) => updateRow(index, 'stock', e.target.value.replace(/[^0-9]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
+                    <td className="p-1"><input type="text" value={row.reorder_level} onChange={(e) => updateRow(index, 'reorder_level', e.target.value.replace(/[^0-9]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
+                    <td className="p-1"><input type="text" value={row.discount_percent} onChange={(e) => updateRow(index, 'discount_percent', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.offer_price} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
+                    <td className="p-1"><input type="text" value={row.discount_flat} onChange={(e) => updateRow(index, 'discount_flat', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.offer_price} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
+                    <td className="p-1"><input type="text" value={row.offer_price} onChange={(e) => updateRow(index, 'offer_price', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.discount_percent || !!row.discount_flat} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
                     <td className="p-1 text-center"><input type="checkbox" checked={row.is_gst_applicable} onChange={(e) => updateRow(index, 'is_gst_applicable', e.target.checked)} className="w-4 h-4 accent-primary" /></td>
                     <td className="p-1"><input type="text" value={row.tax_rate_percent} onChange={(e) => updateRow(index, 'tax_rate_percent', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" disabled={!row.is_gst_applicable} /></td>
                     <td className="p-1">
@@ -541,12 +581,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                         {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
                       </select>
                     </td>
-                    <td className="p-1"><input type="text" value={row.brand} onChange={(e) => updateRow(index, 'brand', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
-                    <td className="p-1"><input type="text" value={row.stock} onChange={(e) => updateRow(index, 'stock', e.target.value.replace(/[^0-9]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
-                    <td className="p-1"><input type="text" value={row.reorder_level} onChange={(e) => updateRow(index, 'reorder_level', e.target.value.replace(/[^0-9]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" /></td>
-                    <td className="p-1"><input type="text" value={row.discount_percent} onChange={(e) => updateRow(index, 'discount_percent', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.offer_price} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
-                    <td className="p-1"><input type="text" value={row.discount_flat} onChange={(e) => updateRow(index, 'discount_flat', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.offer_price} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
-                    <td className="p-1"><input type="text" value={row.offer_price} onChange={(e) => updateRow(index, 'offer_price', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!!row.discount_percent || !!row.discount_flat} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" /></td>
                     <td className="p-1">
                       <select value={row.billing_type} onChange={(e) => updateRow(index, 'billing_type', e.target.value as 'PIECE'|'WEIGHT')} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md">
                         <option value="PIECE">Piece</option>
@@ -579,13 +613,28 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           
           <div className="flex items-center gap-4 flex-1">
             <div className="text-center">
-              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Pending</span>
+              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">{printOnlyPending ? 'Pending' : 'Total'}</span>
               <div className="flex items-center justify-center gap-1">
                 <span className="font-bold text-lg text-foreground leading-none">{pendingPrintCount}</span>
-                <Button variant="ghost" size="icon" onClick={handleResetPending} disabled={pendingPrintCount === 0 || printing} className="h-5 w-5 text-muted-foreground hover:text-green-600" title="Mark all as printed">
-                  <CheckCheck className="w-3 h-3" />
-                </Button>
+                {printOnlyPending && (
+                  <Button variant="ghost" size="icon" onClick={handleResetPending} disabled={pendingPrintCount === 0 || printing} className="h-5 w-5 text-muted-foreground hover:text-green-600" title="Mark all as printed">
+                    <CheckCheck className="w-3 h-3" />
+                  </Button>
+                )}
               </div>
+            </div>
+            <div className="h-8 w-px bg-border" />
+            <div>
+              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Status Filter</span>
+              <label className="flex items-center gap-2 h-8 text-sm cursor-pointer whitespace-nowrap">
+                <input type="checkbox" checked={printOnlyPending} onChange={(e) => setPrintOnlyPending(e.target.checked)} className="accent-primary w-4 h-4" />
+                Only Pending
+              </label>
+            </div>
+            <div className="h-8 w-px bg-border" />
+            <div>
+              <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Date Filter</span>
+              <Input type="date" value={printDate} onChange={(e) => setPrintDate(e.target.value)} className="h-8 text-sm" title="Filter by added date" />
             </div>
             <div className="h-8 w-px bg-border" />
             <div>

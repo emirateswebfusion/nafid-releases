@@ -390,7 +390,7 @@ ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
       const now = new Date();
       for (const p of prods) {
         now.setMilliseconds(now.getMilliseconds() + 1);
-        const timestamp = now.toISOString();
+        const timestamp = now.toISOString().replace('T', ' ').replace('Z', '');
         
         stmt.run(
           p.product_id,
@@ -457,13 +457,27 @@ ipcMain.handle('db:resetPrintStatus', (event, tenant_id: string) => {
   }
 });
 
-ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit }: { tenant_id: string, limit: number }) => {
+ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, only_pending = true }: { tenant_id: string, limit: number, date?: string, only_pending?: boolean }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND print_status = 'PENDING' AND current_stock > 0 ORDER BY created_at ASC";
+    
+    let query = "SELECT * FROM products WHERE tenant_id = ? AND is_deleted = 0 AND current_stock > 0";
+    const params: any[] = [tenant_id];
+
+    if (only_pending) {
+      query += " AND print_status = 'PENDING'";
+    }
+
+    if (date) {
+      query += " AND date(created_at) = ?";
+      params.push(date);
+    }
+    
+    query += " ORDER BY created_at ASC";
     if (limit) query += ` LIMIT ${limit}`;
-    return db.prepare(query).all(tenant_id);
+    
+    return db.prepare(query).all(...params);
   } catch (error: any) {
     return { error: error.message };
   }

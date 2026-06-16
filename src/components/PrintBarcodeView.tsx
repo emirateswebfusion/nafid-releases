@@ -48,7 +48,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
               {/* 
                 Width and height tweaked to prevent clipping on standard 50x25mm labels.
               */}
-              <Barcode value={barcode} format="CODE128" width={1.3} height={30} displayValue={false} margin={0} />
+              <Barcode value={barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
                 <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {barcode}

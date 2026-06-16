@@ -351,6 +351,13 @@ export function initDb() {
   db.exec("UPDATE products SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
   db.exec("UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
 
+  // Fix inconsistent ISO strings inserted during bulk import
+  try {
+    db.exec("UPDATE products SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'");
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to fix ISO timestamps:', e.message);
+  }
+
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();
   if (!hasPrinter) {

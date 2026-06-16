@@ -316,10 +316,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         next.sku_barcode = currentBarcode;
       }
 
-      if (field === 'base_price' && next.discount_percent !== undefined && next.discount_percent !== '') {
+      if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
         const pct = parseFloat(next.discount_percent as string);
         if (!isNaN(pct)) {
-          next.discount_flat = value ? ((value * pct) / 100).toFixed(2) : '';
+          const base = getEffectiveMrp(next);
+          next.discount_flat = base ? ((base * pct) / 100).toFixed(2) : '';
         }
       }
       return next;
@@ -332,13 +333,21 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       domain_attributes: { ...prev.domain_attributes, [field]: value }
     }));
 
+  const getEffectiveMrp = (data: any = formData) => {
+    const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
+    const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+    return gradeRate !== null && data.pricing_mode === 'GRADE_RATE' 
+      ? Number(data.base_price) + gradeRate 
+      : Number(data.base_price) || 0;
+  };
+
   const handleDiscountPercentChange = (val: string) => {
     if (val === '') {
       setFormData(prev => ({ ...prev, discount_percent: '', discount_flat: '' }));
       return;
     }
     const percent = parseFloat(val);
-    const base = Number(formData.base_price) || 0;
+    const base = getEffectiveMrp();
     const flat = base && !isNaN(percent) ? ((base * percent) / 100).toFixed(2) : '';
     setFormData(prev => ({ ...prev, discount_percent: val, discount_flat: flat, offer_price: '' }));
   };
@@ -349,7 +358,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       return;
     }
     const flat = parseFloat(val);
-    const base = Number(formData.base_price) || 0;
+    const base = getEffectiveMrp();
     const percent = base && !isNaN(flat) ? ((flat / base) * 100).toFixed(2) : '';
     setFormData(prev => ({ ...prev, discount_percent: percent, discount_flat: val, offer_price: '' }));
   };
@@ -393,24 +402,29 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
     
     if (window.electronAPI) {
-      // Fallback for hot-reloading without electron restart
+      const appliedGrade = formData.grade_id ? grades.find(g => g.grade_id === formData.grade_id) : null;
+      const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+      const effectiveMrp = gradeRate !== null && formData.pricing_mode === 'GRADE_RATE' 
+        ? Number(formData.base_price) + gradeRate 
+        : Number(formData.base_price);
+
       let sp: number | undefined;
       let spType: 'SP' | 'OFF' = 'SP';
       if (formData.offer_price) {
         sp = Number(formData.offer_price);
         spType = 'OFF';
       } else if (formData.discount_flat) {
-        sp = (Number(formData.base_price) || 0) - Number(formData.discount_flat);
+        sp = effectiveMrp - Number(formData.discount_flat);
         spType = 'SP';
       } else if (formData.discount_percent) {
-        sp = (Number(formData.base_price) || 0) * (1 - Number(formData.discount_percent) / 100);
+        sp = effectiveMrp * (1 - Number(formData.discount_percent) / 100);
         spType = 'SP';
       }
-      if (sp !== undefined && sp === formData.base_price) {
+      if (sp !== undefined && sp === effectiveMrp) {
          sp = undefined;
       }
       if (printPrice) {
-        localStorage.setItem('printBarcodePrice', formData.base_price.toString());
+        localStorage.setItem('printBarcodePrice', effectiveMrp.toString());
         if (sp !== undefined) {
           localStorage.setItem('printBarcodeSp', sp.toString());
           localStorage.setItem('printBarcodeSpType', spType);
@@ -428,7 +442,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const res = await window.electronAPI.printBarcode(
         tenantId || 'global', 
         formData.sku_barcode, 
-        printPrice ? Number(formData.base_price) : undefined, 
+        printPrice ? effectiveMrp : undefined, 
         formData.name, 
         Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
@@ -454,23 +468,29 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setStatusMessage({ text: 'Connecting to printer...', type: 'success' });
     
     if (window.electronAPI) {
+      const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+      const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+      const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
+        ? Number(p.base_price) + gradeRate 
+        : Number(p.base_price);
+
       let sp: number | undefined;
       let spType: 'SP' | 'OFF' = 'SP';
       if (p.offer_price) {
         sp = Number(p.offer_price);
         spType = 'OFF';
       } else if (p.discount_flat) {
-        sp = (p.base_price || 0) - Number(p.discount_flat);
+        sp = effectiveMrp - Number(p.discount_flat);
         spType = 'SP';
       } else if (p.discount_percent) {
-        sp = (p.base_price || 0) * (1 - Number(p.discount_percent) / 100);
+        sp = effectiveMrp * (1 - Number(p.discount_percent) / 100);
         spType = 'SP';
       }
-      if (sp !== undefined && sp === p.base_price) {
+      if (sp !== undefined && sp === effectiveMrp) {
          sp = undefined;
       }
       if (printPrice) {
-        localStorage.setItem('printBarcodePrice', p.base_price.toString());
+        localStorage.setItem('printBarcodePrice', effectiveMrp.toString());
         if (sp !== undefined) {
           localStorage.setItem('printBarcodeSp', sp.toString());
           localStorage.setItem('printBarcodeSpType', spType);
@@ -488,7 +508,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const res = await window.electronAPI.printBarcode(
         tenantId || 'global', 
         p.sku_barcode, 
-        printPrice ? p.base_price : undefined, 
+        printPrice ? effectiveMrp : undefined, 
         p.name, 
         Math.max(1, Number(printQuantity) || 1), 
         printPrice ? sp : undefined,
