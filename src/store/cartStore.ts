@@ -51,7 +51,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       items: [],
-      invoiceType: 'GST',
+      invoiceType: 'BILL_OF_SUPPLY',
       discountType: 'FIXED',
       discountValue: 0,
       customerState: 'MH', // Default to same state (Maharashtra)

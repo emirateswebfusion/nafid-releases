@@ -10,7 +10,7 @@ import { Input } from './ui/Input';
 export function CartPane() {
   const { items, updateQuantity, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const qtyInputRef = useRef<HTMLInputElement>(null);
+  const qtyInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -68,7 +68,13 @@ export function CartPane() {
     });
     setSearchQuery('');
     setResults([]);
-    searchInputRef.current?.focus();
+    setTimeout(() => {
+      const input = qtyInputsRef.current[product.product_id];
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 0);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -92,8 +98,12 @@ export function CartPane() {
     'F2': () => searchInputRef.current?.focus(),
     'F4': () => {
       if (items.length > 0) {
-        qtyInputRef.current?.focus();
-        qtyInputRef.current?.select();
+        const lastItemId = items[items.length - 1].product_id;
+        const input = qtyInputsRef.current[lastItemId];
+        if (input) {
+          input.focus();
+          input.select();
+        }
       }
     }
   });
@@ -199,7 +209,7 @@ export function CartPane() {
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {items.map((item, index) => {
+            {items.map((item) => {
               const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
                 ? item.base_price + (item.grade_rate || 0) 
                 : item.base_price;
@@ -213,7 +223,6 @@ export function CartPane() {
                 itemTotal = effectiveRate * qty;
               }
               
-              const isLastItem = index === items.length - 1;
 
               return (
                 <div key={item.product_id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
@@ -238,7 +247,11 @@ export function CartPane() {
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] text-muted-foreground w-6 text-right font-bold uppercase">Pcs</span>
                       <Input 
-                        ref={isLastItem ? qtyInputRef : null}
+                        ref={(el) => {
+                          if (el) {
+                            qtyInputsRef.current[item.product_id] = el;
+                          }
+                        }}
                         type="number"
                         min="1"
                         className="w-16 text-center h-8 px-2"

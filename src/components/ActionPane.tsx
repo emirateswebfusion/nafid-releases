@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -13,14 +13,15 @@ import { Input } from './ui/Input';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
 
 export function ActionPane() {
-  const { items, invoiceType, setInvoiceType, clearCart, setDiscount, currentUserRole, setRole } = useCartStore();
+  const discountInputRef = useRef<HTMLInputElement>(null);
+  const { items, invoiceType, setInvoiceType, clearCart, setDiscount, currentUserRole, setRole, discountType, discountValue } = useCartStore();
   const { shopName, role: authRole, tenantId, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
   const { theme, toggleTheme } = useThemeStore();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [isDiscountModalOpen, setIsDiscountModalOpen] = useState(false);
-  const [discountModalTab, setDiscountModalTab] = useState<'CURRENT' | 'PAST'>('CURRENT');
+
   const [tempDiscountValue, setTempDiscountValue] = useState(0);
   const [tempDiscountType, setTempDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
   const [pastInvoiceShortcode, setPastInvoiceShortcode] = useState('');
@@ -162,7 +163,6 @@ export function ActionPane() {
     setIsDiscountModalOpen(false);
     // Allow modal exit animation to play out before clearing state
     setTimeout(() => {
-      setDiscountModalTab('CURRENT');
       setPastDiscountSuccess(null);
       setPastInvoiceShortcode('');
       setFoundInvoices([]);
@@ -214,9 +214,8 @@ export function ActionPane() {
 
   useKeyboardShortcuts({
     'F8': () => {
-      setTempDiscountValue(useCartStore.getState().discountValue);
-      setTempDiscountType(useCartStore.getState().discountType);
-      setIsDiscountModalOpen(true);
+      discountInputRef.current?.focus();
+      discountInputRef.current?.select();
     },
     'F12': handleCheckout
   });
@@ -312,17 +311,6 @@ export function ActionPane() {
       <div className="p-6">
         <div className="flex bg-muted p-1 rounded-xl border border-border">
           <button
-            onClick={() => setInvoiceType('GST')}
-            className={clsx(
-              "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300",
-              invoiceType === 'GST' 
-                ? "bg-background text-foreground shadow" 
-                : "text-muted-foreground hover:text-foreground"
-            )}
-          >
-            GST Tax Invoice
-          </button>
-          <button
             onClick={() => setInvoiceType('BILL_OF_SUPPLY')}
             className={clsx(
               "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300",
@@ -333,99 +321,138 @@ export function ActionPane() {
           >
             Bill of Supply
           </button>
+          <button
+            onClick={() => setInvoiceType('GST')}
+            className={clsx(
+              "flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300",
+              invoiceType === 'GST' 
+                ? "bg-background text-foreground shadow" 
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            GST Tax Invoice
+          </button>
         </div>
       </div>
 
       <div className="flex-1"></div>
 
-      {/* Totals Section */}
-      <div className="px-6 py-4 space-y-4">
-        <div className="flex justify-between text-muted-foreground font-medium">
-          <span>Subtotal</span>
-          <span className="text-foreground">₹{subtotal.toFixed(2)}</span>
-        </div>
+        {/* Totals Section */}
+        <div className="px-5 py-3 space-y-3">
+          <div className="flex justify-between text-muted-foreground font-medium">
+            <span>Subtotal</span>
+            <span className="text-foreground">₹{subtotal.toFixed(2)}</span>
+          </div>
 
-        {invoiceType === 'GST' && (
-          <div className="space-y-2 border-y border-border py-3 my-2">
-            {igst > 0 ? (
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>IGST</span>
-                <span>₹{igst.toFixed(2)}</span>
+          {invoiceType === 'GST' && (
+            <div className="space-y-2 border-y border-border py-3 my-2">
+              {igst > 0 ? (
+                <div className="flex justify-between text-sm text-muted-foreground">
+                  <span>IGST</span>
+                  <span>₹{igst.toFixed(2)}</span>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>CGST</span>
+                    <span>₹{cgst.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>SGST</span>
+                    <span>₹{sgst.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between text-sm font-semibold text-primary pt-1">
+                <span>Total Tax</span>
+                <span>₹{totalTax.toFixed(2)}</span>
               </div>
-            ) : (
-              <>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>CGST</span>
-                  <span>₹{cgst.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>SGST</span>
-                  <span>₹{sgst.toFixed(2)}</span>
-                </div>
-              </>
-            )}
-            <div className="flex justify-between text-sm font-semibold text-primary pt-1">
-              <span>Total Tax</span>
-              <span>₹{totalTax.toFixed(2)}</span>
             </div>
+          )}
+
+          <div className="flex items-center justify-between text-sm">
+            <div className="text-muted-foreground font-medium flex items-center gap-2">
+              <span>Discount</span>
+              <div className="flex bg-muted p-0.5 rounded-md border border-border">
+                <button 
+                  onClick={() => setDiscount(discountValue, 'FIXED')}
+                  className={clsx('px-2 py-0.5 text-xs font-bold rounded', discountType === 'FIXED' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  ₹
+                </button>
+                <button 
+                  onClick={() => setDiscount(discountValue, 'PERCENTAGE')}
+                  className={clsx('px-2 py-0.5 text-xs font-bold rounded', discountType === 'PERCENTAGE' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
+                >
+                  %
+                </button>
+              </div>
+            </div>
+            <Input 
+              ref={discountInputRef}
+              type="number"
+              min="0"
+              max={discountType === 'PERCENTAGE' ? "100" : undefined}
+              className="w-24 text-right h-8"
+              value={discountValue || ''}
+              onChange={(e) => setDiscount(e.target.value === '' ? 0 : Number(e.target.value), discountType)}
+              placeholder="0"
+            />
+          </div>
+
+          {discount > 0 && (
+            <div className="flex justify-between text-primary font-medium">
+              <span>Discount</span>
+              <span>-₹{discount.toFixed(2)}</span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-end pt-4">
+            <span className="text-xl font-bold text-foreground">Grand Total</span>
+            <span className="text-4xl font-bold text-primary">
+              ₹{grandTotal.toFixed(2)}
+            </span>
+          </div>
+        </div>
+
+        {/* Hardware Error Notification */}
+        {hardwareError && (
+          <div className="mx-6 mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3 text-destructive animate-in fade-in slide-in-from-top-2">
+            <Settings className="w-5 h-5 animate-pulse" />
+            <p className="text-sm font-bold flex-1">{hardwareError}</p>
+            <button onClick={() => setHardwareError(null)} className="ml-auto hover:bg-destructive/20 p-1 rounded-lg">
+              <XCircle className="w-4 h-4" />
+            </button>
           </div>
         )}
 
-        {discount > 0 && (
-          <div className="flex justify-between text-primary font-medium">
-            <span>Discount</span>
-            <span>-₹{discount.toFixed(2)}</span>
-          </div>
-        )}
-
-        <div className="flex justify-between items-end pt-4">
-          <span className="text-xl font-bold text-foreground">Grand Total</span>
-          <span className="text-4xl font-bold text-primary">
-            ₹{grandTotal.toFixed(2)}
-          </span>
-        </div>
-      </div>
-
-      {/* Hardware Error Notification */}
-      {hardwareError && (
-        <div className="mx-6 mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-3 text-destructive animate-in fade-in slide-in-from-top-2">
-          <Settings className="w-5 h-5 animate-pulse" />
-          <p className="text-sm font-bold flex-1">{hardwareError}</p>
-          <button onClick={() => setHardwareError(null)} className="ml-auto hover:bg-destructive/20 p-1 rounded-lg">
-            <XCircle className="w-4 h-4" />
-          </button>
-        </div>
-      )}
 
       {/* Action Buttons */}
-      <div className="p-6 grid grid-cols-2 gap-4">
+      <div className="p-4 grid grid-cols-2 gap-3 border-t border-border bg-card">
         <Button 
           variant="outline"
-          className="col-span-1 h-auto py-4 flex flex-col gap-2 rounded-xl"
+          className="col-span-1 h-auto py-2 flex items-center justify-center gap-2 rounded-xl"
           onClick={() => {
-            setTempDiscountValue(useCartStore.getState().discountValue);
-            setTempDiscountType(useCartStore.getState().discountType);
             setIsDiscountModalOpen(true);
           }}
         >
-          <Tag className="w-5 h-5" />
-          <span className="font-semibold text-sm">Discount</span>
-          <span className="text-[10px] text-muted-foreground font-mono">[F8]</span>
+          <Tag className="w-4 h-4" />
+          <span className="font-semibold text-sm">Past Discount</span>
         </Button>
 
         <Button 
           variant="outline"
-          className="col-span-1 h-auto py-4 flex flex-col gap-2 rounded-xl"
+          className="col-span-1 h-auto py-2 flex items-center justify-center gap-2 rounded-xl"
         >
-          <FileText className="w-5 h-5" />
+          <FileText className="w-4 h-4" />
           <span className="font-semibold text-sm">Hold Bill</span>
-          <span className="text-[10px] text-muted-foreground font-mono">[F9]</span>
+          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded">[F9]</span>
         </Button>
 
         <Button 
           onClick={handleCheckout}
           disabled={isCheckingOut || items.length === 0}
-          className="col-span-2 h-auto py-5 flex items-center justify-center gap-3 text-lg font-bold rounded-xl shadow-md transition-transform active:scale-[0.98]"
+          className="col-span-2 h-auto py-3.5 flex items-center justify-center gap-2 text-base font-bold rounded-xl shadow-md transition-transform active:scale-[0.98]"
         >
           {isCheckingOut ? (
             <>
@@ -434,75 +461,17 @@ export function ActionPane() {
             </>
           ) : (
             <>
-              <CreditCard className="w-6 h-6" />
+              <CreditCard className="w-5 h-5" />
               <span>CHECKOUT / PRINT</span>
-              <span className="ml-2 px-2 py-1 bg-black/10 rounded text-xs font-mono opacity-80">[F12]</span>
+              <span className="ml-2 px-1.5 py-0.5 bg-black/10 rounded text-[10px] font-mono opacity-80">[F12]</span>
             </>
           )}
         </Button>
       </div>
 
-      <Modal isOpen={isDiscountModalOpen} onClose={handleCloseDiscountModal} title="Apply Bill Discount">
+      <Modal isOpen={isDiscountModalOpen} onClose={handleCloseDiscountModal} title="Apply Past Bill Discount">
         <div className="space-y-4">
-          {authRole === 'OWNER' && (
-            <div className="flex gap-2 p-1 bg-muted rounded-lg mb-4">
-              <button 
-                className={clsx('flex-1 py-1.5 rounded-md font-semibold text-sm', discountModalTab === 'CURRENT' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
-                onClick={() => setDiscountModalTab('CURRENT')}
-              >
-                Current Bill
-              </button>
-              <button 
-                className={clsx('flex-1 py-1.5 rounded-md font-semibold text-sm', discountModalTab === 'PAST' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
-                onClick={() => { setDiscountModalTab('PAST'); setPastDiscountSuccess(null); }}
-              >
-                Past Bill
-              </button>
-            </div>
-          )}
-
-          {discountModalTab === 'CURRENT' ? (
-            <>
-              <div className="flex gap-2 p-1 bg-muted rounded-lg">
-                <button 
-                  className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'FIXED' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
-                  onClick={() => setTempDiscountType('FIXED')}
-                >
-                  Fixed Amount (₹)
-                </button>
-                <button 
-                  className={clsx('flex-1 py-2 rounded-md font-semibold text-sm', tempDiscountType === 'PERCENTAGE' ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground')}
-                  onClick={() => setTempDiscountType('PERCENTAGE')}
-                >
-                  Percentage (%)
-                </button>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  {tempDiscountType === 'PERCENTAGE' ? 'Discount Percentage (%)' : 'Discount Amount (₹)'}
-                </label>
-                <Input 
-                  type="number" 
-                  min="0"
-                  max={tempDiscountType === 'PERCENTAGE' ? "100" : undefined}
-                  value={tempDiscountValue || ''} 
-                  onChange={(e) => setTempDiscountValue(Number(e.target.value))}
-                  autoFocus
-                  placeholder="0.00"
-                />
-              </div>
-
-              <div className="flex justify-end gap-2 pt-4 border-t border-border">
-                <Button variant="outline" onClick={handleCloseDiscountModal}>Cancel</Button>
-                <Button onClick={() => {
-                  setDiscount(tempDiscountValue, tempDiscountType);
-                  handleCloseDiscountModal();
-                }}>Apply Discount</Button>
-              </div>
-            </>
-          ) : (
-            <div className="space-y-4">
+          <div className="space-y-4">
               {pastDiscountSuccess ? (
                 <div className="p-4 bg-primary/10 text-primary border border-primary/20 rounded-xl text-center space-y-4">
                   <div className="font-bold">{pastDiscountSuccess}</div>
@@ -591,7 +560,6 @@ export function ActionPane() {
                 </>
               )}
             </div>
-          )}
         </div>
       </Modal>
     </div>
