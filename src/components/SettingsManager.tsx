@@ -1,13 +1,63 @@
-import { useState, useEffect } from 'react';
-import { Settings, Printer, Scale, Save, Loader2, Info, RefreshCw, Download, Lock, Key, Tags } from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from 'react';
+import {
+  Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
+  Lock, Key, Tags, Building, Receipt, Usb,
+  CheckCircle2, AlertCircle, Globe, Upload
+} from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
-import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
+
+const INDIAN_STATES = [
+  { code: 'MH', name: 'Maharashtra' },
+  { code: 'DL', name: 'Delhi' },
+  { code: 'KA', name: 'Karnataka' },
+  { code: 'TN', name: 'Tamil Nadu' },
+  { code: 'TS', name: 'Telangana' },
+  { code: 'AP', name: 'Andhra Pradesh' },
+  { code: 'GJ', name: 'Gujarat' },
+  { code: 'WB', name: 'West Bengal' },
+  { code: 'UP', name: 'Uttar Pradesh' },
+  { code: 'HR', name: 'Haryana' },
+  { code: 'KL', name: 'Kerala' },
+  { code: 'MP', name: 'Madhya Pradesh' },
+  { code: 'RJ', name: 'Rajasthan' },
+  { code: 'PB', name: 'Punjab' },
+  { code: 'BR', name: 'Bihar' },
+  { code: 'OD', name: 'Odisha' },
+  { code: 'AS', name: 'Assam' },
+  { code: 'UT', name: 'Uttarakhand' },
+  { code: 'GA', name: 'Goa' },
+];
+
+const TABS = [
+  { id: 'general' as const, label: 'General', icon: Settings },
+  { id: 'grades' as const, label: 'Categories & Grades', icon: Tags },
+  { id: 'security' as const, label: 'Security', icon: Lock },
+];
+
+type SettingSection = {
+  id: string;
+  icon: typeof Printer;
+  title: string;
+  desc: string;
+  ownerOnly?: boolean;
+};
+
+const GENERAL_SECTIONS: SettingSection[] = [
+  { id: 'invoice', icon: Receipt, title: 'Invoice Numbering', desc: 'Set a starting number. The system auto-increments from here.', ownerOnly: true },
+  { id: 'bulk', icon: Upload, title: 'Bulk Import & Printing', desc: 'Import products in bulk and print barcode labels', ownerOnly: true },
+  { id: 'gst', icon: Building, title: 'Shop GST Details', desc: 'Configure your business GSTIN and default State for GST invoices.', ownerOnly: true },
+  { id: 'coding', icon: Tags, title: 'Purchase Price Coding', desc: 'Assign alphabets to each digit to code your purchase prices.', ownerOnly: true },
+  { id: 'barcode-printer', icon: Printer, title: 'Barcode Label Printer', desc: 'Configure your barcode label printer connection and label dimensions.' },
+  { id: 'receipt-printer', icon: Printer, title: 'Bill Receipt Printer', desc: 'Configure your receipt printer connection and paper width.' },
+  { id: 'scale', icon: Scale, title: 'Electronic Weighing Scale', desc: 'Configure the serial port connection for your weighing scale.' },
+  { id: 'updates', icon: RefreshCw, title: 'System Updates', desc: 'Check for new versions and update your application.' },
+];
 
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
@@ -30,10 +80,48 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });
+  const [shopGstin, setShopGstin] = useState('');
+  const [shopState, setShopState] = useState('MH');
+  const [invoicePrefix, setInvoicePrefix] = useState('INV-');
+  const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
+
+  // Track initial loaded values to detect unsaved changes
+  const initialSnapshot = useRef<string>('');
+
+  const hasChanges = useMemo(() => {
+    if (!initialSnapshot.current) return false;
+    const current = JSON.stringify({
+      barcodePrinter,
+      receiptPrinter,
+      scale,
+      priceCoding,
+      shopGstin,
+      shopState,
+      invoicePrefix,
+      invoiceStartNumber,
+    });
+    return current !== initialSnapshot.current;
+  }, [barcodePrinter, receiptPrinter, scale, priceCoding, shopGstin, shopState, invoicePrefix, invoiceStartNumber]);
 
   useEffect(() => {
     loadSettings();
   }, []);
+
+  // After loadSettings, snapshot the initial values
+  useEffect(() => {
+    if (!loading) {
+      initialSnapshot.current = JSON.stringify({
+        barcodePrinter,
+        receiptPrinter,
+        scale,
+        priceCoding,
+        shopGstin,
+        shopState,
+        invoicePrefix,
+        invoiceStartNumber,
+      });
+    }
+  }, [loading]);
 
   const loadSettings = async () => {
     if (window.electronAPI) {
@@ -43,7 +131,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       const pLegacy = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
       const s = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scale_config' });
       const pCoding = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' });
-      
+      const gstinVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' });
+      const stateVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' });
+
       if (pBarcode) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pBarcode });
       else if (pLegacy) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pLegacy });
 
@@ -51,21 +141,29 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       else if (pLegacy) setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...pLegacy });
       if (s) setScale(s);
       if (pCoding) setPriceCoding(pCoding);
-      
+      if (gstinVal) setShopGstin(gstinVal);
+      if (stateVal) setShopState(stateVal);
+
+      const invCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' });
+      if (invCfg) {
+        setInvoicePrefix(invCfg.prefix || 'INV-');
+        setInvoiceStartNumber(invCfg.counter || 1);
+      }
+
       try {
         const pr = await window.electronAPI.getPrinters();
         setOsPrinters(pr || []);
       } catch (err) {
         console.error('Failed to get printers', err);
       }
-      
+
       try {
         const v = await window.electronAPI.appGetVersion();
         if (v) setAppVersion(`v${v}`);
       } catch (err) {
         console.error('Failed to get app version', err);
       }
-      
+
       setLoading(false);
     }
   };
@@ -76,14 +174,12 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI) {
         const { tenantId } = useAuthStore.getState();
-        
-        // Update Domain if changed
+
         if (localDomain !== shopDomain && role === 'OWNER') {
           const res = await updateDomain(localDomain);
           if (!res.success) throw new Error(res.error);
         }
 
-        // Format numbers correctly before saving
         const formattedBarcodePrinter = {
           ...barcodePrinter,
           port: Number(barcodePrinter.port) || 9100,
@@ -98,35 +194,70 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8,
         };
 
-        const resBarcode = await window.electronAPI.settingsSet({ 
-          tenant_id: tenantId || 'global', 
-          key: 'barcode_printer_config', 
-          value: formattedBarcodePrinter 
+        const resBarcode = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'barcode_printer_config',
+          value: formattedBarcodePrinter
         });
         if (!resBarcode.success) throw new Error(resBarcode.error);
-        
-        const resReceipt = await window.electronAPI.settingsSet({ 
-          tenant_id: tenantId || 'global', 
-          key: 'receipt_printer_config', 
-          value: formattedReceiptPrinter 
+
+        const resReceipt = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'receipt_printer_config',
+          value: formattedReceiptPrinter
         });
         if (!resReceipt.success) throw new Error(resReceipt.error);
-        
-        const resScale = await window.electronAPI.settingsSet({ 
-          tenant_id: tenantId || 'global', 
-          key: 'scale_config', 
-          value: scale 
+
+        const resScale = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'scale_config',
+          value: scale
         });
         if (!resScale.success) throw new Error(resScale.error);
 
-        const resPriceCoding = await window.electronAPI.settingsSet({ 
-          tenant_id: tenantId || 'global', 
-          key: 'price_coding', 
-          value: priceCoding 
+        const resPriceCoding = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'price_coding',
+          value: priceCoding
         });
         if (!resPriceCoding.success) throw new Error(resPriceCoding.error);
 
-        setMessage({ type: 'success', text: `Saved! Settings updated. Please restart app.` });
+        const resGstin = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'shop_gstin',
+          value: shopGstin
+        });
+        if (!resGstin.success) throw new Error(resGstin.error);
+
+        const resShopState = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'shop_state',
+          value: shopState
+        });
+        if (!resShopState.success) throw new Error(resShopState.error);
+
+        const resInvNum = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'invoice_counter_config',
+          value: { prefix: invoicePrefix, counter: Number(invoiceStartNumber) || 1 },
+        });
+        if (!resInvNum.success) throw new Error(resInvNum.error);
+
+        useCartStore.setState({ shopState });
+
+        setMessage({ type: 'success', text: 'All settings saved successfully!' });
+        // Update snapshot so save button disappears
+        initialSnapshot.current = JSON.stringify({
+          barcodePrinter,
+          receiptPrinter,
+          scale,
+          priceCoding,
+          shopGstin,
+          shopState,
+          invoicePrefix,
+          invoiceStartNumber,
+        });
+        setTimeout(() => setMessage(null), 4000);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
@@ -143,7 +274,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (res && res.success === false) {
         setMessage({ type: 'error', text: res.error });
       } else {
-        setMessage({ type: 'success', text: 'Update check complete. Please check for notification if an update is available.' });
+        setMessage({ type: 'success', text: 'Update check complete.' });
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` });
@@ -181,403 +312,523 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      title={
-        <div className="flex items-center gap-3">
-          <Settings className="w-5 h-5 text-muted-foreground" />
-          <div>
-            <div className="text-lg font-bold">Settings</div>
-            <div className="text-xs text-muted-foreground font-normal">Configure your hardware, domain, and system updates</div>
-          </div>
+  // ─── Toast notification ───
+  const renderMessage = () => {
+    if (!message) return null;
+    return (
+      <div className={clsx(
+        "fixed top-6 right-6 z-50 px-5 py-3.5 rounded-xl border shadow-lg flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-2 max-w-md",
+        message.type === 'success'
+          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+          : "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
+      )}>
+        {message.type === 'success'
+          ? <CheckCircle2 className="w-5 h-5 shrink-0" />
+          : <AlertCircle className="w-5 h-5 shrink-0" />
+        }
+        <p className="flex-1 font-medium">{message.text}</p>
+        <button onClick={() => setMessage(null)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+          <span className="text-lg leading-none">&times;</span>
+        </button>
+      </div>
+    );
+  };
+
+  // ─── Loading state ───
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-primary animate-spin" />
+          <p className="text-muted-foreground text-sm font-medium">Loading configurations...</p>
         </div>
-      }
-    >
-      <div className="space-y-8">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
-            <Loader2 className="w-8 h-8 text-primary animate-spin" />
-            <p className="text-muted-foreground">Loading configurations...</p>
+      </div>
+    );
+  }
+
+  // ─── Render general section content ───
+  const renderGeneralSection = (section: SettingSection) => {
+    switch (section.id) {
+      case 'invoice':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Invoice Prefix</label>
+              <Input
+                type="text"
+                value={invoicePrefix}
+                onChange={(e) => setInvoicePrefix(e.target.value)}
+                placeholder="e.g. INV-"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Starting Number</label>
+              <Input
+                type="number"
+                min="1"
+                value={invoiceStartNumber}
+                onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))}
+                placeholder="e.g. 100"
+              />
+            </div>
+            <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
+              Next invoice: <span className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded">{invoicePrefix}{Number(invoiceStartNumber) || 1}</span>
+            </p>
           </div>
-        ) : (
-          <>
-            <div className="flex border-b border-border mb-6">
-              <button 
-                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'general' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-                onClick={() => setActiveTab('general')}
-              >General</button>
-              <button 
-                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'grades' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-                onClick={() => setActiveTab('grades')}
-              >Categories & Grades</button>
-              <button 
-                className={clsx("px-4 py-2 font-medium text-sm border-b-2 transition-colors", activeTab === 'security' ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
-                onClick={() => setActiveTab('security')}
-              >Security</button>
+        );
+
+      case 'bulk':
+        return (
+          <div className="mt-5">
+            <Button onClick={() => setShowBulkSheet(true)} className="flex items-center gap-2">
+              <Upload className="w-4 h-4" />
+              Open Bulk Import Sheet
+            </Button>
+          </div>
+        );
+
+      case 'gst':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop GSTIN</label>
+              <Input
+                type="text"
+                maxLength={15}
+                value={shopGstin}
+                onChange={(e) => setShopGstin(e.target.value.toUpperCase())}
+                placeholder="e.g. 27AAAAA1111A1Z1"
+                className="uppercase font-semibold font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
+              <select
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none cursor-pointer"
+                value={shopState}
+                onChange={(e) => setShopState(e.target.value)}
+              >
+                {INDIAN_STATES.map((state) => (
+                  <option key={state.code} value={state.code}>
+                    {state.name} ({state.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        );
+
+      case 'coding':
+        return (
+          <div className="mt-5 grid grid-cols-5 gap-3">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+              <div key={digit} className="flex items-center gap-1.5 bg-muted/30 p-2.5 rounded-xl border border-border">
+                <span className="font-bold text-base w-5 text-center text-muted-foreground">{digit}</span>
+                <span className="text-muted-foreground text-xs">=</span>
+                <Input
+                  type="text"
+                  maxLength={1}
+                  value={priceCoding[digit.toString()] || ''}
+                  onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })}
+                  className="text-center font-bold text-sm"
+                />
+              </div>
+            ))}
+          </div>
+        );
+
+      case 'barcode-printer':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connection Type</label>
+              <div className="flex gap-3">
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    barcodePrinter.type === 'network'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                  )}
+                  onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'network' })}
+                >
+                  <Globe className="w-4 h-4" />
+                  Network (TCP/IP)
+                </button>
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    barcodePrinter.type === 'usb'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                  )}
+                  onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'usb' })}
+                >
+                  <Usb className="w-4 h-4" />
+                  USB (OS Print Queue)
+                </button>
+              </div>
             </div>
 
-            {activeTab === 'general' && (
-              <div className="space-y-8 animate-in fade-in">
-                {role === 'OWNER' && (
-                  <section className="space-y-4">
-                    <div className="flex items-center justify-between bg-primary/5 p-4 rounded-xl border border-primary/20">
-                      <div>
-                        <h3 className="font-bold text-lg text-primary">Bulk Import & Printing</h3>
-                      </div>
-                      <Button onClick={() => setShowBulkSheet(true)}>
-                        Open Bulk Import Sheet
-                      </Button>
-                    </div>
-                  </section>
-                )}
-
-                {role === 'OWNER' && (
-              <section className="space-y-4">
-                <div className="flex items-center gap-3 text-foreground">
-                  <Tags className="w-5 h-5 text-primary" />
-                  <h3 className="font-bold text-lg">Purchase Price Coding</h3>
+            {barcodePrinter.type === 'network' ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Printer IP Address</label>
+                  <Input
+                    type="text"
+                    value={barcodePrinter.ip}
+                    onChange={(e) => setBarcodePrinter({ ...barcodePrinter, ip: e.target.value })}
+                    placeholder="192.168.1.100"
+                  />
                 </div>
-                <p className="text-sm text-muted-foreground">Assign alphabets to each digit to code your purchase prices.</p>
-                <div className="grid grid-cols-5 gap-4">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-                    <div key={digit} className="flex items-center gap-2 bg-muted/20 p-2 rounded-xl border border-border">
-                      <span className="font-bold text-lg w-6 text-center text-muted-foreground">{digit}</span>
-                      <span className="text-muted-foreground">=</span>
-                      <Input 
-                        type="text"
-                        maxLength={1}
-                        value={priceCoding[digit.toString()] || ''}
-                        onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })}
-                        className="text-center font-bold"
-                      />
-                    </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Port</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={barcodePrinter.port ?? 9100}
+                    onChange={(e) => setBarcodePrinter({ ...barcodePrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="col-span-2 space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
+                <select
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  value={barcodePrinter.deviceName || ''}
+                  onChange={(e) => setBarcodePrinter({ ...barcodePrinter, deviceName: e.target.value })}
+                >
+                  <option value="">-- Select a printer --</option>
+                  {osPrinters.map(p => (
+                    <option key={p.name} value={p.name}>{p.name}</option>
                   ))}
-                </div>
-              </section>
+                </select>
+              </div>
             )}
-
-            {role === 'OWNER' && <div className="h-px bg-border" />}
-
-            {/* Barcode Printer Section */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-3 text-foreground">
-                <Printer className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg">Barcode Label Printer</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Connection Type</label>
-                  <select
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                    value={barcodePrinter.type || 'network'}
-                    onChange={(e) => setBarcodePrinter({...barcodePrinter, type: e.target.value})}
-                  >
-                    <option value="network">Network (TCP/IP)</option>
-                    <option value="usb">USB (OS Print Queue)</option>
-                  </select>
-                </div>
-                
-                {barcodePrinter.type === 'network' ? (
-                  <>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Printer IP Address</label>
-                      <Input 
-                        type="text"
-                        value={barcodePrinter.ip}
-                        onChange={(e) => setBarcodePrinter({...barcodePrinter, ip: e.target.value})}
-                        placeholder="192.168.1.100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Port</label>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        value={barcodePrinter.port ?? 9100}
-                        onChange={(e) => setBarcodePrinter({...barcodePrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Select USB Printer</label>
-                    <select
-                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                      value={barcodePrinter.deviceName || ''}
-                      onChange={(e) => setBarcodePrinter({...barcodePrinter, deviceName: e.target.value})}
-                    >
-                      <option value="">-- Select a printer --</option>
-                      {osPrinters.map(p => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                {barcodePrinter.type === 'usb' && (
-                  <div className="col-span-2 grid grid-cols-3 gap-4 mt-2">
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Width (mm)</label>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        value={barcodePrinter.labelWidthMm ?? 50}
-                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Height (mm)</label>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        value={barcodePrinter.labelHeightMm ?? 25}
-                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Label Columns</label>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        value={barcodePrinter.labelColumns ?? 1}
-                        onChange={(e) => setBarcodePrinter({...barcodePrinter, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <div className="h-px bg-border" />
-
-            {/* Receipt Printer Section */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-3 text-foreground">
-                <Printer className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg">Bill Receipt Printer</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Connection Type</label>
-                  <select
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                    value={receiptPrinter.type || 'network'}
-                    onChange={(e) => setReceiptPrinter({...receiptPrinter, type: e.target.value})}
-                  >
-                    <option value="network">Network (TCP/IP)</option>
-                    <option value="usb">USB (OS Print Queue)</option>
-                  </select>
-                </div>
-                
-                {receiptPrinter.type === 'network' ? (
-                  <>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Printer IP Address</label>
-                      <Input 
-                        type="text"
-                        value={receiptPrinter.ip}
-                        onChange={(e) => setReceiptPrinter({...receiptPrinter, ip: e.target.value})}
-                        placeholder="192.168.1.100"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Port</label>
-                      <Input 
-                        type="text"
-                        inputMode="numeric"
-                        value={receiptPrinter.port ?? 9100}
-                        onChange={(e) => setReceiptPrinter({...receiptPrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '')})}
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="col-span-2">
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Select USB Printer</label>
-                    <select
-                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                      value={receiptPrinter.deviceName || ''}
-                      onChange={(e) => setReceiptPrinter({...receiptPrinter, deviceName: e.target.value})}
-                    >
-                      <option value="">-- Select a printer --</option>
-                      {osPrinters.map(p => (
-                        <option key={p.name} value={p.name}>{p.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Receipt Width (cm)</label>
-                  <Input 
+            {barcodePrinter.type === 'usb' && (
+              <div className="col-span-2 grid grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Width (mm)</label>
+                  <Input
                     type="text"
-                    inputMode="decimal"
-                    value={receiptPrinter.receiptWidthCm ?? 5.8}
-                    onChange={(e) => setReceiptPrinter({...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '')})}
-                    placeholder="e.g. 5.8 or 8.0"
-                  />
-                  <p className="text-[10px] text-muted-foreground mt-1">Standard sizes are 5.8cm (58mm) and 8.0cm (80mm). This sets the layout character width.</p>
-                </div>
-              </div>
-            </section>
-
-            <div className="h-px bg-border" />
-
-            {/* Weighing Scale Section */}
-            <section className="space-y-4">
-              <div className="flex items-center gap-3 text-foreground">
-                <Scale className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg">Electronic Weighing Scale</h3>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Serial Port (COM/tty)</label>
-                  <Input 
-                    type="text"
-                    value={scale.path}
-                    onChange={(e) => setScale({...scale, path: e.target.value})}
-                    placeholder="COM3"
+                    inputMode="numeric"
+                    value={barcodePrinter.labelWidthMm ?? 50}
+                    onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">Baud Rate</label>
-                  <select
-                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                    value={scale.baudRate}
-                    onChange={(e) => setScale({...scale, baudRate: parseInt(e.target.value)})}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Height (mm)</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={barcodePrinter.labelHeightMm ?? 25}
+                    onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Columns</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={barcodePrinter.labelColumns ?? 1}
+                    onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'receipt-printer':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connection Type</label>
+              <div className="flex gap-3">
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    receiptPrinter.type === 'network'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                  )}
+                  onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'network' })}
+                >
+                  <Globe className="w-4 h-4" />
+                  Network (TCP/IP)
+                </button>
+                <button
+                  className={clsx(
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    receiptPrinter.type === 'usb'
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                  )}
+                  onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'usb' })}
+                >
+                  <Usb className="w-4 h-4" />
+                  USB (OS Print Queue)
+                </button>
+              </div>
+            </div>
+
+            {receiptPrinter.type === 'network' ? (
+              <>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Printer IP Address</label>
+                  <Input
+                    type="text"
+                    value={receiptPrinter.ip}
+                    onChange={(e) => setReceiptPrinter({ ...receiptPrinter, ip: e.target.value })}
+                    placeholder="192.168.1.100"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Port</label>
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={receiptPrinter.port ?? 9100}
+                    onChange={(e) => setReceiptPrinter({ ...receiptPrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="col-span-2 space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
+                <select
+                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  value={receiptPrinter.deviceName || ''}
+                  onChange={(e) => setReceiptPrinter({ ...receiptPrinter, deviceName: e.target.value })}
+                >
+                  <option value="">-- Select a printer --</option>
+                  {osPrinters.map(p => (
+                    <option key={p.name} value={p.name}>{p.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Receipt Width (cm)</label>
+              <Input
+                type="text"
+                inputMode="decimal"
+                value={receiptPrinter.receiptWidthCm ?? 5.8}
+                onChange={(e) => setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '') })}
+                placeholder="e.g. 5.8 or 8.0"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">Standard sizes: 5.8cm (58mm) and 8.0cm (80mm). This sets the layout character width.</p>
+            </div>
+          </div>
+        );
+
+      case 'scale':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Serial Port (COM/tty)</label>
+              <Input
+                type="text"
+                value={scale.path}
+                onChange={(e) => setScale({ ...scale, path: e.target.value })}
+                placeholder="COM3"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Baud Rate</label>
+              <select
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                value={scale.baudRate}
+                onChange={(e) => setScale({ ...scale, baudRate: parseInt(e.target.value) })}
+              >
+                <option value="2400">2400</option>
+                <option value="4800">4800</option>
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400">38400</option>
+                <option value="115200">115200</option>
+              </select>
+            </div>
+          </div>
+        );
+
+      case 'updates':
+        return (
+          <div className="mt-5">
+            <Button
+              variant="outline"
+              onClick={handleCheckUpdate}
+              disabled={checkingUpdate}
+              className="flex items-center gap-2"
+            >
+              {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+            </Button>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  // ─── Main render ───
+  return (
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {renderMessage()}
+      {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
+
+      {/* ── Header ── */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+          <p className="text-muted-foreground text-sm font-normal">Configure hardware, invoice numbering, and system preferences</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <button onClick={onClose}
+            className="px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+            Cancel
+          </button>
+          {activeTab !== 'grades' && hasChanges && (
+            <button onClick={handleSave} disabled={saving}
+              className="px-3 py-2 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in">
+              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+        </div>
+      </header>
+
+      {/* ── Pill Tab Bar ── */}
+      <div className="flex items-center justify-center px-8 py-3 border-b border-border bg-card/50 shrink-0">
+        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={clsx(
+                  "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                  isActive
+                    ? "bg-background text-foreground shadow-sm border border-border"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <Icon className={clsx("w-4 h-4", isActive ? "text-primary" : "")} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Version badge */}
+        <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 bg-muted/40 rounded-lg text-[10px] text-muted-foreground font-medium">
+          <RefreshCw className="w-3 h-3" />
+          v{appVersion.replace('v', '')}
+        </div>
+      </div>
+
+      {/* ── Content ── */}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto p-8">
+
+          {/* ── GENERAL TAB ── */}
+          {activeTab === 'general' && (
+            <div className="space-y-6">
+              {GENERAL_SECTIONS
+                .filter(s => !s.ownerOnly || role === 'OWNER')
+                .map((section) => (
+                  <section
+                    key={section.id}
+                    className="bg-card border border-border rounded-2xl p-6 shadow-sm"
                   >
-                    <option value="2400">2400</option>
-                    <option value="4800">4800</option>
-                    <option value="9600">9600</option>
-                    <option value="19200">19200</option>
-                    <option value="38400">38400</option>
-                    <option value="115200">115200</option>
-                  </select>
+                    <div className="flex items-start gap-4">
+                      <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
+                        <section.icon className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-bold text-foreground">{section.title}</h2>
+                          {section.ownerOnly && (
+                            <span className="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-full border border-amber-500/20 shrink-0">
+                              OWNER
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">{section.desc}</p>
+                      </div>
+                    </div>
+                    {renderGeneralSection(section)}
+                  </section>
+                ))}
+            </div>
+          )}
+
+          {/* ── GRADES TAB ── */}
+          {activeTab === 'grades' && (
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+              <SettingsGrades />
+            </div>
+          )}
+
+          {/* ── SECURITY TAB ── */}
+          {activeTab === 'security' && (
+            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-foreground">Security</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Manage your account password and security settings.</p>
                 </div>
               </div>
-            </section>
 
-            <div className="h-px bg-border" />
-
-            {/* Version & Update Section */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3 text-foreground">
-                  <RefreshCw className={clsx("w-5 h-5 text-primary", checkingUpdate && "animate-spin")} />
-                  <div>
-                    <h3 className="font-bold text-lg">System Updates</h3>
-                    <p className="text-xs text-muted-foreground">Current Version: {appVersion}</p>
-                  </div>
+              <form onSubmit={handleChangePassword} className="bg-muted/30 border border-border rounded-xl p-6 space-y-5">
+                <div>
+                  <h3 className="font-bold text-foreground">Change Password</h3>
+                  <p className="text-xs text-muted-foreground mt-1">Update your account password regularly to keep your shop secure.</p>
                 </div>
-                <Button
-                  variant="outline"
-                  onClick={handleCheckUpdate}
-                  disabled={checkingUpdate}
-                  className="flex items-center gap-2"
-                >
-                  {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-                  {checkingUpdate ? 'Checking...' : 'Check for Updates'}
-                </Button>
-              </div>
-            </section>
 
-            <div className="h-px bg-border" />
-              </div>
-            )}
-
-            {activeTab === 'grades' && (
-              <div className="animate-in fade-in">
-                <SettingsGrades />
-              </div>
-            )}
-
-            {activeTab === 'security' && (
-              <div className="animate-in fade-in">
-            {/* Security Section */}
-            <section className="space-y-4 pb-4">
-              <div className="flex items-center gap-3 text-foreground">
-                <Lock className="w-5 h-5 text-primary" />
-                <h3 className="font-bold text-lg">Security</h3>
-              </div>
-              
-              <form onSubmit={handleChangePassword} className="space-y-4 bg-muted/50 p-6 rounded-2xl border border-border">
-                <p className="text-xs text-muted-foreground mb-2 font-medium uppercase tracking-widest">Change Password</p>
-                
-                <div className="grid grid-cols-1 gap-4">
-                  <div className="relative">
-                    <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input 
-                      type="password"
-                      placeholder="Current Password"
-                      className="pl-11"
-                      value={pass.old}
-                      onChange={(e) => setPass({...pass, old: e.target.value})}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <Input 
-                      type="password"
-                      placeholder="New Password"
-                      value={pass.new}
-                      onChange={(e) => setPass({...pass, new: e.target.value})}
-                    />
-                    <Input 
-                      type="password"
-                      placeholder="Confirm New Password"
-                      value={pass.confirm}
-                      onChange={(e) => setPass({...pass, confirm: e.target.value})}
-                    />
-                  </div>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="password"
+                    placeholder="Current Password"
+                    className="pl-11"
+                    value={pass.old}
+                    onChange={(e) => setPass({ ...pass, old: e.target.value })}
+                  />
                 </div>
-                
-                <Button
-                  type="submit"
-                  disabled={changingPass}
-                  className="w-full flex items-center justify-center gap-2"
-                >
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    type="password"
+                    placeholder="New Password"
+                    value={pass.new}
+                    onChange={(e) => setPass({ ...pass, new: e.target.value })}
+                  />
+                  <Input
+                    type="password"
+                    placeholder="Confirm New Password"
+                    value={pass.confirm}
+                    onChange={(e) => setPass({ ...pass, confirm: e.target.value })}
+                  />
+                </div>
+
+                <Button type="submit" disabled={changingPass} className="w-full flex items-center justify-center gap-2">
                   {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                   Update Password
                 </Button>
               </form>
-            </section>
             </div>
-            )}
+          )}
 
-
-
-            {message && (
-              <div className={clsx(
-                "p-4 rounded-2xl border flex gap-3 text-sm animate-in fade-in slide-in-from-top-2 items-center",
-                message.type === 'success' ? "bg-primary/10 border-primary/30 text-primary" : "bg-destructive/10 border-destructive/30 text-destructive"
-              )}>
-                <Info className="w-5 h-5 shrink-0" />
-                <div className="flex-1 flex justify-between items-center gap-4">
-                  <p>{message.text}</p>
-                  {message.text.toLowerCase().includes('restart app') && (
-                    <button onClick={() => window.location.reload()} className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-bold rounded-lg hover:bg-primary/90 transition-colors shrink-0 shadow-sm">
-                      Restart App
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-            
-            <div className="pt-4 flex justify-end gap-3 border-t border-border mt-8">
-              <Button variant="outline" onClick={onClose}>
-                Cancel
-              </Button>
-              {activeTab !== 'grades' && (
-                <Button onClick={handleSave} disabled={saving} className="flex items-center gap-2">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Save Configuration
-                </Button>
-              )}
-            </div>
-          </>
-        )}
-      </div>
-      
-      {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
-    </Modal>
+        </div>
+      </main>
+    </div>
   );
 }

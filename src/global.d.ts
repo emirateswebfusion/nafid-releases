@@ -14,9 +14,10 @@ export interface IElectronAPI {
   dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;
   dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; only_pending?: boolean }) => Promise<any[]>;
   dbCheckout: (payload: any & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
-  dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number }) => Promise<{ success: boolean; error?: string }>;
+  dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
+  dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
   dbAddGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
@@ -39,6 +40,7 @@ export interface IElectronAPI {
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
+  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
 }
 
 declare global {

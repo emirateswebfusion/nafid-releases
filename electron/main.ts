@@ -4,6 +4,7 @@ import fs from 'fs';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
+import { v4 as uuidv4 } from 'uuid';
 
 // Initialize and configure structured logging
 log.initialize();
@@ -553,9 +554,9 @@ ipcMain.handle('db:checkout', (event, payload) => {
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
-        payment_method, customer_name, customer_phone, sync_status
+        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, sync_status
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -570,8 +571,12 @@ ipcMain.handle('db:checkout', (event, payload) => {
       invoice.discount_value || 0,
       invoice.grand_total,
       invoice.payment_method || 'CASH',
+      invoice.received_amount ?? 0,
+      invoice.balance_amount ?? 0,
       invoice.customer_name || null,
-      invoice.customer_phone || null
+      invoice.customer_phone || null,
+      invoice.customer_gstin || null,
+      invoice.customer_state || null
     );
 
     // 2. Insert items and update stock
@@ -611,9 +616,14 @@ ipcMain.handle('db:checkout', (event, payload) => {
   }
 });
 
-ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, discount_value }: { invoice_id: string, discount_type: 'FIXED' | 'PERCENTAGE', discount_value: number }) => {
+ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, discount_value, role }: { invoice_id: string, discount_type: 'FIXED' | 'PERCENTAGE', discount_value: number, role?: string }) => {
   try {
     const db = getDb();
+
+    // Only OWNER can apply discounts
+    if (role !== 'OWNER') {
+      return { success: false, error: 'Only owners can apply discounts' };
+    }
     
     const invoice = db.prepare('SELECT subtotal, tax_total FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
     if (!invoice) return { success: false, error: 'Invoice not found' };
@@ -639,10 +649,10 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role, limit, offset, search } = filters || {};
+    const { user_id, tenant_id, role, limit, offset, search, payment_method } = filters || {};
 
     if (!tenant_id) return []; // Safety: always require tenant_id
 
@@ -663,6 +673,11 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     if (search) {
       query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (payment_method) {
+      query += ' AND i.payment_method = ?';
+      params.push(payment_method);
     }
 
     query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
@@ -688,6 +703,102 @@ ipcMain.handle('db:getInvoiceItems', (event, invoice_id: string) => {
     return db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
   } catch (error: any) {
     return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateInvoice', (event, payload: {
+  invoice_id: string;
+  tenant_id: string;
+  role?: string;
+  subtotal: number;
+  tax_total: number;
+  discount_total: number;
+  discount_type: string;
+  discount_value: number;
+  grand_total: number;
+  payment_method?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  customer_gstin?: string;
+  customer_state?: string;
+  items: Array<{
+    item_id?: string;
+    product_id: string;
+    name: string;
+    quantity: number;
+    unit_price: number;
+    tax_amount: number;
+    total: number;
+  }>;
+}) => {
+  // Only OWNER can update invoices
+  if (payload.role !== 'OWNER') {
+    return { success: false, error: 'Only owners can edit past bills' };
+  }
+  const { items, ...invoice } = payload;
+  const db = getDb();
+  const transaction = db.transaction(() => {
+    // 1. Get old items for stock adjustment
+    const oldItems = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(payload.invoice_id) as any[];
+
+    // 2. Update invoice header
+    db.prepare(`
+      UPDATE invoices SET
+        subtotal = ?, tax_total = ?, discount_total = ?, discount_type = ?,
+        discount_value = ?, grand_total = ?, payment_method = ?,
+        customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?,
+        sync_status = 'PENDING'
+      WHERE invoice_id = ?
+    `).run(
+      invoice.subtotal, invoice.tax_total, invoice.discount_total,
+      invoice.discount_type || 'FIXED', invoice.discount_value || 0,
+      invoice.grand_total, invoice.payment_method || 'CASH',
+      invoice.customer_name || null, invoice.customer_phone || null,
+      invoice.customer_gstin || null, invoice.customer_state || null,
+      payload.invoice_id
+    );
+
+    // 3. Delete old items
+    db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(payload.invoice_id);
+
+    // 4. Insert new items
+    const itemStmt = db.prepare(`
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const item of items) {
+      itemStmt.run(
+        item.item_id || uuidv4(),
+        payload.invoice_id,
+        payload.tenant_id,
+        item.product_id,
+        item.name,
+        item.quantity,
+        item.unit_price,
+        item.tax_amount,
+        item.total
+      );
+    }
+
+    // 5. Adjust stock: reverse old quantities, apply new
+    const stockDelta: Record<string, number> = {};
+    for (const old of oldItems) {
+      stockDelta[old.product_id] = (stockDelta[old.product_id] || 0) + old.quantity;
+    }
+    for (const item of items) {
+      stockDelta[item.product_id] = (stockDelta[item.product_id] || 0) - item.quantity;
+    }
+    const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+    for (const [product_id, delta] of Object.entries(stockDelta)) {
+      stockStmt.run(delta, product_id);
+    }
+  });
+
+  try {
+    transaction();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 });
 
@@ -750,6 +861,49 @@ ipcMain.handle('auth:clearToken', () => {
     const p = getConfigPath();
     if (fs.existsSync(p)) fs.unlinkSync(p);
     return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenant_id: string; prefix?: string }) => {
+  try {
+    const db = getDb();
+    const effectivePrefix = prefix || 'INV-';
+    const configKey = 'invoice_counter_config';
+
+    // Use a transaction for atomic get-and-increment
+    const result = db.transaction(() => {
+      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', configKey);
+      let counter = 1;
+      let config: { prefix: string; counter: number } = { prefix: effectivePrefix, counter: 1 };
+
+      if (row) {
+        try {
+          config = JSON.parse(row.value);
+          counter = (typeof config.counter === 'number' ? config.counter : 1);
+        } catch {
+          counter = 1;
+        }
+      }
+
+      const invoiceNumber = `${config.prefix || effectivePrefix}${counter}`;
+      
+      // Increment and save
+      config.counter = counter + 1;
+      db.prepare(`
+        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, key) DO UPDATE SET
+          value = EXCLUDED.value,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run(tenant_id || 'global', configKey, JSON.stringify(config));
+
+      return { success: true, invoiceNumber, counter };
+    })();
+
+    return result;
   } catch (error: any) {
     return { success: false, error: error.message };
   }

@@ -24,6 +24,9 @@ release/
 .env.test.local
 .env.production
 .env.production.local
+env
+.env.production
+env.production
 # But do track the example
 !.env.example
 
@@ -59,6 +62,9 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output
+
+# Scratch / temp
+scratch/
 
 # Misc
 .cache/

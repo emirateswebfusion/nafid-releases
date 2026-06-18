@@ -3,6 +3,11 @@ import path from 'path';
 import { app, BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
+function toSqliteDate(iso: string | null | undefined): string {
+  if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
+  return iso.replace('T', ' ').replace('Z', '');
+}
+
 function notifyRenderer() {
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
@@ -247,8 +252,8 @@ async function pullGrades(token: string) {
             grade_name: g.grade_name,
             rate: g.rate,
             is_deleted: g.is_deleted ? 1 : 0,
-            created_at: g.created_at ?? new Date().toISOString(),
-            updated_at: g.updated_at ?? new Date().toISOString(),
+            created_at: toSqliteDate(g.created_at),
+            updated_at: toSqliteDate(g.updated_at),
           });
         } catch (e: any) {
            console.error('[SyncWorker] Error pulling grade:', e.message);
@@ -371,8 +376,8 @@ async function pullProducts(token: string) {
               average_weight_per_piece: currentP.average_weight_per_piece ?? null,
               weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
               print_status: currentP.print_status ?? null,
-              created_at: currentP.created_at ?? new Date().toISOString(),
-              updated_at: currentP.updated_at ?? new Date().toISOString(),
+              created_at: toSqliteDate(currentP.created_at),
+              updated_at: toSqliteDate(currentP.updated_at),
             });
             success = true;
           } catch (e: any) {
@@ -422,14 +427,18 @@ async function pullInvoices(token: string) {
       INSERT INTO invoices (
         invoice_id, tenant_id, invoice_number, invoice_type,
         customer_name, customer_phone, subtotal, tax_total,
-        discount_total, discount_type, discount_value, grand_total, payment_method, user_id, sync_status, created_at
+        discount_total, discount_type, discount_value, grand_total, payment_method,
+        received_amount, balance_amount, user_id, sync_status, created_at
       ) VALUES (
         @invoice_id, @tenant_id, @invoice_number, @invoice_type,
         @customer_name, @customer_phone, @subtotal, @tax_total,
-        @discount_total, @discount_type, @discount_value, @grand_total, @payment_method, @user_id, 'SYNCED', @created_at
+        @discount_total, @discount_type, @discount_value, @grand_total, @payment_method,
+        @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at
       )
       ON CONFLICT(invoice_id) DO UPDATE SET
         payment_method = EXCLUDED.payment_method,
+        received_amount = EXCLUDED.received_amount,
+        balance_amount = EXCLUDED.balance_amount,
         user_id = EXCLUDED.user_id,
         discount_total = EXCLUDED.discount_total,
         discount_type = EXCLUDED.discount_type,
@@ -475,8 +484,10 @@ async function pullInvoices(token: string) {
               discount_value: currentInv.discount_value ?? 0,
               grand_total: currentInv.grand_total,
               payment_method: currentInv.payment_method || 'CASH',
+              received_amount: currentInv.received_amount ?? 0,
+              balance_amount: currentInv.balance_amount ?? 0,
               user_id: currentInv.user_id || null,
-              created_at: currentInv.created_at,
+              created_at: toSqliteDate(currentInv.created_at),
             });
             success = true;
           } catch (e: any) {
@@ -556,7 +567,7 @@ async function pullUsers(token: string) {
           name: u.name,
           email: u.email,
           role: u.role,
-          created_at: u.created_at,
+          created_at: toSqliteDate(u.created_at),
         });
       }
     });
@@ -667,7 +678,7 @@ async function pullSettings(token: string) {
           tenant_id: s.tenant_id || tenantId,
           key: s.key,
           value: valueToSave,
-          updated_at: s.updated_at
+          updated_at: toSqliteDate(s.updated_at)
         });
       }
     });

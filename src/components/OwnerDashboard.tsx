@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ShoppingBag, Users, Receipt, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -56,7 +56,7 @@ export function OwnerDashboard() {
             id: 'history',
             title: 'Sales History',
             desc: 'Review past transactions and reports',
-            icon: Receipt,
+            icon: TrendingUp,
             color: 'text-primary',
             bgColor: 'bg-primary/10',
             action: () => window.dispatchEvent(new CustomEvent('open-sales-history')),

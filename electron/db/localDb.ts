@@ -82,6 +82,8 @@ export function initDb() {
         invoice_type TEXT DEFAULT 'tax_invoice',
         customer_name TEXT,
         customer_phone TEXT,
+        customer_gstin TEXT,
+        customer_state TEXT,
         subtotal REAL NOT NULL DEFAULT 0,
         tax_total REAL NOT NULL DEFAULT 0,
         discount_total REAL DEFAULT 0,
@@ -89,6 +91,8 @@ export function initDb() {
         discount_value REAL DEFAULT 0,
         grand_total REAL NOT NULL DEFAULT 0,
         payment_method TEXT DEFAULT 'CASH',
+        received_amount REAL DEFAULT 0,
+        balance_amount REAL DEFAULT 0,
         user_id TEXT,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -135,7 +139,8 @@ export function initDb() {
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
-        'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status'
+        'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
+        'customer_gstin', 'customer_state'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
@@ -351,11 +356,18 @@ export function initDb() {
   db.exec("UPDATE products SET created_at = CURRENT_TIMESTAMP WHERE created_at IS NULL");
   db.exec("UPDATE products SET updated_at = CURRENT_TIMESTAMP WHERE updated_at IS NULL");
 
-  // Fix inconsistent ISO strings inserted during bulk import
-  try {
-    db.exec("UPDATE products SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'");
-  } catch (e: any) {
-    console.warn('[DB Migration] Failed to fix ISO timestamps:', e.message);
+  // Fix inconsistent ISO date strings in all tables
+  const dateFixQueries = [
+    "UPDATE products SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE products SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE invoices SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE users SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE settings SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE product_grades SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE product_grades SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+  ];
+  for (const q of dateFixQueries) {
+    try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }
   }
 
   // Initialize hardware defaults if empty

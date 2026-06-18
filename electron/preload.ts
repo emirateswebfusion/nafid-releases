@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbApplyInvoiceDiscount: (payload: any) => ipcRenderer.invoke('db:applyInvoiceDiscount', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
+  dbUpdateInvoice: (payload: any) => ipcRenderer.invoke('db:updateInvoice', payload),
   dbGetGrades: (tenant_id: string) => ipcRenderer.invoke('db:getGrades', tenant_id),
   dbAddGrade: (grade: any) => ipcRenderer.invoke('db:addGrade', grade),
   dbUpdateGrade: (grade: any) => ipcRenderer.invoke('db:updateGrade', grade),
@@ -52,4 +53,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
+  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
 });

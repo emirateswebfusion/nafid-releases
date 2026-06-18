@@ -7,17 +7,29 @@ export interface ReceiptItem {
 
 export interface ReceiptData {
   shopName: string;
+  shopGstin?: string;
+  shopState?: string;
   invoiceNumber: string;
   date: string;
   cashierName?: string;
   items: ReceiptItem[];
   subtotal: number;
   tax: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
   discount: number;
   discountType?: 'FIXED' | 'PERCENTAGE';
   discountValue?: number;
   grandTotal: number;
+  receivedAmount?: number;
+  balanceAmount?: number;
   isReprint?: boolean;
+  invoiceType?: string;
+  customerName?: string;
+  customerPhone?: string;
+  customerGstin?: string;
+  customerState?: string;
 }
 
 /**
@@ -52,10 +64,18 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   
   // Header
   text += centerText(data.shopName, charsPerLine) + '\n';
+  if (data.shopGstin) {
+    text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+  }
+  if (data.shopState) {
+    text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
+  }
   if (data.isReprint) {
     text += centerText('INVOICE (REPRINT)', charsPerLine) + '\n';
+  } else if (data.invoiceType === 'GST') {
+    text += centerText('TAX INVOICE', charsPerLine) + '\n';
   } else {
-    text += centerText('INVOICE', charsPerLine) + '\n';
+    text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';
   }
   text += divider + '\n';
   
@@ -65,6 +85,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   if (data.cashierName) {
     text += `Staff:  ${data.cashierName}\n`;
   }
+  
+  // Customer Details
+  if (data.customerName || data.customerPhone || data.customerGstin) {
+    text += separator + '\n';
+    text += centerText('CUSTOMER DETAILS', charsPerLine) + '\n';
+    if (data.customerName) text += `Name:   ${data.customerName}\n`;
+    if (data.customerPhone) text += `Phone:  ${data.customerPhone}\n`;
+    if (data.customerGstin) text += `GSTIN:  ${data.customerGstin}\n`;
+    if (data.customerState) text += `State:  ${data.customerState}\n`;
+  }
+  
   text += divider + '\n';
 
   if (charsPerLine >= 48) {
@@ -106,7 +137,19 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   text += padRight('SUBTOTAL:', labelWidth) + '  ' + padLeft(data.subtotal.toFixed(2), bottomTotalWidth) + '\n';
   
   if (data.tax > 0) {
-    text += padRight('TAX:', labelWidth) + '  ' + padLeft(data.tax.toFixed(2), bottomTotalWidth) + '\n';
+    if (data.igst && data.igst > 0) {
+      text += padRight('IGST:', labelWidth) + '  ' + padLeft(data.igst.toFixed(2), bottomTotalWidth) + '\n';
+    } else {
+      if (data.cgst && data.cgst > 0) {
+        text += padRight('CGST:', labelWidth) + '  ' + padLeft(data.cgst.toFixed(2), bottomTotalWidth) + '\n';
+      }
+      if (data.sgst && data.sgst > 0) {
+        text += padRight('SGST:', labelWidth) + '  ' + padLeft(data.sgst.toFixed(2), bottomTotalWidth) + '\n';
+      }
+      if (!data.cgst && !data.sgst) {
+        text += padRight('TAX:', labelWidth) + '  ' + padLeft(data.tax.toFixed(2), bottomTotalWidth) + '\n';
+      }
+    }
   }
   
   if (data.discount > 0) {
@@ -119,6 +162,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   
   text += separator + '\n';
   text += padRight('GRAND TOTAL:', labelWidth) + '  ' + padLeft(data.grandTotal.toFixed(2), bottomTotalWidth) + '\n';
+  if (data.receivedAmount != null && data.balanceAmount != null) {
+    text += padRight('CUSTOMER GAVE:', labelWidth) + '  ' + padLeft(data.receivedAmount.toFixed(2), bottomTotalWidth) + '\n';
+    text += padRight('CHANGE DUE:', labelWidth) + '  ' + padLeft(data.balanceAmount.toFixed(2), bottomTotalWidth) + '\n';
+  }
   text += divider + '\n';
 
   // Footer

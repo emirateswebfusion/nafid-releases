@@ -37,8 +37,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
-
   // Bulk print state
   const [pendingPrintCount, setPendingPrintCount] = useState(0);
   const [printLimit, setPrintLimit] = useState(1);
@@ -49,14 +47,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     loadGrades();
-    
-    if (window.electronAPI) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' })
-        .then(res => {
-          if (res) setPriceCoding(res);
-        })
-        .catch(console.error);
-    }
   }, []);
 
   useEffect(() => {
@@ -315,30 +305,29 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setRows(validateRows(newRows));
   };
 
-  const generateBarcode = (itemCode: string, purchasePrice: string) => {
-    let prefix = itemCode || '';
-    let priceCode = '';
-    
-    if (priceCoding && purchasePrice) {
-      const priceStr = String(purchasePrice).replace(/\D/g, '');
-      for (const char of priceStr) {
-        if (priceCoding[char]) priceCode += priceCoding[char];
+  const getNextBarcode = async () => {
+    let nextBarcode = '1';
+    if (window.electronAPI) {
+      try {
+        const lastProduct = await window.electronAPI.dbGetProducts({
+          tenant_id: tenantId,
+          limit: 1,
+          sortBy: 'created_at'
+        });
+        if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
+          const lastBarcode = lastProduct[0].sku_barcode;
+          const match = lastBarcode.match(/(\d+)[^\d]*$/);
+          if (match) {
+            const numStr = match[1];
+            const nextNum = (BigInt(numStr) + 1n).toString();
+            nextBarcode = nextNum.padStart(numStr.length, '0');
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch last barcode", err);
       }
     }
-
-    if (prefix.length + priceCode.length > 10) {
-      prefix = prefix.substring(0, Math.max(0, 10 - priceCode.length));
-    }
-    
-    const remainingLength = 10 - prefix.length - priceCode.length;
-    let randomPart = '';
-    if (remainingLength > 0) {
-      const min = Math.pow(10, remainingLength - 1);
-      const max = Math.pow(10, remainingLength) - 1;
-      randomPart = Math.floor(min + Math.random() * (max - min + 1)).toString();
-    }
-    
-    return prefix + randomPart + priceCode;
+    return nextBarcode;
   };
 
   const handleBulkSave = async () => {
@@ -357,31 +346,45 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setLoading(true);
     setMessage(null);
 
-    const productsToInsert = validData.map(r => ({
-      product_id: uuidv4(),
-      tenant_id: tenantId || 'global',
-      name: r.name.trim(),
-      sku_barcode: r.sku_barcode.trim() || generateBarcode(r.item_code.trim(), r.purchase_price),
-      item_code: r.item_code.trim() || null,
-      category: r.category.trim() || 'General',
-      grade_id: r.grade_id || null,
-      purchase_price: Number(r.purchase_price) || 0,
-      base_price: Number(r.mrp) || 0,
-      is_gst_applicable: r.is_gst_applicable ? 1 : 0,
-      tax_rate_percent: Number(r.tax_rate_percent) || 0,
-      uom: r.uom.trim() || 'Pcs',
-      brand_manufacturer: r.brand.trim() || null,
-      current_stock: Number(r.stock) || 0,
-      reorder_level: Number(r.reorder_level) || 0,
-      discount_percent: r.discount_percent ? Number(r.discount_percent) : null,
-      discount_flat: r.discount_flat ? Number(r.discount_flat) : null,
-      offer_price: r.offer_price ? Number(r.offer_price) : null,
-      billing_type: r.billing_type,
-      pricing_mode: r.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
-      average_weight_per_piece: r.average_weight_per_piece ? Number(r.average_weight_per_piece) : null,
-      weight_override_allowed: r.weight_override_allowed ? 1 : 0,
-      domain_attributes: {}
-    }));
+    let nextBarcode = await getNextBarcode();
+    const productsToInsert: any[] = [];
+    for (const r of validData) {
+      let barcode = r.sku_barcode.trim();
+      if (!barcode) {
+        barcode = nextBarcode;
+        const match = barcode.match(/(\d+)[^\d]*$/);
+        if (match) {
+          const numStr = match[1];
+          const nextNum = (BigInt(numStr) + 1n).toString();
+          nextBarcode = nextNum.padStart(numStr.length, '0');
+        }
+      }
+      productsToInsert.push({
+        product_id: uuidv4(),
+        tenant_id: tenantId || 'global',
+        name: r.name.trim(),
+        sku_barcode: barcode,
+        item_code: r.item_code.trim() || null,
+        category: r.category.trim() || 'General',
+        grade_id: r.grade_id || null,
+        purchase_price: Number(r.purchase_price) || 0,
+        base_price: Number(r.mrp) || 0,
+        is_gst_applicable: r.is_gst_applicable ? 1 : 0,
+        tax_rate_percent: Number(r.tax_rate_percent) || 0,
+        uom: r.uom.trim() || 'Pcs',
+        brand_manufacturer: r.brand.trim() || null,
+        current_stock: Number(r.stock) || 0,
+        reorder_level: Number(r.reorder_level) || 0,
+        discount_percent: r.discount_percent ? Number(r.discount_percent) : null,
+        discount_flat: r.discount_flat ? Number(r.discount_flat) : null,
+        offer_price: r.offer_price ? Number(r.offer_price) : null,
+        billing_type: r.billing_type,
+        pricing_mode: r.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
+        average_weight_per_piece: r.average_weight_per_piece ? Number(r.average_weight_per_piece) : null,
+        weight_override_allowed: r.weight_override_allowed ? 1 : 0,
+        domain_attributes: {}
+      });
+    }
 
     if (window.electronAPI) {
       try {

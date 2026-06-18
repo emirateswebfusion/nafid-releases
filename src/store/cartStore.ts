@@ -146,17 +146,23 @@ export const useCartTotals = () => {
     }
   });
 
-  const isInterState = shopState !== customerState;
-  
-  const cgst = invoiceType === 'GST' && !isInterState ? totalTax / 2 : 0;
-  const sgst = invoiceType === 'GST' && !isInterState ? totalTax / 2 : 0;
-  const igst = invoiceType === 'GST' && isInterState ? totalTax : 0;
-
   const calculatedDiscount = discountType === 'PERCENTAGE'
     ? (subtotal * discountValue) / 100
     : discountValue;
 
-  const grandTotal = subtotal + totalTax - calculatedDiscount;
+  const effectiveDiscount = Math.min(calculatedDiscount, subtotal);
+  const taxableAmount = subtotal - effectiveDiscount;
 
-  return { subtotal, cgst, sgst, igst, totalTax, discount: calculatedDiscount, grandTotal };
+  const effectiveTaxRate = subtotal > 0 ? totalTax / subtotal : 0;
+  const adjustedTax = taxableAmount * effectiveTaxRate;
+
+  const isInterState = shopState !== customerState;
+  
+  const cgst = invoiceType === 'GST' && !isInterState ? adjustedTax / 2 : 0;
+  const sgst = invoiceType === 'GST' && !isInterState ? adjustedTax / 2 : 0;
+  const igst = invoiceType === 'GST' && isInterState ? adjustedTax : 0;
+
+  const grandTotal = taxableAmount + adjustedTax;
+
+  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount };
 };

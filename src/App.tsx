@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CartPane } from './components/CartPane';
-import { ActionPane } from './components/ActionPane';
+import { BillingPage } from './components/BillingPage';
 import { DomainWizard } from './components/DomainWizard';
 import { InventoryManager } from './components/InventoryManager';
 import { SalesHistory } from './components/SalesHistory';
@@ -118,6 +117,7 @@ function App() {
             purchase_price: match.purchase_price ?? 0,
             tax_rate_percent: match.tax_rate_percent ?? 0,
           });
+          window.dispatchEvent(new CustomEvent('product-added', { detail: { product_id: match.product_id } }));
         }
       });
 
@@ -187,17 +187,16 @@ function App() {
     <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground select-none">
       {currentUserRole === 'OWNER' && <DomainWizard />}
       {showInventoryManager && <InventoryManager onClose={() => setShowInventoryManager(false)} />}
-      {showSalesHistory && <SalesHistory onClose={() => setShowSalesHistory(false)} />}
       {showStaffManager && <StaffManager onClose={() => setShowStaffManager(false)} />}
-      {showSettingsManager && <SettingsManager onClose={() => setShowSettingsManager(false)} />}
 
-      {currentUserRole === 'OWNER' ? (
+      {showSettingsManager ? (
+        <SettingsManager onClose={() => setShowSettingsManager(false)} />
+      ) : showSalesHistory ? (
+        <SalesHistory onClose={() => setShowSalesHistory(false)} />
+      ) : currentUserRole === 'OWNER' ? (
         <OwnerDashboard />
       ) : (
-        <>
-          <CartPane />
-          <ActionPane />
-        </>
+        <BillingPage />
       )}
     </div>
   );

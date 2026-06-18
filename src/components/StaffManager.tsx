@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Users, UserPlus, Mail, Shield, Key, Save, Loader2 } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Key, Save, Loader2, Trash2 } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -18,12 +18,31 @@ interface StaffMember {
 const CLOUD_API = import.meta.env.VITE_CLOUD_API || 'http://localhost:3001';
 
 export function StaffManager({ onClose }: { onClose: () => void }) {
-  const { token } = useAuthStore();
+  const { token, userId } = useAuthStore();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [view, setView] = useState<'list' | 'add'>('list');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
-  
+
+
+  const handleRemoveStaff = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove "${name}" from your staff?`)) return;
+    try {
+      const res = await fetch(`${CLOUD_API}/auth/staff/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setStaff(prev => prev.filter(s => s.user_id !== id));
+      } else {
+        alert(data.error || 'Failed to remove staff');
+      }
+    } catch {
+      alert('Network error');
+    }
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -152,7 +171,16 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      {member.user_id !== userId && member.role !== 'OWNER' && (
+                        <button
+                          onClick={() => handleRemoveStaff(member.user_id, member.name)}
+                          className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-all"
+                          title="Remove staff member"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                       <span className={clsx(
                         "text-[10px] font-black px-2 py-0.5 rounded",
                         member.role === 'OWNER' ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"
