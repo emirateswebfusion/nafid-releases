@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, FileText, TrendingUp } from 'lucide-react';
+import { ReportView } from './ReportView';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -66,12 +67,12 @@ const DEFAULT_FORM = {
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-export function InventoryManager({ onClose }: { onClose: () => void }) {
+export function InventoryManager({ onClose, initialView }: { onClose: () => void; initialView?: 'list' | 'report' }) {
   const { shopDomain } = useCartStore();
   const { tenantId } = useAuthStore();
 
   // View state: 'list' | 'add' | 'edit'
-  const [view, setView] = useState<'list' | 'add' | 'edit'>('list');
+  const [view, setView] = useState<'list' | 'add' | 'edit' | 'report'>(initialView || 'list');
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,6 +97,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [hasMore, setHasMore] = useState(true);
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const LIMIT = 50;
+  const [reportProducts, setReportProducts] = useState<Product[]>([]);
+
+  // If initialView is 'report', automatically open report view on mount
+  useEffect(() => {
+    if (initialView === 'report') {
+      openReport();
+    }
+  }, []); // only on mount
 
   // Load products when search or sort changes (reset)
   useEffect(() => {
@@ -605,7 +614,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       // Don't just setFormData, pass it directly to payload since state update is async
       setFormData(prev => ({ ...prev, sku_barcode: finalBarcode }));
       setStatusMessage({ text: 'Barcode auto-generated.', type: 'success' });
-      setTimeout(() => setStatusMessage(null), 2000);
+      setTimeout(() => setStatusMessage(null), 3000);
     }
     
     setLoading(true);
@@ -655,7 +664,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           }
         }
         setStatusMessage({ text: 'Failed to save: ' + errorMessage, type: 'error' });
-        setTimeout(() => setStatusMessage(null), 4000);
+        setTimeout(() => setStatusMessage(null), 3000);
       }
     }
     setLoading(false);
@@ -663,6 +672,135 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   // No frontend filtering/sorting needed anymore, it's done in the backend
   const filtered = products;
+
+    const openReport = async () => {
+    setIsFetching(true);
+    if (window.electronAPI) {
+      const { tenantId } = useAuthStore.getState();
+      const result = await window.electronAPI.dbGetProducts({
+        tenant_id: tenantId,
+        limit: 100000,
+        sortBy: sortBy,
+        filterDate: filterDate,
+        filterDateEnd: filterDateEnd
+      });
+      if (Array.isArray(result)) {
+        setReportProducts(result);
+      }
+    }
+    setIsFetching(false);
+    setView('report');
+  };
+
+  const handlePrintFullReport = () => {
+    const repProducts = reportProducts.length > 0 ? reportProducts : products;
+    const repGroupedByCategory = repProducts.reduce<Record<string, typeof repProducts>>((acc, p) => {
+      const cat = p.category || 'Uncategorized';
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(p);
+      return acc;
+    }, {});
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const totalStock = repProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
+    const totalValue = repProducts.reduce((sum, p) => {
+      const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+      const grRate = gr ? Number(gr.rate) : null;
+      const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+      return sum + (rate * Number(p.current_stock));
+    }, 0);
+    const totalProducts = repProducts.length;
+    const outOfStock = repProducts.filter(p => Number(p.current_stock) <= 0).length;
+    const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
+
+    const categoryRows = Object.entries(repGroupedByCategory).map(([cat, items]) => {
+      const catValue = items.reduce((sum, p) => {
+        const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+        const grRate = gr ? Number(gr.rate) : null;
+        const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+        return sum + (rate * Number(p.current_stock));
+      }, 0);
+      const catStock = items.reduce((sum, p) => sum + Number(p.current_stock), 0);
+      const detailRows = items.map(p => {
+        const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+        const grRate = gr ? Number(gr.rate) : null;
+        const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+        const value = rate * Number(p.current_stock);
+        const totalWeight = p.billing_type === 'WEIGHT' && p.average_weight_per_piece ? Number(p.current_stock) * Number(p.average_weight_per_piece) : 0;
+        return `<tr>\n          <td style=\"padding:6px;border:1px solid #ddd;\">${p.name}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;color:#666;\">${p.category || '-'}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;color:#666;\">${gr?.grade_name || '-'}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;\">${Number(p.current_stock).toFixed(0)}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;text-align:right;\">${totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' : '-'}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;text-align:right;\">${formatCurrency(rate)}</td>\n          <td style=\"padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;\">${formatCurrency(value)}</td>\n        </tr>`;
+      }).join('');
+      return `<tr style=\"background:#e8f0fe;font-weight:bold;\">\n        <td colspan=\"7\" style=\"padding:8px 6px;border:1px solid #ddd;color:#2563eb;\">${cat}</td>\n      </tr>${detailRows}`;
+    }).join('');
+
+    const html = `
+      <html>
+        <head>
+          <title>Stock Report - ${useAuthStore.getState().shopName}</title>
+          <style>
+            @page { size: A4 landscape; margin: 10mm; }
+            body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 11px; color: #1a1a1a; padding: 20px; margin: 0; }
+            .header { text-align: center; margin-bottom: 16px; padding-bottom: 12px; border-bottom: 3px solid #2563eb; }
+            .header h1 { font-size: 24px; margin: 0; color: #1a1a1a; }
+            .header p { font-size: 12px; color: #666; margin: 3px 0; }
+            .summary-row { display: flex; gap: 12px; margin-bottom: 20px; }
+            .summary-card { flex: 1; padding: 10px 14px; border: 1px solid #e5e7eb; border-radius: 8px; text-align: center; }
+            .summary-card .value { font-size: 20px; font-weight: 800; }
+            .summary-card .label { font-size: 9px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 2px; }
+            table { width: 100%; border-collapse: collapse; font-size: 10px; }
+            th { background: #f3f4f6; text-align: left; padding: 7px 6px; border: 1px solid #d1d5db; font-size: 9px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; }
+            td { padding: 5px 6px; border: 1px solid #e5e7eb; }
+            .cat-header { background: #eff6ff; font-weight: 700; font-size: 11px; color: #2563eb; }
+            .cat-header td { padding: 7px 6px; }
+            .total-row { background: #f9fafb; font-weight: 800; }
+            .total-row td { padding: 8px 6px; border-top: 2px solid #d1d5db; }
+            .text-right { text-align: right; }
+            .footer { text-align: center; font-size: 9px; color: #9ca3af; margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; }
+          </style>
+        </head>
+        <body>
+          <div class=\"header\">
+            <h1>${useAuthStore.getState().shopName || 'Shop'}</h1>
+            <p>Stock Report &mdash; ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+            <p style=\"font-size:10px;color:#888;\">Generated at ${new Date().toLocaleTimeString('en-IN')}</p>
+          </div>\n\n          <div class=\"summary-row\">
+            <div class=\"summary-card\"><div class=\"value\">${totalProducts}</div><div class=\"label\">Total Products</div></div>
+            <div class=\"summary-card\"><div class=\"value\">${totalStock.toFixed(0)}</div><div class=\"label\">Total Stock</div></div>
+            <div class=\"summary-card\"><div class=\"value\" style=\"color:#059669;\">${formatCurrency(totalValue)}</div><div class=\"label\">Stock Value</div></div>
+            <div class=\"summary-card\"><div class=\"value\" style=\"color:${outOfStock > 0 ? '#d97706' : '#059669'};\">${outOfStock}</div><div class=\"label\">Out of Stock</div></div>
+          </div>\n\n          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Grade</th>
+                <th class=\"text-right\">Stock</th>
+                <th class=\"text-right\">Weight</th>
+                <th class=\"text-right\">Rate</th>
+                <th class=\"text-right\">Value</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${categoryRows}
+              <tr class=\"total-row\">
+                <td colspan=\"3\">Grand Total</td>
+                <td class=\"text-right\">${totalStock.toFixed(0)}</td>
+                <td class=\"text-right\"></td>
+                <td class=\"text-right\"></td>
+                <td class=\"text-right\" style=\"color:#059669;\">${formatCurrency(totalValue)}</td>
+              </tr>
+            </tbody>
+          </table>\n\n          <div class=\"footer\">
+            Generated by Vendora POS &mdash; ${new Date().toLocaleString('en-IN')} &middot; Showing all ${totalProducts} products
+          </div>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); }, 500);
+  };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -688,12 +826,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            {view === 'list' ? <Package className="w-5 h-5" /> : view === 'add' ? <PackagePlus className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
+            {view === 'list' ? <Package className="w-5 h-5" /> : view === 'add' ? <PackagePlus className="w-5 h-5" /> : view === 'report' ? <FileText className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
           </div>
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
+                {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : view === 'report' ? 'Stock Report' : `Edit: ${editingProduct?.name}`}
               </h1>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
@@ -706,7 +844,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {view !== 'list' ? (
+          {view === 'report' ? (
+            <>
+              <button onClick={handlePrintFullReport} className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
+                <Printer className="w-3.5 h-3.5" /> Print Report
+              </button>
+              <button onClick={() => { loadProducts(true); setView('list'); }} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer" title="Back to list">
+                <X className="w-4 h-4" />
+              </button>
+            </>
+          ) : view !== 'list' ? (
             <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer" title="Back to list">
               <X className="w-4 h-4" />
             </button>
@@ -727,7 +874,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search by name, barcode, or category..."
+                placeholder="Search by name, barcode, brand, or category..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
                 className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
@@ -755,6 +902,9 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             </select>
             <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border/80 rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
               <Save className="w-4 h-4" />
+            </button>
+            <button onClick={openReport} className="px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
+              <FileText className="w-4 h-4" /> Stock Report
             </button>
             <button onClick={openAdd} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
               <Plus className="w-4 h-4" /> Add Product
@@ -1326,6 +1476,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         </div>
+      )}
+
+      {view === 'report' && (
+        <ReportView
+          products={reportProducts}
+          grades={grades}
+        />
       )}
 
       {printModalProduct && (

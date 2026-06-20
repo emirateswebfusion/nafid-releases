@@ -14,7 +14,6 @@ import { PartyManager } from './components/PartyManager';
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
 import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
-import { StockPrint } from './components/StockPrint';
 import { ScrapManager } from './components/ScrapManager';
 import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
@@ -63,11 +62,11 @@ function App() {
   const { currentUserRole, addItem } = useCartStore();
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const [showInventoryManager, setShowInventoryManager] = useState(false);
+  const [inventoryInitialView, setInventoryInitialView] = useState<'list' | 'report'>('list');
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
-  const [showStockPrint, setShowStockPrint] = useState(false);
   const [showScrapManager, setShowScrapManager] = useState(false);
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
@@ -104,22 +103,22 @@ function App() {
   }, [isAuthenticated, syncChecked]);
 
   useEffect(() => {
-    const handleOpenInv = () => setShowInventoryManager(true);
+    const handleOpenInv = () => { setInventoryInitialView('list'); setShowInventoryManager(true); };
+    const handleOpenStockReport = () => { setInventoryInitialView('report'); setShowInventoryManager(true); };
     const handleOpenHistory = () => setShowSalesHistory(true);
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
     const handleOpenParties = () => setShowPartyManager(true);
-    const handleOpenStockPrint = () => setShowStockPrint(true);
     const handleOpenScrapManager = () => setShowScrapManager(true);
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
     
     window.addEventListener('open-inventory-manager', handleOpenInv);
+    window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
     window.addEventListener('open-parties-manager', handleOpenParties);
-    window.addEventListener('open-stock-print', handleOpenStockPrint);
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
@@ -148,12 +147,12 @@ function App() {
 
     return () => {
       window.removeEventListener('open-inventory-manager', handleOpenInv);
+      window.removeEventListener('open-stock-report', handleOpenStockReport);
       window.removeEventListener('open-sales-history', handleOpenHistory);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);
       window.removeEventListener('open-parties-manager', handleOpenParties);
-      window.removeEventListener('open-stock-print', handleOpenStockPrint);
-      window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
+        window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
     };
@@ -214,9 +213,7 @@ function App() {
       {showStaffManager && <StaffManager onClose={() => setShowStaffManager(false)} />}
       {showPartyManager && <PartyManager onClose={() => setShowPartyManager(false)} />}
 
-      {showStockPrint ? (
-        <StockPrint onClose={() => setShowStockPrint(false)} />
-      ) : showScrapManager ? (
+      {showScrapManager ? (
         <ScrapManager onClose={() => setShowScrapManager(false)} />
       ) : showQuotationManager ? (
         <QuotationManager onClose={() => setShowQuotationManager(false)} />
@@ -227,7 +224,7 @@ function App() {
       ) : showSalesHistory ? (
         <SalesHistory onClose={() => setShowSalesHistory(false)} />
       ) : showInventoryManager ? (
-        <InventoryManager onClose={() => setShowInventoryManager(false)} />
+        <InventoryManager onClose={() => setShowInventoryManager(false)} initialView={inventoryInitialView} />
       ) : currentUserRole === 'OWNER' ? (
         <OwnerDashboard />
       ) : (

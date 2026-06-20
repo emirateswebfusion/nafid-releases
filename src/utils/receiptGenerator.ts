@@ -1,14 +1,22 @@
+import QRCode from 'qrcode';
+
 export interface ReceiptItem {
   name: string;
   quantity: number | string;
   unit_price: number;
   total: number;
+  originalRate?: number;
+  discountLabel?: string;
 }
 
 export interface ReceiptData {
   shopName: string;
   shopGstin?: string;
   shopState?: string;
+  shopAddress?: string;
+  shopPhone?: string;
+  upiId?: string;
+  showUpiQr?: boolean;
   invoiceNumber: string;
   date: string;
   cashierName?: string;
@@ -64,6 +72,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   
   // Header
   text += centerText(data.shopName, charsPerLine) + '\n';
+  if (data.shopAddress) {
+    text += centerText(data.shopAddress, charsPerLine) + '\n';
+  }
+  if (data.shopPhone) {
+    text += centerText(`Phone: ${data.shopPhone}`, charsPerLine) + '\n';
+  }
   if (data.shopGstin) {
     text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
   }
@@ -114,6 +128,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
       let totalStr = item.total.toFixed(2);
 
       text += padRight(name, itemNameWidth) + ' ' + padLeft(qtyStr, qtyWidth) + ' ' + padLeft(rateStr, rateWidth) + ' ' + padLeft(totalStr, totalWidth) + '\n';
+      // Show discount label if present
+      if (item.discountLabel && item.originalRate != null) {
+        text += padRight(`  ${item.discountLabel} (was ${item.originalRate.toFixed(2)})`, itemNameWidth) + '\n';
+      }
     });
   } else {
     // 58mm printer (32 chars) - Two line format
@@ -126,6 +144,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
       let qtyRateStr = `  ${item.quantity} x ${item.unit_price.toFixed(2)}`;
       let totalStr = item.total.toFixed(2);
       text += padRight(qtyRateStr, charsPerLine - totalStr.length) + totalStr + '\n';
+      // Show discount label if present
+      if (item.discountLabel && item.originalRate != null) {
+        text += `  ${item.discountLabel}\n`;
+      }
     });
   }
 
@@ -169,8 +191,83 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   text += divider + '\n';
 
   // Footer
+  if (data.upiId) {
+    text += separator + '\n';
+    text += centerText('PAY VIA UPI', charsPerLine) + '\n';
+    text += centerText(data.upiId, charsPerLine) + '\n';
+
+    // Generate QR code with pre-filled amount
+    if (data.showUpiQr) {
+      try {
+        const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent(data.shopName)}&am=${data.grandTotal.toFixed(2)}&cu=INR`;
+        const qrAscii = generateQrAscii(upiUrl, charsPerLine);
+        if (qrAscii) {
+          text += '\n' + qrAscii + '\n';
+        }
+      } catch {
+        // QR generation failed silently
+      }
+    }
+  }
+  text += separator + '\n';
   text += centerText('Thank you for your visit!', charsPerLine) + '\n';
   text += centerText('Have a great day', charsPerLine) + '\n';
 
   return text;
+}
+
+/**
+ * Generates a QR code as ASCII art using Unicode block characters.
+ */
+function generateQrAscii(text: string, maxWidth: number): string {
+  const qr = QRCode.create(text, { errorCorrectionLevel: 'M' });
+  const size = qr.modules.size;
+  const modules = qr.modules.data;
+
+  // Scale down the QR if it's wider than the receipt
+  // Each module takes 2 characters (██) so width in chars = size * 2 + margins
+  const margin = 4;
+  const rawWidth = size * 2 + margin * 2;
+
+  let result = '';
+
+  if (rawWidth <= maxWidth) {
+    // Fit directly with spaces margin
+    const leftPad = ' '.repeat(Math.max(0, Math.floor((maxWidth - rawWidth) / 2)));
+
+    for (let row = 0; row < size; row += 2) {
+      let line = leftPad + ' '.repeat(margin);
+      for (let col = 0; col < size; col++) {
+        const top = modules[row * size + col] !== 0;
+        const bottom = row + 1 < size ? modules[(row + 1) * size + col] !== 0 : false;
+
+        if (top && bottom) line += '█';
+        else if (top && !bottom) line += '▀';
+        else if (!top && bottom) line += '▄';
+        else line += ' ';
+        line += ' '; // extra space for readability
+      }
+      result += line + '\n';
+    }
+  } else {
+    // Too wide - use smaller rendering with 1-char blocks
+    const scale = Math.ceil(rawWidth / maxWidth);
+    const scaledSize = Math.max(1, Math.floor(size / scale));
+    const scaledWidth = scaledSize * 2 + margin * 2;
+    const leftPad = ' '.repeat(Math.max(0, Math.floor((maxWidth - scaledWidth) / 2)));
+
+    for (let r = 0; r < scaledSize; r++) {
+      let line = leftPad + ' '.repeat(margin);
+      const srcRow = Math.min(Math.floor(r * scale), size - 1);
+      for (let c = 0; c < scaledSize; c++) {
+        const srcCol = Math.min(Math.floor(c * scale), size - 1);
+        const val = modules[srcRow * size + srcCol] !== 0;
+        line += val ? '██' : '  ';
+      }
+      result += line + '\n';
+    }
+  }
+
+  // Remove trailing newline
+  return result.replace(/\n$/, '');
 }

@@ -50,7 +50,7 @@ export function OwnerDashboard() {
             icon: Printer,
             color: 'text-primary',
             bgColor: 'bg-primary/10',
-            action: () => window.dispatchEvent(new CustomEvent('open-stock-print')),
+            action: () => window.dispatchEvent(new CustomEvent('open-stock-report')),
         },
         {
             id: 'quotations',

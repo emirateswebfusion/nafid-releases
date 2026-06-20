@@ -211,8 +211,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           <Button onClick={() => { resetForm(); setView('add'); }} size="sm">
             <Plus className="w-4 h-4 mr-1.5" /> New Party
           </Button>
-          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground rounded-full hover:bg-muted transition-colors">
-            <X className="w-5 h-5" />
+          <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5">
+            <X className="w-3.5 h-3.5" />
+            Close
           </button>
         </div>
       </div>

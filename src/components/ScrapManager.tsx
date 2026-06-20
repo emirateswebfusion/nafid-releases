@@ -257,7 +257,10 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
             <>
               <button onClick={() => setShowCategoryManager(true)} className="px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">Manage Categories</button>
               <button onClick={() => { setFormData({ name: '', scrap_category_id: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' }); setView('add'); }} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all"><Plus className="w-4 h-4" /> Add Scrap Item</button>
-              <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors">Close</button>
+              <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5">
+                <X className="w-3.5 h-3.5" />
+                Close
+              </button>
             </>
           ) : (
             <button onClick={() => setView('list')} className="p-2 bg-muted hover:bg-muted/80 text-muted-foreground rounded-lg transition-colors"><X className="w-5 h-5" /></button>

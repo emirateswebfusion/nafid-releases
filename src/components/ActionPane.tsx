@@ -90,11 +90,22 @@ export function ActionPane() {
       setHardwareError(null);
 
       try {
+        const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        ]);
+
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
 
         const receiptData: ReceiptData = {
           shopName: shopName || 'My Shop',
+          shopAddress: shopAddr || undefined,
+          shopPhone: shopPh || undefined,
+          upiId: upi || undefined,
+          showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           invoiceNumber: invoice_number,
           date: new Date().toLocaleString(),
           cashierName: useAuthStore.getState().role || undefined,

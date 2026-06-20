@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Lock, Key, Tags, Building, Receipt, Usb,
-  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus
+  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
+  Smartphone, X
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -53,6 +54,7 @@ const GENERAL_SECTIONS: SettingSection[] = [
   { id: 'invoice', icon: Receipt, title: 'Invoice Numbering', desc: 'Set a starting number. The system auto-increments from here.', ownerOnly: true },
   { id: 'bulk', icon: Upload, title: 'Bulk Import & Printing', desc: 'Import products in bulk and print barcode labels', ownerOnly: true },
   { id: 'gst', icon: Building, title: 'Shop GST Details', desc: 'Configure your business GSTIN and default State for GST invoices.', ownerOnly: true },
+  { id: 'shop', icon: Building, title: 'Shop Details', desc: 'Manage your business name, address, phone, and UPI payment ID.', ownerOnly: true },
   { id: 'coding', icon: Tags, title: 'Purchase Price Coding', desc: 'Assign alphabets to each digit to code your purchase prices.', ownerOnly: true },
   { id: 'barcode-printer', icon: Printer, title: 'Barcode Label Printer', desc: 'Configure your barcode label printer connection and label dimensions.' },
   { id: 'receipt-printer', icon: Printer, title: 'Bill Receipt Printer', desc: 'Configure your receipt printer connection and paper width.' },
@@ -99,6 +101,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   });
   const [shopGstin, setShopGstin] = useState('');
   const [shopState, setShopState] = useState('MH');
+  const [shopNameLocal, setShopNameLocal] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+  const [shopPhone, setShopPhone] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [showUpiQr, setShowUpiQr] = useState(true);
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
 
@@ -118,7 +125,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       invoiceStartNumber,
     });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, scale, priceCoding, shopGstin, shopState, invoicePrefix, invoiceStartNumber]);
+  }, [barcodePrinter, receiptPrinter, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, invoicePrefix, invoiceStartNumber]);
 
   useEffect(() => {
     loadSettings();
@@ -143,6 +150,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         priceCoding,
         shopGstin,
         shopState,
+        shopNameLocal,
+        shopAddress,
+        shopPhone,
+        upiId,
+        showUpiQr,
         invoicePrefix,
         invoiceStartNumber,
       });
@@ -159,6 +171,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       const pCoding = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' });
       const gstinVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' });
       const stateVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' });
+      const nameVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' });
+      const addressVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' });
+      const phoneVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' });
+      const upiVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' });
+      const showQrVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' });
 
       if (pBarcode) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pBarcode });
       else if (pLegacy) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pLegacy });
@@ -169,6 +186,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (pCoding) setPriceCoding(pCoding);
       if (gstinVal) setShopGstin(gstinVal);
       if (stateVal) setShopState(stateVal);
+      if (nameVal) setShopNameLocal(nameVal);
+      if (addressVal) setShopAddress(addressVal);
+      if (phoneVal) setShopPhone(phoneVal);
+      if (upiVal) setUpiId(upiVal);
+      if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
 
       const invCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' });
       if (invCfg) {
@@ -262,6 +284,41 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         });
         if (!resShopState.success) throw new Error(resShopState.error);
 
+        const resShopName = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'shop_name',
+          value: shopNameLocal
+        });
+        if (!resShopName.success) throw new Error(resShopName.error);
+
+        const resShopAddress = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'shop_address',
+          value: shopAddress
+        });
+        if (!resShopAddress.success) throw new Error(resShopAddress.error);
+
+        const resShopPhone = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'shop_phone',
+          value: shopPhone
+        });
+        if (!resShopPhone.success) throw new Error(resShopPhone.error);
+
+        const resUpiId = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'upi_id',
+          value: upiId
+        });
+        if (!resUpiId.success) throw new Error(resUpiId.error);
+
+        const resShowQr = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'show_upi_qr',
+          value: showUpiQr
+        });
+        if (!resShowQr.success) throw new Error(resShowQr.error);
+
         const resInvNum = await window.electronAPI.settingsSet({
           tenant_id: tenantId || 'global',
           key: 'invoice_counter_config',
@@ -280,13 +337,19 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           priceCoding,
           shopGstin,
           shopState,
+          shopNameLocal,
+          shopAddress,
+          shopPhone,
+          upiId,
+          showUpiQr,
           invoicePrefix,
           invoiceStartNumber,
         });
-        setTimeout(() => setMessage(null), 4000);
+        setTimeout(() => setMessage(null), 3000);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
+      setTimeout(() => setMessage(null), 3000);
     }
     setSaving(false);
   };
@@ -303,6 +366,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (res && res.success === false) {
         setUpdateStatus(null);
         setMessage({ type: 'error', text: res.error });
+        setTimeout(() => setMessage(null), 3000);
       } else if (res.updateInfo) {
         setUpdateInfo({ version: res.updateInfo.version, releaseDate: res.updateInfo.releaseDate, releaseNotes: res.updateInfo.releaseNotes });
         setUpdateStatus(`Update available`);
@@ -312,6 +376,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     } catch (err: any) {
       setUpdateStatus(null);
       setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` });
+      setTimeout(() => setMessage(null), 3000);
     } finally {
       setCheckingUpdate(false);
     }
@@ -321,10 +386,12 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     if (!pass.old || !pass.new) {
       setMessage({ type: 'error', text: 'Current and new passwords are required.' });
+      setTimeout(() => setMessage(null), 3000);
       return;
     }
     if (pass.new !== pass.confirm) {
       setMessage({ type: 'error', text: 'New passwords do not match.' });
+      setTimeout(() => setMessage(null), 3000);
       return;
     }
 
@@ -336,11 +403,14 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (res.success) {
         setMessage({ type: 'success', text: 'Password updated successfully!' });
         setPass({ old: '', new: '', confirm: '' });
+        setTimeout(() => setMessage(null), 3000);
       } else {
         setMessage({ type: 'error', text: res.error || 'Failed to update password.' });
+        setTimeout(() => setMessage(null), 3000);
       }
     } catch (err: any) {
       setMessage({ type: 'error', text: err.message });
+      setTimeout(() => setMessage(null), 3000);
     } finally {
       setChangingPass(false);
     }
@@ -351,7 +421,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     if (!message) return null;
     return (
       <div className={clsx(
-        "fixed top-6 right-6 z-50 px-5 py-3.5 rounded-xl border shadow-lg flex items-center gap-3 text-sm animate-in fade-in slide-in-from-top-2 max-w-md",
+        "fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-xl border shadow-lg flex items-center gap-3 text-sm animate-in fade-in slide-in-from-bottom-2 max-w-md",
         message.type === 'success'
           ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
           : "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
@@ -448,6 +518,80 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   </option>
                 ))}
               </select>
+            </div>
+          </div>
+        );
+
+      case 'shop':
+        return (
+          <div className="mt-5 grid grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop Name</label>
+              <Input
+                type="text"
+                value={shopNameLocal}
+                onChange={(e) => setShopNameLocal(e.target.value)}
+                placeholder="Your business name"
+                className="font-semibold"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Phone Number</label>
+              <Input
+                type="text"
+                value={shopPhone}
+                onChange={(e) => setShopPhone(e.target.value)}
+                placeholder="e.g. +91 98765 43210"
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop Address</label>
+              <textarea
+                value={shopAddress}
+                onChange={(e) => setShopAddress(e.target.value)}
+                placeholder="Enter your business address..."
+                rows={3}
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none text-sm font-medium"
+              />
+            </div>
+            <div className="col-span-2 space-y-2">
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                UPI ID
+                <span className="ml-2 text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">Shown on receipts</span>
+              </label>
+              <div className="relative">
+                <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+                <Input
+                  type="text"
+                  value={upiId}
+                  onChange={(e) => setUpiId(e.target.value)}
+                  placeholder="e.g. shopname@upi"
+                  className="pl-10 font-mono font-semibold"
+                />
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                This UPI ID will appear on printed receipts for customer payments.
+              </p>
+            </div>
+            <div className="col-span-2 flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-xl">
+              <button
+                onClick={() => setShowUpiQr(!showUpiQr)}
+                className={clsx(
+                  'relative w-12 h-6 rounded-full transition-all duration-200 shrink-0',
+                  showUpiQr ? 'bg-primary' : 'bg-muted-foreground/30'
+                )}
+              >
+                <span className={clsx(
+                  'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200',
+                  showUpiQr ? 'translate-x-6' : 'translate-x-0'
+                )} />
+              </button>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-foreground">Show UPI QR Code on Receipt</label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">
+                  When enabled, a QR code with the bill amount pre-filled will appear on printed receipts. Customers scan to pay directly.
+                </p>
+              </div>
             </div>
           </div>
         );
@@ -734,7 +878,36 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* Update Info Card */}
+            {/* Up-to-date Confirmation Card */}
+            {updateStatus === 'Up to date' && !updateInfo && (
+              <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] to-transparent overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-emerald-500/10">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      {appVersion} — You're on the latest version
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      No updates available at this time. You'll be notified when a new version is released.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/20">
+                    UP TO DATE
+                  </span>
+                </div>
+                {lastChecked && (
+                  <div className="px-5 py-2.5 bg-emerald-500/[0.02] border-t border-emerald-500/5">
+                    <p className="text-[11px] text-muted-foreground/70">
+                      Last checked {formatTimeAgo(lastChecked)} &middot; Check again anytime
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Update Available Card */}
             {updateInfo && (
               <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.04] to-transparent overflow-hidden">
                 {/* Card header */}
@@ -884,8 +1057,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           <button onClick={onClose}
-            className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors">
-            Cancel
+            className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5">
+            <X className="w-3.5 h-3.5" />
+            Close
           </button>
           {activeTab !== 'grades' && hasChanges && (
             <button onClick={handleSave} disabled={saving}

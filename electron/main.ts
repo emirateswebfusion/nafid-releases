@@ -235,15 +235,20 @@ ipcMain.handle('app:checkForUpdates', async () => {
   try {
     const result = await autoUpdater.checkForUpdatesAndNotify();
     // result contains complex objects (like CancellationToken) that cannot be cloned over IPC.
-    // We only return the updateInfo which is serializable, or just a boolean success.
-    const updateInfo = result?.updateInfo || null;
-    return { success: true, updateInfo };
+    // We only return the updateInfo which is serializable.
+    if (result && result.updateInfo) {
+      return { success: true, updateInfo: result.updateInfo };
+    }
+    // No update available — already on latest version
+    return { success: true, updateInfo: null };
   } catch (error: any) {
     console.error('[Updater] Manual check error:', error);
-    if (error.message && error.message.includes('404')) {
-      return { success: false, error: 'Update check failed: No updates found or repository is private. Please ensure a GitHub token is configured if using a private repository.' };
+    const msg = error.message || '';
+    // 404 means no release found on the current channel — likely already up-to-date
+    if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
+      return { success: true, updateInfo: null };
     }
-    return { success: false, error: error.message };
+    return { success: false, error: msg };
   }
 });
 
@@ -265,8 +270,15 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        query += ' AND (p.sku_barcode = ? OR p.item_code = ?)';
        params.push(barcode, barcode);
     } else if (search) {
-       query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
-       params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+       // Numeric search: only match barcode/item_code with prefix (so "87" → 8749,8750 NOT 987,687, nor names containing "87")
+       if (/^\d+$/.test(search)) {
+         query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
+         params.push(`${search}%`, `${search}%`);
+       } else {
+         // Text search: name/brand substring, barcode/item_code prefix
+         query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ?)';
+         params.push(`%${search}%`, `${search}%`, `${search}%`, `%${search}%`);
+       }
     }
 
     if (filterDate) {
@@ -309,8 +321,14 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     const params: any[] = [tenantId];
     
     if (arg?.search) {
-       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ?)';
-       params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`);
+       // Mirror logic from db:getProducts — numeric: barcode/code only; text: all fields
+       if (/^\d+$/.test(arg.search)) {
+         query += ' AND (sku_barcode LIKE ? OR item_code LIKE ?)';
+         params.push(`${arg.search}%`, `${arg.search}%`);
+       } else {
+         query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ?)';
+         params.push(`%${arg.search}%`, `${arg.search}%`, `${arg.search}%`, `%${arg.search}%`);
+       }
     }
 
     if (arg?.filterDate) {

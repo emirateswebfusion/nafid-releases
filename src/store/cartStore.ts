@@ -15,6 +15,9 @@ export interface CartItem {
   weight_override_allowed?: boolean | number;
   calculated_weight?: number;
   grade_rate?: number;
+  discount_percent?: number | null;
+  discount_flat?: number | null;
+  offer_price?: number | null;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -131,9 +134,20 @@ export const useCartTotals = () => {
   let totalTax = 0;
 
   items.forEach(item => {
-    const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+    const rawRate = item.pricing_mode === 'GRADE_RATE' 
       ? item.base_price + (item.grade_rate || 0) 
       : item.base_price;
+
+    // Apply per-item discount / offer price (mirrors the logic in BillingPage.tsx)
+    let effectiveRate = rawRate;
+    if (item.offer_price) {
+      effectiveRate = Number(item.offer_price);
+    } else if (item.discount_flat) {
+      effectiveRate = rawRate - Number(item.discount_flat);
+    } else if (item.discount_percent) {
+      effectiveRate = rawRate * (1 - Number(item.discount_percent) / 100);
+    }
+    effectiveRate = Math.max(effectiveRate, 0);
       
     const itemTotal = item.billing_type === 'WEIGHT'
       ? effectiveRate * (item.calculated_weight || 0)

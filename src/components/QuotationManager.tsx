@@ -237,7 +237,10 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
           ) : (
             <>
               <button onClick={() => { setShowCreate(true); loadProducts(); }} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all"><Plus className="w-4 h-4" /> New Quotation</button>
-              <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors">Close</button>
+              <button onClick={onClose} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5">
+                <X className="w-3.5 h-3.5" />
+                Close
+              </button>
             </>
           )}
         </div>

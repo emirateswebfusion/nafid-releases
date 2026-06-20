@@ -171,12 +171,11 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-            title="Back"
+          <button onClick={onClose}
+            className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
+            Close
           </button>
         </div>
       </header>
@@ -358,11 +357,21 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                       if (!selectedInvoice || !window.electronAPI) return;
                       try {
                         const { tenantId } = useAuthStore.getState();
+                        const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+                          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+                          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+                          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+                          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+                        ]);
                         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
 
                         const receiptData: ReceiptData = {
                           shopName: useAuthStore.getState().shopName || 'My Shop',
+                          shopAddress: shopAddr || undefined,
+                          shopPhone: shopPh || undefined,
+                          upiId: upi || undefined,
+                          showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
                           invoiceNumber: selectedInvoice.invoice_number,
                           date: new Date(selectedInvoice.created_at).toLocaleString(),
                           cashierName: selectedInvoice.cashier_name,

@@ -66,6 +66,24 @@ export function BillingPage() {
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, taxableAmount } = useCartTotals();
 
+  // Calculate total savings from per-item offers/discounts (before global F8 discount)
+  const totalItemSavings = items.reduce((sum, item) => {
+    const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+    const qty = Number(item.quantity) || 0;
+    const rawTotal = item.billing_type === 'WEIGHT' ? rate * (item.calculated_weight || 0) : rate * qty;
+    let effectivePrice = rate;
+    if (item.offer_price) {
+      effectivePrice = Number(item.offer_price);
+    } else if (item.discount_flat) {
+      effectivePrice = rate - Number(item.discount_flat);
+    } else if (item.discount_percent) {
+      effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
+    }
+    effectivePrice = Math.max(effectivePrice, 0);
+    const total = item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty;
+    return sum + (rawTotal - total);
+  }, 0);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -77,6 +95,10 @@ export function BillingPage() {
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const [shopGstin, setShopGstin] = useState('');
+  const [shopAddress, setShopAddress] = useState('');
+  const [shopPhone, setShopPhone] = useState('');
+  const [upiId, setUpiId] = useState('');
+  const [showUpiQr, setShowUpiQr] = useState(true);
   const [nextInvoiceNumber, setNextInvoiceNumber] = useState('');
 
   const tabs = useTabStore(s => s.tabs);
@@ -109,13 +131,7 @@ export function BillingPage() {
     handleAddTab();
   }, []);
 
-  useEffect(() => {
-    if (paymentMethod !== 'CASH') {
-      updateActiveTab({ receivedAmount: grandTotal });
-    } else if (receivedAmount === 0) {
-      updateActiveTab({ receivedAmount: grandTotal });
-    }
-  }, [paymentMethod, grandTotal]);
+  // receivedAmount stays 0 until user enters a value — no auto-fill to grandTotal
 
   useEffect(() => {
     searchRef.current?.focus();
@@ -125,6 +141,18 @@ export function BillingPage() {
     if (!window.electronAPI) return;
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
       if (v) setShopGstin(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+      if (v) setShopAddress(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+      if (v) setShopPhone(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
+      if (v) setUpiId(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
+      if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' }).then((cfg: any) => {
       if (cfg) {
@@ -154,8 +182,22 @@ export function BillingPage() {
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
-      const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: 8 });
-      if (Array.isArray(products)) { setResults(products); setSelectedIndex(0); }
+      // Numeric searches fetch more results so client-side prefix filtering doesn't miss valid barcode matches
+      const fetchLimit = /^\d+$/.test(searchQuery) ? 50 : 8;
+      const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit });
+      if (Array.isArray(products)) {
+        // Client-side filter: for numeric searches, only show prefix matches on barcode/item_code
+        // (backend fix in main.ts requires Electron restart, this works immediately)
+        const filtered = /^\d+$/.test(searchQuery)
+          ? products.filter(p => {
+              const barcode = String(p.sku_barcode || '');
+              const code = String(p.item_code || '');
+              return barcode.startsWith(searchQuery) || code.startsWith(searchQuery);
+            })
+          : products;
+        setResults(filtered);
+        setSelectedIndex(0);
+      }
     }, 150);
     return () => clearTimeout(t);
   }, [searchQuery]);
@@ -245,6 +287,9 @@ export function BillingPage() {
             grade_rate: item.grade_rate,
             average_weight_per_piece: item.average_weight_per_piece,
             weight_override_allowed: item.weight_override_allowed,
+            discount_percent: item.discount_percent ?? null,
+            discount_flat: item.discount_flat ?? null,
+            offer_price: item.offer_price ?? null,
           });
           // Set the quantity
           const qty = Number(item.quantity) || 1;
@@ -297,6 +342,9 @@ export function BillingPage() {
       average_weight_per_piece: product.average_weight_per_piece,
       weight_override_allowed: product.weight_override_allowed === 1 || product.weight_override_allowed === true,
       grade_rate: product.grade_rate,
+      discount_percent: product.discount_percent ?? null,
+      discount_flat: product.discount_flat ?? null,
+      offer_price: product.offer_price ?? null,
     });
     setSearchQuery('');
     setResults([]);
@@ -339,8 +387,20 @@ export function BillingPage() {
     const lineItems = items.map(item => {
       const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
-      const total = item.billing_type === 'WEIGHT' ? rate * (item.calculated_weight || 0) : rate * qty;
-      const unitPrice = qty > 0 ? total / qty : rate;
+
+      // Apply per-item discount to get effective rate
+      let effectiveRate = rate;
+      if (item.offer_price) {
+        effectiveRate = Number(item.offer_price);
+      } else if (item.discount_flat) {
+        effectiveRate = rate - Number(item.discount_flat);
+      } else if (item.discount_percent) {
+        effectiveRate = rate * (1 - Number(item.discount_percent) / 100);
+      }
+      effectiveRate = Math.max(effectiveRate, 0);
+
+      const total = item.billing_type === 'WEIGHT' ? effectiveRate * (item.calculated_weight || 0) : effectiveRate * qty;
+      const unitPrice = qty > 0 ? total / qty : effectiveRate;
       return { item_id: uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
     });
 
@@ -355,9 +415,25 @@ export function BillingPage() {
       const receiptData: ReceiptData = {
         shopName: shopName || 'My Shop', shopGstin: invoiceType === 'GST' ? shopGstin || undefined : undefined,
         shopState: invoiceType === 'GST' ? state.shopState || undefined : undefined,
+        shopAddress: shopAddress || undefined,
+        shopPhone: shopPhone || undefined,
+        upiId: upiId || undefined,
+        showUpiQr: showUpiQr,
         invoiceNumber: invoice_number, date: new Date().toLocaleString(),
         cashierName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
-        items: lineItems.map(i => ({ name: i.name, quantity: i.quantity, unit_price: i.unit_price, total: i.total })),
+        items: lineItems.map((i, idx) => {
+          const cartItem = items[idx];
+          let originalRate = cartItem.pricing_mode === 'GRADE_RATE' ? cartItem.base_price + (cartItem.grade_rate || 0) : cartItem.base_price;
+          let discountLabel: string | undefined;
+          if (cartItem.offer_price) {
+            discountLabel = 'Offer';
+          } else if (cartItem.discount_flat) {
+            discountLabel = `-₹${Number(cartItem.discount_flat).toFixed(0)}`;
+          } else if (cartItem.discount_percent) {
+            discountLabel = `${cartItem.discount_percent}% OFF`;
+          }
+          return { name: i.name, quantity: i.quantity, unit_price: i.unit_price, total: i.total, originalRate: discountLabel ? originalRate : undefined, discountLabel };
+        }),
         subtotal, tax: totalTax,
         cgst: invoiceType === 'GST' ? cgst : undefined,
         sgst: invoiceType === 'GST' ? sgst : undefined,
@@ -671,7 +747,9 @@ export function BillingPage() {
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[260px] overflow-y-auto">
                     {results.map((p, i) => {
-                      const price = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
+                      const mrp = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
+                      const showOffer = p.offer_price && Number(p.offer_price) > 0;
+                      const displayPrice = showOffer ? Number(p.offer_price) : mrp;
                       const isSelected = i === selectedIndex;
                       return (
                         <button
@@ -703,7 +781,16 @@ export function BillingPage() {
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-primary">{formatCurrency(price)}</div>
+                            {showOffer ? (
+                              <div className="flex items-center gap-1">
+                                <span className="text-[10px] text-muted-foreground/70 font-semibold">MRP:</span>
+                                <span className="text-xs font-semibold text-muted-foreground line-through">{formatCurrency(mrp)}</span>
+                                <span className="text-[10px] text-destructive font-semibold ml-1">Offer:</span>
+                                <span className="font-black text-sm text-destructive">{formatCurrency(displayPrice)}</span>
+                              </div>
+                            ) : (
+                              <div className="font-black text-sm text-primary">{formatCurrency(displayPrice)}</div>
+                            )}
                           </div>
                         </button>
                       );
@@ -719,8 +806,10 @@ export function BillingPage() {
             <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
               Items in Cart {items.length > 0 && `(${items.length})`}
             </span>
-            {items.length > 0 && (
-              <span className="text-sm font-bold text-muted-foreground">Subtotal: {formatCurrency(subtotal)}</span>
+            {items.length > 0 && totalItemSavings > 0 && (
+              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
+                Total Savings: {formatCurrency(totalItemSavings)}
+              </span>
             )}
           </div>
 
@@ -824,9 +913,27 @@ export function BillingPage() {
             ) : (
               items.map(item => {
                 const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
-                const total = item.billing_type === 'WEIGHT'
-                  ? rate * (item.calculated_weight || 0)
-                  : rate * (Number(item.quantity) || 0);
+                const qty = Number(item.quantity) || 0;
+                const rawTotal = item.billing_type === 'WEIGHT' ? rate * (item.calculated_weight || 0) : rate * qty;
+
+                // Apply per-item discount
+                let effectivePrice = rate;
+                let discountLabel: string | null = null;
+                let discountAmount = 0;
+                if (item.offer_price) {
+                  effectivePrice = Number(item.offer_price);
+                  discountLabel = 'OFFER';
+                  discountAmount = rawTotal - (item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty);
+                } else if (item.discount_flat) {
+                  effectivePrice = rate - Number(item.discount_flat);
+                  discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
+                  discountAmount = Number(item.discount_flat) * qty;
+                } else if (item.discount_percent) {
+                  effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
+                  discountLabel = `${item.discount_percent}% OFF`;
+                  discountAmount = (rate - effectivePrice) * qty;
+                }
+                const total = item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty;
 
                 return (
                   <div
@@ -834,16 +941,30 @@ export function BillingPage() {
                     className="flex items-center gap-3 px-4 py-3 bg-card border border-border/80 hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-sm group"
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                         {item.billing_type === 'WEIGHT' && (
                           <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase tracking-wider">
                             By Weight
                           </span>
                         )}
+                        {discountLabel && (
+                          <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full border border-destructive/20">
+                            {discountLabel}
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-muted-foreground mt-0.5">
-                        Rate: <span className="font-semibold text-foreground/80">{formatCurrency(rate)}</span>
+                        {effectivePrice !== rate ? (
+                          <>
+                            <span className="text-[10px] font-semibold text-muted-foreground/70 mr-0.5">MRP:</span>
+                            <span className="line-through text-muted-foreground/60">{formatCurrency(rate)}</span>
+                            <span className="text-[10px] font-semibold text-destructive ml-1.5 mr-0.5">{discountLabel === 'OFFER' ? 'Offer:' : 'Disc:'}</span>
+                            <span className="font-bold text-destructive">{formatCurrency(effectivePrice)}</span>
+                          </>
+                        ) : (
+                          <>Rate: <span className="font-semibold text-foreground/80">{formatCurrency(rate)}</span></>
+                        )}
                       </div>
                     </div>
 
@@ -908,23 +1029,16 @@ export function BillingPage() {
         </div>
 
         {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
-        <div className="flex flex-col w-[42%] bg-card shadow-2xl z-25 overflow-hidden">
+        <div className="flex flex-col w-[42%] bg-card shadow-2xl z-25">
 
           {/* ── RIGHT PANEL HEADER ── */}
           <div className="shrink-0 px-5 py-2.5 border-b border-border/60 bg-card">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Transaction Console</p>
           </div>
 
-            {/* ── Payment Method ── */}
-            <div className="flex-1 px-5 py-3">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                  <span className="text-xs font-black text-primary-foreground">2</span>
-                </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Payment Method</span>
-              </div>
-
-              {/* 2×2 payment method grid */}
+          {/* ── Scrollable content area ── */}
+          <div className="flex-1 overflow-y-auto px-5 py-3">
+            {/* Payment method grid buttons */}
               <div className="grid grid-cols-2 gap-2">
                 {PAYMENT_OPTIONS.map(opt => {
                   const isActive = paymentMethod === opt.value;
@@ -1029,73 +1143,69 @@ export function BillingPage() {
                     onChange={e => setDiscount(e.target.value === '' ? 0 : Number(e.target.value), discountType)}
                     placeholder="0"
                     inputMode="decimal"
-                    className="w-12 h-7 bg-transparent border-0 text-sm text-right pr-2 font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-24 h-9 bg-transparent border-0 text-base text-right pr-3 font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
               </div>
 
             </div>
 
-            {/* Grand Total + Cash Received + Change Due — unified payment banner */}
-            <div className="mx-4 my-2 bg-primary/10 border-2 border-primary/25 rounded-xl overflow-hidden animate-in fade-in duration-200">
-              {/* Row 1: Grand Total */}
-              <div className="flex items-center justify-between px-5 pt-2.5 pb-2">
-                <div>
-                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.12em] mb-0.5">Grand Total</p>
-                  <p className="text-2xl font-black text-foreground tracking-tight leading-none">{formatCurrency(grandTotal)}</p>
-                </div>
-                {(paymentMethod === 'CARD' || paymentMethod === 'UPI') && (
-                  <div className="text-right">
-                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em] mb-0.5">Exact</p>
-                    <p className="text-sm font-black text-primary/80">No change</p>
-                  </div>
-                )}
+            {/* Grand Total + Received + Change — same container always (no layout shift) */}
+            <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
+              {/* Total amount */}
+              <div className="shrink-0">
+                <p className="text-[9px] font-black text-primary uppercase tracking-wider">Total</p>
+                <p className="text-xl font-black text-foreground leading-none">{formatCurrency(grandTotal)}</p>
               </div>
-
-              {/* Row 2: Cash Received input — only for CASH / CREDIT */}
-              {paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && (
-                <div className="mx-4 mb-2 flex items-center justify-between gap-3 px-3 py-2 bg-background/70 border border-primary/20 rounded-lg animate-in fade-in duration-200">
-                  <span className="text-sm font-black text-muted-foreground uppercase tracking-wider whitespace-nowrap">
-                    {paymentMethod === 'CREDIT' ? 'Amount Paid' : 'Cash Received'}
-                  </span>
-                  <div className="relative w-40 shrink-0">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/60">₹</span>
-                    <input
-                      ref={receivedInputRef}
-                      type="number"
-                      min="0"
-                      step="any"
-                      value={receivedAmount || ''}
-                      onChange={e => updateActiveTab({ receivedAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
-                      onFocus={e => e.target.select()}
-                      placeholder={grandTotal.toFixed(2)}
-                      inputMode="decimal"
-                      className="w-full pl-7 pr-3 py-2 bg-transparent focus:bg-background border border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/15 rounded-lg text-base font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                  </div>
+              {/* Divider — fades for CARD/UPI */}
+              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
+              {/* Received input — fades for CARD/UPI (keeps space) */}
+              <div className={clsx('flex-1 min-w-0 transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
+                  {paymentMethod === 'CREDIT' ? 'Paid' : 'Received'}
+                </p>
+                <div className="relative">
+                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-muted-foreground/60">₹</span>
+                  <input
+                    ref={receivedInputRef}
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={receivedAmount || ''}
+                    onChange={e => updateActiveTab({ receivedAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
+                    onFocus={e => e.target.select()}
+                    placeholder={grandTotal.toFixed(2)}
+                    inputMode="decimal"
+                    className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border/50 focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
                 </div>
-              )}
-
-              {/* Row 3: Change Due / Credit Balance */}
-              {paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && (
-                <div className={clsx(
-                  'flex items-center justify-between px-5 py-2.5 border-t border-primary/15',
-                  balanceAmount >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'
-                )}>
+              </div>
+              {/* Change input — fades for CARD/UPI (keeps space) */}
+              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+                <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
+                  {paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}
+                </p>
+                <div className="relative">
                   <span className={clsx(
-                    'text-[10px] font-black uppercase tracking-widest',
-                    balanceAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
-                  )}>
-                    {paymentMethod === 'CREDIT' ? 'Credit Balance' : 'Change Due'}
-                  </span>
-                  <span className={clsx(
-                    'text-lg font-black',
+                    'absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black',
                     balanceAmount >= 0 ? 'text-emerald-500' : 'text-destructive'
-                  )}>
-                    {balanceAmount >= 0 ? '+' : ''}{formatCurrency(balanceAmount)}
-                  </span>
+                  )}>₹</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    value={Math.abs(balanceAmount)}
+                    readOnly
+                    inputMode="decimal"
+                    className={clsx(
+                      'w-full pl-5 pr-2 py-1.5 border rounded-lg text-sm font-black text-right transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                      balanceAmount >= 0
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-destructive/10 border-destructive/30 text-destructive'
+                    )}
+                  />
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Status alerts */}
