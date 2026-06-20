@@ -1,10 +1,10 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { v4 as uuidv4 } from 'uuid';
+
 
 // Initialize and configure structured logging
 log.initialize();
@@ -27,6 +27,16 @@ if (fs.existsSync(envPath)) {
   dotenv.config({ path: envPath });
 } else {
   dotenv.config(); // Fallback to root .env
+}
+
+// Ensure GH_TOKEN is set for electron-updater (fallback if dotenv didn't pick it up)
+if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)) {
+  const envContent = fs.readFileSync(envPath, 'utf-8');
+  const match = envContent.match(/^GH_TOKEN=(.+)$/m);
+  if (match) {
+    process.env.GH_TOKEN = match[1].trim();
+    console.log('[Main] GH_TOKEN loaded manually from env file');
+  }
 }
 import { initDb, getDb } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
@@ -81,6 +91,46 @@ function handleDeepLink(url: string) {
   }
 }
 
+function setupCSP() {
+  const isDev = !app.isPackaged;
+  const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+  const apiOrigin = (() => {
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      return '';
+    }
+  })();
+
+  const directives = [
+    "default-src 'self'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data:",
+    "font-src 'self' data:",
+  ];
+
+  if (isDev) {
+    directives.push("script-src 'self' 'unsafe-inline'");
+    directives.push("connect-src 'self' ws://localhost:* http://localhost:*");
+  } else {
+    directives.push("script-src 'self'");
+    const allowedConnect = ["'self'"];
+    if (apiOrigin && apiOrigin !== 'self') allowedConnect.push(apiOrigin);
+    directives.push(`connect-src ${allowedConnect.join(' ')}`);
+  }
+
+  const csp = directives.join('; ');
+
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [csp],
+      },
+    });
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1280,
@@ -111,6 +161,7 @@ app.whenReady().then(async () => {
 
   initDb();
   initPrinter();
+  setupCSP();
   createWindow();
 
   // Handle deep link when app is opened via protocol (Windows)
@@ -219,8 +270,13 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     }
 
     if (filterDate) {
-       query += ' AND date(p.created_at, \'localtime\') = ?';
-       params.push(filterDate);
+       if (arg.filterDateEnd) {
+         query += ' AND date(p.created_at, \'localtime\') BETWEEN ? AND ?';
+         params.push(filterDate, arg.filterDateEnd);
+       } else {
+         query += ' AND date(p.created_at, \'localtime\') = ?';
+         params.push(filterDate);
+       }
     }
 
     if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
@@ -258,8 +314,13 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     }
 
     if (arg?.filterDate) {
-       query += ' AND date(created_at, \'localtime\') = ?';
-       params.push(arg.filterDate);
+       if (arg.filterDateEnd) {
+         query += ' AND date(created_at, \'localtime\') BETWEEN ? AND ?';
+         params.push(arg.filterDate, arg.filterDateEnd);
+       } else {
+         query += ' AND date(created_at, \'localtime\') = ?';
+         params.push(arg.filterDate);
+       }
     }
 
     const result = db.prepare(query).get(...params) as { count: number };
@@ -458,7 +519,7 @@ ipcMain.handle('db:resetPrintStatus', (event, tenant_id: string) => {
   }
 });
 
-ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, only_pending = true }: { tenant_id: string, limit: number, date?: string, only_pending?: boolean }) => {
+ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, dateEnd, only_pending = true }: { tenant_id: string, limit: number, date?: string, dateEnd?: string, only_pending?: boolean }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
@@ -471,8 +532,13 @@ ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, o
     }
 
     if (date) {
-      query += " AND date(created_at) = ?";
-      params.push(date);
+      if (dateEnd) {
+        query += " AND date(created_at) BETWEEN ? AND ?";
+        params.push(date, dateEnd);
+      } else {
+        query += " AND date(created_at) = ?";
+        params.push(date);
+      }
     }
     
     query += " ORDER BY created_at ASC";
@@ -539,6 +605,63 @@ ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
   try {
     const db = getDb();
     db.prepare(`UPDATE product_grades SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE grade_id = ?`).run(gradeId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Party (Credit Person) Handlers ──────────────────────────────────────────
+ipcMain.handle('db:getParties', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC').all(tenantId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:addParty', (event, p) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO parties (party_id, tenant_id, name, phone, balance, notes, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.balance ?? 0, p.notes || null);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateParty', (event, p) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE parties SET name = ?, phone = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE party_id = ?
+    `).run(p.name, p.phone || null, p.notes || null, p.party_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteParty', (event, partyId: string) => {
+  try {
+    const db = getDb();
+    db.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(partyId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id: string; amount: number }) => {
+  try {
+    const db = getDb();
+    db.prepare("UPDATE parties SET balance = balance + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(amount, party_id);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -649,10 +772,10 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; filterDate?: string; filterDateEnd?: string }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role, limit, offset, search, payment_method } = filters || {};
+    const { user_id, tenant_id, role, limit, offset, search, payment_method, filterDate, filterDateEnd } = filters || {};
 
     if (!tenant_id) return []; // Safety: always require tenant_id
 
@@ -678,6 +801,15 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     if (payment_method) {
       query += ' AND i.payment_method = ?';
       params.push(payment_method);
+    }
+
+    if (filterDate) {
+      query += ' AND i.created_at >= ?';
+      params.push(filterDate);
+    }
+    if (filterDateEnd) {
+      query += ' AND i.created_at <= ?';
+      params.push(filterDateEnd + ' 23:59:59');
     }
 
     query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
@@ -706,7 +838,7 @@ ipcMain.handle('db:getInvoiceItems', (event, invoice_id: string) => {
   }
 });
 
-ipcMain.handle('db:updateInvoice', (event, payload: {
+ipcMain.handle('db:updateInvoice', async (event, payload: {
   invoice_id: string;
   tenant_id: string;
   role?: string;
@@ -735,6 +867,7 @@ ipcMain.handle('db:updateInvoice', (event, payload: {
   if (payload.role !== 'OWNER') {
     return { success: false, error: 'Only owners can edit past bills' };
   }
+  const { v4: uuidv4 } = await import('uuid');
   const { items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -909,6 +1042,20 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
   }
 });
 
+ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', 'invoice_counter_config');
+    if (row) {
+      const config = JSON.parse(row.value);
+      return { success: true, invoiceNumber: `${config.prefix || 'INV-'}${config.counter || 1}` };
+    }
+    return { success: true, invoiceNumber: 'INV-1' };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('db:debug:dumpInvoices', () => {
   try {
     const db = getDb();
@@ -916,6 +1063,314 @@ ipcMain.handle('db:debug:dumpInvoices', () => {
     return { success: true, rows };
   } catch (err: any) {
     return { success: false, error: err.message };
+  }
+});
+
+// ── Scrap Categories IPC ───────────────────────────────────────
+ipcMain.handle('db:getScrapCategories', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare('SELECT * FROM scrap_categories WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC').all(tenantId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:addScrapCategory', (event, cat) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, is_deleted, sync_status)
+      VALUES (?, ?, ?, 0, 'PENDING')
+    `).run(cat.scrap_category_id, cat.tenant_id, cat.name);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateScrapCategory', (event, cat) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE scrap_categories SET name = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE scrap_category_id = ?
+    `).run(cat.name, cat.scrap_category_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteScrapCategory', (event, scrapCategoryId: string) => {
+  try {
+    const db = getDb();
+    db.prepare(`UPDATE scrap_categories SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(scrapCategoryId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Scrap Items IPC ────────────────────────────────────────────
+ipcMain.handle('db:getScrapItems', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare(`
+      SELECT si.*, sc.name as category_name 
+      FROM scrap_items si 
+      LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id 
+      WHERE si.tenant_id = ? AND si.is_deleted = 0 
+      ORDER BY si.name COLLATE NOCASE ASC
+    `).all(tenantId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:addScrapItem', (event, item) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO scrap_items (scrap_item_id, tenant_id, name, scrap_category_id, purchase_price, selling_price, current_stock, unit, is_deleted, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING')
+    `).run(item.scrap_item_id, item.tenant_id, item.name, item.scrap_category_id || null, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs');
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateScrapItem', (event, item) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE scrap_items SET name = ?, scrap_category_id = ?, purchase_price = ?, selling_price = ?, current_stock = ?, unit = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE scrap_item_id = ?
+    `).run(item.name, item.scrap_category_id || null, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs', item.scrap_item_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteScrapItem', (event, scrapItemId: string) => {
+  try {
+    const db = getDb();
+    db.prepare(`UPDATE scrap_items SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?`).run(scrapItemId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:adjustScrapStock', (event, { scrap_item_id, delta }) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE scrap_items SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?
+    `).run(delta, scrap_item_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Scrap Transactions IPC ─────────────────────────────────────
+ipcMain.handle('db:addScrapTransaction', (event, t) => {
+  try {
+    const db = getDb();
+    const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
+    const result = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_item_id, quantity, rate, total_amount, party_name, notes, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_item_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null);
+      db.prepare(`UPDATE scrap_items SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?`).run(delta, t.scrap_item_id);
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_item_id }: { tenant_id: string; scrap_item_id?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = `
+      SELECT st.*, si.name as scrap_item_name, si.unit 
+      FROM scrap_transactions st 
+      LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id 
+      WHERE st.tenant_id = ?
+    `;
+    const params: any[] = [tenant_id];
+    if (scrap_item_id) {
+      query += ' AND st.scrap_item_id = ?';
+      params.push(scrap_item_id);
+    }
+    query += ' ORDER BY st.created_at DESC LIMIT 500';
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+// ── Stock Report IPC ───────────────────────────────────────────
+ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare(`
+      SELECT p.*, pg.rate as grade_rate, pg.grade_name, pg.category as grade_category
+      FROM products p 
+      LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
+      WHERE p.tenant_id = ? AND p.is_deleted = 0 
+      ORDER BY p.category ASC, p.name COLLATE NOCASE ASC
+    `).all(tenantId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+// ── Quotations IPC ─────────────────────────────────────────────
+ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id, prefix: _prefix }: { tenant_id: string; prefix?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return { success: false, error: 'Tenant ID required' };
+    
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', 'quotation_counter');
+    let counter = 1;
+    let config: { prefix: string; counter: number } = { prefix: 'QTN-', counter: 1 };
+    if (row) {
+      try {
+        config = JSON.parse(row.value);
+        counter = config.counter;
+      } catch { counter = 1; }
+    }
+
+    const quotationNumber = `${config.prefix}${counter}`;
+    config.counter = counter + 1;
+    db.prepare(`
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id, key) DO UPDATE SET
+        value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    `).run(tenant_id || 'global', 'quotation_counter', JSON.stringify(config));
+
+    return { success: true, quotationNumber };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:saveQuotation', (event, q) => {
+  try {
+    const db = getDb();
+    const result = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO quotations (quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address, terms_conditions, subtotal, tax_total, grand_total, status, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', 'PENDING')
+      `).run(q.quotation_id, q.tenant_id, q.quotation_number, q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total);
+
+      const stmt = db.prepare(`
+        INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `);
+      for (const item of q.items) {
+        stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+      }
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = 'SELECT * FROM quotations WHERE tenant_id = ?';
+    const params: any[] = [tenant_id];
+    if (search) {
+      query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR quotation_number LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getQuotationItems', (event, quotationId: string) => {
+  try {
+    const db = getDb();
+    return db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateQuotationStatus', (event, { quotation_id, status, converted_to_invoice, invoice_id }: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => {
+  try {
+    const db = getDb();
+    const updates: string[] = ["sync_status = 'PENDING'", "updated_at = CURRENT_TIMESTAMP"];
+    const params: any[] = [];
+    if (status) { updates.push('status = ?'); params.push(status); }
+    if (converted_to_invoice !== undefined) { updates.push('converted_to_invoice = ?'); params.push(converted_to_invoice); }
+    if (invoice_id) { updates.push('invoice_id = ?'); params.push(invoice_id); }
+    params.push(quotation_id);
+    db.prepare(`UPDATE quotations SET ${updates.join(', ')} WHERE quotation_id = ?`).run(...params);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Warranties IPC ─────────────────────────────────────────────
+ipcMain.handle('db:saveWarranty', (event, w) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      INSERT INTO warranties (warranty_id, tenant_id, invoice_id, invoice_item_id, customer_name, customer_phone, product_name, product_details, purchase_date, warranty_period_days, expiry_date, notes, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+    `).run(w.warranty_id, w.tenant_id, w.invoice_id || null, w.invoice_item_id || null, w.customer_name, w.customer_phone || null, w.product_name, w.product_details || null, w.purchase_date, w.warranty_period_days, w.expiry_date, w.notes || null);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getWarranties', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = 'SELECT * FROM warranties WHERE tenant_id = ?';
+    const params: any[] = [tenant_id];
+    if (search) {
+      query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR product_name LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    query += ' ORDER BY created_at DESC LIMIT 200';
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
+  try {
+    const db = getDb();
+    db.prepare('DELETE FROM warranties WHERE warranty_id = ?').run(warrantyId);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 });
 

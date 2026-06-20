@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbBulkImportProducts: (products: any[]) => ipcRenderer.invoke('db:bulkImportProducts', products),
   dbUpdatePrintStatus: (productIds: string[]) => ipcRenderer.invoke('db:updatePrintStatus', productIds),
   dbResetPrintStatus: (tenant_id: string) => ipcRenderer.invoke('db:resetPrintStatus', tenant_id),
-  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; only_pending?: boolean }) => ipcRenderer.invoke('db:getPendingPrintProducts', params),
+  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; dateEnd?: string; only_pending?: boolean }) => ipcRenderer.invoke('db:getPendingPrintProducts', params),
   dbCheckout: (payload: any) => ipcRenderer.invoke('db:checkout', payload),
   dbApplyInvoiceDiscount: (payload: any) => ipcRenderer.invoke('db:applyInvoiceDiscount', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),
@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: () => ipcRenderer.invoke('hardware:printReady'),
   
+  onUpdateStatus: (callback: (status: string) => void) => {
+    ipcRenderer.on('update-status', (_event, status) => callback(status));
+  },
   onBarcodeScanned: (callback: (code: string) => void) => {
     ipcRenderer.on('hardware:barcode', (_event, code) => callback(code));
   },
@@ -54,4 +57,40 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
+  dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
+
+  // Scrap
+  dbGetScrapCategories: (tenant_id: string) => ipcRenderer.invoke('db:getScrapCategories', tenant_id),
+  dbAddScrapCategory: (cat: any) => ipcRenderer.invoke('db:addScrapCategory', cat),
+  dbUpdateScrapCategory: (cat: any) => ipcRenderer.invoke('db:updateScrapCategory', cat),
+  dbDeleteScrapCategory: (scrap_category_id: string) => ipcRenderer.invoke('db:deleteScrapCategory', scrap_category_id),
+  dbGetScrapItems: (tenant_id: string) => ipcRenderer.invoke('db:getScrapItems', tenant_id),
+  dbAddScrapItem: (item: any) => ipcRenderer.invoke('db:addScrapItem', item),
+  dbUpdateScrapItem: (item: any) => ipcRenderer.invoke('db:updateScrapItem', item),
+  dbDeleteScrapItem: (scrap_item_id: string) => ipcRenderer.invoke('db:deleteScrapItem', scrap_item_id),
+  dbAdjustScrapStock: (args: { scrap_item_id: string; delta: number }) => ipcRenderer.invoke('db:adjustScrapStock', args),
+  dbAddScrapTransaction: (t: any) => ipcRenderer.invoke('db:addScrapTransaction', t),
+  dbGetScrapTransactions: (args: { tenant_id: string; scrap_item_id?: string }) => ipcRenderer.invoke('db:getScrapTransactions', args),
+
+  // Stock Report
+  dbGetStockReport: (tenant_id: string) => ipcRenderer.invoke('db:getStockReport', tenant_id),
+
+  // Quotations
+  dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextQuotationNumber', payload),
+  dbSaveQuotation: (q: any) => ipcRenderer.invoke('db:saveQuotation', q),
+  dbGetQuotations: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getQuotations', args),
+  dbGetQuotationItems: (quotation_id: string) => ipcRenderer.invoke('db:getQuotationItems', quotation_id),
+  dbUpdateQuotationStatus: (args: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => ipcRenderer.invoke('db:updateQuotationStatus', args),
+
+  // Warranties
+  dbSaveWarranty: (w: any) => ipcRenderer.invoke('db:saveWarranty', w),
+  dbGetWarranties: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getWarranties', args),
+  dbDeleteWarranty: (warranty_id: string) => ipcRenderer.invoke('db:deleteWarranty', warranty_id),
+
+  // Parties
+  dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),
+  dbAddParty: (party: any) => ipcRenderer.invoke('db:addParty', party),
+  dbUpdateParty: (party: any) => ipcRenderer.invoke('db:updateParty', party),
+  dbDeleteParty: (party_id: string) => ipcRenderer.invoke('db:deleteParty', party_id),
+  dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => ipcRenderer.invoke('db:adjustPartyBalance', payload),
 });

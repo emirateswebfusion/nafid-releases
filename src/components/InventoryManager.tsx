@@ -1,12 +1,13 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {
@@ -77,6 +78,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
   const [filterDate, setFilterDate] = useState('');
+  const [filterDateEnd, setFilterDateEnd] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -84,7 +86,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
-  const [hasNewSyncData, setHasNewSyncData] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
@@ -104,14 +105,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       loadProducts(true);
     }, 300); // debounce search
     return () => clearTimeout(timeout);
-  }, [searchQuery, sortBy, filterDate]);
+  }, [searchQuery, sortBy, filterDate, filterDateEnd]);
 
-  // Sync listener
+  // Sync listener — auto-refresh silently
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
-        console.log('[InventoryManager] Data updated via sync. Prompting refresh...');
-        setHasNewSyncData(true);
+        console.log('[InventoryManager] Data updated via sync. Auto-refreshing...');
+        loadProducts(true);
       });
     }
   }, []);
@@ -143,14 +144,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         offset: currentOffset,
         search: searchQuery,
         sortBy: sortBy,
-        filterDate: filterDate
+        filterDate: filterDate,
+        filterDateEnd: filterDateEnd
       });
 
       if (reset) {
         const count = await window.electronAPI.dbGetProductsCount({
           tenant_id: tenantId,
           search: searchQuery,
-          filterDate: filterDate
+          filterDate: filterDate,
+          filterDateEnd: filterDateEnd
         });
         setTotalCount(count);
       }
@@ -542,6 +545,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const result = await window.electronAPI.dbGetProducts({
         tenant_id: tenantId,
         filterDate: filterDate,
+        filterDateEnd: filterDateEnd,
         limit: 100000 
       });
       if (Array.isArray(result) && result.length > 0) {
@@ -555,7 +559,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.setAttribute('download', filterDate ? `products_${filterDate}.csv` : 'products_all.csv');
+        const csvName = filterDateEnd ? `products_${filterDate}_${filterDateEnd}.csv` : filterDate ? `products_${filterDate}.csv` : 'products_all.csv';
+        link.setAttribute('download', csvName);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -659,640 +664,772 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   // No frontend filtering/sorting needed anymore, it's done in the backend
   const filtered = products;
 
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr.replace(' ', 'T'));
+    if (isNaN(d.getTime())) return '-';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+    return `${dd}/${mm}/${yyyy} ${dayName}`;
+  };
+
+  const groupedByDate = filtered.reduce<Record<string, typeof products>>((acc, p) => {
+    const date = formatDate(p.created_at);
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(p);
+    return acc;
+  }, {});
+
   return (
-    <Modal
-      isOpen={true}
-      onClose={onClose}
-      fullScreen={true}
-      title={
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-primary/10 text-primary rounded-lg">
-            {view === 'list' ? <Search className="w-6 h-6" /> : view === 'add' ? <PackagePlus className="w-6 h-6" /> : <Pencil className="w-6 h-6" />}
+    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+      {/* ── Header ── */}
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
+            {view === 'list' ? <Package className="w-5 h-5" /> : view === 'add' ? <PackagePlus className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
           </div>
-          <div>
-            <h2 className="text-2xl font-bold">
-              {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
-            </h2>
-            {view === 'list' && <p className="text-muted-foreground text-sm font-normal">{totalCount !== null ? totalCount : '...'} products in stock</p>}
+          <div className="min-w-0 leading-tight">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-foreground truncate">
+                {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
+              </h1>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+            </div>
+            {view === 'list' &&                <p className="text-xs text-muted-foreground font-semibold mt-0.5">{totalCount !== null ? totalCount : '...'} products in stock</p>}
+            {view !== 'list' && (
+              <span className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
+                {useAuthStore.getState().role === 'OWNER' ? 'Owner' : (useAuthStore.getState().userName || 'Staff')}
+              </span>
+            )}
           </div>
         </div>
-      }
-      closeButton={
-        view !== 'list' ? (
-          <button onClick={() => setView('list')} className="p-2 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground rounded-lg transition-colors border border-border shadow-sm">
-            <X className="w-5 h-5" />
-          </button>
-        ) : undefined
-      }
-    >
-      <div className="flex flex-col h-full overflow-hidden">
-        
-        {/* Action Header inside modal */}
-        {view === 'list' && (
-          <div className="flex justify-between items-center p-4 border-b border-border bg-muted/10 shrink-0">
-            <div className="flex-1 max-w-md">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search by name, barcode, or category..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border rounded-lg py-2.5 pl-10 pr-4 text-foreground focus:border-primary focus:outline-none placeholder:text-muted-foreground"
-                />
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <input 
-                type="date"
-                value={filterDate}
-                onChange={e => setFilterDate(e.target.value)}
-                className="bg-background border border-border rounded-lg py-2 px-3 text-sm text-foreground focus:border-primary focus:outline-none"
+        <div className="flex items-center gap-2">
+          {view !== 'list' ? (
+            <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer" title="Back to list">
+              <X className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={onClose} className="flex items-center gap-1.5 px-3.5 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer">
+              <X className="w-4 h-4" />
+              <span>Close</span>
+            </button>
+          )}
+        </div>
+      </header>
+      
+      {/* Action Header inside page */}
+      {view === 'list' && (
+        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="flex-1 max-w-lg">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search by name, barcode, or category..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
               />
-              <button onClick={downloadCsv} className="p-2 text-muted-foreground hover:text-primary transition-colors bg-muted rounded-lg" title="Download CSV">
-                <Save className="w-5 h-5" />
-              </button>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value as any)}
-                className="bg-background border border-border rounded-lg py-2 px-3 text-sm text-foreground focus:border-primary focus:outline-none"
-              >
-                <option value="name">Sort by Name</option>
-                <option value="created_at">Sort by Added Date (Desc)</option>
-                <option value="updated_at">Sort by Updated Date (Desc)</option>
-              </select>
-              <button onClick={openAdd} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
-                <Plus className="w-4 h-4" /> Add Product
-              </button>
             </div>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <DateRangeFilter
+              startDate={filterDate}
+              endDate={filterDateEnd}
+              onChange={(start, end) => {
+                setFilterDate(start);
+                setFilterDateEnd(end);
+              }}
+            />
+            <div className="h-5 w-px bg-border" />
+            <select
+              value={sortBy}
+              onChange={e => setSortBy(e.target.value as any)}
+              className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm font-medium text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all shadow-sm"
+            >
+              <option value="name">Sort by Name</option>
+              <option value="created_at">Sort by Date Added</option>
+              <option value="updated_at">Sort by Date Updated</option>
+            </select>
+            <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border/80 rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
+              <Save className="w-4 h-4" />
+            </button>
+            <button onClick={openAdd} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
+              <Plus className="w-4 h-4" /> Add Product
+            </button>
+          </div>
+        </div>
+      )}
 
-        {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
-        {view === 'list' && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            {/* Table Header */}
-            <div className="grid grid-cols-12 gap-2 px-6 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border shrink-0 bg-muted/5">
-              <div className="col-span-3">Product</div>
-              <div className="col-span-1 text-center">Unit</div>
-              <div className="col-span-1 text-right">Purchase</div>
-              <div className="col-span-2 text-right">MRP</div>
-              <div className="col-span-2 text-right text-emerald-500 font-bold">Final Price</div>
-              <div className="col-span-2 text-center">Stock</div>
-              <div className="col-span-1 text-center">Actions</div>
-            </div>
+      {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
+      {view === 'list' && (
+        <div className="flex flex-col flex-1 min-h-0 bg-background">
+          {/* Table Header */}
+          <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 shrink-0 bg-muted/40">
+            <div className="col-span-3">Product</div>
+            <div className="col-span-1 text-center">Unit</div>
+            <div className="col-span-1 text-right">Purchase</div>
+            <div className="col-span-2 text-right">MRP</div>
+            <div className="col-span-1 text-right text-emerald-500">Final</div>
+            <div className="col-span-3 text-center">Stock</div>
+            <div className="col-span-1 text-center">Actions</div>
+          </div>
 
-            {/* Rows */}
-            <div className="flex-1 overflow-y-auto divide-y divide-border relative">
-              {hasNewSyncData && (
-                <div className="sticky top-2 z-10 mx-4 mb-2">
-                  <button 
-                    onClick={() => {
-                      setHasNewSyncData(false);
-                      setOffset(0);
-                      setHasMore(true);
-                      loadProducts(true);
-                    }}
-                    className="w-full bg-primary text-primary-foreground font-bold text-sm py-2 px-4 rounded-xl shadow-lg border border-primary-foreground/20 flex items-center justify-center gap-2 hover:bg-primary/90 transition-all animate-in fade-in slide-in-from-top-4"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                    New data synced — Click to refresh
-                  </button>
-                </div>
-              )}
-              {isFetching && offset === 0 ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
-                    <div className="col-span-3">
-                      <div className="flex items-center gap-2">
-                        <div className="space-y-2 w-full">
-                          <Skeleton className="h-4 w-3/4" />
-                          <Skeleton className="h-3 w-1/2" />
-                          <div className="flex gap-2 mt-1">
-                            <Skeleton className="h-4 w-12" />
-                            <Skeleton className="h-4 w-16" />
-                          </div>
+          {/* Rows */}
+          <div className="flex-1 overflow-y-auto divide-y divide-border relative">
+            {isFetching && offset === 0 ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
+                  <div className="col-span-3">
+                    <div className="flex items-center gap-2">
+                      <div className="space-y-2 w-full">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <div className="flex gap-2 mt-1">
+                          <Skeleton className="h-4 w-12" />
+                          <Skeleton className="h-4 w-16" />
                         </div>
                       </div>
                     </div>
-                    <div className="col-span-1 flex justify-center"><Skeleton className="h-4 w-8" /></div>
-                    <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                    <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                    <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                    <div className="col-span-2 flex justify-center gap-2">
-                      <Skeleton className="h-6 w-6 rounded-full" />
-                      <Skeleton className="h-5 w-10" />
-                      <Skeleton className="h-6 w-6 rounded-full" />
-                    </div>
-                    <div className="col-span-1 flex justify-center gap-2">
-                      <Skeleton className="h-8 w-8 rounded-lg" />
-                      <Skeleton className="h-8 w-8 rounded-lg" />
-                      <Skeleton className="h-8 w-8 rounded-lg" />
-                    </div>
                   </div>
-                ))
-              ) : filtered.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
-                  <PackagePlus className="w-12 h-12 mb-3" />
-                  <p className="font-medium text-foreground">No products found</p>
-                  <p className="text-sm mt-1">Click "Add Product" to seed your inventory</p>
+                  <div className="col-span-1 flex justify-center"><Skeleton className="h-4 w-8" /></div>
+                  <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                  <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                  <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                  <div className="col-span-2 flex justify-center gap-2">
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                    <Skeleton className="h-5 w-10" />
+                    <Skeleton className="h-6 w-6 rounded-full" />
+                  </div>
+                  <div className="col-span-1 flex justify-center gap-2">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                  </div>
                 </div>
-              ) : filtered.map(p => {
-                const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
-                
-                let finalPrice: number | null = null;
-                const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-                const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
-                const displayMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-                  ? Number(p.base_price) + gradeRate 
-                  : Number(p.base_price);
+              ))
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
+                <PackagePlus className="w-12 h-12 mb-3" />
+                <p className="font-medium text-foreground">No products found</p>
+                <p className="text-sm mt-1">Click "Add Product" to seed your inventory</p>
+              </div>
+            ) : Object.entries(groupedByDate).map(([date, items]) => (
+              <Fragment key={date}>
+                <div className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border/60">
+                  {date}
+                </div>
+                {items.map(p => {
+                  const isLowStock = p.current_stock <= p.reorder_level && p.reorder_level > 0;
+                  
+                  let finalPrice: number | null = null;
+                  const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+                  const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
+                  const displayMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
+                    ? Number(p.base_price) + gradeRate 
+                    : Number(p.base_price);
 
-                if (p.offer_price) {
-                  finalPrice = Number(p.offer_price);
-                } else if (p.discount_flat) {
-                  finalPrice = displayMrp - Number(p.discount_flat);
-                } else if (p.discount_percent) {
-                  finalPrice = displayMrp * (1 - Number(p.discount_percent) / 100);
-                }
-                if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
+                  if (p.offer_price) {
+                    finalPrice = Number(p.offer_price);
+                  } else if (p.discount_flat) {
+                    finalPrice = displayMrp - Number(p.discount_flat);
+                  } else if (p.discount_percent) {
+                    finalPrice = displayMrp * (1 - Number(p.discount_percent) / 100);
+                  }
+                  if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
 
-                return (
-                  <div key={p.product_id} className="grid grid-cols-12 gap-2 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
-                    <div className="col-span-3">
-                      <div className="flex items-center gap-2">
-                        <div>
-                          <p className="text-foreground font-semibold text-sm">{p.name}</p>
-                          <p className="text-muted-foreground text-xs font-mono mt-0.5">
-                            {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
-                            {p.sku_barcode}
-                          </p>
-                          <div className="flex gap-2 mt-1">
-                            {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded font-medium">{p.category}</span>}
-                            {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-2 py-0.5 rounded font-medium">{p.brand_manufacturer}</span>}
+                  return (
+                    <div key={p.product_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
+                      <div className="col-span-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
+                            <Package className="w-3.5 h-3.5" />
                           </div>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="col-span-1 text-center text-muted-foreground text-sm font-medium">{p.uom}</div>
-                    <div className="col-span-1 text-right text-muted-foreground text-sm font-medium">₹{Number(p.purchase_price).toFixed(2)}</div>
-                    <div className="col-span-2 flex flex-col items-end justify-center">
-                      <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
-                        ₹{displayMrp.toFixed(2)}
-                      </span>
-                      {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
-                        <span className="text-[10px] text-indigo-500 font-medium leading-tight mt-0.5 max-w-[100px] text-right">
-                          incl. Grade Rate (₹{gradeRate})
-                        </span>
-                      )}
-                    </div>
-                    <div className="col-span-2 text-right text-emerald-500 font-bold text-sm">
-                      {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
-                    </div>
-
-                    {/* Stock with +/- */}
-                    <div className="col-span-2 flex items-center justify-center gap-2">
-                      <button 
-                        onClick={() => handleAdjustStock(p, -1)} 
-                        disabled={adjustingStockId === p.product_id}
-                        className="p-1 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <span className={clsx('text-sm font-bold w-12 text-center flex items-center justify-center', isLowStock ? 'text-amber-500' : 'text-foreground')}>
-                        {adjustingStockId === p.product_id ? (
-                           <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
-                        ) : (
-                           <>
-                             {Number(p.current_stock).toFixed(0)}
-                             {isLowStock && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
-                           </>
-                        )}
-                      </span>
-                      <button 
-                        onClick={() => handleAdjustStock(p, 1)} 
-                        disabled={adjustingStockId === p.product_id}
-                        className="p-1 text-muted-foreground hover:text-emerald-500 transition-colors disabled:opacity-50"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="col-span-1 flex items-center justify-center gap-2">
-                      <button onClick={() => { setPrintModalProduct(p); setPrintQuantity(1); setPrintPrice(true); }} className="p-2 text-muted-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors" title="Print Barcode">
-                        <Printer className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => openEdit(p)} className="p-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors" title="Edit">
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleDelete(p)} className="p-2 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-colors" title="Delete">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-
-              {/* Infinite Scroll Target */}
-              {hasMore && (
-                <div ref={lastElementRef} className="py-6 flex justify-center items-center shrink-0">
-                  <div className="flex gap-1 items-center text-muted-foreground text-sm font-medium">
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    <span>Loading more items...</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {!hasMore && products.length > 0 && (
-              <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-muted-foreground text-sm font-medium">
-                End of inventory list ({totalCount !== null ? totalCount : products.length} total products)
-              </div>
-            )}
-            
-            {/* Low Stock summary bar */}
-            {products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
-              <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-3 flex items-center gap-2 text-amber-600 text-sm">
-                <AlertTriangle className="w-5 h-5" />
-                <span className="font-semibold">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) are at or below Low Stock Alert</span>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ── ADD / EDIT FORM VIEW ─────────────────────────────────────────── */}
-        {(view === 'add' || view === 'edit') && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto p-8 space-y-10 max-w-5xl mx-auto w-full">
-
-              {/* Section 1: Core */}
-              <section>
-                <h3 className="text-lg font-bold text-primary mb-4 border-b border-border pb-2">1. Basic Details</h3>
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Item Name *</label>
-                      <input type="text" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-semibold text-muted-foreground mb-1.5 block">Item Code</label>
-                      <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest shadow-sm uppercase" />
-                    </div>
-                    <div className="grid grid-cols-2 gap-5">
-                      <div className="space-y-5">
-                        <div>
-                          <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Category</label>
-                          {isCustomCategory || configuredCategories.length === 0 ? (
-                            <div className="flex gap-2">
-                               <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" placeholder="Custom Category" />
-                               {configuredCategories.length > 0 && (
-                                 <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-xs font-bold text-muted-foreground hover:text-foreground">Cancel</button>
-                               )}
+                          <div>
+                            <p className="text-foreground font-bold text-sm">{p.name}</p>
+                            <p className="text-muted-foreground text-xs font-mono mt-0.5">
+                              {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
+                              {p.sku_barcode}
+                            </p>
+                            <div className="flex gap-1.5 mt-1">
+                              {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
+                              {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                             </div>
-                          ) : (
-                            <select 
-                              value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
-                              onChange={e => {
-                                if (e.target.value === 'CUSTOM') {
-                                  setIsCustomCategory(true);
-                                  handleInputChange('category', '');
-                                } else {
-                                  handleInputChange('category', e.target.value);
-                                }
-                              }} 
-                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
-                            >
-                              <option value="">-- Select Category --</option>
-                              {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
-                              <option value="CUSTOM">Custom...</option>
-                            </select>
-                          )}
-                        </div>
-                        {grades.filter(g => g.category === formData.category).length > 0 && (
-                          <div className="p-4 bg-muted/10 border border-border rounded-xl">
-                            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Select Grade</label>
-                            <select 
-                              value={formData.grade_id} 
-                              onChange={e => handleInputChange('grade_id', e.target.value)} 
-                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none"
-                            >
-                              <option value="">-- No Grade Selected --</option>
-                              {grades.filter(g => g.category === formData.category).map(g => (
-                                <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
-                              ))}
-                            </select>
                           </div>
+                        </div>
+                      </div>
+                      <div className="col-span-1 text-center text-muted-foreground text-sm font-semibold">{p.uom}</div>
+                      <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold">₹{Number(p.purchase_price).toFixed(2)}</div>
+                      <div className="col-span-2 flex flex-col items-end justify-center">
+                        <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
+                          ₹{displayMrp.toFixed(2)}
+                        </span>
+                        {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
+                          <span className="text-[10px] text-indigo-500 font-semibold leading-tight mt-0.5 text-right">
+                            +₹{gradeRate} Grade
+                          </span>
                         )}
                       </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Brand / Mfg</label>
-                        <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
+                      <div className="col-span-1 text-right text-emerald-500 font-bold text-sm">
+                        {finalPrice !== null ? `₹${finalPrice.toFixed(2)}` : '-'}
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="bg-muted/30 p-5 rounded-2xl border border-border flex flex-col justify-center">
-                    <div>
-                      <div className="flex justify-between items-center mb-1.5">
-                        <label className="text-sm font-semibold text-muted-foreground">Barcode *</label>
-                        <button onClick={generateBarcode} className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-md transition-colors">
-                          <RefreshCw className="w-3 h-3" /> Auto Generate
+                      {/* Stock with +/- */}
+                      <div className="col-span-3 flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => handleAdjustStock(p, -1)} 
+                          disabled={adjustingStockId === p.product_id}
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Minus className="w-3 h-3" />
+                        </button>
+                        <span className={clsx('text-sm font-black w-12 text-center flex items-center justify-center', isLowStock ? 'text-amber-500' : 'text-foreground')}>
+                          {adjustingStockId === p.product_id ? (
+                             <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+                          ) : (
+                             <>
+                               {Number(p.current_stock).toFixed(0)}
+                               {isLowStock && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                             </>
+                          )}
+                        </span>
+                        <button 
+                          onClick={() => handleAdjustStock(p, 1)} 
+                          disabled={adjustingStockId === p.product_id}
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
                         </button>
                       </div>
-                      <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none font-mono tracking-widest mb-4 shadow-sm" />
-                      {formData.sku_barcode && (
-                        <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
-                          <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
+
+                      {/* Actions */}
+                      <div className="col-span-1 flex items-center justify-center gap-1">
+                        <button onClick={() => { setPrintModalProduct(p); setPrintQuantity(1); setPrintPrice(true); }} className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors cursor-pointer" title="Print Barcode">
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => openEdit(p)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors cursor-pointer" title="Edit">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => handleDelete(p)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-colors cursor-pointer" title="Delete">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </Fragment>
+            ))}
+
+            {/* Infinite Scroll Target */}
+            {hasMore && (
+              <div ref={lastElementRef} className="py-6 flex justify-center items-center shrink-0">
+                <div className="flex gap-1 items-center text-muted-foreground text-sm font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>Loading more items...</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {!hasMore && products.length > 0 && (
+            <div className="shrink-0 border-t border-border/60 bg-muted/20 px-6 py-4 text-center text-sm font-bold text-muted-foreground">
+              End of inventory list &middot; {totalCount !== null ? totalCount : products.length} total products
+            </div>
+          )}
+          
+          {/* Low Stock summary bar */}
+          {products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
+            <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
+              <AlertTriangle className="w-4 h-4 shrink-0" />
+              <span>{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── ADD / EDIT FORM VIEW ─────────────────────────────────────────── */}
+      {(view === 'add' || view === 'edit') && (
+        <div className="flex flex-col flex-1 min-h-0 bg-background">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-5xl mx-auto w-full">
+
+            {/* Section 1: Core */}
+            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <PackagePlus className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">1. Basic Details</span>
+              </div>
+              <div className="grid grid-cols-2 gap-8">
+                <div className="space-y-5">
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
+                    <input type="text" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
+                    <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-5">
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
+                        {isCustomCategory || configuredCategories.length === 0 ? (
+                          <div className="flex gap-2">
+                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
+                             {configuredCategories.length > 0 && (
+                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0">Cancel</button>
+                             )}
+                          </div>
+                        ) : (
+                          <select 
+                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
+                            onChange={e => {
+                              if (e.target.value === 'CUSTOM') {
+                                setIsCustomCategory(true);
+                                handleInputChange('category', '');
+                              } else {
+                                handleInputChange('category', e.target.value);
+                              }
+                            }} 
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
+                          >
+                            <option value="">-- Select Category --</option>
+                            {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
+                            <option value="CUSTOM">Custom...</option>
+                          </select>
+                        )}
+                      </div>
+                      {grades.filter(g => g.category === formData.category).length > 0 && (
+                        <div className="p-4 bg-muted/10 border border-border/80 rounded-xl">
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Select Grade</label>
+                          <select 
+                            value={formData.grade_id} 
+                            onChange={e => handleInputChange('grade_id', e.target.value)} 
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
+                          >
+                            <option value="">-- No Grade Selected --</option>
+                            {grades.filter(g => g.category === formData.category).map(g => (
+                              <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
+                            ))}
+                          </select>
                         </div>
                       )}
                     </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
+                      <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    </div>
                   </div>
                 </div>
-              </section>
 
-              {/* Section 2: Billing & Grades */}
-              <section>
-                <h3 className="text-lg font-bold text-indigo-500 mb-4 border-b border-border pb-2">2. Billing Setup & Grades</h3>
-                <div className="grid grid-cols-2 gap-8">
-                  <div className="space-y-5">
-                    <div>
-                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Billing Type</label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange('billing_type', 'PIECE')}
-                          className={clsx('py-3 px-4 rounded-xl border text-sm font-bold transition-all', formData.billing_type === 'PIECE' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted/50')}
-                        >
-                          Piece-Based
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleInputChange('billing_type', 'WEIGHT')}
-                          className={clsx('py-3 px-4 rounded-xl border text-sm font-bold transition-all', formData.billing_type === 'WEIGHT' ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-background text-muted-foreground hover:bg-muted/50')}
-                        >
-                          Weight-Based
-                        </button>
-                      </div>
+                <div className="bg-muted/20 p-5 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                  <div>
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
+                      <button onClick={generateBarcode} className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all">
+                        <RefreshCw className="w-3 h-3" /> Auto Generate
+                      </button>
                     </div>
-                    {formData.billing_type === 'WEIGHT' && (
-                      <div className="grid grid-cols-2 gap-5 p-4 bg-muted/10 border border-border rounded-xl">
-                        <div>
-                          <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Avg Weight / Piece (Kg)</label>
-                          <input type="number" step="0.001" value={formData.average_weight_per_piece || ''} onChange={e => handleInputChange('average_weight_per_piece', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm" />
-                        </div>
-                        <div className="flex items-center mt-6">
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" checked={!!formData.weight_override_allowed} onChange={e => handleInputChange('weight_override_allowed', e.target.checked)} className="w-5 h-5 rounded border-border text-primary focus:ring-primary" />
-                            <span className="text-sm font-medium text-foreground">Allow weight override during billing</span>
-                          </label>
-                        </div>
+                    <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest mb-4 shadow-sm text-sm" />
+                    {formData.sku_barcode && (
+                      <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
+                        <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
                       </div>
                     )}
                   </div>
                 </div>
-              </section>
+              </div>
+            </section>
 
-              {/* Section 3: Inventory & Pricing */}
-              <section>
-                <h3 className="text-lg font-bold text-emerald-500 mb-4 border-b border-border pb-2">3. Inventory & Pricing</h3>
-                <div className="grid grid-cols-5 gap-5">
-                  {[
-                    { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
-                    { label: 'MRP *', field: 'base_price', prefix: '₹' },
-                    { label: 'Current Stock', field: 'current_stock' },
-                    { label: 'Low Stock Alert', field: 'reorder_level' },
-                  ].map(({ label, field, prefix }) => (
-                    <div key={field}>
-                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">{label}</label>
-                      <div className="relative">
-                        {prefix && <span className="absolute left-3 top-3 text-muted-foreground font-medium">{prefix}</span>}
-                        <input
-                          type="number" step="0.01"
-                          onWheel={e => (e.target as HTMLInputElement).blur()}
-                          value={(formData as any)[field]}
-                          onChange={e => handleInputChange(field, e.target.value)}
-                          className={clsx(
-                            'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners', 
-                            prefix && 'pl-8', 
-                            field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
-                          )}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                  <div>
-                    <label className="block text-sm font-semibold text-muted-foreground mb-1.5 whitespace-nowrap">Measuring Unit (UOM)</label>
-                    <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm appearance-none">
-                      {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
-                    </select>
+            {/* Section 2: Billing & Grades */}
+            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                  <Package className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">2. Billing Setup & Grades</span>
+              </div>
+              <div className="space-y-5">
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Billing Type</label>
+                  <div className="grid grid-cols-2 gap-3 max-w-md">
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('billing_type', 'PIECE')}
+                      className={clsx('py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95', formData.billing_type === 'PIECE' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border')}
+                    >
+                      Piece-Based
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleInputChange('billing_type', 'WEIGHT')}
+                      className={clsx('py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95', formData.billing_type === 'WEIGHT' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border')}
+                    >
+                      Weight-Based
+                    </button>
                   </div>
                 </div>
-              </section>
-
-              {/* Section 4: Discount & Offers */}
-              <section>
-                <h3 className="text-lg font-bold text-blue-500 mb-4 border-b border-border pb-2">4. Discount & Offers</h3>
-                <div className="grid grid-cols-2 gap-8">
-                  {/* Discount Block */}
-                  <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-foreground">Discount</h4>
-                      <span className="text-xs text-muted-foreground">Applies to MRP</span>
+                {formData.billing_type === 'WEIGHT' && (
+                  <div className="grid grid-cols-2 gap-5 p-4 bg-muted/10 border border-border/80 rounded-xl max-w-md">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Avg Weight / Piece (Kg)</label>
+                      <input type="number" step="0.001" value={formData.average_weight_per_piece || ''} onChange={e => handleInputChange('average_weight_per_piece', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Percentage (%)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          onWheel={e => (e.target as HTMLInputElement).blur()}
-                          value={formData.discount_percent || ''}
-                          onChange={e => handleDiscountPercentChange(e.target.value)}
-                          disabled={!!formData.offer_price}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Flat Amount (₹)</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          onWheel={e => (e.target as HTMLInputElement).blur()}
-                          value={formData.discount_flat || ''}
-                          onChange={e => handleDiscountFlatChange(e.target.value)}
-                          disabled={!!formData.offer_price}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
-                        />
-                      </div>
+                    <div className="flex items-center mt-7">
+                      <label className="flex items-center gap-2 cursor-pointer select-none">
+                        <input type="checkbox" checked={!!formData.weight_override_allowed} onChange={e => handleInputChange('weight_override_allowed', e.target.checked)} className="w-4 h-4 accent-primary rounded cursor-pointer" />
+                        <span className="text-sm font-bold text-foreground">Allow weight override</span>
+                      </label>
                     </div>
                   </div>
+                )}
+              </div>
+            </section>
 
-                  {/* Offer Block */}
-                  <div className="space-y-4 bg-muted/10 p-5 rounded-2xl border border-border">
-                    <div className="flex items-center justify-between">
-                      <h4 className="font-semibold text-foreground">Offer</h4>
-                      <span className="text-xs text-muted-foreground">Overrides MRP</span>
+            {/* Section 3: Inventory & Pricing */}
+            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">3. Inventory & Pricing</span>
+              </div>
+              <div className="grid grid-cols-5 gap-5">
+                {[
+                  { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
+                  { label: 'MRP *', field: 'base_price', prefix: '₹' },
+                  { label: 'Current Stock', field: 'current_stock' },
+                  { label: 'Low Stock Alert', field: 'reorder_level' },
+                ].map(({ label, field, prefix }) => (
+                  <div key={field}>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</label>
+                    <div className="relative">
+                      {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
+                      <input
+                        type="number" step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        value={(formData as any)[field]}
+                        onChange={e => handleInputChange(field, e.target.value)}
+                        className={clsx(
+                          'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
+                          prefix && 'pl-8', 
+                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
+                        )}
+                      />
                     </div>
+                  </div>
+                ))}
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">UOM</label>
+                  <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm">
+                    {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 4: Discount & Offers */}
+            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">4. Discount & Offers</span>
+              </div>
+              <div className="grid grid-cols-2 gap-8">
+                {/* Discount Block */}
+                <div className="space-y-4 bg-muted/10 p-5 rounded-xl border border-border/80">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-foreground">Discount</h4>
+                    <span className="text-xs text-muted-foreground">Applies to MRP</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Final Offer Price (₹)</label>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
                       <input
                         type="number"
                         step="0.01"
                         onWheel={e => (e.target as HTMLInputElement).blur()}
-                        value={formData.offer_price || ''}
-                        onChange={e => handleOfferPriceChange(e.target.value)}
-                        disabled={!!formData.discount_percent || !!formData.discount_flat}
-                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners"
+                        value={formData.discount_percent || ''}
+                        onChange={e => handleDiscountPercentChange(e.target.value)}
+                        disabled={!!formData.offer_price}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        value={formData.discount_flat || ''}
+                        onChange={e => handleDiscountFlatChange(e.target.value)}
+                        disabled={!!formData.offer_price}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
                       />
                     </div>
                   </div>
                 </div>
-              </section>
 
-              {/* Section 5: Taxes & Config */}
-              <section>
-                <h3 className="text-lg font-bold text-orange-500 mb-4 border-b border-border pb-2">5. Taxes & Config</h3>
-                <div className="grid grid-cols-3 gap-6">
-                  <div className="flex items-center gap-3 bg-muted/30 border border-border p-4 rounded-xl">
-                    <input type="checkbox" id="gst" checked={formData.is_gst_applicable} onChange={e => handleInputChange('is_gst_applicable', e.target.checked)} className="w-5 h-5 accent-primary rounded cursor-pointer" />
-                    <label htmlFor="gst" className="text-foreground font-semibold cursor-pointer select-none">Is GST Applicable?</label>
+                {/* Offer Block */}
+                <div className="space-y-4 bg-muted/10 p-5 rounded-xl border border-border/80">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-foreground">Offer</h4>
+                    <span className="text-xs text-muted-foreground">Overrides MRP</span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-muted-foreground mb-1.5">HSN / SAC Code</label>
-                    <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:opacity-50 transition-all shadow-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Tax Rate %</label>
-                    <select value={formData.tax_rate_percent} onChange={e => handleInputChange('tax_rate_percent', parseFloat(e.target.value))} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none disabled:opacity-50 transition-all shadow-sm appearance-none">
-                      {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
-                    </select>
+                  <div>                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      onWheel={e => (e.target as HTMLInputElement).blur()}
+                      value={formData.offer_price || ''}
+                      onChange={e => handleOfferPriceChange(e.target.value)}
+                      disabled={!!formData.discount_percent || !!formData.discount_flat}
+                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
+                    />
                   </div>
                 </div>
-              </section>
+              </div>
+            </section>
 
-              {/* Section 5: Domain Attributes */}
-              {shopDomain !== 'GENERAL' && (
-                <section>
-                  <h3 className="text-lg font-bold text-amber-500 mb-4 border-b border-border pb-2">5. Domain Fields — {shopDomain}</h3>
-                  <div className="grid grid-cols-2 gap-5 bg-amber-500/5 p-6 rounded-2xl border border-amber-500/20">
-                    {shopDomain === 'HARDWARE' && (<>
-                      <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />
-                      <DomainField label="Material" value={formData.domain_attributes['material'] || ''} onChange={v => handleDomainAttrChange('material', v)} />
-                      <DomainField label="Batch Number" value={formData.domain_attributes['batch_number'] || ''} onChange={v => handleDomainAttrChange('batch_number', v)} />
-                      <DomainField label="Expiry Date" type="date" value={formData.domain_attributes['expiry_date'] || ''} onChange={v => handleDomainAttrChange('expiry_date', v)} />
-                    </>)}
-                    {shopDomain === 'JEWELRY' && (<>
-                      <DomainField label="Purity (e.g. 22K)" value={formData.domain_attributes['purity'] || ''} onChange={v => handleDomainAttrChange('purity', v)} />
-                      <DomainField label="Weight (Grams)" type="number" value={formData.domain_attributes['weight_grams'] || ''} onChange={v => handleDomainAttrChange('weight_grams', v)} />
-                      <DomainField label="Making Charge %" type="number" value={formData.domain_attributes['making_charge_pct'] || ''} onChange={v => handleDomainAttrChange('making_charge_pct', v)} />
-                      <DomainField label="Hallmark HUID" value={formData.domain_attributes['hallmark_huid'] || ''} onChange={v => handleDomainAttrChange('hallmark_huid', v)} />
-                    </>)}
+            {/* Section 5: Taxes & Config */}
+            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
+                  <Package className="w-4 h-4" />
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">5. Taxes & Config</span>
+              </div>
+              <div className="grid grid-cols-3 gap-6">
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                  <div
+                    onClick={() => handleInputChange('is_gst_applicable', !formData.is_gst_applicable)}
+                    className={clsx(
+                      'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                      formData.is_gst_applicable
+                        ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                        : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
+                    )}
+                  >
+                    <input
+                      type="checkbox"
+                      id="gst"
+                      checked={formData.is_gst_applicable}
+                      onChange={e => handleInputChange('is_gst_applicable', e.target.checked)}
+                      className={clsx(
+                        'w-3.5 h-3.5 rounded pointer-events-none',
+                        formData.is_gst_applicable ? 'accent-primary' : 'accent-muted-foreground'
+                      )}
+                    />
+                    <label htmlFor="gst" className={clsx(
+                      'font-bold text-xs cursor-pointer select-none',
+                      formData.is_gst_applicable ? 'text-primary' : 'text-muted-foreground'
+                    )}>
+                      {formData.is_gst_applicable ? 'Enabled' : 'Disabled'}
+                    </label>
                   </div>
-                </section>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
+                  <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
+                  <select value={formData.tax_rate_percent} onChange={e => handleInputChange('tax_rate_percent', parseFloat(e.target.value))} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm appearance-none text-sm">
+                    {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
+                  </select>
+                </div>
+              </div>
+            </section>
+
+            {/* Section 5: Domain Attributes */}
+            {shopDomain !== 'GENERAL' && (
+              <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">5. Domain Fields — {shopDomain}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-5">
+                  {shopDomain === 'HARDWARE' && (<>
+                    <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />
+                    <DomainField label="Material" value={formData.domain_attributes['material'] || ''} onChange={v => handleDomainAttrChange('material', v)} />
+                    <DomainField label="Batch Number" value={formData.domain_attributes['batch_number'] || ''} onChange={v => handleDomainAttrChange('batch_number', v)} />
+                    <DomainField label="Expiry Date" type="date" value={formData.domain_attributes['expiry_date'] || ''} onChange={v => handleDomainAttrChange('expiry_date', v)} />
+                  </>)}
+                  {shopDomain === 'JEWELRY' && (<>
+                    <DomainField label="Purity (e.g. 22K)" value={formData.domain_attributes['purity'] || ''} onChange={v => handleDomainAttrChange('purity', v)} />
+                    <DomainField label="Weight (Grams)" type="number" value={formData.domain_attributes['weight_grams'] || ''} onChange={v => handleDomainAttrChange('weight_grams', v)} />
+                    <DomainField label="Making Charge %" type="number" value={formData.domain_attributes['making_charge_pct'] || ''} onChange={v => handleDomainAttrChange('making_charge_pct', v)} />
+                    <DomainField label="Hallmark HUID" value={formData.domain_attributes['hallmark_huid'] || ''} onChange={v => handleDomainAttrChange('hallmark_huid', v)} />
+                  </>)}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="border-t border-border/50 bg-background">
+            {/* Status alerts */}
+            <div className="px-4 pt-2">
+              {statusMessage && (
+                <div className={clsx(
+                  "px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
+                  statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
+                )}>
+                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                  <span className="flex-1">{statusMessage.text}</span>
+                </div>
               )}
             </div>
 
-            {/* Footer */}
-            <div className="p-6 border-t border-border bg-card flex justify-between items-center shrink-0">
-              <div className="flex items-center gap-4">
-                {statusMessage && (
-                  <div className={clsx(
-                    "px-4 py-2.5 rounded-xl text-sm font-bold text-center animate-pulse border",
-                    statusMessage.type === 'success' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
-                  )}>
-                    {statusMessage.text}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2 bg-muted rounded-xl p-1 px-3 border border-border">
-                  <span className="text-muted-foreground text-sm font-semibold">Qty:</span>
+            {/* Action row */}
+            <div className="flex items-center justify-between px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 bg-muted/50 border border-border/60 rounded-xl p-0.5 px-2 shadow-sm">
+                  <span className="text-muted-foreground text-sm font-bold">Qty:</span>
                   <input 
                     type="number" 
                     min="1" 
                     onWheel={e => (e.target as HTMLInputElement).blur()}
                     value={printQuantity} 
                     onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)} 
-                    className="w-12 bg-transparent text-foreground focus:outline-none text-center font-bold no-spinners" 
+                    className="w-10 h-7 bg-transparent text-foreground focus:outline-none text-center font-black text-sm no-spinners" 
                   />
                 </div>
-                <div className="flex items-center gap-2 bg-muted rounded-xl p-1 px-3 border border-border">
+                <label className="flex items-center gap-1.5 bg-muted/50 border border-border/60 rounded-xl px-3 py-1.5 cursor-pointer hover:bg-muted transition-colors select-none shadow-sm">
                   <input 
                     type="checkbox" 
                     id="print_price" 
                     checked={printPrice} 
                     onChange={e => setPrintPrice(e.target.checked)} 
-                    className="w-4 h-4 accent-primary rounded cursor-pointer" 
+                    className="w-3.5 h-3.5 accent-primary rounded cursor-pointer" 
                   />
-                  <label htmlFor="print_price" className="text-muted-foreground text-sm font-semibold cursor-pointer select-none whitespace-nowrap">Show Price</label>
-                </div>
-                <button onClick={printBarcode} className="px-6 py-3 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm">
-                  <Printer className="w-5 h-5" />
+                  <span className="text-muted-foreground text-xs font-bold whitespace-nowrap">Price</span>
+                </label>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={printBarcode} className="flex items-center gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                  <Printer className="w-3.5 h-3.5" />
                   Print Label
                 </button>
-                <button onClick={handleSave} disabled={loading} className="px-8 py-3 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold flex items-center gap-2 shadow-sm transition-all">
-                  <Save className="w-5 h-5" />
+                <button onClick={handleSave} disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                  <Save className="w-3.5 h-3.5" />
                   {loading ? 'Saving...' : view === 'edit' ? 'Update Product' : 'Add to Inventory'}
                 </button>
               </div>
             </div>
           </div>
-        )}
-      </div>
-      
+        </div>
+      )}
+
       {printModalProduct && (
         <Modal
           isOpen={true}
-          onClose={() => setPrintModalProduct(null)}
-          title="Print Barcode Label"
-          className="max-w-md"
+          onClose={() => { setPrintModalProduct(null); setStatusMessage(null); }}
+          className="max-w-lg"
+          closeButton={null}
         >
-          <div className="flex flex-col gap-6">
-             <div className="bg-muted/30 p-4 rounded-xl border border-border flex flex-col items-center justify-center text-center">
-                <Barcode value={printModalProduct.sku_barcode} height={40} displayValue={false} margin={0} width={1.5} background="transparent" />
-                <p className="font-bold text-foreground mt-3">{printModalProduct.name}</p>
-                <p className="text-sm font-mono text-muted-foreground">{printModalProduct.sku_barcode}</p>
-             </div>
-             
-             <div className="space-y-5">
-                <div>
-                  <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Number of Labels</label>
-                  <input type="number" min="1" onWheel={e => (e.target as HTMLInputElement).blur()} value={printQuantity} onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none transition-all shadow-sm no-spinners" />
-                </div>
-                
-                <div className="flex items-center gap-3 bg-muted/10 border border-border p-4 rounded-xl hover:bg-muted/30 transition-colors">
-                  <input type="checkbox" id="modal_print_price" checked={printPrice} onChange={e => setPrintPrice(e.target.checked)} className="w-5 h-5 accent-primary rounded cursor-pointer" />
-                  <label htmlFor="modal_print_price" className="text-foreground font-semibold cursor-pointer select-none flex-1">
-                    Show Price on Label
-                  </label>
-                </div>
-             </div>
-             
-             <div className="flex justify-between items-center mt-2 border-t border-border pt-6">
-                <div className="flex-1">
-                  {statusMessage && (
-                    <div className={clsx(
-                      "px-4 py-2.5 rounded-xl text-sm font-bold text-center animate-pulse border",
-                      statusMessage.type === 'success' ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/20" : "bg-destructive/10 text-destructive border-destructive/20"
-                    )}>
-                      {statusMessage.text}
+          <div className="flex flex-col">
+            {/* ── Label Preview Card ── */}
+            <div className="px-6 pt-6 pb-4">
+              <div className="bg-white rounded-2xl border-2 border-dashed border-muted-foreground/25 p-6 flex flex-col items-center text-center relative overflow-hidden">
+                <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.02)_10px,rgba(0,0,0,0.02)_20px)]" />
+                <div className="relative">
+                  <Barcode value={printModalProduct.sku_barcode} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
+                  <p className="font-bold text-gray-800 text-lg mt-3 tracking-tight">{printModalProduct.name}</p>
+                  <p className="font-mono text-sm text-gray-500 tracking-wider mt-0.5">{printModalProduct.sku_barcode}</p>
+                  <div className={clsx(
+                    "mt-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold",
+                    printPrice ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" : "bg-muted text-muted-foreground border border-border"
+                  )}>
+                    <span>MRP:</span>
+                    <span className="text-sm">
+                      ₹{(() => {
+                        const g = printModalProduct.grade_id ? grades.find(gr => gr.grade_id === printModalProduct.grade_id) : null;
+                        const gr = g ? Number(g.rate) : null;
+                        return (gr !== null && printModalProduct.pricing_mode === 'GRADE_RATE' ? Number(printModalProduct.base_price) + gr : Number(printModalProduct.base_price)).toFixed(2);
+                      })()}
+                    </span>
+                  </div>
+                  {!printPrice && (
+                    <div className="mt-2 text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">
+                      Price Hidden
                     </div>
                   )}
                 </div>
-                <div className="flex justify-end gap-3 ml-4">
-                  <button onClick={() => { setPrintModalProduct(null); setStatusMessage(null); }} className="px-5 py-2.5 text-muted-foreground font-semibold hover:text-foreground transition-colors">
-                    Cancel
-                  </button>
-                  <button onClick={() => printProductLabel(printModalProduct)} className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-bold flex items-center gap-2 shadow-sm transition-all">
-                    <Printer className="w-5 h-5" />
-                    Print Labels
-                  </button>
+              </div>
+            </div>
+
+            {/* ── Settings ── */}
+            <div className="px-6 pb-2 space-y-3">
+              <div className="grid grid-cols-[1fr_auto] gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Number of Labels</label>
+                  <div className="flex items-center gap-2 bg-background border border-border rounded-xl p-1 pl-3 focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-all">
+                    <span className="text-muted-foreground text-sm font-semibold shrink-0">
+                      <Printer className="w-4 h-4 inline -mt-0.5 mr-1.5" />
+                      ×
+                    </span>
+                    <input
+                      type="number"
+                      min="1"
+                      onWheel={e => (e.target as HTMLInputElement).blur()}
+                      value={printQuantity}
+                      onChange={e => setPrintQuantity(e.target.value === '' ? '' : e.target.value)}
+                      className="w-16 bg-transparent text-foreground focus:outline-none text-center font-bold text-lg no-spinners py-1.5"
+                    />
+                  </div>
                 </div>
-             </div>
+                <label className="flex items-center gap-3 bg-muted/30 border border-border rounded-xl px-4 py-3 cursor-pointer hover:bg-muted/50 transition-colors select-none">
+                  <input
+                    type="checkbox"
+                    checked={printPrice}
+                    onChange={e => setPrintPrice(e.target.checked)}
+                    className="w-4 h-4 accent-primary rounded cursor-pointer"
+                  />
+                  <span className="text-sm font-semibold text-foreground">Show Price</span>
+                </label>
+              </div>
+            </div>
+
+            {/* ── Status & Actions ── */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border mt-3 gap-4">
+              <div className="flex-1 min-w-0">
+                {statusMessage && (
+                  <div className={clsx(
+                    "px-3 py-2 rounded-lg text-sm font-bold animate-in fade-in",
+                    statusMessage.type === 'success' ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"
+                  )}>
+                    {statusMessage.text}
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => { setPrintModalProduct(null); setStatusMessage(null); }}
+                  className="px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => printProductLabel(printModalProduct)}
+                  className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print {printQuantity !== '' && Number(printQuantity) > 1 ? `${printQuantity} Labels` : 'Label'}
+                </button>
+              </div>
+            </div>
           </div>
         </Modal>
       )}
-    </Modal>
+    </div>
   );
 }
 

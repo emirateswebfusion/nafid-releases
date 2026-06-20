@@ -7,6 +7,7 @@ export interface AuthState {
   tenantId: string | null;
   userId: string | null;
   role: 'OWNER' | 'CASHIER' | null;
+  userName: string | null;
   shopName: string | null;
   isLoading: boolean;
 
@@ -37,6 +38,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   tenantId: null,
   userId: null,
   role: null,
+  userName: null,
   shopName: null,
   isLoading: true,
 
@@ -55,6 +57,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
             tenantId: stored.tenant_id,
             userId: stored.user_id,
             role: stored.role as 'OWNER' | 'CASHIER',
+            userName: stored.user_name || null,
             shopName: stored.shop_name,
           });
           useCartStore.getState().setRole(stored.role as 'OWNER' | 'CASHIER');
@@ -103,6 +106,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
           tenant_id: data.tenant_id,
           user_id: data.user_id,
           role: data.role,
+          user_name: data.user_name,
           shop_name: data.shop_name || email,
           domain_type: data.domain_type,
         });
@@ -114,6 +118,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         tenantId: data.tenant_id,
         userId: data.user_id,
         role: data.role,
+        userName: data.user_name || null,
         shopName: data.shop_name || email,
       });
       useCartStore.getState().setRole(data.role);
@@ -154,6 +159,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
           tenant_id: json.tenant_id,
           user_id: json.user_id,
           role: json.role,
+          user_name: json.user_name,
           shop_name: data.shop_name,
         });
       }
@@ -164,6 +170,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         tenantId: json.tenant_id,
         userId: json.user_id,
         role: json.role,
+        userName: json.user_name || data.owner_name || null,
         shopName: data.shop_name,
       });
       useCartStore.getState().setRole(json.role);
@@ -177,7 +184,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   logout: async () => {
     if (window.electronAPI) await window.electronAPI.authClearToken();
     useCartStore.getState().clearCart();
-    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, shopName: null });
+    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, userName: null, shopName: null });
   },
 
   updateDomain: async (domain: string) => {

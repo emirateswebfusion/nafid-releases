@@ -27,9 +27,10 @@ export interface Tab {
 interface TabState {
   tabs: Tab[];
   activeTabId: string;
-  addTab: (initialSnapshot?: TabSnapshot) => string;
+  addTab: (initialSnapshot?: TabSnapshot, title?: string) => string;
   closeTab: (id: string) => void;
   switchTab: (id: string) => void;
+  renameTab: (id: string, title: string) => void;
   updateActiveTab: (updates: Partial<Omit<Tab, 'id' | 'snapshot'>>) => void;
   syncActiveSnapshot: () => void;
 }
@@ -38,7 +39,7 @@ function createDefaultTab(): Tab {
   const id = uuidv4();
   return {
     id,
-    title: `Bill ${id.slice(0, 4).toUpperCase()}`,
+    title: 'New',
     snapshot: {
       items: [],
       invoiceType: 'BILL_OF_SUPPLY',
@@ -58,7 +59,7 @@ export const useTabStore = create<TabState>((set, get) => ({
   tabs: [],
   activeTabId: '',
 
-  addTab: (initialSnapshot?) => {
+  addTab: (initialSnapshot?, title?) => {
     const state = get();
 
     let currentTabs = state.tabs;
@@ -73,6 +74,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     }
 
     const tab = createDefaultTab();
+    if (title) tab.title = title;
     if (initialSnapshot) {
       tab.snapshot = initialSnapshot;
     } else {
@@ -85,11 +87,22 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   closeTab: (id) => {
     const { tabs, activeTabId } = get();
-    if (tabs.length <= 1) return;
-    const idx = tabs.findIndex(t => t.id === id);
-    const newTabs = tabs.filter(t => t.id !== id);
+    const cartState = useCartStore.getState();
+    const savedTabs = tabs.map(t =>
+      t.id === id && t.id === activeTabId
+        ? { ...t, snapshot: { items: cartState.items, invoiceType: cartState.invoiceType, discountType: cartState.discountType, discountValue: cartState.discountValue, customerState: cartState.customerState } }
+        : t
+    );
+    const newTabs = savedTabs.filter(t => t.id !== id);
+    if (newTabs.length === 0) {
+      const tab = createDefaultTab();
+      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'MH' });
+      set({ tabs: [tab], activeTabId: tab.id });
+      return;
+    }
     let newActive = activeTabId;
     if (activeTabId === id) {
+      const idx = tabs.findIndex(t => t.id === id);
       newActive = newTabs[Math.min(idx, newTabs.length - 1)].id;
       const targetTab = newTabs.find(t => t.id === newActive);
       if (targetTab) {
@@ -103,6 +116,13 @@ export const useTabStore = create<TabState>((set, get) => ({
       }
     }
     set({ tabs: newTabs, activeTabId: newActive });
+  },
+
+  renameTab: (id, title) => {
+    const { tabs } = get();
+    set({
+      tabs: tabs.map(t => t.id === id ? { ...t, title } : t),
+    });
   },
 
   switchTab: (targetId) => {

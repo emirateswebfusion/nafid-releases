@@ -3,6 +3,10 @@ import path from 'path';
 import { app, BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
+const BATCH_SIZE = 100;
+const FETCH_TIMEOUT_MS = 120000;
+let syncInProgress = false;
+
 function toSqliteDate(iso: string | null | undefined): string {
   if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
   return iso.replace('T', ' ').replace('Z', '');
@@ -15,7 +19,7 @@ function notifyRenderer() {
   }
 }
 
-const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1'); // Default 1 minute
+const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1');
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINS * 60 * 1000;
 
 function getCloudApiBase() {
@@ -35,96 +39,102 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
-  // Run initial sync cycle immediately on app startup
   runSyncCycle().catch(err => console.error('[SyncWorker] Initial startup sync error:', err.message));
-  
   setInterval(runSyncCycle, SYNC_INTERVAL_MS);
 }
 
-// ── Manual Sync Trigger ──────────────────────────────────────────────────────
 export async function runInitialSync() {
   console.log('[SyncWorker] Running explicit initial sync...');
   await runSyncCycle();
   return { success: true };
 }
 
-// ── Main sync cycle ──────────────────────────────────────────────────────────
 async function runSyncCycle() {
-  // Quick connectivity check
-  try {
-    const res = await fetch('https://clients3.google.com/generate_204', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-    if (!res.ok && res.status !== 204) return;
-  } catch {
-    console.log('[SyncWorker] Offline. Skipping sync cycle.');
+  if (syncInProgress) {
+    console.log('[SyncWorker] Sync already in progress, skipping...');
     return;
   }
-
-  console.log('[SyncWorker] Online. Running sync...');
-
-  const config = getAuthConfig();
-  if (!config) {
-    console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
-    return;
-  }
-
-  // Run syncs sequentially:
-  // 1. Push local changes up (products first so stock/notifications are current)
-  // 2. Pull latest data down from cloud (ensures new devices get caught up)
-  try {
-    await syncGrades(config.jwt_token, config.tenant_id);
-    await syncProducts(config.jwt_token, config.tenant_id);
-    await syncInvoices(config.jwt_token, config.tenant_id);
-    await syncSettings(config.jwt_token, config.tenant_id);
-    await pullGrades(config.jwt_token);
-    await pullProducts(config.jwt_token);
-    await pullInvoices(config.jwt_token);
-    await pullUsers(config.jwt_token);
-    await pullSettings(config.jwt_token);
-  } catch (err: any) {
-    console.error('[SyncWorker] Sync cycle error:', err.message);
-  }
-}
-
-// ── Product Sync (Edge → Cloud) ──────────────────────────────────────────────
-// Pushes all products with sync_status = 'PENDING' to the cloud.
-// This includes stock changes from checkouts, new products, and edits.
-// The cloud endpoint triggers low-stock notifications if current_stock <= reorder_level.
-async function syncProducts(token: string, tenantId: string) {
-  const db = getDb();
-  const pending = db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
-
-  if (pending.length === 0) return;
-  console.log(`[SyncWorker] Pushing ${pending.length} products to cloud...`);
+  syncInProgress = true;
 
   try {
-    // Parse domain_attributes back to JSON objects for the cloud
-    const products = pending.map((p: any) => ({
-      ...p,
-      is_deleted: !!p.is_deleted,
-      domain_attributes: (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })(),
-    }));
-
-    const response = await fetch(`${getCloudApiBase()}/api/sync/products`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ products }),
-    });
-
-    if (!response.ok) {
-      console.error(`[SyncWorker] Product sync failed: HTTP ${response.status}`);
+    try {
+      const res = await fetch('https://clients3.google.com/generate_204', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+      if (!res.ok && res.status !== 204) {
+        console.log('[SyncWorker] Offline. Skipping sync cycle.');
+        return;
+      }
+    } catch {
+      console.log('[SyncWorker] Offline. Skipping sync cycle.');
       return;
     }
 
-    const result: any = await response.json();
-    console.log(`[SyncWorker] Product sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
+    console.log('[SyncWorker] Online. Running sync...');
 
-    if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(result.synced);
+    const config = getAuthConfig();
+    if (!config) {
+      console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
+      return;
     }
+
+    const { jwt_token, tenant_id } = config;
+    let dataUpdated = false;
+
+    try {
+      await syncGrades(jwt_token, tenant_id);
+      await syncProducts(jwt_token, tenant_id);
+      await syncInvoices(jwt_token, tenant_id);
+      await syncSettings(jwt_token, tenant_id);
+      await syncParties(jwt_token, tenant_id);
+
+      if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+    } catch (err: any) {
+      console.error('[SyncWorker] Sync cycle error:', err.message);
+    }
+
+    if (dataUpdated) {
+      notifyRenderer();
+    }
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+// ── Batch push helper ───────────────────────────────────────────────────────────
+async function pushBatch<T>(
+  url: string,
+  token: string,
+  batch: T[],
+  bodyKey: string,
+  label: string,
+): Promise<string[]> {
+  if (batch.length === 0) return [];
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ [bodyKey]: batch }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}`);
+      return [];
+    }
+
+    const result: any = await response.json();
+    if (result.synced?.length > 0) {
+      console.log(`[SyncWorker] ${label}: ${result.synced_count} synced, ${result.failed_count} failed.`);
+    }
+    return result.synced || [];
   } catch (err: any) {
-    console.error('[SyncWorker] Product sync fetch failed:', err.message);
+    console.error(`[SyncWorker] ${label} batch error: ${err.message}`);
+    return [];
   }
 }
 
@@ -134,94 +144,151 @@ async function syncGrades(token: string, tenantId: string) {
   const pending = db.prepare(`SELECT * FROM product_grades WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
-  console.log(`[SyncWorker] Pushing ${pending.length} product grades to cloud...`);
+  console.log(`[SyncWorker] Pushing ${pending.length} product grades to cloud in batches of ${BATCH_SIZE}...`);
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/product_grades`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ product_grades: pending }),
-    });
+  const updateStmt = db.prepare(`UPDATE product_grades SET sync_status = 'SYNCED' WHERE grade_id = ? AND tenant_id = ?`);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Grade sync failed: HTTP ${response.status}`);
-      return;
-    }
-
-    const result: any = await response.json();
-    console.log(`[SyncWorker] Grade sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
-
-    if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE product_grades SET sync_status = 'SYNCED' WHERE grade_id = ? AND tenant_id = ?`);
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/product_grades`,
+      token,
+      batch,
+      'product_grades',
+      `Grades batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(result.synced);
+      tx(synced);
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Grade sync fetch failed:', err.message);
+  }
+}
+
+// ── Product Sync (Edge → Cloud) ──────────────────────────────────────────────
+async function syncProducts(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} products to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const products = batch.map((p: any) => ({
+      ...p,
+      is_deleted: !!p.is_deleted,
+      domain_attributes: (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })(),
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/products`,
+      token,
+      products,
+      'products',
+      `Products batch ${Math.floor(i / BATCH_SIZE) + 1} (${i + 1}-${Math.min(i + BATCH_SIZE, pending.length)})`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
   }
 }
 
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
-// Pushes invoices with sync_status = 'PENDING' along with their line items.
 async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pendingInvoices = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
-  if (pendingInvoices.length === 0) return;
-  console.log(`[SyncWorker] Pushing ${pendingInvoices.length} invoices to cloud...`);
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} invoices to cloud in batches of ${BATCH_SIZE}...`);
 
-  // Attach line items to each invoice
   const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?`);
-  const invoicesWithItems = pendingInvoices.map((inv: any) => ({
-    ...inv,
-    items: getItems.all(inv.invoice_id, tenantId),
-  }));
+  const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND tenant_id = ?`);
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/invoices`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ invoices: invoicesWithItems }),
-    });
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const invoicesWithItems = batch.map((inv: any) => ({
+      ...inv,
+      items: getItems.all(inv.invoice_id, tenantId),
+    }));
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Invoice sync failed: HTTP ${response.status}`);
-      return;
-    }
-
-    const result: any = await response.json();
-    console.log(`[SyncWorker] Invoice sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
-
-    if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND tenant_id = ?`);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/invoices`,
+      token,
+      invoicesWithItems,
+      'invoices',
+      `Invoices batch ${Math.floor(i / BATCH_SIZE) + 1} (${i + 1}-${Math.min(i + BATCH_SIZE, pending.length)})`,
+    );
+    if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
-      tx(result.synced);
+      tx(synced);
     }
-  } catch (err: any) {
-    console.error('[SyncWorker] Invoice sync fetch failed:', err.message);
   }
 }
 
+// ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
+async function syncSettings(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ? AND key IN ('price_coding', 'barcode_printer_config', 'receipt_printer_config')`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
+
+  const synced = await pushBatch(
+    `${getCloudApiBase()}/api/sync/settings`,
+    token,
+    pending,
+    'settings',
+    'Settings',
+  );
+  if (synced.length > 0) {
+    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND tenant_id = ?`);
+    const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
+    tx(synced);
+  }
+}
+
+// ── Reconcile helper ────────────────────────────────────────────────────────────
+function reconcilePending(
+  db: any,
+  table: string,
+  idColumn: string,
+  cloudRows: any[],
+): number {
+  if (cloudRows.length === 0) return 0;
+
+  const updateStmt = db.prepare(
+    `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ? AND updated_at = ?`,
+  );
+
+  let count = 0;
+  for (const row of cloudRows) {
+    const result = updateStmt.run(row[idColumn], toSqliteDate(row.updated_at));
+    if (result.changes > 0) count++;
+  }
+  return count;
+}
+
 // ── Pull Product Grades (Cloud → Edge) ─────────────────────────────────────────────
-async function pullGrades(token: string) {
+async function pullGrades(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   try {
     const response = await fetch(`${getCloudApiBase()}/api/sync/product_grades`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       console.error(`[SyncWorker] Pull grades failed: HTTP ${response.status}`);
-      return;
+      return false;
     }
 
     const cloudGrades: any[] = await response.json();
-    if (!Array.isArray(cloudGrades) || cloudGrades.length === 0) return;
-
-    const config = getAuthConfig();
-    const tenantId = config?.tenant_id || '';
+    if (!Array.isArray(cloudGrades) || cloudGrades.length === 0) return false;
 
     const upsert = db.prepare(`
       INSERT INTO product_grades (
@@ -262,38 +329,34 @@ async function pullGrades(token: string) {
     });
 
     tx(cloudGrades);
-    console.log(`[SyncWorker] Pulled ${cloudGrades.length} grades from cloud.`);
+
+    const reconciled = reconcilePending(db, 'product_grades', 'grade_id', cloudGrades);
+    console.log(`[SyncWorker] Pulled ${cloudGrades.length} grades from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull grades failed:', err.message);
+    return false;
   }
 }
 
 // ── Pull Products (Cloud → Edge) ─────────────────────────────────────────────
-// Fetches all products for this tenant from the Cloud API and upserts them
-// into local SQLite. This ensures a new device gets the full product catalog
-// and all devices stay in sync with cloud-side stock/price updates.
-// Products that are locally modified (sync_status = 'PENDING') are NOT overwritten
-// to avoid losing un-pushed local edits.
-async function pullProducts(token: string) {
+async function pullProducts(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   try {
     const response = await fetch(`${getCloudApiBase()}/api/products`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       console.error(`[SyncWorker] Pull products failed: HTTP ${response.status}`);
-      return;
+      return false;
     }
 
     const cloudProducts: any[] = await response.json();
-    if (!Array.isArray(cloudProducts) || cloudProducts.length === 0) return;
-
-    // Read the auth config to get tenant_id
-    const config = getAuthConfig();
-    const tenantId = config?.tenant_id || '';
+    if (!Array.isArray(cloudProducts) || cloudProducts.length === 0) return false;
 
     const upsert = db.prepare(`
       INSERT INTO products (
@@ -396,32 +459,35 @@ async function pullProducts(token: string) {
     });
 
     tx(cloudProducts);
-    console.log(`[SyncWorker] Pulled ${cloudProducts.length} products from cloud.`);
-    notifyRenderer();
+
+    const reconciled = reconcilePending(db, 'products', 'product_id', cloudProducts);
+    console.log(`[SyncWorker] Pulled ${cloudProducts.length} products from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
+
+    return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull products failed:', err.message);
+    return false;
   }
 }
 
 // ── Pull Invoices (Cloud → Edge) ─────────────────────────────────────────────
-// Fetches historical invoices for this tenant from the Cloud API and upserts
-// them into local SQLite. This allows a new device to see the shop's history.
-async function pullInvoices(token: string) {
+async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   try {
     const response = await fetch(`${getCloudApiBase()}/api/sync/invoices`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       console.error(`[SyncWorker] Pull invoices failed: HTTP ${response.status}`);
-      return;
+      return false;
     }
 
     const cloudInvoices: any[] = await response.json();
-    if (!Array.isArray(cloudInvoices) || cloudInvoices.length === 0) return;
+    if (!Array.isArray(cloudInvoices) || cloudInvoices.length === 0) return false;
 
     const upsertInv = db.prepare(`
       INSERT INTO invoices (
@@ -520,35 +586,33 @@ async function pullInvoices(token: string) {
     });
 
     tx(cloudInvoices);
-    console.log(`[SyncWorker] Pulled ${cloudInvoices.length} invoices from cloud.`);
-    notifyRenderer();
+    const reconciled = reconcilePending(db, 'invoices', 'invoice_id', cloudInvoices);
+    console.log(`[SyncWorker] Pulled ${cloudInvoices.length} invoices from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
+    return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull invoices failed:', err.message);
+    return false;
   }
 }
 
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
-// Fetches the staff list for this tenant and updates the local 'users' table.
-async function pullUsers(token: string) {
+async function pullUsers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   try {
     const response = await fetch(`${getCloudApiBase()}/auth/staff`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       console.error(`[SyncWorker] Pull users failed: HTTP ${response.status}`);
-      return;
+      return false;
     }
 
     const cloudUsers: any[] = await response.json();
-    if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return;
-
-    // Get tenant_id from config
-    const config = getAuthConfig();
-    const tenantId = config?.tenant_id || '';
+    if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
 
     const upsert = db.prepare(`
       INSERT INTO users (user_id, tenant_id, name, email, role, created_at)
@@ -574,72 +638,139 @@ async function pullUsers(token: string) {
 
     tx(cloudUsers);
     console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
+    return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull users failed:', err.message);
+    return false;
   }
 }
 
-// ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
-async function syncSettings(token: string, tenantId: string) {
+// ── Party Sync (Edge → Cloud) ────────────────────────────────────────────────
+async function syncParties(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ? AND key IN ('price_coding', 'barcode_printer_config', 'receipt_printer_config')`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM parties WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
-  console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
+  console.log(`[SyncWorker] Pushing ${pending.length} parties to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE parties SET sync_status = 'SYNCED' WHERE party_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const parties = batch.map((p: any) => ({
+      ...p,
+      is_deleted: !!p.is_deleted,
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/parties`,
+      token,
+      parties,
+      'parties',
+      `Parties batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Parties (Cloud → Edge) ─────────────────────────────────────────────
+async function pullParties(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
 
   try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/settings`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ settings: pending }),
+    const response = await fetch(`${getCloudApiBase()}/api/sync/parties`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
-      console.error(`[SyncWorker] Settings sync failed: HTTP ${response.status}`);
-      return;
+      console.error(`[SyncWorker] Pull parties failed: HTTP ${response.status}`);
+      return false;
     }
 
-    const result: any = await response.json();
-    console.log(`[SyncWorker] Settings sync: ${result.synced_count} synced, ${result.failed_count} failed.`);
+    const cloudParties: any[] = await response.json();
+    if (!Array.isArray(cloudParties) || cloudParties.length === 0) return false;
 
-    if (result.synced?.length > 0) {
-      const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND tenant_id = ?`);
-      const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
-      tx(result.synced);
-    }
+    const upsert = db.prepare(`
+      INSERT INTO parties (
+        party_id, tenant_id, name, phone, balance, notes, is_deleted,
+        sync_status, created_at, updated_at
+      ) VALUES (
+        @party_id, @tenant_id, @name, @phone, @balance, @notes, @is_deleted,
+        'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(party_id) DO UPDATE SET
+        name = excluded.name,
+        phone = excluded.phone,
+        balance = excluded.balance,
+        notes = excluded.notes,
+        is_deleted = excluded.is_deleted,
+        created_at = COALESCE(parties.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE parties.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((parties: any[]) => {
+      for (const p of parties) {
+        try {
+          upsert.run({
+            party_id: p.party_id,
+            tenant_id: tenantId,
+            name: p.name,
+            phone: p.phone || null,
+            balance: p.balance ?? 0,
+            notes: p.notes || null,
+            is_deleted: p.is_deleted ? 1 : 0,
+            created_at: toSqliteDate(p.created_at),
+            updated_at: toSqliteDate(p.updated_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling party:', e.message);
+        }
+      }
+    });
+
+    tx(cloudParties);
+
+    const reconciled = reconcilePending(db, 'parties', 'party_id', cloudParties);
+    console.log(`[SyncWorker] Pulled ${cloudParties.length} parties from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
   } catch (err: any) {
-    console.error('[SyncWorker] Settings sync fetch failed:', err.message);
+    console.error('[SyncWorker] Pull parties failed:', err.message);
+    return false;
   }
 }
 
 // ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
-async function pullSettings(token: string) {
+async function pullSettings(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
   try {
     const response = await fetch(`${getCloudApiBase()}/api/sync/settings`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
 
     if (!response.ok) {
       console.error(`[SyncWorker] Pull settings failed: HTTP ${response.status}`);
-      return;
+      return false;
     }
 
     const cloudSettings: any[] = await response.json();
-    if (!Array.isArray(cloudSettings) || cloudSettings.length === 0) return;
+    if (!Array.isArray(cloudSettings) || cloudSettings.length === 0) return false;
 
-    // Filter to only the whitelisted keys
     const whitelistedKeys = ['price_coding', 'barcode_printer_config', 'receipt_printer_config'];
     const validSettings = cloudSettings.filter(s => whitelistedKeys.includes(s.key));
 
-    if (validSettings.length === 0) return;
-
-    const config = getAuthConfig();
-    const tenantId = config?.tenant_id || 'global';
+    if (validSettings.length === 0) return false;
 
     const localStmt = db.prepare(`SELECT key, value FROM settings WHERE tenant_id = ? AND key = ?`);
-    
+
     const upsert = db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
       VALUES (@tenant_id, @key, @value, 'SYNCED', @updated_at)
@@ -652,7 +783,7 @@ async function pullSettings(token: string) {
     const tx = db.transaction((settings: any[]) => {
       for (const s of settings) {
         let valueToSave = s.value;
-        
+
         if (s.key === 'barcode_printer_config' || s.key === 'receipt_printer_config') {
            const localData = localStmt.get(tenantId, s.key) as any;
            if (localData && localData.value) {
@@ -685,7 +816,9 @@ async function pullSettings(token: string) {
 
     tx(validSettings);
     console.log(`[SyncWorker] Pulled ${validSettings.length} settings from cloud.`);
+    return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull settings failed:', err.message);
+    return false;
   }
 }

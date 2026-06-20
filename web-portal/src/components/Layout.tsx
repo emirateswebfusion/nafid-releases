@@ -24,7 +24,7 @@ export default function Layout() {
         </button>
       </header>
       
-      <main className="flex-1 overflow-auto p-4 max-w-lg mx-auto w-full">
+      <main className="flex-1 overflow-y-auto min-h-0 p-4 max-w-lg mx-auto w-full">
         <Outlet />
       </main>
 

@@ -2,9 +2,10 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Lock, Key, Tags, Building, Receipt, Usb,
-  CheckCircle2, AlertCircle, Globe, Upload
+  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
+import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
@@ -57,7 +58,19 @@ const GENERAL_SECTIONS: SettingSection[] = [
   { id: 'receipt-printer', icon: Printer, title: 'Bill Receipt Printer', desc: 'Configure your receipt printer connection and paper width.' },
   { id: 'scale', icon: Scale, title: 'Electronic Weighing Scale', desc: 'Configure the serial port connection for your weighing scale.' },
   { id: 'updates', icon: RefreshCw, title: 'System Updates', desc: 'Check for new versions and update your application.' },
+  { id: 'appearance', icon: Type, title: 'Appearance & Font Size', desc: 'Adjust the UI font size for better readability.' },
 ];
+
+function formatTimeAgo(date: Date): string {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes === 1) return '1 min ago';
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours === 1) return '1 hour ago';
+  return `${hours} hours ago`;
+}
 
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
@@ -72,7 +85,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
+  const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
   const [checkingUpdate, setCheckingUpdate] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<string | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [localDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [changingPass, setChangingPass] = useState(false);
@@ -105,6 +122,15 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  // Listen for live update status from main process
+  useEffect(() => {
+    if (window.electronAPI?.onUpdateStatus) {
+      window.electronAPI.onUpdateStatus((status: string) => {
+        setUpdateStatus(status);
+      });
+    }
   }, []);
 
   // After loadSettings, snapshot the initial values
@@ -268,15 +294,23 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const handleCheckUpdate = async () => {
     if (!window.electronAPI) return;
     setCheckingUpdate(true);
+    setUpdateStatus('Checking for updates...');
+    setUpdateInfo(null);
     setMessage(null);
     try {
       const res = await window.electronAPI.appCheckForUpdates();
+      setLastChecked(new Date());
       if (res && res.success === false) {
+        setUpdateStatus(null);
         setMessage({ type: 'error', text: res.error });
+      } else if (res.updateInfo) {
+        setUpdateInfo({ version: res.updateInfo.version, releaseDate: res.updateInfo.releaseDate, releaseNotes: res.updateInfo.releaseNotes });
+        setUpdateStatus(`Update available`);
       } else {
-        setMessage({ type: 'success', text: 'Update check complete.' });
+        setUpdateStatus('Up to date');
       }
     } catch (err: any) {
+      setUpdateStatus(null);
       setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` });
     } finally {
       setCheckingUpdate(false);
@@ -656,16 +690,178 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       case 'updates':
         return (
-          <div className="mt-5">
+          <div className="mt-6 space-y-5">
+            {/* Version + Status Hero */}
+            <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/[0.04] to-transparent">
+              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.06),transparent_70%)]" />
+              <div className="relative p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 rounded-xl bg-primary/10 text-primary shadow-sm">
+                      <RefreshCw className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Version</p>
+                      <p className="text-2xl font-bold text-foreground font-mono tracking-tight mt-0.5">{appVersion}</p>
+                      {lastChecked && (
+                        <p className="text-[11px] text-muted-foreground/70 mt-1">
+                          Last checked {formatTimeAgo(lastChecked)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {updateStatus && (
+                    <div className={clsx(
+                      "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border shrink-0",
+                      updateStatus === 'Up to date'
+                        ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                        : updateStatus === 'Update available'
+                          ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400"
+                          : "bg-muted/50 border-border text-muted-foreground"
+                    )}>
+                      {checkingUpdate ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : updateStatus === 'Up to date' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5" />
+                      )}
+                      {updateStatus}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Update Info Card */}
+            {updateInfo && (
+              <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.04] to-transparent overflow-hidden">
+                {/* Card header */}
+                <div className="flex items-center gap-3 px-5 py-4 border-b border-blue-500/10">
+                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                    <Download className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-foreground">
+                      v{updateInfo.version} Ready to Install
+                    </p>
+                    {updateInfo.releaseDate && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Released {new Date(updateInfo.releaseDate).toLocaleDateString('en-US', {
+                          year: 'numeric', month: 'long', day: 'numeric'
+                        })}
+                      </p>
+                    )}
+                  </div>
+                  <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md border border-blue-500/20">
+                    NEW
+                  </span>
+                </div>
+
+                {/* Release notes */}
+                {updateInfo.releaseNotes && (
+                  <div className="px-5 py-4">
+                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">
+                      What's New
+                    </p>
+                    <div className="text-xs text-muted-foreground max-h-36 overflow-y-auto leading-relaxed space-y-2">
+                      {typeof updateInfo.releaseNotes === 'string'
+                        ? updateInfo.releaseNotes.split('\n').filter(Boolean).map((line: string, i: number) => (
+                            <p key={i} className="flex items-start gap-2.5">
+                              <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" />
+                              <span>{line}</span>
+                            </p>
+                          ))
+                        : <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Check Button */}
             <Button
               variant="outline"
               onClick={handleCheckUpdate}
               disabled={checkingUpdate}
-              className="flex items-center gap-2"
+              className={clsx(
+                "flex items-center justify-center gap-2.5 w-full h-12 rounded-xl font-semibold transition-all duration-200",
+                "hover:bg-primary/5 hover:border-primary/30 hover:text-primary"
+              )}
             >
-              {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+              {checkingUpdate ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              {checkingUpdate ? 'Checking for Updates...' : 'Check for Updates'}
             </Button>
+          </div>
+        );
+
+      case 'appearance':
+        return (
+          <div className="mt-5 space-y-4">
+            <div className="bg-muted/30 border border-border rounded-xl p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-bold text-foreground">Font Size</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Scale the entire UI text size</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={decreaseFontScale}
+                    disabled={fontScale <= 70}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Minus className="w-4 h-4" />
+                  </button>
+                  <div className="w-20 text-center">
+                    <span className="text-2xl font-black text-foreground">{fontScale}%</span>
+                    <div className="flex items-center justify-center gap-1 mt-1">
+                      <span className={clsx(
+                        'w-2 h-2 rounded-full',
+                        fontScale <= 80 ? 'bg-blue-500' : fontScale <= 100 ? 'bg-emerald-500' : fontScale <= 120 ? 'bg-amber-500' : 'bg-red-500'
+                      )} />
+                      <span className="text-[10px] font-semibold text-muted-foreground">
+                        {fontScale <= 80 ? 'Small' : fontScale <= 100 ? 'Normal' : fontScale <= 120 ? 'Large' : 'X-Large'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={increaseFontScale}
+                    disabled={fontScale >= 140}
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Visual preview */}
+              <div className="mt-5 p-4 bg-card border border-border/60 rounded-xl">
+                <div className="flex items-center gap-3 mb-3">
+                  <Type className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Preview</span>
+                </div>
+                <p className="text-xs text-foreground font-medium">
+                  The quick brown fox jumps over the lazy dog.
+                </p>
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  This is how your receipts, invoices, and product labels will appear throughout the system.
+                </p>
+              </div>
+
+              {/* Reset button */}
+              <button
+                onClick={() => setFontScale(100)}
+                disabled={fontScale === 100}
+                className="mt-4 px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 border border-border rounded-xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Reset to Default
+              </button>
+            </div>
           </div>
         );
 
@@ -688,7 +884,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         </div>
         <div className="flex items-center gap-1">
           <button onClick={onClose}
-            className="px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors">
+            className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors">
             Cancel
           </button>
           {activeTab !== 'grades' && hasChanges && (

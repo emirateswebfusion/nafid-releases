@@ -2,16 +2,21 @@ import { Plus, X } from 'lucide-react';
 import { useTabStore } from '../store/tabStore';
 import clsx from 'clsx';
 
-export function BillingTabBar() {
+export function BillingTabBar({ onAddTab }: { onAddTab?: () => void }) {
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const switchTab = useTabStore(s => s.switchTab);
   const closeTab = useTabStore(s => s.closeTab);
-  const addTab = useTabStore(s => s.addTab);
 
   const handleClose = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
     closeTab(id);
+  };
+
+  const handleAdd = () => {
+    if (onAddTab) {
+      onAddTab();
+    }
   };
 
   return (
@@ -40,7 +45,7 @@ export function BillingTabBar() {
           </div>
         ))}
         <button
-          onClick={() => addTab()}
+          onClick={handleAdd}
           className="flex items-center justify-center p-2 ml-0.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
           title="New Bill"
         >

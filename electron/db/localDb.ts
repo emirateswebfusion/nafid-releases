@@ -115,6 +115,19 @@ export function initDb() {
         FOREIGN KEY (product_id) REFERENCES products(product_id)
     );
 
+    CREATE TABLE IF NOT EXISTS parties (
+        party_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        balance REAL NOT NULL DEFAULT 0,
+        notes TEXT,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS settings (
         tenant_id TEXT DEFAULT 'global',
         key TEXT NOT NULL,
@@ -122,6 +135,101 @@ export function initDb() {
         sync_status TEXT DEFAULT 'SYNCED',
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (tenant_id, key)
+    );
+
+    CREATE TABLE IF NOT EXISTS scrap_categories (
+        scrap_category_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS scrap_items (
+        scrap_item_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        scrap_category_id TEXT,
+        purchase_price REAL DEFAULT 0,
+        selling_price REAL DEFAULT 0,
+        current_stock REAL DEFAULT 0,
+        unit TEXT DEFAULT 'Kgs',
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS scrap_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('PURCHASE', 'SALE')),
+        scrap_item_id TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        rate REAL NOT NULL,
+        total_amount REAL NOT NULL,
+        party_name TEXT,
+        notes TEXT,
+        transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS quotations (
+        quotation_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        quotation_number TEXT NOT NULL,
+        customer_name TEXT,
+        customer_phone TEXT,
+        customer_address TEXT,
+        terms_conditions TEXT,
+        subtotal REAL NOT NULL DEFAULT 0,
+        tax_total REAL NOT NULL DEFAULT 0,
+        grand_total REAL NOT NULL DEFAULT 0,
+        status TEXT DEFAULT 'ACTIVE',
+        converted_to_invoice INTEGER DEFAULT 0,
+        invoice_id TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, quotation_number)
+    );
+
+    CREATE TABLE IF NOT EXISTS quotation_items (
+        item_id TEXT PRIMARY KEY,
+        quotation_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        product_id TEXT,
+        name TEXT NOT NULL,
+        quantity REAL NOT NULL DEFAULT 1,
+        weight REAL,
+        rate REAL NOT NULL DEFAULT 0,
+        amount REAL NOT NULL DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (quotation_id) REFERENCES quotations(quotation_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS warranties (
+        warranty_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        invoice_id TEXT,
+        invoice_item_id TEXT,
+        customer_name TEXT NOT NULL,
+        customer_phone TEXT,
+        product_name TEXT NOT NULL,
+        product_details TEXT,
+        purchase_date TEXT NOT NULL,
+        warranty_period_days INTEGER NOT NULL,
+        expiry_date TEXT NOT NULL,
+        notes TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
   `);
 
@@ -140,7 +248,7 @@ export function initDb() {
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
-        'customer_gstin', 'customer_state'
+        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
@@ -150,6 +258,27 @@ export function initDb() {
     ],
     settings: [
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
+    ],
+    parties: [
+        'party_id', 'tenant_id', 'name', 'phone', 'balance', 'notes', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    scrap_categories: [
+        'scrap_category_id', 'tenant_id', 'name', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    scrap_items: [
+        'scrap_item_id', 'tenant_id', 'name', 'scrap_category_id', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    scrap_transactions: [
+        'transaction_id', 'tenant_id', 'type', 'scrap_item_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at'
+    ],
+    quotations: [
+        'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
+    ],
+    quotation_items: [
+        'item_id', 'quotation_id', 'tenant_id', 'product_id', 'name', 'quantity', 'weight', 'rate', 'amount', 'sync_status', 'created_at'
+    ],
+    warranties: [
+        'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
     ]
   };
 
@@ -365,6 +494,8 @@ export function initDb() {
     "UPDATE settings SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
     "UPDATE product_grades SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
     "UPDATE product_grades SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE parties SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE parties SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
   ];
   for (const q of dateFixQueries) {
     try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }

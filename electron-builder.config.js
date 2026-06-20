@@ -21,8 +21,9 @@ module.exports = {
   appId: 'com.vendora.pos',
   productName: 'Vendora',
   copyright: 'Copyright © 2026 Vendora',
+  npmRebuild: false,
   directories: {
-    output: 'release',
+    output: 'D:/vendora-release',
     buildResources: 'build'
   },
   files: [
@@ -53,7 +54,8 @@ module.exports = {
       provider: 'github',
       owner: repository.owner,
       repo: repository.repo,
-      releaseType: 'release'
+      private: true,
+      releaseType: 'draft'
     }
   ] : null
 };

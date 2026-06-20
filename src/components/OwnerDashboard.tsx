@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon } from 'lucide-react';
+import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -44,6 +44,51 @@ export function OwnerDashboard() {
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
         },
         {
+            id: 'stock-print',
+            title: 'Stock Report',
+            desc: 'Print A4 stock reports with PDF export',
+            icon: Printer,
+            color: 'text-primary',
+            bgColor: 'bg-primary/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-stock-print')),
+        },
+        {
+            id: 'quotations',
+            title: 'Quotations',
+            desc: 'Create and manage A4 quotations',
+            icon: FileText,
+            color: 'text-blue-500',
+            bgColor: 'bg-blue-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-quotation-manager')),
+        },
+        {
+            id: 'warranties',
+            title: 'Warranty Bills',
+            desc: 'Register and print warranty certificates',
+            icon: Shield,
+            color: 'text-emerald-500',
+            bgColor: 'bg-emerald-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
+        },
+        {
+            id: 'scrap',
+            title: 'Scrap Management',
+            desc: 'Track scrap purchases, sales & profit',
+            icon: Trash2,
+            color: 'text-amber-500',
+            bgColor: 'bg-amber-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),
+        },
+        {
+            id: 'parties',
+            title: 'Parties / Credit',
+            desc: 'Track credit parties, balances, and payments',
+            icon: Handshake,
+            color: 'text-primary',
+            bgColor: 'bg-primary/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
+        },
+        {
             id: 'staff',
             title: 'Staff Administration',
             desc: 'Manage cashier accounts and permissions',
@@ -61,15 +106,6 @@ export function OwnerDashboard() {
             bgColor: 'bg-primary/10',
             action: () => window.dispatchEvent(new CustomEvent('open-sales-history')),
         },
-        {
-            id: 'settings',
-            title: 'Settings',
-            desc: 'Configure hardware, domain, and check updates',
-            icon: Settings,
-            color: 'text-muted-foreground',
-            bgColor: 'bg-muted',
-            action: () => window.dispatchEvent(new CustomEvent('open-settings-manager')),
-        }
     ];
 
     return (
@@ -106,6 +142,13 @@ export function OwnerDashboard() {
                                     Toggle Theme
                                 </button>
                                 <button 
+                                    onClick={() => { window.dispatchEvent(new CustomEvent('open-settings-manager')); setMenuOpen(false); }}
+                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-left"
+                                >
+                                    <Settings className="w-4 h-4" />
+                                    Settings
+                                </button>
+                                <button 
                                     onClick={() => useAuthStore.getState().logout()}
                                     className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left"
                                 >
@@ -119,7 +162,7 @@ export function OwnerDashboard() {
             </div>
 
             {/* Grid Content */}
-            <div className="flex-1 p-8 grid grid-cols-5 gap-4 relative z-0 items-stretch overflow-hidden">
+            <div className="flex-1 min-h-0 p-8 grid grid-cols-3 gap-4 relative z-0 items-stretch overflow-y-auto">
                 {cards.map((card) => (
                     <Card
                         key={card.id}

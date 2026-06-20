@@ -23,8 +23,8 @@ export interface IElectronAPI {
   dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteGrade: (grade_id: string) => Promise<{ success: boolean; error?: string }>;
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
-  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; shop_name: string; domain_type?: string }) => Promise<{ success: boolean; error?: string }>;
-  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; shop_name: string; domain_type?: string } | null>;
+  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string }) => Promise<{ success: boolean; error?: string }>;
+  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
@@ -36,11 +36,46 @@ export interface IElectronAPI {
   getBulkPrintItems: () => Promise<any[]>;
   getPrinters: () => Promise<any[]>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
+  onUpdateStatus: (callback: (status: string) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => void;
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
+  dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
+  dbGetParties: (tenant_id: string) => Promise<any[]>;
+  dbAddParty: (party: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
+
+  // Scrap
+  dbGetScrapCategories: (tenant_id: string) => Promise<any[]>;
+  dbAddScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteScrapCategory: (scrap_category_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbGetScrapItems: (tenant_id: string) => Promise<any[]>;
+  dbAddScrapItem: (item: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateScrapItem: (item: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteScrapItem: (scrap_item_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbAdjustScrapStock: (args: { scrap_item_id: string; delta: number }) => Promise<{ success: boolean; error?: string }>;
+  dbAddScrapTransaction: (t: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetScrapTransactions: (args: { tenant_id: string; scrap_item_id?: string }) => Promise<any[]>;
+
+  // Stock Report
+  dbGetStockReport: (tenant_id: string) => Promise<any[]>;
+
+  // Quotations
+  dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;
+  dbSaveQuotation: (q: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetQuotations: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbGetQuotationItems: (quotation_id: string) => Promise<any[]>;
+  dbUpdateQuotationStatus: (args: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => Promise<{ success: boolean; error?: string }>;
+
+  // Warranties
+  dbSaveWarranty: (w: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetWarranties: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbDeleteWarranty: (warranty_id: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RowData {
@@ -43,6 +44,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const [printing, setPrinting] = useState(false);
   const [printStatusMsg, setPrintStatusMsg] = useState<{ text: string, type: 'info' | 'success' | 'error' } | null>(null);
   const [printDate, setPrintDate] = useState('');
+  const [printDateEnd, setPrintDateEnd] = useState('');
   const [printOnlyPending, setPrintOnlyPending] = useState(true);
 
   useEffect(() => {
@@ -51,7 +53,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     loadPendingPrintCount();
-  }, [printDate, printOnlyPending]);
+  }, [printDate, printDateEnd, printOnlyPending]);
 
   const loadGrades = async () => {
     if (window.electronAPI) {
@@ -71,7 +73,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const loadPendingPrintCount = async () => {
     if (window.electronAPI) {
       try {
-        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, only_pending: printOnlyPending });
+        const pending = await window.electronAPI.dbGetPendingPrintProducts({ tenant_id: tenantId || 'global', limit: 10000, date: printDate || undefined, dateEnd: printDateEnd || undefined, only_pending: printOnlyPending });
         setPendingPrintCount(pending.length);
         setPrintLimit(pending.length);
       } catch (err) {
@@ -435,6 +437,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         tenant_id: tenantId || 'global',
         limit: printLimit,
         date: printDate || undefined,
+        dateEnd: printDateEnd || undefined,
         only_pending: printOnlyPending
       });
 
@@ -664,7 +667,14 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
             <div className="h-8 w-px bg-border" />
             <div>
               <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">Date Filter</span>
-              <Input type="date" value={printDate} onChange={(e) => setPrintDate(e.target.value)} className="h-8 text-sm" title="Filter by added date" />
+              <DateRangeFilter
+                startDate={printDate}
+                endDate={printDateEnd}
+                onChange={(start, end) => {
+                  setPrintDate(start);
+                  setPrintDateEnd(end);
+                }}
+              />
             </div>
             <div className="h-8 w-px bg-border" />
             <div>

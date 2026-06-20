@@ -115,7 +115,7 @@ export const useCartStore = create<CartState>()(
       setDomain: (domain) => set({ shopDomain: domain }),
       confirmDomain: () => set({ shopDomainConfirmed: true }),
       resetDomainConfirmation: () => set({ shopDomainConfirmed: false }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED' }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH' }),
     }),
     {
       name: 'vendora-cart-storage',

@@ -727,9 +727,9 @@ export function ActionPane() {
                       </>
                     ) : (
                       <>
-                        <Button variant="outline" onClick={() => { setEditMode(false); setEditedItems(pastInvoiceItems.map((i: any) => ({ ...i }))); }} className="flex-1">
+                        <button onClick={() => { setEditMode(false); setEditedItems(pastInvoiceItems.map((i: any) => ({ ...i }))); }} className="flex-1 px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-xl transition-colors">
                           Cancel
-                        </Button>
+                        </button>
                         <Button onClick={handleSavePastBill} disabled={isSavingPastBill} className="flex-1">
                           {isSavingPastBill ? 'Saving...' : 'Save Changes'}
                         </Button>
@@ -747,7 +747,7 @@ export function ActionPane() {
               )}
 
               <div className="flex justify-end pt-2">
-                <Button variant="outline" onClick={handleCloseDiscountModal}>Close</Button>
+                <button onClick={handleCloseDiscountModal} className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors">Close</button>
               </div>
             </div>
           ) : (

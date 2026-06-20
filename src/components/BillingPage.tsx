@@ -63,7 +63,7 @@ export function BillingPage() {
     addItem, updateQuantity, removeItem, updateWeight,
     customerState, setCustomerState, shopState
   } = useCartStore();
-  const { shopName, role: authRole, tenantId, userId, logout } = useAuthStore();
+  const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, taxableAmount } = useCartTotals();
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,12 +77,21 @@ export function BillingPage() {
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const [shopGstin, setShopGstin] = useState('');
+  const [nextInvoiceNumber, setNextInvoiceNumber] = useState('');
 
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const addTab = useTabStore(s => s.addTab);
   const updateActiveTab = useTabStore(s => s.updateActiveTab);
   const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
+
+  const tabCounter = useRef(0);
+  const initialized = useRef(false);
+
+  const handleAddTab = () => {
+    tabCounter.current++;
+    addTab(undefined, `Bill ${tabCounter.current}`);
+  };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const paymentMethod = activeTab?.paymentMethod ?? 'CASH';
@@ -94,14 +103,10 @@ export function BillingPage() {
   const balanceAmount = receivedAmount - grandTotal;
 
   useEffect(() => {
-    if (tabs.length === 0) {
-      const { items, invoiceType, discountType, discountValue, customerState } = useCartStore.getState();
-      if (items.length > 0) {
-        addTab({ items, invoiceType, discountType, discountValue, customerState });
-      } else {
-        addTab();
-      }
-    }
+    if (initialized.current) return;
+    initialized.current = true;
+    useTabStore.setState({ tabs: [], activeTabId: '' });
+    handleAddTab();
   }, []);
 
   useEffect(() => {
@@ -120,6 +125,11 @@ export function BillingPage() {
     if (!window.electronAPI) return;
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
       if (v) setShopGstin(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' }).then((cfg: any) => {
+      if (cfg) {
+        setNextInvoiceNumber(`${cfg.prefix || 'INV-'}${cfg.counter || 1}`);
+      }
     });
   }, [tenantId]);
 
@@ -346,7 +356,7 @@ export function BillingPage() {
         shopName: shopName || 'My Shop', shopGstin: invoiceType === 'GST' ? shopGstin || undefined : undefined,
         shopState: invoiceType === 'GST' ? state.shopState || undefined : undefined,
         invoiceNumber: invoice_number, date: new Date().toLocaleString(),
-        cashierName: useAuthStore.getState().role || undefined,
+        cashierName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: lineItems.map(i => ({ name: i.name, quantity: i.quantity, unit_price: i.unit_price, total: i.total })),
         subtotal, tax: totalTax,
         cgst: invoiceType === 'GST' ? cgst : undefined,
@@ -539,128 +549,277 @@ export function BillingPage() {
   );
 
   return (
-    <div className="flex flex-col h-full w-full bg-background">
-      {/* ─── TOP BAR ─── */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card shrink-0 gap-4">
+    <div className="flex flex-col h-full w-full bg-background overflow-hidden text-foreground">
+      {/* ─── TOP HEADER ─── */}
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
             <Store className="w-5 h-5" />
           </div>
           <div className="min-w-0 leading-tight">
-            <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Shop'}</span>
-            {currentUserRole !== authRole && <span className="text-[10px] text-muted-foreground font-mono">{currentUserRole}</span>}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+            </div>
+            <div className="flex items-center gap-2 mt-0.5">
+              {nextInvoiceNumber && (
+                <span className="text-xs font-bold font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 shrink-0 flex items-center gap-1">
+                  <span                  className="text-[10px] font-sans font-bold uppercase tracking-wider text-primary/70">Inv:</span>
+                  {nextInvoiceNumber}
+                </span>
+              )}
+              <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
+                {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
+              </span>
+            </div>
           </div>
         </div>
-        <div className="flex items-center gap-1">
+
+        <div className="flex items-center gap-2">
           {items.length > 0 && (
-            <button onClick={clearCart} className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title="Clear all items">
-              <Trash2 className="w-3.5 h-3.5" />
-              Clear
+            <button
+              onClick={() => { clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0 }); syncActiveSnapshot(); }}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Clear Cart"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Clear Cart</span>
             </button>
           )}
-          <button onClick={() => window.dispatchEvent(new CustomEvent('open-sales-history'))}
-            className="flex items-center gap-1.5 px-3 py-2 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors" title="Sales History">
-            <TrendingUp className="w-4 h-4" />
-            <span className="text-xs font-semibold">Sales</span>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-sales-history'))}
+            className="flex items-center gap-1.5 px-3.5 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer"
+            title="Sales History"
+          >
+            <TrendingUp className="w-4 h-4 text-primary" />
+            <span>History</span>
           </button>
-          <button onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors" title="Settings">
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+            title="Settings"
+          >
             <Settings className="w-4 h-4" />
           </button>
+          <div className="h-5 w-px bg-border mx-1" />
           {authRole === 'OWNER' ? (
-            <button onClick={() => setRole('OWNER')}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors" title="Back to dashboard">
+            <button
+              onClick={() => setRole('OWNER')}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Dashboard"
+            >
               <X className="w-4 h-4" />
             </button>
           ) : (
-            <button onClick={logout}
-              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors" title="Logout">
+            <button
+              onClick={logout}
+              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Logout"
+            >
               <LogOut className="w-4 h-4" />
             </button>
           )}
         </div>
       </header>
 
-      {/* ─── TAB BAR ─── */}
-      <BillingTabBar />
+      {/* ─── TABS BAR ─── */}
+      <div className="shrink-0 bg-muted/20 border-b border-border/40">
+        <BillingTabBar onAddTab={handleAddTab} />
+      </div>
 
-      {/* ─── MAIN ─── */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* ═══ LEFT: Search + Cart ═══ */}
-        <div className="flex flex-col w-[60%] border-r border-border">
-          {/* Search */}
-          <div className="p-4 pb-2">
+      {/* ─── MAIN POS WORKSPACE ─── */}
+      <div className="flex flex-1 overflow-hidden bg-background">
+        
+        {/* ═══ LEFT SIDE: Search + Cart (58%) ═══ */}
+        <div className="flex flex-col w-[58%] border-r border-border bg-muted/10">
+          
+          {/* Prominent Search bar */}
+          <div className="p-3 pb-2.5 bg-card border-b border-border/60">
             <div ref={searchContainerRef} className="relative">
               <div className="flex gap-2">
                 <div className="relative flex-1">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <input ref={searchRef} type="text" autoFocus
-                    placeholder="Search product or scan barcode..."
+                  <input
+                    ref={searchRef}
+                    type="text"
+                    autoFocus
+                    placeholder="Search products or scan barcode... (Press F2)"
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
-                    className="w-full pl-10 pr-10 py-3 bg-muted/40 border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
+                    className="w-full pl-10 pr-9 py-2.5 bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
                   />
                   {searchQuery && (
-                    <button onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground">
-                      <X className="w-3.5 h-3.5" />
+                    <button
+                      onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors"
+                    >
+                      <X className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-                <button onClick={() => setShowPastBill(true)}
-                  className="px-3 py-3 bg-muted/40 border border-border rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all flex items-center gap-1.5 whitespace-nowrap">
-                  <Receipt className="w-3.5 h-3.5" />
-                  Past Bill
+                <button
+                  onClick={() => setShowPastBill(true)}
+                    className="px-3 py-2.5 bg-background hover:bg-muted border border-border/80 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 cursor-pointer"
+                  >
+                    <Receipt className="w-3.5 h-3.5 text-primary" />
+                  <span>Past Bill</span>
                 </button>
               </div>
 
               {results.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1">
-                  {results.map((p, i) => {
-                    const price = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
-                    return (
-                      <button key={p.product_id} onClick={() => handleSelectProduct(p)}
-                        onMouseEnter={() => setSelectedIndex(i)}
-                        className={clsx('w-full flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-border/50 last:border-0',
-                          i === selectedIndex ? 'bg-primary/10' : 'hover:bg-muted')}>
-                        <div className={clsx('p-2 rounded-lg shrink-0', i === selectedIndex ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground')}>
-                          <Package className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm text-foreground truncate">{p.name}</div>
-                          <div className="text-[11px] text-muted-foreground">{p.sku_barcode || '—'} &middot; Stock: {p.current_stock}</div>
-                        </div>
-                        <div className="text-right shrink-0">
-                          <div className="font-bold text-sm text-foreground">{formatCurrency(price)}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="max-h-[260px] overflow-y-auto">
+                    {results.map((p, i) => {
+                      const price = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
+                      const isSelected = i === selectedIndex;
+                      return (
+                        <button
+                          key={p.product_id}
+                          onClick={() => handleSelectProduct(p)}
+                          onMouseEnter={() => setSelectedIndex(i)}
+                          className={clsx(
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
+                            isSelected ? 'bg-primary/5 border-l-4 border-l-primary pl-2' : 'hover:bg-muted/40'
+                          )}
+                        >
+                          <div className={clsx(
+                            'p-2 rounded-xl shrink-0 transition-colors',
+                            isSelected ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                          )}>
+                            <Package className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-sm text-foreground truncate">{p.name}</div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                              <span className="font-mono bg-muted/70 px-1 py-0.5 rounded text-[10px]">{p.sku_barcode || 'NO BARCODE'}</span>
+                              <span>&middot;</span>
+                              <span className={clsx(
+                                'font-semibold',
+                                p.current_stock <= 0 ? 'text-destructive' : p.current_stock < 10 ? 'text-amber-500' : 'text-emerald-500'
+                              )}>
+                                Stock: {p.current_stock}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-black text-sm text-primary">{formatCurrency(price)}</div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Cart header */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-border">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Cart {items.length > 0 && `(${items.length})`}
+          {/* Cart Header info */}
+          <div className="flex items-center justify-between px-6 py-2.5 bg-muted/40 border-b border-border/60 shrink-0">
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
+              Items in Cart {items.length > 0 && `(${items.length})`}
             </span>
             {items.length > 0 && (
-              <span className="text-xs text-muted-foreground">{formatCurrency(subtotal)}</span>
+              <span className="text-sm font-bold text-muted-foreground">Subtotal: {formatCurrency(subtotal)}</span>
             )}
           </div>
 
-          {/* Cart items */}
-          <div className="flex-1 overflow-y-auto px-4 pb-3 space-y-2">
+          {/* Customer details — moved to top of cart */}
+          <div className="px-4 py-2.5 border-b border-border/50 bg-card/40 shrink-0">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="relative flex-1">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <input
+                  placeholder={paymentMethod === 'CREDIT' ? 'Name *' : 'Customer Name'}
+                  value={customerName}
+                  onChange={e => updateActiveTab({ customerName: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+              </div>
+              <div className="relative flex-1">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <input
+                  placeholder={paymentMethod === 'CREDIT' ? 'Phone *' : 'Phone Number'}
+                  value={customerPhone}
+                  onChange={e => updateActiveTab({ customerPhone: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/40">
+                <button
+                  onClick={() => setInvoiceType('BILL_OF_SUPPLY')}
+                  className={clsx(
+                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+                    invoiceType === 'BILL_OF_SUPPLY'
+                      ? 'bg-card text-foreground shadow-sm border border-border/20'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  Bill of Supply
+                </button>
+                <button
+                  onClick={() => setInvoiceType('GST')}
+                  className={clsx(
+                    'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
+                    invoiceType === 'GST'
+                      ? 'bg-card text-foreground shadow-sm border border-border/20'
+                      : 'text-muted-foreground hover:text-foreground'
+                  )}
+                >
+                  GST Invoice
+                </button>
+              </div>
+              {invoiceType === 'GST' && (
+                <div className="flex items-center gap-2 flex-1">
+                  <div className="relative flex-1 max-w-[120px]">
+                    <select
+                      value={customerState}
+                      onChange={e => setCustomerState(e.target.value)}
+                      className="w-full py-1.5 pl-2 pr-5 bg-background border border-border rounded-lg text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer"
+                    >
+                      {INDIAN_STATES.map(state => (
+                        <option key={state.code} value={state.code}>{state.name} ({state.code})</option>
+                      ))}
+                    </select>
+                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/60">
+                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="relative flex-1 max-w-[140px]">
+                    <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+                    <input
+                      placeholder="GSTIN"
+                      value={customerGstin}
+                      onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                      maxLength={15}
+                      className="w-full pl-7 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Cart List */}
+          <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground gap-3">
-                <div className="w-14 h-14 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground/60">
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground/60 gap-2 text-center max-w-xs mx-auto">
+                <div className="w-12 h-12 rounded-2xl bg-card border border-border/60 flex items-center justify-center text-muted-foreground shadow-sm">
                   {emptyIcon}
                 </div>
-                <p className="font-medium text-sm">Cart is empty</p>
-                <p className="text-xs text-muted-foreground/60">Search products or scan a barcode</p>
+                <div>
+                  <p className="font-bold text-sm text-foreground/80">Your cart is empty</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5">Search or scan to add items</p>
+                </div>
+                <div className="flex gap-1.5 mt-1">
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F2: Search</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F8: Discount</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F12: Print</kbd>
+                </div>
               </div>
             ) : (
               items.map(item => {
@@ -670,50 +829,76 @@ export function BillingPage() {
                   : rate * (Number(item.quantity) || 0);
 
                 return (
-                  <div key={item.product_id}
-                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl transition-all hover:border-primary/20 group">
+                  <div
+                    key={item.product_id}
+                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border/80 hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-sm group"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm text-foreground truncate">{item.name}</span>
-                        {item.billing_type === 'WEIGHT' && <span className="text-[9px] font-mono text-muted-foreground bg-muted px-1 rounded">kg</span>}
+                        <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
+                        {item.billing_type === 'WEIGHT' && (
+                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            By Weight
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        Rate: <span className="font-semibold text-foreground/80">{formatCurrency(rate)}</span>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); else removeItem(item.product_id); }}
-                        className="p-1.5 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                    {/* Touch-Friendly Large Quantity Adjusters */}
+                    <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg p-0.5">
+                      <button
+                        onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); else removeItem(item.product_id); }}
+                        className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                      >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
-                      <input type="number" min="1"
+                      <input
+                        type="number"
+                        min="1"
                         ref={(el) => { qtyRefs.current[item.product_id] = el; }}
-                        className="w-14 text-center h-9 bg-muted/30 border border-border rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-10 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={item.quantity}
-                        onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))} />
-                      <button onClick={() => updateQuantity(item.product_id, (Number(item.quantity) || 0) + 1)}
-                        className="p-1.5 rounded-lg bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors">
+                        onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                      />
+                      <button
+                        onClick={() => updateQuantity(item.product_id, (Number(item.quantity) || 0) + 1)}
+                        className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                      >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
+                    {/* Weight adjustments controls */}
                     {item.billing_type === 'WEIGHT' && (
-                      <div className="flex items-center gap-1.5">
-                        <input type="number" step="0.001"
-                          className={clsx('w-16 text-center h-9 bg-muted/30 border border-border rounded-lg text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
-                            !item.weight_override_allowed && 'opacity-50 cursor-not-allowed')}
+                      <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg p-0.5 shrink-0">
+                        <input
+                          type="number"
+                          step="0.001"
+                          className={clsx(
+                            'w-14 text-center h-7 bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
+                            !item.weight_override_allowed && 'opacity-40 cursor-not-allowed'
+                          )}
                           value={item.calculated_weight || ''}
                           disabled={!item.weight_override_allowed}
-                          onChange={e => { if (item.weight_override_allowed) updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value)); }} />
-                        <span className="text-[9px] text-muted-foreground font-bold uppercase">Kg</span>
+                          onChange={e => { if (item.weight_override_allowed) updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value)); }}
+                        />
+                        <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
                       </div>
                     )}
 
-                    <div className="text-right min-w-[76px]">
-                      <div className="font-bold text-sm text-primary">{formatCurrency(total)}</div>
+                    <div className="text-right min-w-[75px] shrink-0">
+                      <div className="font-black text-sm text-primary">{formatCurrency(total)}</div>
                     </div>
 
-                    <button onClick={() => removeItem(item.product_id)}
-                      className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-all opacity-0 group-hover:opacity-100">
-                      <X className="w-3.5 h-3.5" />
+                    <button
+                      onClick={() => removeItem(item.product_id)}
+                      className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                      title="Remove Item"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 );
@@ -722,348 +907,396 @@ export function BillingPage() {
           </div>
         </div>
 
-        {/* ═══ RIGHT: Summary + Checkout ═══ */}
-        <div className="flex flex-col w-[40%] bg-card">
-          {/* Invoice type + Customer */}
-          <div className="px-5 pt-2.5 pb-2 space-y-2 border-b border-border">
-            <div className="flex bg-muted/60 p-0.5 rounded-lg">
-              <button onClick={() => setInvoiceType('BILL_OF_SUPPLY')}
-                className={clsx('flex-1 py-2 rounded-lg text-sm font-semibold transition-all',
-                  invoiceType === 'BILL_OF_SUPPLY' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-                Bill of Supply
-              </button>
-              <button onClick={() => setInvoiceType('GST')}
-                className={clsx('flex-1 py-2 rounded-lg text-sm font-semibold transition-all',
-                  invoiceType === 'GST' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-                GST Invoice
-              </button>
-            </div>
-            <div className="flex gap-2">
-              <div className="relative flex-1">
-                <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                    <input placeholder={paymentMethod === 'CREDIT' ? 'Customer name *' : 'Customer name'} value={customerName} onChange={e => updateActiveTab({ customerName: e.target.value })}
-                  className={clsx("w-full pl-8 pr-2.5 py-2 bg-muted/20 border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all", paymentMethod === 'CREDIT' ? 'border-amber-400' : 'border-border')} />
-              </div>
-              <div className="relative flex-1">
-                <Phone className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                    <input placeholder={paymentMethod === 'CREDIT' ? 'Phone *' : 'Phone'} value={customerPhone} onChange={e => updateActiveTab({ customerPhone: e.target.value })}
-                  className={clsx("w-full pl-8 pr-2.5 py-2 bg-muted/20 border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all", paymentMethod === 'CREDIT' ? 'border-amber-400' : 'border-border')} />
-              </div>
-            </div>
-            {invoiceType === 'GST' && (
-              <div className="flex gap-2 animate-in fade-in slide-in-from-top-1 duration-200">
-                <div className="relative flex-1">
-                  <Building className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-                  <input placeholder="Customer GSTIN" value={customerGstin} onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })} maxLength={15}
-                    className="w-full pl-8 pr-2.5 py-2 bg-muted/20 border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all uppercase" />
-                </div>
-                <div className="relative flex-1">
-                  <select 
-                    value={customerState} 
-                    onChange={e => setCustomerState(e.target.value)}
-                    className="w-full pl-3 pr-8 py-2 bg-muted/20 border border-border rounded-lg text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all appearance-none cursor-pointer"
-                  >
-                    {INDIAN_STATES.map(state => (
-                      <option key={state.code} value={state.code} className="bg-card text-foreground">
-                        {state.name} ({state.code})
-                      </option>
-                    ))}
-                  </select>
-                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/50">
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            )}
-            {invoiceType === 'GST' && shopGstin && (
-              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-primary/5 border border-primary/10 rounded-lg animate-in fade-in slide-in-from-top-1 duration-200">
-                <Building className="w-3.5 h-3.5 text-primary shrink-0" />
-                <span className="text-[11px] font-medium text-foreground/80">
-                  Shop GSTIN: <span className="font-bold text-primary">{shopGstin}</span>
-                </span>
-                <span className="text-[11px] text-muted-foreground ml-auto">
-                  {shopState} {customerState && shopState !== customerState ? '→ ' + customerState : ''}
-                </span>
-              </div>
-            )}
+        {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
+        <div className="flex flex-col w-[42%] bg-card shadow-2xl z-25 overflow-hidden">
+
+          {/* ── RIGHT PANEL HEADER ── */}
+          <div className="shrink-0 px-5 py-2.5 border-b border-border/60 bg-card">
+            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Transaction Console</p>
           </div>
 
-          {/* Spacer to push checkout section to the bottom */}
-          <div className="flex-1" />
+            {/* ── Payment Method ── */}
+            <div className="flex-1 px-5 py-3">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                  <span className="text-xs font-black text-primary-foreground">2</span>
+                </div>
+                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Payment Method</span>
+              </div>
 
-          {/* Totals */}
-          <div className="px-5 pt-2 pb-0 space-y-2">
-            <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Subtotal</span>
-              <span className="font-semibold text-foreground">{formatCurrency(subtotal)}</span>
+              {/* 2×2 payment method grid */}
+              <div className="grid grid-cols-2 gap-2">
+                {PAYMENT_OPTIONS.map(opt => {
+                  const isActive = paymentMethod === opt.value;
+                  let activeBg = '';
+                  let activeText = '';
+                  let activeBorder = '';
+                  let activeIconBg = '';
+                  if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
+                  if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
+                  if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
+                  if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
+
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateActiveTab({ paymentMethod: opt.value })}
+                      className={clsx(
+                        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                        isActive
+                          ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
+                          : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                      )}
+                    >
+                      <div className={clsx(
+                        'p-2 rounded-xl transition-colors',
+                        isActive ? activeIconBg : 'bg-muted'
+                      )}>
+                        <opt.icon className="w-4.5 h-4.5" />
+                      </div>
+                      <span className="text-xs font-extrabold">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
-            {invoiceType === 'GST' && totalTax > 0 && (
-              <div className="pl-3 space-y-1">
-                {igst > 0 ? (
-                  <div className="flex justify-between text-xs text-muted-foreground"><span>IGST</span><span>{formatCurrency(igst)}</span></div>
-                ) : (
-                  <>
-                    <div className="flex justify-between text-xs text-muted-foreground"><span>CGST</span><span>{formatCurrency(cgst)}</span></div>
-                    <div className="flex justify-between text-xs text-muted-foreground"><span>SGST</span><span>{formatCurrency(sgst)}</span></div>
-                  </>
+          {/* ── STICKY FOOTER: Totals + Actions ── */}
+          <div className="shrink-0 border-t border-border/50 bg-background">
+
+            {/* Calculation breakdown */}
+            <div className="px-5 py-2.5 space-y-1.5 text-xs border-b border-border/40">
+              <div className="flex justify-between items-center">
+                <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
+                <span className="font-bold text-foreground text-sm">{formatCurrency(subtotal)}</span>
+              </div>
+
+              {invoiceType === 'GST' && totalTax > 0 && (
+                <>
+                  {igst > 0 ? (
+                    <div className="flex justify-between items-center">
+                      <span className="text-muted-foreground text-sm">IGST (Out of State)</span>
+                      <span className="font-semibold text-foreground/80 text-sm">{formatCurrency(igst)}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground text-sm">CGST</span>
+                        <span className="font-semibold text-foreground/80 text-sm">{formatCurrency(cgst)}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground text-sm">SGST</span>
+                        <span className="font-semibold text-foreground/80 text-sm">{formatCurrency(sgst)}</span>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Discount row */}
+              <div className="flex items-center justify-between pt-1 border-t border-border/30">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-semibold text-sm">Discount</span>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
+                  {discount > 0 && (
+                    <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
+                  )}
+                </div>
+                {/* Inline discount input */}
+                <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
+                  <div className="flex bg-card rounded-lg mr-1 border border-border/30">
+                    <button
+                      onClick={() => setDiscount(discountValue || 0, 'FIXED')}
+                      className={clsx(
+                        'px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer',
+                        discountType === 'FIXED' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >₹</button>
+                    <button
+                      onClick={() => setDiscount(discountValue || 0, 'PERCENTAGE')}
+                      className={clsx(
+                        'px-2 py-1 text-xs font-black rounded-lg transition-all cursor-pointer',
+                        discountType === 'PERCENTAGE' ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                      )}
+                    >%</button>
+                  </div>
+                  <input
+                    ref={discountRef}
+                    type="number"
+                    min="0"
+                    max={discountType === 'PERCENTAGE' ? '100' : undefined}
+                    value={discountValue || ''}
+                    onChange={e => setDiscount(e.target.value === '' ? 0 : Number(e.target.value), discountType)}
+                    placeholder="0"
+                    inputMode="decimal"
+                    className="w-12 h-7 bg-transparent border-0 text-sm text-right pr-2 font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                </div>
+              </div>
+
+            </div>
+
+            {/* Grand Total + Cash Received + Change Due — unified payment banner */}
+            <div className="mx-4 my-2 bg-primary/10 border-2 border-primary/25 rounded-xl overflow-hidden animate-in fade-in duration-200">
+              {/* Row 1: Grand Total */}
+              <div className="flex items-center justify-between px-5 pt-2.5 pb-2">
+                <div>
+                  <p className="text-[10px] font-black text-primary uppercase tracking-[0.12em] mb-0.5">Grand Total</p>
+                  <p className="text-2xl font-black text-foreground tracking-tight leading-none">{formatCurrency(grandTotal)}</p>
+                </div>
+                {(paymentMethod === 'CARD' || paymentMethod === 'UPI') && (
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-primary uppercase tracking-[0.1em] mb-0.5">Exact</p>
+                    <p className="text-sm font-black text-primary/80">No change</p>
+                  </div>
                 )}
               </div>
-            )}
 
-            {/* Discount Section */}
-            <div className="space-y-1.5 pt-2 border-t border-border">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-muted-foreground">Discount</span>
-                <div className="flex items-center gap-2">
-                  {discount > 0 && (
-                    <span className="text-xs font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full shrink-0 animate-in fade-in">
-                      -{formatCurrency(discount)}
-                    </span>
-                  )}
-                  <div className="flex items-center bg-muted/50 border border-border rounded-xl p-1 shadow-sm focus-within:ring-2 focus-within:ring-primary/20 focus-within:border-primary transition-all">
-                    <div className="flex bg-background/50 p-0.5 rounded-lg border border-border/40 mr-1.5">
-                      <button 
-                        onClick={() => setDiscount(discountValue || 0, 'FIXED')}
-                        className={clsx(
-                          'px-2 py-0.5 text-[10px] font-bold rounded transition-all duration-200 cursor-pointer',
-                          discountType === 'FIXED' 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        ₹
-                      </button>
-                      <button 
-                        onClick={() => setDiscount(discountValue || 0, 'PERCENTAGE')}
-                        className={clsx(
-                          'px-2 py-0.5 text-[10px] font-bold rounded transition-all duration-200 cursor-pointer',
-                          discountType === 'PERCENTAGE' 
-                            ? 'bg-primary text-primary-foreground shadow-sm' 
-                            : 'text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        %
-                      </button>
-                    </div>
-                    <input 
-                      ref={discountRef} 
-                      type="number" 
-                      min="0" 
-                      max={discountType === 'PERCENTAGE' ? '100' : undefined}
-                      value={discountValue || ''}
-                      onChange={e => setDiscount(e.target.value === '' ? 0 : Number(e.target.value), discountType)}
-                      placeholder="0" 
-                      inputMode="decimal"
-                      className="w-16 h-7 bg-transparent border-0 text-xs text-right pr-1 text-foreground placeholder:text-muted-foreground/45 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none font-bold" 
-                    />
-                  </div>
-                </div>
-              </div>
-              {discount > 0 && (
-                <div className="flex justify-between text-[11px] text-muted-foreground/80 pl-1 animate-in fade-in">
-                  <span>Taxable Value</span>
-                  <span className="font-medium text-foreground/80">{formatCurrency(taxableAmount)}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Payment */}
-            <div className={clsx("grid grid-cols-4 gap-1 pt-1.5 border-t border-border", paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && 'mb-1.5')}>
-              {PAYMENT_OPTIONS.map(opt => (
-                <button key={opt.value} onClick={() => updateActiveTab({ paymentMethod: opt.value })}
-                  className={clsx(
-                    'flex flex-col items-center gap-0.5 py-2 rounded-lg border text-[10px] font-medium transition-all',
-                    paymentMethod === opt.value
-                      ? 'bg-primary/10 text-primary border-primary/40'
-                      : 'text-muted-foreground border-border/60 hover:bg-muted/40 hover:text-foreground'
-                  )}>
-                  <opt.icon className={clsx('w-4 h-4', paymentMethod === opt.value ? '' : 'opacity-50')} />
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            </div>
-
-            {paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && (
-              <div className="px-5 pt-2 pb-1 space-y-1.5 border-t border-border animate-in fade-in">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground">Received</span>
-                  <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground/60 pointer-events-none">₹</span>
-                    <input ref={receivedInputRef} type="number" min="0" step="any"
+              {/* Row 2: Cash Received input — only for CASH / CREDIT */}
+              {paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && (
+                <div className="mx-4 mb-2 flex items-center justify-between gap-3 px-3 py-2 bg-background/70 border border-primary/20 rounded-lg animate-in fade-in duration-200">
+                  <span className="text-sm font-black text-muted-foreground uppercase tracking-wider whitespace-nowrap">
+                    {paymentMethod === 'CREDIT' ? 'Amount Paid' : 'Cash Received'}
+                  </span>
+                  <div className="relative w-40 shrink-0">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/60">₹</span>
+                    <input
+                      ref={receivedInputRef}
+                      type="number"
+                      min="0"
+                      step="any"
                       value={receivedAmount || ''}
                       onChange={e => updateActiveTab({ receivedAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
                       onFocus={e => e.target.select()}
-                      placeholder="0.00"
+                      placeholder={grandTotal.toFixed(2)}
                       inputMode="decimal"
-                      className="w-full pl-6 pr-2.5 py-1.5 bg-muted/20 border border-border rounded-lg text-sm font-bold text-right text-foreground placeholder:text-muted-foreground/45 focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-full pl-7 pr-3 py-2 bg-transparent focus:bg-background border border-border/50 focus:border-primary focus:ring-2 focus:ring-primary/15 rounded-lg text-base font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-between px-1">
-                  <span className="text-xs font-medium text-muted-foreground">{paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}</span>
-                  <span className={clsx('text-sm font-bold', balanceAmount >= 0 ? 'text-emerald-500' : 'text-destructive')}>
+              )}
+
+              {/* Row 3: Change Due / Credit Balance */}
+              {paymentMethod !== 'CARD' && paymentMethod !== 'UPI' && (
+                <div className={clsx(
+                  'flex items-center justify-between px-5 py-2.5 border-t border-primary/15',
+                  balanceAmount >= 0 ? 'bg-emerald-500/10' : 'bg-destructive/10'
+                )}>
+                  <span className={clsx(
+                    'text-[10px] font-black uppercase tracking-widest',
+                    balanceAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-destructive'
+                  )}>
+                    {paymentMethod === 'CREDIT' ? 'Credit Balance' : 'Change Due'}
+                  </span>
+                  <span className={clsx(
+                    'text-lg font-black',
+                    balanceAmount >= 0 ? 'text-emerald-500' : 'text-destructive'
+                  )}>
                     {balanceAmount >= 0 ? '+' : ''}{formatCurrency(balanceAmount)}
                   </span>
                 </div>
-              </div>
-            )}
-
-          {/* Grand Total */}
-          <div className="px-5 pt-2 pb-1.5 border-t border-border bg-muted/10 mt-2">
-            <div className="flex items-end justify-between">
-              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Total</span>
-              <span className="text-3xl font-black text-foreground tracking-tight">{formatCurrency(grandTotal)}</span>
-            </div>
-          </div>
-
-          {/* Messages */}
-          <div className="px-5 py-1 space-y-1">
-            {hardwareError && (
-              <div className="p-2 bg-destructive/10 border border-destructive/20 rounded-lg flex items-center gap-2 text-destructive text-xs font-medium animate-in fade-in slide-in-from-top-1">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                <span className="flex-1">{hardwareError}</span>
-                <button onClick={() => setHardwareError(null)} className="hover:bg-destructive/20 p-0.5 rounded"><X className="w-3 h-3" /></button>
-              </div>
-            )}
-            {checkoutSuccess && (
-              <div className="p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg flex items-center gap-2 text-emerald-500 text-xs font-medium animate-in fade-in slide-in-from-top-1">
-                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span>Bill printed successfully!</span>
-              </div>
-            )}
-          </div>
-
-          {/* ─── Actions ─── */}
-          <div className="px-5 pb-5 flex gap-2">
-            <button onClick={handleHoldBill} disabled={items.length === 0}
-              className="w-1/4 py-4 rounded-2xl border-2 border-border text-muted-foreground font-semibold text-sm hover:bg-muted hover:border-muted-foreground/30 transition-all disabled:opacity-30 disabled:cursor-not-allowed active:scale-[0.97]">
-              Hold
-            </button>
-            <button onClick={handleCheckout} disabled={isCheckingOut || items.length === 0}
-              className="flex-1 py-4 flex items-center justify-center gap-2.5 rounded-2xl bg-primary text-primary-foreground font-bold text-base shadow-lg hover:bg-primary/90 transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed">
-              {isCheckingOut ? (
-                <><div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" /> PROCESSING</>
-              ) : (
-                <><CreditCard className="w-5 h-5" /> Print {formatCurrency(grandTotal)}</>
               )}
-            </button>
+            </div>
+
+            {/* Status alerts */}
+            <div className="px-4 space-y-1.5">
+              {hardwareError && (
+                <div                className="px-3 py-2.5 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold animate-in fade-in duration-200">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span className="flex-1">{hardwareError}</span>
+                  <button onClick={() => setHardwareError(null)} className="hover:bg-destructive/20 p-0.5 rounded-lg transition-colors cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+              {checkoutSuccess && (
+                <div                className="px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold animate-in fade-in duration-200">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
+                  <span>Invoice completed & Receipt printed!</span>
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex gap-2.5 px-4 py-3">
+              <button
+                onClick={handleHoldBill}
+                disabled={items.length === 0}
+                className="w-[30%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+              >
+                Hold
+              </button>
+              <button
+                onClick={handleCheckout}
+                disabled={isCheckingOut || items.length === 0}
+                className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+              >
+                {isCheckingOut ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                    <span>FINALIZING...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-4.5 h-4.5" />
+                    <span>PRINT &amp; CHECKOUT (F12)</span>
+                  </>
+                )}
+              </button>
+            </div>
+
           </div>
+
         </div>
+
       </div>
 
-      {/* ─── Past Bill Modal ─── */}
-      <Modal isOpen={showPastBill} onClose={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
-        title={<div className="flex items-center gap-2"><Receipt className="w-5 h-5 text-primary" /><span>Past Bill</span></div>}>
-        <div className="space-y-4 min-w-[520px]">
+      {/* ─── Past Bill Modal Archive ─── */}
+      <Modal
+        isOpen={showPastBill}
+        onClose={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Receipt className="w-5 h-5 text-primary" />
+            <span>Invoice History Archive</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[560px] text-foreground">
           {pastBillSuccess && pastBillView === 'search' ? (
-            <div className="p-6 bg-primary/5 text-primary border border-primary/20 rounded-xl text-center space-y-3">
-              <CheckCircle2 className="w-10 h-10 mx-auto opacity-80" />
-              <p className="font-semibold">{pastBillSuccess}</p>
-              <Button variant="outline" onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}>Close</Button>
+            <div className="p-8 bg-primary/5 text-primary border border-primary/20 rounded-2xl text-center space-y-4 shadow-inner">
+              <CheckCircle2 className="w-12 h-12 mx-auto text-primary animate-pulse" />
+              <div>
+                <p className="font-black text-base">{pastBillSuccess}</p>
+                <p className="text-xs text-muted-foreground/80 mt-1">Receipt configurations updated on active POS databases</p>
+              </div>
+              <button
+                onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
+                className="px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200"
+              >
+                Close View
+              </button>
             </div>
           ) : pastBillView === 'detail' && selectedPastInvoice ? (
-            <div className="space-y-4">
-              {/* Back button */}
-              <button onClick={() => { setPastBillView('search'); setEditMode(false); }}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
-                ← Back to search
+            <div className="space-y-4.5">
+              {/* Back link */}
+              <button
+                onClick={() => { setPastBillView('search'); setEditMode(false); }}
+                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 font-bold transition-colors active:scale-95"
+              >
+                &larr; Back to Search Archive
               </button>
 
-              {/* Invoice header */}
-              <div className="flex justify-between items-start">
+              {/* Invoice details header */}
+              <div className="flex justify-between items-start border-b border-border/60 pb-3">
                 <div>
-                  <h3 className="font-bold text-lg">{selectedPastInvoice.invoice_number}</h3>
-                  <p className="text-xs text-muted-foreground">{new Date(selectedPastInvoice.created_at).toLocaleString()}</p>
+                  <h3 className="font-extrabold text-base text-foreground tracking-wide">{selectedPastInvoice.invoice_number}</h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">{new Date(selectedPastInvoice.created_at).toLocaleString()}</p>
                 </div>
                 <div className="text-right">
-                  <div className="text-2xl font-black text-primary">{formatCurrency(selectedPastInvoice.grand_total)}</div>
+                  <div className="text-xl font-black text-primary">{formatCurrency(selectedPastInvoice.grand_total)}</div>
+                  <div className="text-xs text-muted-foreground font-semibold mt-0.5 uppercase tracking-wider">{selectedPastInvoice.payment_method}</div>
                 </div>
               </div>
 
-              {/* Customer info */}
+              {/* Customer summary */}
               {(selectedPastInvoice.customer_name || selectedPastInvoice.customer_phone) && (
-                <div className="flex gap-4 p-3 bg-muted/30 rounded-lg text-xs">
+                <div className="grid grid-cols-2 gap-4 p-3.5 bg-muted/40 border border-border/50 rounded-2xl text-sm">
                   {selectedPastInvoice.customer_name && (
-                    <div><span className="text-muted-foreground">Customer: </span><span className="font-medium">{selectedPastInvoice.customer_name}</span></div>
+                    <div>
+                      <span className="text-muted-foreground font-medium text-sm">Customer Name:</span>
+                      <p className="font-bold text-foreground mt-0.5 text-sm">{selectedPastInvoice.customer_name}</p>
+                    </div>
                   )}
                   {selectedPastInvoice.customer_phone && (
-                    <div><span className="text-muted-foreground">Phone: </span><span className="font-medium">{selectedPastInvoice.customer_phone}</span></div>
+                    <div>
+                      <span className="text-muted-foreground font-medium text-sm">Phone Number:</span>
+                      <p className="font-bold text-foreground mt-0.5 text-sm">{selectedPastInvoice.customer_phone}</p>
+                    </div>
                   )}
                 </div>
               )}
 
-              {/* Items list */}
-              <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-xl p-2">
-                <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b border-border">
-                  <div className="col-span-5">Item</div>
+              {/* Invoice items table */}
+              <div className="border border-border/80 rounded-2xl overflow-hidden bg-card shadow-sm">
+                <div className="grid grid-cols-12 gap-2.5 px-4 py-2.5 text-xs font-black text-muted-foreground bg-muted/40 uppercase tracking-widest border-b border-border">
+                  <div className="col-span-5">Product Details</div>
                   <div className="col-span-2 text-center">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
                   <div className="col-span-2 text-right">Total</div>
                   {editMode && <div className="col-span-1" />}
                 </div>
-                {(editMode ? editedItems : pastInvoiceItems).map((item, index) => (
-                  <div key={item.item_id || index} className="grid grid-cols-12 gap-2 px-3 py-2 items-center text-sm">
-                    <div className="col-span-5 font-medium truncate">{item.name}</div>
-                    {editMode ? (
-                      <>
-                        <div className="col-span-2">
-                          <input type="number" min="0" step="any"
-                            className="w-full text-center h-8 bg-muted/30 border border-border rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.quantity}
-                            onChange={e => handleEditItem(index, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))} />
-                        </div>
-                        <div className="col-span-2">
-                          <input type="number" min="0" step="any"
-                            className="w-full text-right h-8 bg-muted/30 border border-border rounded-lg text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.unit_price}
-                            onChange={e => handleEditItem(index, 'unit_price', e.target.value === '' ? 0 : Number(e.target.value))} />
-                        </div>
-                        <div className="col-span-2 text-right font-bold">{formatCurrency(item.total)}</div>
-                        <div className="col-span-1 text-right">
-                          <button onClick={() => handleRemoveEditItem(index)}
-                            className="p-1 text-muted-foreground hover:text-destructive">
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="col-span-2 text-center text-muted-foreground">{item.quantity}</div>
-                        <div className="col-span-2 text-right text-muted-foreground">{formatCurrency(item.unit_price)}</div>
-                        <div className="col-span-2 text-right font-bold">{formatCurrency(item.total)}</div>
-                      </>
-                    )}
-                  </div>
-                ))}
+                <div className="divide-y divide-border/50 max-h-60 overflow-y-auto">
+                  {(editMode ? editedItems : pastInvoiceItems).map((item, index) => (
+                    <div key={item.item_id || index} className="grid grid-cols-12 gap-2.5 px-4 py-3 items-center text-sm">
+                      <div className="col-span-5 font-bold text-foreground/90 truncate">{item.name}</div>
+                      {editMode ? (
+                        <>
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="w-full text-center h-8 bg-muted/30 border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={item.quantity}
+                              onChange={e => handleEditItem(index, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <input
+                              type="number"
+                              min="0"
+                              step="any"
+                              className="w-full text-right h-8 bg-muted/30 border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={item.unit_price}
+                              onChange={e => handleEditItem(index, 'unit_price', e.target.value === '' ? 0 : Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="col-span-2 text-right font-extrabold text-foreground">{formatCurrency(item.total)}</div>
+                          <div className="col-span-1 text-right">
+                            <button
+                              onClick={() => handleRemoveEditItem(index)}
+                              className="p-1 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="col-span-2 text-center text-muted-foreground font-semibold">{item.quantity}</div>
+                          <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(item.unit_price)}</div>
+                          <div className="col-span-2 text-right font-extrabold text-foreground">{formatCurrency(item.total)}</div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
-              {/* Totals */}
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between text-muted-foreground">
+              {/* Detail Totals calculation summary */}
+              <div className="space-y-2 text-sm border-b border-border/50 pb-3">
+                <div className="flex justify-between text-muted-foreground font-medium">
                   <span>Subtotal</span>
-                  <span>{formatCurrency(editMode ? editedItems.reduce((s, i) => s + i.total, 0) : selectedPastInvoice.subtotal)}</span>
+                  <span className="font-bold text-foreground">{formatCurrency(editMode ? editedItems.reduce((s, i) => s + i.total, 0) : selectedPastInvoice.subtotal)}</span>
                 </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Tax</span>
-                  <span>{formatCurrency(editMode ? editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) : selectedPastInvoice.tax_total)}</span>
+                <div className="flex justify-between text-muted-foreground font-medium">
+                  <span>Tax Amount</span>
+                  <span className="font-bold text-foreground">{formatCurrency(editMode ? editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) : selectedPastInvoice.tax_total)}</span>
                 </div>
                 {selectedPastInvoice.discount_total > 0 && !editMode && (
-                  <div className="flex justify-between text-destructive">
-                    <span>Discount {selectedPastInvoice.discount_type === 'PERCENTAGE' && selectedPastInvoice.discount_value ? `(${selectedPastInvoice.discount_value}%)` : ''}</span>
-                    <span>-{formatCurrency(selectedPastInvoice.discount_total)}</span>
+                  <div className="flex justify-between text-destructive font-medium">
+                    <span>Discount Applied {selectedPastInvoice.discount_type === 'PERCENTAGE' && selectedPastInvoice.discount_value ? `(${selectedPastInvoice.discount_value}%)` : ''}</span>
+                    <span className="font-bold">-{formatCurrency(selectedPastInvoice.discount_total)}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-bold text-lg pt-2 border-t border-border">
+                <div className="flex justify-between font-black text-sm pt-2.5 border-t border-border">
                   <span>Grand Total</span>
-                  <span className="text-primary">
+                  <span className="text-primary font-black text-base">
                     {formatCurrency(
                       editMode
-                        ? (editedItems.reduce((s, i) => s + i.total, 0) + editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) - 
-                          (tempDiscountType === 'PERCENTAGE' 
+                        ? (editedItems.reduce((s, i) => s + i.total, 0) + editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) -
+                          (tempDiscountType === 'PERCENTAGE'
                             ? editedItems.reduce((s, i) => s + i.total, 0) * (tempDiscountValue / 100)
                             : tempDiscountValue))
                         : selectedPastInvoice.grand_total
@@ -1072,39 +1305,61 @@ export function BillingPage() {
                 </div>
               </div>
 
-              {/* Admin controls */}
+              {/* Admin modifications block */}
               {authRole === 'OWNER' && (
-                <div className="space-y-3 pt-2 border-t border-border">
-                  {/* Discount controls */}
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold text-muted-foreground uppercase">Apply Discount</div>
-                    <div className="flex gap-2 p-1 bg-muted rounded-lg">
-                      <button onClick={() => setTempDiscountType('FIXED')}
-                        className={clsx('flex-1 py-2 rounded-md font-semibold text-sm transition-all', tempDiscountType === 'FIXED' ? 'bg-background shadow text-foreground' : 'text-muted-foreground')}>Fixed (₹)</button>
-                      <button onClick={() => setTempDiscountType('PERCENTAGE')}
-                        className={clsx('flex-1 py-2 rounded-md font-semibold text-sm transition-all', tempDiscountType === 'PERCENTAGE' ? 'bg-background shadow text-foreground' : 'text-muted-foreground')}>Percent (%)</button>
+                <div className="space-y-4 p-4 bg-muted/20 border border-border/60 rounded-2xl shadow-inner">
+                  <div className="space-y-3">
+                    <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Apply Special Discount Override</div>
+                    <div className="flex gap-2 p-1 bg-muted rounded-xl border border-border/40 text-sm">
+                      <button
+                        onClick={() => setTempDiscountType('FIXED')}
+                        className={clsx(
+                          'flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer',
+                          tempDiscountType === 'FIXED' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                        )}
+                      >
+                        Fixed Amount (₹)
+                      </button>
+                      <button
+                        onClick={() => setTempDiscountType('PERCENTAGE')}
+                        className={clsx(
+                          'flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer',
+                          tempDiscountType === 'PERCENTAGE' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
+                        )}
+                      >
+                        Percentage (%)
+                      </button>
                     </div>
-                    <Input type="number" min="0" max={tempDiscountType === 'PERCENTAGE' ? '100' : undefined}
-                      value={tempDiscountValue || ''} onChange={e => setTempDiscountValue(Number(e.target.value))}
-                      placeholder={tempDiscountType === 'PERCENTAGE' ? 'Enter %' : 'Enter amount'} />
+                    <Input
+                      type="number"
+                      min="0"
+                      max={tempDiscountType === 'PERCENTAGE' ? '100' : undefined}
+                      value={tempDiscountValue || ''}
+                      onChange={e => setTempDiscountValue(Number(e.target.value))}
+                      placeholder={tempDiscountType === 'PERCENTAGE' ? 'Enter discount %' : 'Enter discount amount'}
+                      className="bg-background rounded-xl border border-border/80 py-2 text-sm font-bold focus:ring-primary/20"
+                    />
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-3 pt-1">
                     {!editMode ? (
                       <>
-                        <Button variant="outline" onClick={() => setEditMode(true)} className="flex-1">
-                          <Tag className="w-4 h-4" /> Edit Items
+                        <Button variant="outline" onClick={() => setEditMode(true)} className="flex-1 rounded-xl py-2.5 text-sm font-bold border-border/80">
+                          <Tag className="w-3.5 h-3.5 mr-1 text-primary" /> Modify Items
                         </Button>
-                        <Button onClick={handleApplyPastDiscount} disabled={isSavingPastBill} className="flex-1">
+                        <Button onClick={handleApplyPastDiscount} disabled={isSavingPastBill} className="flex-1 rounded-xl py-2.5 text-sm font-black shadow-md">
                           {isSavingPastBill ? 'Applying...' : 'Apply Discount'}
                         </Button>
                       </>
                     ) : (
                       <>
-                        <Button variant="outline" onClick={() => { setEditMode(false); setEditedItems(pastInvoiceItems.map((i: any) => ({ ...i }))); }} className="flex-1">
-                          Cancel
-                        </Button>
-                        <Button onClick={handleSavePastBill} disabled={isSavingPastBill} className="flex-1">
+                        <button
+                          onClick={() => { setEditMode(false); setEditedItems(pastInvoiceItems.map((i: any) => ({ ...i }))); }}
+                          className="flex-1 px-4 py-2.5 text-sm font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200 active:scale-95"
+                        >
+                          Cancel Editing
+                        </button>
+                        <Button onClick={handleSavePastBill} disabled={isSavingPastBill} className="flex-1 rounded-xl py-2.5 text-sm font-black shadow-md">
                           {isSavingPastBill ? 'Saving...' : 'Save Changes'}
                         </Button>
                       </>
@@ -1112,50 +1367,73 @@ export function BillingPage() {
                   </div>
 
                   {pastBillSuccess && (
-                    <div className="p-3 bg-primary/5 text-primary border border-primary/20 rounded-lg text-center text-sm font-semibold animate-in fade-in">
-                      <CheckCircle2 className="w-5 h-5 inline mr-1" />
+                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-xl text-center text-xs font-bold animate-in fade-in">
+                      <CheckCircle2 className="w-4 h-4 inline mr-1.5 text-emerald-500" />
                       {pastBillSuccess}
                     </div>
                   )}
                 </div>
               )}
 
-              <div className="flex justify-end pt-2">
-                <Button variant="outline" onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}>Close</Button>
+              <div className="flex justify-end pt-2 border-t border-border/40">
+                <button
+                  onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
+                  className="px-4 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200"
+                >
+                  Close Archive
+                </button>
               </div>
             </div>
           ) : (
             <>
-              <div className="flex gap-2">
-                <Input placeholder="Search by invoice number or customer..."
+              <div className="flex gap-2.5">
+                <Input
+                  placeholder="Enter invoice ID, number, or customer name..."
                   value={pastBillSearch}
                   onChange={e => setPastBillSearch(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchPast(); } }} />
-                <Button onClick={handleSearchPast}>Search</Button>
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchPast(); } }}
+                  className="rounded-xl bg-background border border-border/80 text-sm font-medium focus:ring-primary/20"
+                />
+                <Button onClick={handleSearchPast} className="rounded-xl px-5 text-sm font-bold tracking-wide">Search</Button>
               </div>
               {foundInvoices.length > 0 && (
-                <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                <div className="space-y-2 max-h-[320px] overflow-y-auto pt-2.5">
                   {foundInvoices.map(inv => (
-                    <div key={inv.invoice_id} onClick={() => handleSelectPastInvoice(inv)}
-                      className={clsx('p-3 border rounded-lg cursor-pointer flex justify-between items-center transition-colors text-sm hover:bg-muted/50',
-                        selectedPastInvoiceId === inv.invoice_id ? 'border-primary bg-primary/5' : 'border-border')}>
-                      <div>
-                        <div className="font-medium">{inv.invoice_number}</div>
-                        <div className="text-[11px] text-muted-foreground">{new Date(inv.created_at).toLocaleString()}</div>
+                    <div
+                      key={inv.invoice_id}
+                      onClick={() => handleSelectPastInvoice(inv)}
+                      className={clsx(
+                        'p-3.5 border rounded-2xl cursor-pointer flex justify-between items-center transition-all duration-200 text-sm hover:-translate-y-px hover:shadow-md',
+                        selectedPastInvoiceId === inv.invoice_id
+                          ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
+                          : 'border-border/80 hover:bg-muted/40'
+                      )}
+                    >
+                      <div className="space-y-1">
+                        <div className="font-bold text-foreground/90">{inv.invoice_number}</div>
+                        <div className="text-xs text-muted-foreground font-mono">{new Date(inv.created_at).toLocaleString()}</div>
                         {inv.discount_total > 0 && (
-                          <div className="text-[10px] text-destructive font-medium">Discounted (-{formatCurrency(inv.discount_total)})</div>
+                          <div className="text-xs text-destructive font-black bg-destructive/5 border border-destructive/10 px-1.5 py-0.5 rounded inline-block">
+                            Discounted (-{formatCurrency(inv.discount_total)})
+                          </div>
                         )}
                       </div>
-                      <div className="text-right">
-                        <div className="font-bold">{formatCurrency(inv.grand_total)}</div>
-                        {inv.cashier_name && <div className="text-[10px] text-muted-foreground">{inv.cashier_name}</div>}
+                      <div className="text-right space-y-1">
+                        <div className="font-black text-primary text-sm">{formatCurrency(inv.grand_total)}</div>
+                        {inv.cashier_name && (
+                          <div className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded inline-block font-semibold">
+                            {inv.cashier_name}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
               {foundInvoices.length === 0 && pastBillSearch && (
-                <div className="text-center text-muted-foreground text-sm py-4">No invoices found</div>
+                <div                className="text-center text-muted-foreground/60 text-sm py-8 bg-muted/20 border border-border/50 border-dashed rounded-2xl">
+                  No match found in active invoice records
+                </div>
               )}
             </>
           )}

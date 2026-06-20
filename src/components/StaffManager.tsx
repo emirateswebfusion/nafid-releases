@@ -274,14 +274,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
             </div>
 
             <div className="flex items-center gap-3 pt-4 border-t border-border shrink-0">
-              <Button 
-                variant="outline"
+              <button
                 type="button" 
                 onClick={() => setView('list')}
-                className="flex-1"
+                className="flex-1 px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-xl transition-colors"
               >
                 Cancel
-              </Button>
+              </button>
               <Button 
                 type="submit"
                 disabled={loading}
