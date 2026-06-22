@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, FileText, TrendingUp } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { ReportView } from './ReportView';
 import Barcode from 'react-barcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -715,13 +715,6 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
     const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
 
     const categoryRows = Object.entries(repGroupedByCategory).map(([cat, items]) => {
-      const catValue = items.reduce((sum, p) => {
-        const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-        const grRate = gr ? Number(gr.rate) : null;
-        const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-        return sum + (rate * Number(p.current_stock));
-      }, 0);
-      const catStock = items.reduce((sum, p) => sum + Number(p.current_stock), 0);
       const detailRows = items.map(p => {
         const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
         const grRate = gr ? Number(gr.rate) : null;
@@ -849,18 +842,17 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
               <button onClick={handlePrintFullReport} className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
                 <Printer className="w-3.5 h-3.5" /> Print Report
               </button>
-              <button onClick={() => { loadProducts(true); setView('list'); }} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer" title="Back to list">
-                <X className="w-4 h-4" />
+              <button onClick={() => { loadProducts(true); setView('list'); }} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
+                <X className="w-4 h-4 text-destructive" />
               </button>
             </>
           ) : view !== 'list' ? (
-            <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer" title="Back to list">
-              <X className="w-4 h-4" />
+            <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
+              <X className="w-4 h-4 text-destructive" />
             </button>
           ) : (
-            <button onClick={onClose} className="flex items-center gap-1.5 px-3.5 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer">
-              <X className="w-4 h-4" />
-              <span>Close</span>
+            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+              <X className="w-4 h-4 text-destructive" />
             </button>
           )}
         </div>
@@ -1102,18 +1094,18 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
       {/* ── ADD / EDIT FORM VIEW ─────────────────────────────────────────── */}
       {(view === 'add' || view === 'edit') && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-5xl mx-auto w-full">
+          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
 
             {/* Section 1: Core */}
-            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <PackagePlus className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">1. Basic Details</span>
+                <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
               </div>
-              <div className="grid grid-cols-2 gap-8">
-                <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
                     <input type="text" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
@@ -1122,8 +1114,8 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
                     <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
                   </div>
-                  <div className="grid grid-cols-2 gap-5">
-                    <div className="space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
                         {isCustomCategory || configuredCategories.length === 0 ? (
@@ -1175,7 +1167,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
                   </div>
                 </div>
 
-                <div className="bg-muted/20 p-5 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
                       <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
@@ -1195,14 +1187,14 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             </section>
 
             {/* Section 2: Billing & Grades */}
-            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
                   <Package className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">2. Billing Setup & Grades</span>
+                <span className="text-xs font-black text-indigo-500 uppercase tracking-wider">2. Billing Setup & Grades</span>
               </div>
-              <div className="space-y-5">
+              <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Billing Type</label>
                   <div className="grid grid-cols-2 gap-3 max-w-md">
@@ -1240,14 +1232,14 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             </section>
 
             {/* Section 3: Inventory & Pricing */}
-            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <Tag className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">3. Inventory & Pricing</span>
+                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">3. Inventory & Pricing</span>
               </div>
-              <div className="grid grid-cols-5 gap-5">
+              <div className="grid grid-cols-5 gap-4">
                 {[
                   { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
                   { label: 'MRP *', field: 'base_price', prefix: '₹' },
@@ -1282,21 +1274,21 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             </section>
 
             {/* Section 4: Discount & Offers */}
-            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <Tag className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">4. Discount & Offers</span>
+                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">4. Discount & Offers</span>
               </div>
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-2 gap-6">
                 {/* Discount Block */}
-                <div className="space-y-4 bg-muted/10 p-5 rounded-xl border border-border/80">
+                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-foreground">Discount</h4>
                     <span className="text-xs text-muted-foreground">Applies to MRP</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
                       <input
@@ -1325,7 +1317,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
                 </div>
 
                 {/* Offer Block */}
-                <div className="space-y-4 bg-muted/10 p-5 rounded-xl border border-border/80">
+                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-foreground">Offer</h4>
                     <span className="text-xs text-muted-foreground">Overrides MRP</span>
@@ -1346,14 +1338,14 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             </section>
 
             {/* Section 5: Taxes & Config */}
-            <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                   <Package className="w-4 h-4" />
                 </div>
-                <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">5. Taxes & Config</span>
+                <span className="text-xs font-black text-orange-500 uppercase tracking-wider">5. Taxes & Config</span>
               </div>
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
                   <div
@@ -1398,14 +1390,14 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
 
             {/* Section 5: Domain Attributes */}
             {shopDomain !== 'GENERAL' && (
-              <section className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
                     <Package className="w-4 h-4" />
                   </div>
-                  <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">5. Domain Fields — {shopDomain}</span>
+                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">5. Domain Fields — {shopDomain}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-5">
+                <div className="grid grid-cols-2 gap-4">
                   {shopDomain === 'HARDWARE' && (<>
                     <DomainField label="Dimensions (L×W×H)" value={formData.domain_attributes['dimensions'] || ''} onChange={v => handleDomainAttrChange('dimensions', v)} />
                     <DomainField label="Material" value={formData.domain_attributes['material'] || ''} onChange={v => handleDomainAttrChange('material', v)} />

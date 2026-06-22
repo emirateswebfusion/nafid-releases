@@ -53,7 +53,7 @@ function App() {
       setPrintBarcodeColumns(paramCols !== null ? parseInt(paramCols, 10) : 1);
     } else if (window.location.hash.startsWith('#/print-receipt')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
-      setPrintReceiptData(urlParams.get('text'));
+      setPrintReceiptData(urlParams.get('text') || ''); // '' triggers IPC fallback in PrintReceiptView
     } else if (window.location.hash.startsWith('#/print-bulk-barcode')) {
       setShowPrintBulkBarcode(true);
     }
@@ -162,7 +162,7 @@ function App() {
     return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} />;
   }
 
-  if (printReceiptData) {
+  if (printReceiptData !== null) {
     return <PrintReceiptView text={printReceiptData} />;
   }
 

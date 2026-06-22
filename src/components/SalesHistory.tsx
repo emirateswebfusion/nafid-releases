@@ -365,6 +365,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                         ]);
                         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+                        const charsPerLine = receiptConfig?.charsPerLine ? Number(receiptConfig.charsPerLine) : undefined;
 
                         const receiptData: ReceiptData = {
                           shopName: useAuthStore.getState().shopName || 'My Shop',
@@ -390,7 +391,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                           isReprint: true
                         };
 
-                        const receiptText = generateReceiptText(receiptData, receiptWidthCm);
+                        const receiptText = generateReceiptText(receiptData, receiptWidthCm, charsPerLine);
                         await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
                       } catch (err) {
                         console.error('Failed to reprint', err);

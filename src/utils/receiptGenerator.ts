@@ -46,10 +46,12 @@ export interface ReceiptData {
  * @param widthCm The width of the paper in centimeters (e.g., 5.8 or 8.0).
  * @returns The formatted plain text string.
  */
-export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): string {
-  // A standard 58mm printer usually prints 32 characters per line.
-  // An 80mm printer usually prints 48 characters per line.
-  const charsPerLine = widthCm >= 7.5 ? 48 : 32;
+export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number): string {
+  if (charsPerLine == null) {
+    // A standard 58mm printer fits 32 characters per line.
+    // A standard 80mm printer fits 42 characters per line (Font A, 12 CPI).
+    charsPerLine = widthCm >= 7.5 ? 42 : 32;
+  }
 
   const centerText = (text: string, width: number): string => {
     if (text.length >= width) return text.substring(0, width);
@@ -112,7 +114,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
   
   text += divider + '\n';
 
-  if (charsPerLine >= 48) {
+  if (charsPerLine >= 42) {
     const qtyWidth = 4;
     const rateWidth = 8;
     const totalWidth = 9;
@@ -130,7 +132,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8): s
       text += padRight(name, itemNameWidth) + ' ' + padLeft(qtyStr, qtyWidth) + ' ' + padLeft(rateStr, rateWidth) + ' ' + padLeft(totalStr, totalWidth) + '\n';
       // Show discount label if present
       if (item.discountLabel && item.originalRate != null) {
-        text += padRight(`  ${item.discountLabel} (was ${item.originalRate.toFixed(2)})`, itemNameWidth) + '\n';
+        const discountLine = `  ${item.discountLabel} (was ${item.originalRate.toFixed(2)})`;
+        text += (discountLine.length > charsPerLine ? discountLine.substring(0, charsPerLine - 3) + '...' : discountLine) + '\n';
       }
     });
   } else {

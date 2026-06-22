@@ -5,8 +5,23 @@ import { getDb } from '../db/localDb';
 
 // Generic ESC/POS Hex Commands
 const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
+const ESC_FONT_A = Buffer.from([0x1B, 0x4D, 0x00]); // Select Font A (12 CPI, standard)
+const ESC_DEFAULT_LINE_SPACING = Buffer.from([0x1B, 0x32]); // Set default line spacing
 const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
 const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
+
+const ESC_POS_HEADER = Buffer.concat([ESC_INIT, ESC_FONT_A, ESC_DEFAULT_LINE_SPACING]);
+
+// For ESC/POS network printers: strip non-ASCII chars that would print as garbage
+function sanitizeForEscPos(text: string): string {
+  return text.replace(/[\u{0080}-\u{FFFF}]/gu, (ch) => {
+    if (ch === '₹') return 'Rs ';
+    if (ch === '\u2588') return '#';  // █ full block
+    if (ch === '\u2580') return '^';  // ▀ upper half
+    if (ch === '\u2584') return ',';  // ▄ lower half
+    return '?';
+  });
+}
 
 function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barcode') {
   try {
@@ -24,6 +39,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
 }
 
 let currentBulkPrintItems: any[] = [];
+let currentReceiptText: string = '';
 
 export function initPrinter() {
   ipcMain.handle('hardware:getBulkPrintItems', () => currentBulkPrintItems);
@@ -37,20 +53,26 @@ export function initPrinter() {
     return { success: true };
   });
 
+  ipcMain.handle('hardware:getReceiptText', () => currentReceiptText);
+
 
   ipcMain.handle('hardware:printReceipt', async (event, { tenant_id, textData }: { tenant_id: string; textData: string }) => {
     console.log(`[Hardware] Received Print Request for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id, 'receipt');
     
     try {
-      // Construct raw buffer
-      const textBuffer = Buffer.from(textData + '\n\n\n\n\n', 'utf8');
-      const finalBuffer = Buffer.concat([ESC_INIT, textBuffer, ESC_CUT]);
+      const receiptText = textData + '\n\n\n\n\n';
       
       if (config.type === 'network') {
+        // ESC/POS network printers only understand ASCII-based code pages
+        const asciiText = sanitizeForEscPos(receiptText);
+        const textBuffer = Buffer.from(asciiText, 'ascii');
+        const finalBuffer = Buffer.concat([ESC_POS_HEADER, textBuffer, ESC_CUT]);
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
       } else if (config.type === 'usb' && config.deviceName) {
-        await printReceiptUSB(textData + '\n\n\n\n\n', config.deviceName);
+        currentReceiptText = receiptText;
+        const widthMm = (config.receiptWidthCm || 5.8) * 10;
+        await printReceiptUSB(config.deviceName, widthMm);
       } else if (config.type === 'usb') {
         throw new Error('USB printing requested but deviceName not configured');
       } else {
@@ -265,7 +287,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
   });
 }
 
-function printReceiptUSB(textData: string, deviceName: string): Promise<void> {
+function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
@@ -278,10 +300,11 @@ function printReceiptUSB(textData: string, deviceName: string): Promise<void> {
       }
     });
 
+    // Pass data via global variable to avoid URL length limits
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-receipt?text=${encodeURIComponent(textData)}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-receipt' });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-receipt?text=${encodeURIComponent(textData)}`);
+      printWindow.loadURL(`http://localhost:5173/#/print-receipt`);
     }
 
     const timer = setTimeout(() => {
@@ -296,8 +319,7 @@ function printReceiptUSB(textData: string, deviceName: string): Promise<void> {
         silent: true,
         deviceName: deviceName,
         margins: { marginType: 'none' },
-        // Add a default pageSize for receipts (80mm width, 300mm height) to avoid the "page size is empty" error
-        pageSize: { width: 80000, height: 300000 }
+        pageSize: { width: widthMm * 1000, height: 300000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
         setTimeout(() => {

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
+  appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbGetProductsCount: (params: any) => ipcRenderer.invoke('db:getProductsCount', params),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
@@ -42,6 +43,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => ipcRenderer.invoke('hardware:printBarcode', { tenant_id, barcode, price, name, quantity, sp, spType }),
   printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => ipcRenderer.invoke('hardware:printBulkBarcodes', { tenant_id, items }),
   getBulkPrintItems: () => ipcRenderer.invoke('hardware:getBulkPrintItems'),
+  getReceiptText: () => ipcRenderer.invoke('hardware:getReceiptText'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: () => ipcRenderer.invoke('hardware:printReady'),
   

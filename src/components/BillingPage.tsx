@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
-  Search, X, Package, Trash2, Minus, Plus, CreditCard,
+  Search, X, Package, Trash2, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Receipt, Settings, Tag, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp
@@ -61,10 +61,10 @@ export function BillingPage() {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
     addItem, updateQuantity, removeItem, updateWeight,
-    customerState, setCustomerState, shopState
+    customerState, setCustomerState
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
-  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, taxableAmount } = useCartTotals();
+  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const totalItemSavings = items.reduce((sum, item) => {
@@ -154,7 +154,7 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' }).then((cfg: any) => {
+    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' }).then((cfg: any) => {
       if (cfg) {
         setNextInvoiceNumber(`${cfg.prefix || 'INV-'}${cfg.counter || 1}`);
       }
@@ -290,6 +290,8 @@ export function BillingPage() {
             discount_percent: item.discount_percent ?? null,
             discount_flat: item.discount_flat ?? null,
             offer_price: item.offer_price ?? null,
+            sku_barcode: item.sku_barcode || null,
+            brand_manufacturer: item.brand_manufacturer || null,
           });
           // Set the quantity
           const qty = Number(item.quantity) || 1;
@@ -345,6 +347,8 @@ export function BillingPage() {
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
       offer_price: product.offer_price ?? null,
+      sku_barcode: product.sku_barcode || null,
+      brand_manufacturer: product.brand_manufacturer || null,
     });
     setSearchQuery('');
     setResults([]);
@@ -410,6 +414,7 @@ export function BillingPage() {
     try {
       const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
+      const charsPerLine = cfg?.charsPerLine ? Number(cfg.charsPerLine) : undefined;
 
       const state = useCartStore.getState();
       const receiptData: ReceiptData = {
@@ -447,7 +452,7 @@ export function BillingPage() {
         customerState: invoiceType === 'GST' ? customerState || undefined : undefined,
       };
 
-      const printResult = await window.electronAPI.printReceipt(tenantId || 'global', generateReceiptText(receiptData, width));
+      const printResult = await window.electronAPI.printReceipt(tenantId || 'global', generateReceiptText(receiptData, width, charsPerLine));
       if (!printResult.success) {
         setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
         setIsCheckingOut(false); return;
@@ -658,7 +663,7 @@ export function BillingPage() {
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
               title="Clear Cart"
             >
-              <Trash2 className="w-4 h-4" />
+              <RotateCcw className="w-4 h-4" />
               <span>Clear Cart</span>
             </button>
           )}
@@ -681,10 +686,10 @@ export function BillingPage() {
           {authRole === 'OWNER' ? (
             <button
               onClick={() => setRole('OWNER')}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
               title="Dashboard"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 text-destructive" />
             </button>
           ) : (
             <button
@@ -728,9 +733,9 @@ export function BillingPage() {
                   {searchQuery && (
                     <button
                       onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors"
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors border border-destructive/30"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-4 h-4 text-destructive" />
                     </button>
                   )}
                 </div>
@@ -785,8 +790,8 @@ export function BillingPage() {
                               <div className="flex items-center gap-1">
                                 <span className="text-[10px] text-muted-foreground/70 font-semibold">MRP:</span>
                                 <span className="text-xs font-semibold text-muted-foreground line-through">{formatCurrency(mrp)}</span>
-                                <span className="text-[10px] text-destructive font-semibold ml-1">Offer:</span>
-                                <span className="font-black text-sm text-destructive">{formatCurrency(displayPrice)}</span>
+                                <span className="text-[10px] text-emerald-500 font-semibold ml-1">Offer:</span>
+                                <span className="font-black text-sm text-emerald-500">{formatCurrency(displayPrice)}</span>
                               </div>
                             ) : (
                               <div className="font-black text-sm text-primary">{formatCurrency(displayPrice)}</div>
@@ -817,21 +822,31 @@ export function BillingPage() {
           <div className="px-4 py-2.5 border-b border-border/50 bg-card/40 shrink-0">
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
                   placeholder={paymentMethod === 'CREDIT' ? 'Name *' : 'Customer Name'}
                   value={customerName}
                   onChange={e => updateActiveTab({ customerName: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className={clsx(
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    paymentMethod === 'CREDIT'
+                      ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      : 'border-border focus:ring-primary/20 focus:border-primary'
+                  )}
                 />
               </div>
               <div className="relative flex-1">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
                   placeholder={paymentMethod === 'CREDIT' ? 'Phone *' : 'Phone Number'}
                   value={customerPhone}
                   onChange={e => updateActiveTab({ customerPhone: e.target.value })}
-                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  className={clsx(
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    paymentMethod === 'CREDIT'
+                      ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      : 'border-border focus:ring-primary/20 focus:border-primary'
+                  )}
                 />
               </div>
             </div>
@@ -914,25 +929,17 @@ export function BillingPage() {
               items.map(item => {
                 const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
                 const qty = Number(item.quantity) || 0;
-                const rawTotal = item.billing_type === 'WEIGHT' ? rate * (item.calculated_weight || 0) : rate * qty;
 
                 // Apply per-item discount
                 let effectivePrice = rate;
-                let discountLabel: string | null = null;
-                let discountAmount = 0;
                 if (item.offer_price) {
                   effectivePrice = Number(item.offer_price);
-                  discountLabel = 'OFFER';
-                  discountAmount = rawTotal - (item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty);
                 } else if (item.discount_flat) {
                   effectivePrice = rate - Number(item.discount_flat);
-                  discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
-                  discountAmount = Number(item.discount_flat) * qty;
                 } else if (item.discount_percent) {
                   effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
-                  discountLabel = `${item.discount_percent}% OFF`;
-                  discountAmount = (rate - effectivePrice) * qty;
                 }
+                effectivePrice = Math.max(effectivePrice, 0);
                 const total = item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty;
 
                 return (
@@ -948,22 +955,16 @@ export function BillingPage() {
                             By Weight
                           </span>
                         )}
-                        {discountLabel && (
-                          <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full border border-destructive/20">
-                            {discountLabel}
-                          </span>
-                        )}
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        {effectivePrice !== rate ? (
-                          <>
-                            <span className="text-[10px] font-semibold text-muted-foreground/70 mr-0.5">MRP:</span>
-                            <span className="line-through text-muted-foreground/60">{formatCurrency(rate)}</span>
-                            <span className="text-[10px] font-semibold text-destructive ml-1.5 mr-0.5">{discountLabel === 'OFFER' ? 'Offer:' : 'Disc:'}</span>
-                            <span className="font-bold text-destructive">{formatCurrency(effectivePrice)}</span>
-                          </>
-                        ) : (
-                          <>Rate: <span className="font-semibold text-foreground/80">{formatCurrency(rate)}</span></>
+                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
+                        {item.sku_barcode && (
+                          <span className="font-mono bg-muted/70 px-1 py-0.5 rounded">{item.sku_barcode}</span>
+                        )}
+                        {item.brand_manufacturer && (
+                          <span className="font-semibold text-muted-foreground/80">{item.brand_manufacturer}</span>
+                        )}
+                        {!item.sku_barcode && !item.brand_manufacturer && (
+                          <span className="text-muted-foreground/50 italic">No barcode</span>
                         )}
                       </div>
                     </div>
@@ -1010,8 +1011,15 @@ export function BillingPage() {
                       </div>
                     )}
 
-                    <div className="text-right min-w-[75px] shrink-0">
-                      <div className="font-black text-sm text-primary">{formatCurrency(total)}</div>
+                    <div className="text-right min-w-[80px] shrink-0">
+                      {effectivePrice !== rate ? (
+                        <>
+                          <div className="font-black text-sm text-emerald-500">{formatCurrency(total)}</div>
+                          <div className="text-[10px] text-muted-foreground/60 line-through font-semibold -mt-0.5">MRP: {formatCurrency(rate)}</div>
+                        </>
+                      ) : (
+                        <div className="font-black text-sm text-primary">{formatCurrency(total)}</div>
+                      )}
                     </div>
 
                     <button
@@ -1214,8 +1222,8 @@ export function BillingPage() {
                 <div                className="px-3 py-2.5 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold animate-in fade-in duration-200">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span className="flex-1">{hardwareError}</span>
-                  <button onClick={() => setHardwareError(null)} className="hover:bg-destructive/20 p-0.5 rounded-lg transition-colors cursor-pointer">
-                    <X className="w-3.5 h-3.5" />
+                  <button onClick={() => setHardwareError(null)} className="hover:bg-destructive/20 p-0.5 rounded-lg transition-colors cursor-pointer border border-destructive/30">
+                    <X className="w-3.5 h-3.5 text-destructive" />
                   </button>
                 </div>
               )}
@@ -1366,9 +1374,9 @@ export function BillingPage() {
                           <div className="col-span-1 text-right">
                             <button
                               onClick={() => handleRemoveEditItem(index)}
-                              className="p-1 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors"
+                              className="p-1 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/30"
                             >
-                              <X className="w-3.5 h-3.5" />
+                              <X className="w-3.5 h-3.5 text-destructive" />
                             </button>
                           </div>
                         </>

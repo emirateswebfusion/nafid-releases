@@ -3,6 +3,7 @@ export interface IElectronAPI {
   ping: () => Promise<string>;
   appCheckForUpdates: () => Promise<any>;
   appGetVersion: () => Promise<string>;
+  appInstallUpdate: () => Promise<void>;
   dbGetProducts: (params: any) => Promise<any[]>;
   dbGetProductsCount: (params: any) => Promise<number>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
@@ -12,7 +13,7 @@ export interface IElectronAPI {
   dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
   dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; only_pending?: boolean }) => Promise<any[]>;
+  dbGetPendingPrintProducts: (params: { tenant_id: string; limit: number; date?: string; dateEnd?: string; only_pending?: boolean }) => Promise<any[]>;
   dbCheckout: (payload: any & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
@@ -35,6 +36,7 @@ export interface IElectronAPI {
   printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => Promise<{ success: boolean; error?: string }>;
   getBulkPrintItems: () => Promise<any[]>;
   getPrinters: () => Promise<any[]>;
+  getReceiptText: () => Promise<string>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => void;

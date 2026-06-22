@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { useCartStore } from '../store/cartStore';
-import { Plus, X, Search, Printer, Download, FileText, RefreshCw, Trash2, CheckCircle } from 'lucide-react';
+import { Plus, X, Search, Printer, Download, FileText, RefreshCw, CheckCircle } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
@@ -33,7 +32,6 @@ interface QuotationItem {
 
 export function QuotationManager({ onClose }: { onClose: () => void }) {
   const { shopName, tenantId } = useAuthStore();
-  const { shopState } = useCartStore();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -53,7 +51,6 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
     terms_conditions: '1. Prices are subject to change without prior notice.\n2. Delivery will be made within 7-10 working days.\n3. This quotation is valid for 15 days from the date of issue.\n4. Payment terms: 50% advance, 50% on delivery.\n5. GST extra as applicable.',
   });
   const [items, setItems] = useState<QuotationItem[]>([]);
-  const [grades, setGrades] = useState<any[]>([]);
 
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -76,12 +73,10 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI) {
         const tid = tenantId || '';
-        const [prods, grds] = await Promise.all([
+        const [prods] = await Promise.all([
           window.electronAPI.dbGetProducts({ tenant_id: tid, limit: 10000 }),
-          window.electronAPI.dbGetGrades(tid || ''),
         ]);
         if (Array.isArray(prods)) setProducts(prods);
-        if (Array.isArray(grds)) setGrades(grds);
       }
     } catch (err) {
       console.error('[QuotationManager] Failed to load products:', err);

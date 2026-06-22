@@ -99,6 +99,7 @@ export function ActionPane() {
 
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+        const charsPerLine = receiptConfig?.charsPerLine ? Number(receiptConfig.charsPerLine) : undefined;
 
         const receiptData: ReceiptData = {
           shopName: shopName || 'My Shop',
@@ -141,7 +142,7 @@ export function ActionPane() {
           grandTotal
         };
 
-        const receiptText = generateReceiptText(receiptData, receiptWidthCm);
+        const receiptText = generateReceiptText(receiptData, receiptWidthCm, charsPerLine);
         
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
         

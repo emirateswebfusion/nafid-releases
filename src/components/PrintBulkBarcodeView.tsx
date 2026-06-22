@@ -3,7 +3,7 @@ import Barcode from 'react-barcode';
 import { useAuthStore } from '../store/authStore';
 
 export function PrintBulkBarcodeView() {
-  const shopName = useAuthStore((state) => state.shopName);
+  const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
   const [items, setItems] = useState<any[]>([]);
   const [columns, setColumns] = useState(1);
   const [loaded, setLoaded] = useState(false);

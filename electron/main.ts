@@ -197,11 +197,8 @@ app.whenReady().then(async () => {
   autoUpdater.on('update-downloaded', () => {
     console.log('[Updater] Update downloaded.');
     if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Update downloaded. Restarting in 5s to install...');
+      mainWindow.webContents.send('update-status', 'ready-to-install');
     }
-    setTimeout(() => {
-      autoUpdater.quitAndInstall();
-    }, 5000);
   });
 
   autoUpdater.on('error', (err) => {
@@ -231,12 +228,16 @@ ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) =
 
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
+ipcMain.handle('app:installUpdate', () => {
+  autoUpdater.quitAndInstall();
+});
+
 ipcMain.handle('app:checkForUpdates', async () => {
   try {
     const result = await autoUpdater.checkForUpdatesAndNotify();
     // result contains complex objects (like CancellationToken) that cannot be cloned over IPC.
     // We only return the updateInfo which is serializable.
-    if (result && result.updateInfo) {
+    if (result && result.isUpdateAvailable && result.updateInfo) {
       return { success: true, updateInfo: result.updateInfo };
     }
     // No update available — already on latest version
@@ -1025,7 +1026,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
 
     // Use a transaction for atomic get-and-increment
     const result = db.transaction(() => {
-      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', configKey);
+      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
       let counter = 1;
       let config: { prefix: string; counter: number } = { prefix: effectivePrefix, counter: 1 };
 
@@ -1049,7 +1050,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
           value = EXCLUDED.value,
           sync_status = 'PENDING',
           updated_at = CURRENT_TIMESTAMP
-      `).run(tenant_id || 'global', configKey, JSON.stringify(config));
+      `).run('global', configKey, JSON.stringify(config));
 
       return { success: true, invoiceNumber, counter };
     })();
@@ -1063,7 +1064,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
 ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', 'invoice_counter_config');
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'invoice_counter_config');
     if (row) {
       const config = JSON.parse(row.value);
       return { success: true, invoiceNumber: `${config.prefix || 'INV-'}${config.counter || 1}` };

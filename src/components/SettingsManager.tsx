@@ -3,7 +3,7 @@ import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Lock, Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
-  Smartphone, X
+  Smartphone, X, RotateCcw
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -91,6 +91,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
+  const [updateReady, setUpdateReady] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [localDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
@@ -135,7 +136,12 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     if (window.electronAPI?.onUpdateStatus) {
       window.electronAPI.onUpdateStatus((status: string) => {
-        setUpdateStatus(status);
+        if (status === 'ready-to-install') {
+          setUpdateReady(true);
+          setUpdateStatus('Update ready to install');
+        } else {
+          setUpdateStatus(status);
+        }
       });
     }
   }, []);
@@ -192,7 +198,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (upiVal) setUpiId(upiVal);
       if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
 
-      const invCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'invoice_counter_config' });
+      const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
       if (invCfg) {
         setInvoicePrefix(invCfg.prefix || 'INV-');
         setInvoiceStartNumber(invCfg.counter || 1);
@@ -320,7 +326,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         if (!resShowQr.success) throw new Error(resShowQr.error);
 
         const resInvNum = await window.electronAPI.settingsSet({
-          tenant_id: tenantId || 'global',
+          tenant_id: 'global',
           key: 'invoice_counter_config',
           value: { prefix: invoicePrefix, counter: Number(invoiceStartNumber) || 1 },
         });
@@ -380,6 +386,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     } finally {
       setCheckingUpdate(false);
     }
+  };
+
+  const handleInstallUpdate = () => {
+    setUpdateStatus('Restarting to install update...');
+    window.electronAPI?.appInstallUpdate();
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -860,7 +871,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border shrink-0",
                       updateStatus === 'Up to date'
                         ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                        : updateStatus === 'Update available'
+                        : updateStatus === 'Update available' || updateStatus === 'Update ready to install'
                           ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400"
                           : "bg-muted/50 border-border text-muted-foreground"
                     )}>
@@ -948,6 +959,19 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                           ))
                         : <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>}
                     </div>
+                  </div>
+                )}
+
+                {/* Install button */}
+                {updateReady && (
+                  <div className="px-5 pb-4">
+                    <Button
+                      onClick={handleInstallUpdate}
+                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Restart & Install Update
+                    </Button>
                   </div>
                 )}
               </div>

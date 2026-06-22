@@ -38,15 +38,6 @@ interface ReportViewProps {
 }
 
 export function ReportView({ products, grades }: ReportViewProps) {
-  const totalStock = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
-  const totalValue = filteredProducts.reduce((sum, p) => {
-    const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-    const grRate = gr ? Number(gr.rate) : null;
-    const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-    return sum + (rate * Number(p.current_stock));
-  }, 0);
-  const totalProducts = filteredProducts.length;
-  const outOfStock = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
   const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -76,6 +67,16 @@ export function ReportView({ products, grades }: ReportViewProps) {
     [products, searchQuery, categoryFilter, stockFilter]
   );
 
+  const totalStock = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
+  const totalValue = filteredProducts.reduce((sum, p) => {
+    const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+    const grRate = gr ? Number(gr.rate) : null;
+    const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+    return sum + (rate * Number(p.current_stock));
+  }, 0);
+  const totalProducts = filteredProducts.length;
+  const outOfStock = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
+
   const groupedByCategory = filteredProducts.reduce<Record<string, typeof filteredProducts>>((acc, p) => {
     const cat = p.category || 'Uncategorized';
     if (!acc[cat]) acc[cat] = [];
@@ -102,6 +103,29 @@ export function ReportView({ products, grades }: ReportViewProps) {
     <div className="flex flex-col flex-1 min-h-0 bg-background">
       <div className="flex-1 overflow-y-auto px-4 py-6">
         <div className="space-y-6">
+
+          {/* ── Summary Cards ── */}
+          <div className="grid grid-cols-4 gap-4">
+            {[
+              { label: 'Total Products', value: totalProducts.toLocaleString('en-IN'), accent: 'border-l-blue-500', iconBg: 'bg-blue-500/10 text-blue-500' },
+              { label: 'Total Stock', value: totalStock.toFixed(0), accent: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-500' },
+              { label: 'Stock Value (MRP)', value: formatCurrency(totalValue), accent: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-500' },
+              { label: 'Out of Stock', value: outOfStock.toLocaleString('en-IN'), accent: outOfStock > 0 ? 'border-l-amber-500' : 'border-l-emerald-500', iconBg: outOfStock > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500' },
+            ].map((card, i) => (
+              <div key={i} className={`bg-card border border-border/80 ${card.accent} border-l-4 rounded-xl p-4 shadow-sm`}>
+                <div className="flex items-center justify-between mb-2">
+                  <div className={`p-1.5 rounded-lg ${card.iconBg}`}>
+                    {i === 0 && <Package className="w-4 h-4" />}
+                    {i === 1 && <Package className="w-4 h-4" />}
+                    {i === 2 && <TrendingUp className="w-4 h-4" />}
+                    {i === 3 && <AlertTriangle className="w-4 h-4" />}
+                  </div>
+                </div>
+                <div className="text-2xl font-black tracking-tight text-foreground">{card.value}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">{card.label}</div>
+              </div>
+            ))}
+          </div>
 
           {/* ── Filter Bar ── */}
           <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm">
@@ -147,34 +171,11 @@ export function ReportView({ products, grades }: ReportViewProps) {
             {(searchQuery || categoryFilter || stockFilter !== 'all') && (
               <div className="mt-2 text-xs text-muted-foreground font-semibold">
                 Showing {filteredProducts.length} of {products.length} products
-                {searchQuery && <> &middot; Search: "{searchQuery}"</>}
+                {searchQuery && <> &middot; Search: &quot;{searchQuery}&quot;</>}
                 {categoryFilter && <> &middot; Category: {categoryFilter}</>}
                 {stockFilter !== 'all' && <> &middot; Stock: {stockFilter.replace('_', ' ')}</>}
               </div>
             )}
-          </div>
-
-          {/* ── Summary Cards ── */}
-          <div className="grid grid-cols-4 gap-4">
-            {[
-              { label: 'Total Products', value: totalProducts.toLocaleString('en-IN'), accent: 'border-l-blue-500', iconBg: 'bg-blue-500/10 text-blue-500' },
-              { label: 'Total Stock', value: totalStock.toFixed(0), accent: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-500' },
-              { label: 'Stock Value', value: formatCurrency(totalValue), accent: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-500' },
-              { label: 'Out of Stock', value: outOfStock.toLocaleString('en-IN'), accent: outOfStock > 0 ? 'border-l-amber-500' : 'border-l-emerald-500', iconBg: outOfStock > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500' },
-            ].map((card, i) => (
-              <div key={i} className={`bg-card border border-border/80 ${card.accent} border-l-4 rounded-xl p-4 shadow-sm`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`p-1.5 rounded-lg ${card.iconBg}`}>
-                    {i === 0 && <Package className="w-4 h-4" />}
-                    {i === 1 && <Package className="w-4 h-4" />}
-                    {i === 2 && <TrendingUp className="w-4 h-4" />}
-                    {i === 3 && <AlertTriangle className="w-4 h-4" />}
-                  </div>
-                </div>
-                <div className="text-2xl font-black tracking-tight text-foreground">{card.value}</div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">{card.label}</div>
-              </div>
-            ))}
           </div>
 
           {/* ── Category Breakdown ── */}
@@ -269,8 +270,9 @@ export function ReportView({ products, grades }: ReportViewProps) {
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Stock</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Weight</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Rate</th>
-                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Value</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Purchase</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">MRP</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Selling</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
@@ -285,7 +287,7 @@ export function ReportView({ products, grades }: ReportViewProps) {
                     return (
                       <Fragment key={cat}>
                         <tr className="bg-primary/5">
-                          <td colSpan={7} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
+                          <td colSpan={8} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
                             <div className="flex items-center gap-2">
                               <span>{cat}</span>
                               <span className="text-[10px] text-muted-foreground font-semibold">
@@ -300,7 +302,11 @@ export function ReportView({ products, grades }: ReportViewProps) {
                           const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
                           const grRate = gr ? Number(gr.rate) : null;
                           const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-                          const value = rate * Number(p.current_stock);
+                          let finalSellingPrice = rate;
+                          if (p.offer_price) finalSellingPrice = Number(p.offer_price);
+                          else if (p.discount_flat) finalSellingPrice = rate - Number(p.discount_flat);
+                          else if (p.discount_percent) finalSellingPrice = rate * (1 - Number(p.discount_percent) / 100);
+                          finalSellingPrice = Math.max(finalSellingPrice, 0);
                           const totalWeight = p.billing_type === 'WEIGHT' && p.average_weight_per_piece ? Number(p.current_stock) * Number(p.average_weight_per_piece) : 0;
                           return (
                             <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
@@ -314,8 +320,9 @@ export function ReportView({ products, grades }: ReportViewProps) {
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{gr?.grade_name || '-'}</td>
                               <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', isOutOfStock ? 'text-red-500' : isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' : '-'}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{formatCurrency(rate)}</td>
-                              <td className="px-4 py-2.5 text-right font-bold text-sm text-foreground">{formatCurrency(value)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(rate)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(finalSellingPrice)}</td>
                             </tr>
                           );
                         })}
@@ -327,7 +334,8 @@ export function ReportView({ products, grades }: ReportViewProps) {
                     <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
                     <td className="px-4 py-3 text-right"></td>
                     <td className="px-4 py-3 text-right"></td>
-                    <td className="px-4 py-3 text-right font-black text-sm text-emerald-600">{formatCurrency(totalValue)}</td>
+                    <td className="px-4 py-3 text-right"></td>
+                    <td className="px-4 py-3 text-right"></td>
                   </tr>
                 </tbody>
               </table>

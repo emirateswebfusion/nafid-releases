@@ -257,7 +257,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
   },
 
-  changePassword: async (oldPassword: string, newPassword: string) => {
+  changePassword: async (oldPassword: string, newPassword: string): Promise<{ success: boolean; error?: string }> => {
     const { token } = useAuthStore.getState();
     if (!token) return { success: false, error: 'Not authenticated' };
 

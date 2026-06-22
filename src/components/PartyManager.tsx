@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Pencil, Trash2, Minus, Plus as PlusIcon, X, Save, Search } from 'lucide-react';
+import { Plus, Pencil, Trash2, Minus, Plus as PlusIcon, X, Search } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Download, Shield, Trash2 } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, Trash2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 

@@ -3,7 +3,7 @@ import Barcode from 'react-barcode';
 import { useAuthStore } from '../store/authStore';
 
 export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1 }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number }) {
-  const shopName = useAuthStore((state) => state.shopName);
+  const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
 
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
@@ -18,7 +18,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     return () => clearTimeout(timer);
   }, [barcode, quantity, columns]);
 
-  const pages = [];
+  const pages: React.ReactNode[] = [];
   let currentQuantity = 0;
 
   while (currentQuantity < quantity) {

@@ -18,6 +18,8 @@ export interface CartItem {
   discount_percent?: number | null;
   discount_flat?: number | null;
   offer_price?: number | null;
+  sku_barcode?: string | null;
+  brand_manufacturer?: string | null;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
