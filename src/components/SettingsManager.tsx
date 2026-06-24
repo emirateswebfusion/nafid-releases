@@ -9,7 +9,6 @@ import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
-import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
@@ -74,6 +73,14 @@ function formatTimeAgo(date: Date): string {
   return `${hours} hours ago`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
+
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -93,6 +100,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<{ percent: number; bytesPerSecond: number; transferred: number; total: number } | null>(null);
   const [localDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
   const [changingPass, setChangingPass] = useState(false);
@@ -134,13 +143,33 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   // Listen for live update status from main process
   useEffect(() => {
-    if (window.electronAPI?.onUpdateStatus) {
+    if (!window.electronAPI) return;
+    if (window.electronAPI.onUpdateStatus) {
       window.electronAPI.onUpdateStatus((status: string) => {
         if (status === 'ready-to-install') {
           setUpdateReady(true);
+          setIsDownloading(false);
+          setDownloadProgress(null);
           setUpdateStatus('Update ready to install');
+        } else if (status === 'update-available') {
+          setUpdateStatus('Update available');
+        } else if (status === 'error') {
+          setIsDownloading(false);
+          setUpdateStatus('Download failed');
         } else {
           setUpdateStatus(status);
+        }
+      });
+    }
+    if (window.electronAPI.onUpdateProgress) {
+      window.electronAPI.onUpdateProgress((progress) => {
+        setDownloadProgress(progress);
+      });
+    }
+    if (window.electronAPI.onUpdateInfo) {
+      window.electronAPI.onUpdateInfo((info: any) => {
+        if (info) {
+          setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
         }
       });
     }
@@ -365,6 +394,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     setCheckingUpdate(true);
     setUpdateStatus('Checking for updates...');
     setUpdateInfo(null);
+    setUpdateReady(false);
+    setIsDownloading(false);
+    setDownloadProgress(null);
     setMessage(null);
     try {
       const res = await window.electronAPI.appCheckForUpdates();
@@ -373,10 +405,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         setUpdateStatus(null);
         setMessage({ type: 'error', text: res.error });
         setTimeout(() => setMessage(null), 3000);
-      } else if (res.updateInfo) {
+      } else if (res.updateInfo && !updateInfo) {
         setUpdateInfo({ version: res.updateInfo.version, releaseDate: res.updateInfo.releaseDate, releaseNotes: res.updateInfo.releaseNotes });
-        setUpdateStatus(`Update available`);
-      } else {
+        setUpdateStatus('Update available');
+      } else if (!res.updateInfo && !updateInfo) {
         setUpdateStatus('Up to date');
       }
     } catch (err: any) {
@@ -385,6 +417,20 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setCheckingUpdate(false);
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    if (!window.electronAPI) return;
+    setIsDownloading(true);
+    setDownloadProgress(null);
+    setUpdateStatus('Downloading...');
+    const res = await window.electronAPI.appDownloadUpdate();
+    if (!res.success) {
+      setIsDownloading(false);
+      setUpdateStatus('Download failed');
+      setMessage({ type: 'error', text: res.error || 'Download failed' });
+      setTimeout(() => setMessage(null), 3000);
     }
   };
 
@@ -495,10 +541,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       case 'bulk':
         return (
           <div className="mt-5">
-            <Button onClick={() => setShowBulkSheet(true)} className="flex items-center gap-2">
+            <button onClick={() => setShowBulkSheet(true)}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-primary/20 hover:border-primary">
               <Upload className="w-4 h-4" />
               Open Bulk Import Sheet
-            </Button>
+            </button>
           </div>
         );
 
@@ -518,17 +565,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
-              <select
-                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none cursor-pointer"
-                value={shopState}
-                onChange={(e) => setShopState(e.target.value)}
-              >
-                {INDIAN_STATES.map((state) => (
-                  <option key={state.code} value={state.code}>
-                    {state.name} ({state.code})
-                  </option>
-                ))}
-              </select>
+                <select
+                  className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none cursor-pointer text-sm font-medium"
+                  value={shopState}
+                  onChange={(e) => setShopState(e.target.value)}
+                >
+                  {INDIAN_STATES.map((state) => (
+                    <option key={state.code} value={state.code}>
+                      {state.name} ({state.code})
+                    </option>
+                  ))}
+                </select>
             </div>
           </div>
         );
@@ -562,7 +609,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setShopAddress(e.target.value)}
                 placeholder="Enter your business address..."
                 rows={3}
-                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all resize-none text-sm font-medium"
+                className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all resize-none text-sm font-medium"
               />
             </div>
             <div className="col-span-2 space-y-2">
@@ -584,11 +631,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 This UPI ID will appear on printed receipts for customer payments.
               </p>
             </div>
-            <div className="col-span-2 flex items-center gap-3 p-3 bg-muted/30 border border-border rounded-xl">
+            <div className="col-span-2 flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
               <button
                 onClick={() => setShowUpiQr(!showUpiQr)}
                 className={clsx(
-                  'relative w-12 h-6 rounded-full transition-all duration-200 shrink-0',
+                  'relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer',
                   showUpiQr ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
@@ -598,7 +645,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 )} />
               </button>
               <div className="flex-1">
-                <label className="text-xs font-bold text-foreground">Show UPI QR Code on Receipt</label>
+                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">
                   When enabled, a QR code with the bill amount pre-filled will appear on printed receipts. Customers scan to pay directly.
                 </p>
@@ -611,7 +658,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         return (
           <div className="mt-5 grid grid-cols-5 gap-3">
             {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-              <div key={digit} className="flex items-center gap-1.5 bg-muted/30 p-2.5 rounded-xl border border-border">
+              <div key={digit} className="flex items-center gap-1.5 bg-card p-2.5 rounded-xl border border-border/80 hover:border-primary/30 transition-all duration-200">
                 <span className="font-bold text-base w-5 text-center text-muted-foreground">{digit}</span>
                 <span className="text-muted-foreground text-xs">=</span>
                 <Input
@@ -634,10 +681,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <div className="flex gap-3">
                 <button
                   className={clsx(
-                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer",
                     barcodePrinter.type === 'network'
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
+                      : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   )}
                   onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'network' })}
                 >
@@ -646,10 +693,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 </button>
                 <button
                   className={clsx(
-                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer",
                     barcodePrinter.type === 'usb'
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
+                      : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   )}
                   onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'usb' })}
                 >
@@ -684,7 +731,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
                 <select
-                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer"
                   value={barcodePrinter.deviceName || ''}
                   onChange={(e) => setBarcodePrinter({ ...barcodePrinter, deviceName: e.target.value })}
                 >
@@ -737,10 +784,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <div className="flex gap-3">
                 <button
                   className={clsx(
-                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer",
                     receiptPrinter.type === 'network'
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
+                      : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   )}
                   onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'network' })}
                 >
@@ -749,10 +796,10 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 </button>
                 <button
                   className={clsx(
-                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-medium transition-all flex-1",
+                    "flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer",
                     receiptPrinter.type === 'usb'
-                      ? "border-primary bg-primary/5 text-primary"
-                      : "border-border text-muted-foreground hover:text-foreground hover:border-muted-foreground/30"
+                      ? "border-primary bg-primary/5 text-primary shadow-sm"
+                      : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40"
                   )}
                   onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'usb' })}
                 >
@@ -787,7 +834,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
                 <select
-                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
+                  className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer"
                   value={receiptPrinter.deviceName || ''}
                   onChange={(e) => setReceiptPrinter({ ...receiptPrinter, deviceName: e.target.value })}
                 >
@@ -827,18 +874,18 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Baud Rate</label>
-              <select
-                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all appearance-none"
-                value={scale.baudRate}
-                onChange={(e) => setScale({ ...scale, baudRate: parseInt(e.target.value) })}
-              >
-                <option value="2400">2400</option>
-                <option value="4800">4800</option>
-                <option value="9600">9600</option>
-                <option value="19200">19200</option>
-                <option value="38400">38400</option>
-                <option value="115200">115200</option>
-              </select>
+                <select
+                  className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer"
+                  value={scale.baudRate}
+                  onChange={(e) => setScale({ ...scale, baudRate: parseInt(e.target.value) })}
+                >
+                  <option value="2400">2400</option>
+                  <option value="4800">4800</option>
+                  <option value="9600">9600</option>
+                  <option value="19200">19200</option>
+                  <option value="38400">38400</option>
+                  <option value="115200">115200</option>
+                </select>
             </div>
           </div>
         );
@@ -866,16 +913,20 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
 
-                  {updateStatus && (
+                    {updateStatus && (
                     <div className={clsx(
                       "flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border shrink-0",
                       updateStatus === 'Up to date'
                         ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                         : updateStatus === 'Update available' || updateStatus === 'Update ready to install'
                           ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400"
-                          : "bg-muted/50 border-border text-muted-foreground"
+                          : updateStatus === 'Downloading...' || isDownloading
+                            ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400"
+                            : "bg-muted/50 border-border text-muted-foreground"
                     )}>
                       {checkingUpdate ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : isDownloading ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : updateStatus === 'Up to date' ? (
                         <CheckCircle2 className="w-3.5 h-3.5" />
@@ -928,7 +979,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-bold text-foreground">
-                      v{updateInfo.version} Ready to Install
+                      v{updateInfo.version} {updateReady ? 'Ready to Install' : isDownloading ? 'Downloading...' : 'Available'}
                     </p>
                     {updateInfo.releaseDate && (
                       <p className="text-xs text-muted-foreground mt-0.5">
@@ -939,7 +990,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     )}
                   </div>
                   <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md border border-blue-500/20">
-                    NEW
+                    {updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}
                   </span>
                 </div>
 
@@ -962,30 +1013,59 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
 
+                {/* Download progress bar */}
+                {isDownloading && downloadProgress && (
+                  <div className="px-5 pb-4">
+                    <div className="w-full bg-border/50 rounded-full h-2.5 overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-300"
+                        style={{ width: `${Math.min(downloadProgress.percent, 100)}%` }}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <p className="text-[11px] text-muted-foreground">
+                        {Math.round(downloadProgress.percent)}%
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Download button (shown when update available but not yet downloading) */}
+                {!updateReady && !isDownloading && (
+                  <div className="px-5 pb-4">
+                    <button
+                      onClick={handleDownloadUpdate}
+                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer"
+                    >
+                      <Download className="w-4 h-4" />
+                      Download Update
+                    </button>
+                  </div>
+                )}
+
                 {/* Install button */}
                 {updateReady && (
                   <div className="px-5 pb-4">
-                    <Button
+                    <button
                       onClick={handleInstallUpdate}
-                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm"
+                      className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer"
                     >
                       <RotateCcw className="w-4 h-4" />
                       Restart & Install Update
-                    </Button>
+                    </button>
                   </div>
                 )}
               </div>
             )}
 
             {/* Check Button */}
-            <Button
-              variant="outline"
+            <button
               onClick={handleCheckUpdate}
               disabled={checkingUpdate}
-              className={clsx(
-                "flex items-center justify-center gap-2.5 w-full h-12 rounded-xl font-semibold transition-all duration-200",
-                "hover:bg-primary/5 hover:border-primary/30 hover:text-primary"
-              )}
+              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-xl font-bold text-sm border border-border/80 bg-card hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {checkingUpdate ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -993,7 +1073,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 <RefreshCw className="w-4 h-4" />
               )}
               {checkingUpdate ? 'Checking for Updates...' : 'Check for Updates'}
-            </Button>
+            </button>
           </div>
         );
 
@@ -1010,7 +1090,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   <button
                     onClick={decreaseFontScale}
                     disabled={fontScale <= 70}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -1029,7 +1109,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   <button
                     onClick={increaseFontScale}
                     disabled={fontScale >= 140}
-                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                    className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
@@ -1054,7 +1134,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => setFontScale(100)}
                 disabled={fontScale === 100}
-                className="mt-4 px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 border border-border rounded-xl transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+                className="mt-4 px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 Reset to Default
               </button>
@@ -1074,21 +1154,33 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
 
       {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-          <p className="text-muted-foreground text-sm font-normal">Configure hardware, invoice numbering, and system preferences</p>
+      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
+            <Settings className="w-5 h-5" />
+          </div>
+          <div className="min-w-0 leading-tight">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-foreground truncate block">Settings</h1>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" title="Active" />
+            </div>
+            <p className="text-xs text-muted-foreground font-medium mt-0.5">Configure hardware, invoice numbering, and system preferences</p>
+          </div>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-muted/40 rounded-lg text-[10px] text-muted-foreground font-mono font-bold">
+            <RefreshCw className="w-3 h-3" />
+            v{appVersion.replace('v', '')}
+          </span>
           <button onClick={onClose}
-            className="px-3 py-2 text-xs font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-lg transition-colors flex items-center gap-1.5">
-            <X className="w-3.5 h-3.5" />
+            className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
+            <X className="w-4 h-4" />
             Close
           </button>
           {activeTab !== 'grades' && hasChanges && (
             <button onClick={handleSave} disabled={saving}
-              className="px-3 py-2 text-xs font-semibold text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-lg transition-all flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in">
-              {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              className="flex items-center gap-1.5 px-3.5 py-2 text-sm font-bold text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               {saving ? 'Saving...' : 'Save'}
             </button>
           )}
@@ -1096,8 +1188,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       </header>
 
       {/* ── Pill Tab Bar ── */}
-      <div className="flex items-center justify-center px-8 py-3 border-b border-border bg-card/50 shrink-0">
-        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-xl">
+      <div className="flex items-center justify-center px-8 py-2.5 border-b border-border bg-muted/20 shrink-0">
+        <div className="flex items-center gap-0.5 bg-muted/60 p-0.5 rounded-lg border border-border/40">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1106,23 +1198,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={clsx(
-                  "flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium transition-all",
+                  "flex items-center gap-2 px-4 py-1.5 rounded-md text-xs font-bold transition-all duration-200 cursor-pointer",
                   isActive
-                    ? "bg-background text-foreground shadow-sm border border-border"
+                    ? "bg-background text-foreground shadow-sm border border-border/60"
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <Icon className={clsx("w-4 h-4", isActive ? "text-primary" : "")} />
+                <Icon className={clsx("w-3.5 h-3.5", isActive ? "text-primary" : "")} />
                 {tab.label}
               </button>
             );
           })}
-        </div>
-
-        {/* Version badge */}
-        <div className="ml-auto flex items-center gap-1.5 px-2.5 py-1 bg-muted/40 rounded-lg text-[10px] text-muted-foreground font-medium">
-          <RefreshCw className="w-3 h-3" />
-          v{appVersion.replace('v', '')}
         </div>
       </div>
 
@@ -1138,7 +1224,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 .map((section) => (
                   <section
                     key={section.id}
-                    className="bg-card border border-border rounded-2xl p-6 shadow-sm"
+                    className="bg-card border border-border/80 hover:border-primary/30 rounded-2xl p-6 shadow-sm transition-all duration-200"
                   >
                     <div className="flex items-start gap-4">
                       <div className="p-2.5 rounded-xl bg-primary/10 text-primary shrink-0">
@@ -1164,14 +1250,14 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
           {/* ── GRADES TAB ── */}
           {activeTab === 'grades' && (
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="bg-card border border-border/80 hover:border-primary/30 rounded-2xl p-6 shadow-sm transition-all duration-200">
               <SettingsGrades />
             </div>
           )}
 
           {/* ── SECURITY TAB ── */}
           {activeTab === 'security' && (
-            <div className="bg-card border border-border rounded-2xl p-6 shadow-sm">
+            <div className="bg-card border border-border/80 hover:border-primary/30 rounded-2xl p-6 shadow-sm transition-all duration-200">
               <div className="flex items-center gap-3 mb-6">
                 <div className="p-2.5 rounded-xl bg-primary/10 text-primary">
                   <Lock className="w-5 h-5" />
@@ -1182,7 +1268,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              <form onSubmit={handleChangePassword} className="bg-muted/30 border border-border rounded-xl p-6 space-y-5">
+              <form onSubmit={handleChangePassword} className="bg-muted/30 border border-border/80 rounded-xl p-6 space-y-5">
                 <div>
                   <h3 className="font-bold text-foreground">Change Password</h3>
                   <p className="text-xs text-muted-foreground mt-1">Update your account password regularly to keep your shop secure.</p>
@@ -1213,10 +1299,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   />
                 </div>
 
-                <Button type="submit" disabled={changingPass} className="w-full flex items-center justify-center gap-2">
+                <button type="submit" disabled={changingPass}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border border-primary/20 hover:border-primary">
                   {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
                   Update Password
-                </Button>
+                </button>
               </form>
             </div>
           )}

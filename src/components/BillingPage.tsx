@@ -418,8 +418,8 @@ export function BillingPage() {
 
       const state = useCartStore.getState();
       const receiptData: ReceiptData = {
-        shopName: shopName || 'My Shop', shopGstin: invoiceType === 'GST' ? shopGstin || undefined : undefined,
-        shopState: invoiceType === 'GST' ? state.shopState || undefined : undefined,
+        shopName: shopName || 'My Shop', shopGstin: shopGstin || undefined,
+        shopState: state.shopState || undefined,
         shopAddress: shopAddress || undefined,
         shopPhone: shopPhone || undefined,
         upiId: upiId || undefined,

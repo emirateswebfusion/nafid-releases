@@ -1,5 +1,5 @@
 import { Fragment, useState, useMemo } from 'react';
-import { Package, TrendingUp, AlertTriangle, Search, X } from 'lucide-react';
+import { Package, TrendingUp, Search, X } from 'lucide-react';
 import clsx from 'clsx';
 
 interface Product {
@@ -67,13 +67,24 @@ export function ReportView({ products, grades }: ReportViewProps) {
     [products, searchQuery, categoryFilter, stockFilter]
   );
 
-  const totalStock = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
-  const totalValue = filteredProducts.reduce((sum, p) => {
+  const calcMrp = (p: Product) => {
     const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
     const grRate = gr ? Number(gr.rate) : null;
-    const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-    return sum + (rate * Number(p.current_stock));
-  }, 0);
+    return grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+  };
+  const calcSellingPrice = (p: Product) => {
+    const rate = calcMrp(p);
+    let finalPrice = rate;
+    if (p.offer_price) finalPrice = Number(p.offer_price);
+    else if (p.discount_flat) finalPrice = rate - Number(p.discount_flat);
+    else if (p.discount_percent) finalPrice = rate * (1 - Number(p.discount_percent) / 100);
+    return Math.max(finalPrice, 0);
+  };
+
+  const totalStock = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
+  const totalPurchaseValue = filteredProducts.reduce((sum, p) => sum + (Number(p.purchase_price) * Number(p.current_stock)), 0);
+  const totalMrpValue = filteredProducts.reduce((sum, p) => sum + (calcMrp(p) * Number(p.current_stock)), 0);
+  const totalSellingValue = filteredProducts.reduce((sum, p) => sum + (calcSellingPrice(p) * Number(p.current_stock)), 0);
   const totalProducts = filteredProducts.length;
   const outOfStock = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
 
@@ -86,14 +97,11 @@ export function ReportView({ products, grades }: ReportViewProps) {
 
   const categoryStats = Object.entries(groupedByCategory).map(([cat, items]) => {
     const catStock = items.reduce((sum, p) => sum + Number(p.current_stock), 0);
-    const catValue = items.reduce((sum, p) => {
-      const grade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-      const gradeRate = grade ? Number(grade.rate) : null;
-      const rate = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + gradeRate : Number(p.base_price);
-      return sum + (rate * Number(p.current_stock));
-    }, 0);
+    const catPurchase = items.reduce((sum, p) => sum + (Number(p.purchase_price) * Number(p.current_stock)), 0);
+    const catMrp = items.reduce((sum, p) => sum + (calcMrp(p) * Number(p.current_stock)), 0);
+    const catSelling = items.reduce((sum, p) => sum + (calcSellingPrice(p) * Number(p.current_stock)), 0);
     const pctOfTotal = totalStock > 0 ? (catStock / totalStock) * 100 : 0;
-    return { name: cat, stock: catStock, value: catValue, pct: pctOfTotal, count: items.length };
+    return { name: cat, stock: catStock, purchase: catPurchase, mrp: catMrp, selling: catSelling, pct: pctOfTotal, count: items.length };
   }).sort((a, b) => b.stock - a.stock);
 
   const maxPct = Math.max(...categoryStats.map(c => c.pct), 1);
@@ -105,20 +113,19 @@ export function ReportView({ products, grades }: ReportViewProps) {
         <div className="space-y-6">
 
           {/* ── Summary Cards ── */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             {[
               { label: 'Total Products', value: totalProducts.toLocaleString('en-IN'), accent: 'border-l-blue-500', iconBg: 'bg-blue-500/10 text-blue-500' },
-              { label: 'Total Stock', value: totalStock.toFixed(0), accent: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-500' },
-              { label: 'Stock Value (MRP)', value: formatCurrency(totalValue), accent: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-500' },
+              { label: 'Total Stock (Qty)', value: totalStock.toFixed(0), accent: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-500' },
               { label: 'Out of Stock', value: outOfStock.toLocaleString('en-IN'), accent: outOfStock > 0 ? 'border-l-amber-500' : 'border-l-emerald-500', iconBg: outOfStock > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500' },
+              { label: 'Stock Value (Purchase)', value: formatCurrency(totalPurchaseValue), accent: 'border-l-rose-500', iconBg: 'bg-rose-500/10 text-rose-500' },
+              { label: 'Stock Value (MRP)', value: formatCurrency(totalMrpValue), accent: 'border-l-sky-500', iconBg: 'bg-sky-500/10 text-sky-500' },
+              { label: 'Stock Value (Selling)', value: formatCurrency(totalSellingValue), accent: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-500' },
             ].map((card, i) => (
               <div key={i} className={`bg-card border border-border/80 ${card.accent} border-l-4 rounded-xl p-4 shadow-sm`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className={`p-1.5 rounded-lg ${card.iconBg}`}>
-                    {i === 0 && <Package className="w-4 h-4" />}
-                    {i === 1 && <Package className="w-4 h-4" />}
-                    {i === 2 && <TrendingUp className="w-4 h-4" />}
-                    {i === 3 && <AlertTriangle className="w-4 h-4" />}
+                    {i < 3 ? <Package className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
                   </div>
                 </div>
                 <div className="text-2xl font-black tracking-tight text-foreground">{card.value}</div>
@@ -199,8 +206,12 @@ export function ReportView({ products, grades }: ReportViewProps) {
                       </div>
                       <div className="flex items-center gap-3 text-xs font-semibold shrink-0">
                         <span className="text-foreground">{cat.stock.toFixed(0)} pcs</span>
-                        <span className="text-emerald-500 w-20 text-right">{formatCurrency(cat.value)}</span>
                       </div>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-1.5">
+                      <span>Purchase: <span className="font-bold text-foreground">{formatCurrency(cat.purchase)}</span></span>
+                      <span>MRP: <span className="font-bold text-foreground">{formatCurrency(cat.mrp)}</span></span>
+                      <span>Selling: <span className="font-bold text-emerald-500">{formatCurrency(cat.selling)}</span></span>
                     </div>
                     <div className="relative h-2 bg-muted rounded-full overflow-hidden">
                       <div
@@ -278,12 +289,6 @@ export function ReportView({ products, grades }: ReportViewProps) {
                 <tbody className="divide-y divide-border/40">
                   {Object.entries(groupedByCategory).map(([cat, items]) => {
                     const catTotalStock = items.reduce((s, p) => s + Number(p.current_stock), 0);
-                    const catTotalValue = items.reduce((s, p) => {
-                      const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-                      const grRate = gr ? Number(gr.rate) : null;
-                      const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-                      return s + (rate * Number(p.current_stock));
-                    }, 0);
                     return (
                       <Fragment key={cat}>
                         <tr className="bg-primary/5">
@@ -291,7 +296,7 @@ export function ReportView({ products, grades }: ReportViewProps) {
                             <div className="flex items-center gap-2">
                               <span>{cat}</span>
                               <span className="text-[10px] text-muted-foreground font-semibold">
-                                ({items.length} items &middot; {catTotalStock.toFixed(0)} stock &middot; {formatCurrency(catTotalValue)} value)
+                                ({items.length} items &middot; {catTotalStock.toFixed(0)} stock)
                               </span>
                             </div>
                           </td>
@@ -300,13 +305,8 @@ export function ReportView({ products, grades }: ReportViewProps) {
                           const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
                           const isOutOfStock = Number(p.current_stock) <= 0;
                           const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-                          const grRate = gr ? Number(gr.rate) : null;
-                          const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-                          let finalSellingPrice = rate;
-                          if (p.offer_price) finalSellingPrice = Number(p.offer_price);
-                          else if (p.discount_flat) finalSellingPrice = rate - Number(p.discount_flat);
-                          else if (p.discount_percent) finalSellingPrice = rate * (1 - Number(p.discount_percent) / 100);
-                          finalSellingPrice = Math.max(finalSellingPrice, 0);
+                          const rate = calcMrp(p);
+                          const finalSellingPrice = calcSellingPrice(p);
                           const totalWeight = p.billing_type === 'WEIGHT' && p.average_weight_per_piece ? Number(p.current_stock) * Number(p.average_weight_per_piece) : 0;
                           return (
                             <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
@@ -333,9 +333,9 @@ export function ReportView({ products, grades }: ReportViewProps) {
                     <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                     <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
                     <td className="px-4 py-3 text-right"></td>
-                    <td className="px-4 py-3 text-right"></td>
-                    <td className="px-4 py-3 text-right"></td>
-                    <td className="px-4 py-3 text-right"></td>
+                    <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{formatCurrency(totalMrpValue)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-sm text-emerald-500">{formatCurrency(totalSellingValue)}</td>
                   </tr>
                 </tbody>
               </table>

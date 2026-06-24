@@ -96,6 +96,7 @@ export function initDb() {
         user_id TEXT,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(tenant_id, invoice_number)
     );
 
@@ -248,7 +249,7 @@ export function initDb() {
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
-        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount'
+        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount', 'updated_at'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'

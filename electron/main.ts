@@ -184,13 +184,25 @@ app.whenReady().then(async () => {
   });
 
   // Auto-Update Configuration
-  autoUpdater.autoDownload = true;
+  autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('update-available', () => {
-    console.log('[Updater] Update available. Downloading...');
+  autoUpdater.on('update-available', (info) => {
+    console.log('[Updater] Update available:', info.version);
     if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'New update available! Downloading...');
+      mainWindow.webContents.send('update-status', 'update-available');
+      mainWindow.webContents.send('update-info', info);
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update-download-progress', {
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
     }
   });
 
@@ -203,6 +215,9 @@ app.whenReady().then(async () => {
 
   autoUpdater.on('error', (err) => {
     console.error('[Updater] Error:', err);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'error');
+    }
   });
 
   // Check for updates every 1 hour
@@ -230,6 +245,16 @@ ipcMain.handle('app:getVersion', () => app.getVersion());
 
 ipcMain.handle('app:installUpdate', () => {
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('app:downloadUpdate', async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[Updater] Download error:', error);
+    return { success: false, error: error.message };
+  }
 });
 
 ipcMain.handle('app:checkForUpdates', async () => {

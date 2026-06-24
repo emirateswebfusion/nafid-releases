@@ -128,15 +128,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
         useCartStore.getState().confirmDomain();
         
         // Also ensure it's saved locally for offline persistence
-        await window.electronAPI.settingsSet({ 
-          tenant_id: data.tenant_id, 
-          key: 'isDomainConfirmed', 
-          value: true 
-        });
+        if (window.electronAPI) {
+          await window.electronAPI.settingsSet({ 
+            tenant_id: data.tenant_id, 
+            key: 'isDomainConfirmed', 
+            value: true 
+          });
+        }
       }
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: `Cannot reach server (${apiBase}). Check your network connection.` };
+      return { success: false, error: `Cannot reach server. Check your network connection.` };
     }
   },
 

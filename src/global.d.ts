@@ -4,6 +4,7 @@ export interface IElectronAPI {
   appCheckForUpdates: () => Promise<any>;
   appGetVersion: () => Promise<string>;
   appInstallUpdate: () => Promise<void>;
+  appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   dbGetProducts: (params: any) => Promise<any[]>;
   dbGetProductsCount: (params: any) => Promise<number>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
@@ -39,6 +40,8 @@ export interface IElectronAPI {
   getReceiptText: () => Promise<string>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: string) => void) => void;
+  onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
+  onUpdateInfo: (callback: (info: any) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => void;
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;

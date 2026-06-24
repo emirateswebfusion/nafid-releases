@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
   appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),
+  appDownloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbGetProductsCount: (params: any) => ipcRenderer.invoke('db:getProductsCount', params),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
@@ -49,6 +50,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   onUpdateStatus: (callback: (status: string) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));
+  },
+  onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => {
+    ipcRenderer.on('update-download-progress', (_event, progress) => callback(progress));
+  },
+  onUpdateInfo: (callback: (info: any) => void) => {
+    ipcRenderer.on('update-info', (_event, info) => callback(info));
   },
   onBarcodeScanned: (callback: (code: string) => void) => {
     ipcRenderer.on('hardware:barcode', (_event, code) => callback(code));

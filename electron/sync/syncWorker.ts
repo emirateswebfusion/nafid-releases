@@ -130,6 +130,10 @@ async function pushBatch<T>(
     const result: any = await response.json();
     if (result.synced?.length > 0) {
       console.log(`[SyncWorker] ${label}: ${result.synced_count} synced, ${result.failed_count} failed.`);
+    } else if (result.failed?.length > 0) {
+      console.log(`[SyncWorker] ${label}: 0 synced, ${result.failed_count} failed. First error: ${result.failed[0].error}`);
+    } else {
+      console.warn(`[SyncWorker] ${label}: 0 synced, 0 failed — unexpected response shape. Body: ${JSON.stringify(result).slice(0, 500)}`);
     }
     return result.synced || [];
   } catch (err: any) {
@@ -174,6 +178,7 @@ async function syncProducts(token: string, tenantId: string) {
 
   const updateStmt = db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id = ? AND tenant_id = ?`);
 
+  let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const products = batch.map((p: any) => ({
@@ -190,10 +195,12 @@ async function syncProducts(token: string, tenantId: string) {
       `Products batch ${Math.floor(i / BATCH_SIZE) + 1} (${i + 1}-${Math.min(i + BATCH_SIZE, pending.length)})`,
     );
     if (synced.length > 0) {
+      totalSynced += synced.length;
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
       tx(synced);
     }
   }
+  console.log(`[SyncWorker] Pushed ${totalSynced} products to cloud.`);
 }
 
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
@@ -207,6 +214,7 @@ async function syncInvoices(token: string, tenantId: string) {
   const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?`);
   const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND tenant_id = ?`);
 
+  let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const invoicesWithItems = batch.map((inv: any) => ({
@@ -222,10 +230,12 @@ async function syncInvoices(token: string, tenantId: string) {
       `Invoices batch ${Math.floor(i / BATCH_SIZE) + 1} (${i + 1}-${Math.min(i + BATCH_SIZE, pending.length)})`,
     );
     if (synced.length > 0) {
+      totalSynced += synced.length;
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
       tx(synced);
     }
   }
+  console.log(`[SyncWorker] Pushed ${totalSynced} invoices to cloud.`);
 }
 
 // ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────

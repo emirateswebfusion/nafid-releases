@@ -98,6 +98,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const LIMIT = 50;
   const [reportProducts, setReportProducts] = useState<Product[]>([]);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // If initialView is 'report', automatically open report view on mount
   useEffect(() => {
@@ -674,7 +675,8 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
   const filtered = products;
 
     const openReport = async () => {
-    setIsFetching(true);
+    setView('report');
+    setReportLoading(true);
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
       const result = await window.electronAPI.dbGetProducts({
@@ -688,8 +690,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
         setReportProducts(result);
       }
     }
-    setIsFetching(false);
-    setView('report');
+    setReportLoading(false);
   };
 
   const handlePrintFullReport = () => {
@@ -842,7 +843,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
               <button onClick={handlePrintFullReport} className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
                 <Printer className="w-3.5 h-3.5" /> Print Report
               </button>
-              <button onClick={() => { loadProducts(true); setView('list'); }} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
+              <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
                 <X className="w-4 h-4 text-destructive" />
               </button>
             </>
@@ -1471,10 +1472,93 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
       )}
 
       {view === 'report' && (
-        <ReportView
-          products={reportProducts}
-          grades={grades}
-        />
+        reportLoading ? (
+          <div className="flex flex-col flex-1 min-h-0 bg-background overflow-y-auto px-4 py-6">
+            <div className="space-y-6">
+              <div className="grid grid-cols-3 gap-4">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="bg-card border border-border/80 border-l-4 rounded-xl p-4 shadow-sm space-y-3">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-7 w-24" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                ))}
+              </div>
+              <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-9 flex-1 max-w-xs rounded-lg" />
+                  <Skeleton className="h-9 w-32 rounded-lg" />
+                  <Skeleton className="h-9 w-28 rounded-lg" />
+                </div>
+              </div>
+              <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
+                  <Skeleton className="h-4 w-40" />
+                </div>
+                <div className="p-4 space-y-4">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Skeleton className="h-4 w-32" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <Skeleton className="h-3 w-28" />
+                        <Skeleton className="h-3 w-24" />
+                        <Skeleton className="h-3 w-28" />
+                      </div>
+                      <Skeleton className="h-2 w-full rounded-full" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
+                <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
+                  <Skeleton className="h-4 w-44" />
+                </div>
+                <div className="p-1">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-muted/30 border-b border-border/60">
+                          {['Product', 'Category', 'Grade', 'Stock', 'Weight', 'Purchase', 'MRP', 'Selling'].map((_h, i) => (
+                            <th key={i} className="px-4 py-2.5">
+                              <Skeleton className={clsx('h-3', i < 3 ? 'w-14' : 'w-12')} />
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-border/40">
+                        {Array.from({ length: 6 }).map((_, i) => (
+                          <tr key={i}>
+                            <td className="px-4 py-2.5">
+                              <div className="flex items-center gap-2">
+                                <Skeleton className="h-3 w-3 rounded-full" />
+                                <Skeleton className="h-4 w-32" />
+                              </div>
+                            </td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-20" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-16" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-10 ml-auto" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
+                            <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <ReportView
+            products={reportProducts}
+            grades={grades}
+          />
+        )
       )}
 
       {printModalProduct && (
