@@ -38,6 +38,8 @@ export interface ReceiptData {
   customerPhone?: string;
   customerGstin?: string;
   customerState?: string;
+  scrapDeduction?: number;
+  scrapInvoiceNumber?: string;
 }
 
 /**
@@ -185,8 +187,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += padRight(discountLabel, labelWidth) + '  ' + padLeft(`-${data.discount.toFixed(2)}`, bottomTotalWidth) + '\n';
   }
   
+  const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+  if (data.scrapDeduction && data.scrapDeduction > 0) {
+    text += padRight(`SCRAP (${data.scrapInvoiceNumber || ''}):`, labelWidth) + '  ' + padLeft(`-${data.scrapDeduction.toFixed(2)}`, bottomTotalWidth) + '\n';
+  }
   text += separator + '\n';
-  text += padRight('GRAND TOTAL:', labelWidth) + '  ' + padLeft(data.grandTotal.toFixed(2), bottomTotalWidth) + '\n';
+  text += padRight('GRAND TOTAL:', labelWidth) + '  ' + padLeft(Math.max(0, finalGrandTotal).toFixed(2), bottomTotalWidth) + '\n';
   if (data.receivedAmount != null && data.balanceAmount != null) {
     text += padRight('CUSTOMER GAVE:', labelWidth) + '  ' + padLeft(data.receivedAmount.toFixed(2), bottomTotalWidth) + '\n';
     text += padRight('CHANGE DUE:', labelWidth) + '  ' + padLeft(data.balanceAmount.toFixed(2), bottomTotalWidth) + '\n';

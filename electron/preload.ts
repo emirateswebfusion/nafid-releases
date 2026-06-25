@@ -96,6 +96,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetWarranties: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getWarranties', args),
   dbDeleteWarranty: (warranty_id: string) => ipcRenderer.invoke('db:deleteWarranty', warranty_id),
 
+  // Scrap Invoice
+  dbGetScrapItemsBySearch: (args: { tenant_id: string; search: string }) => ipcRenderer.invoke('db:getScrapItemsBySearch', args),
+  dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getNextScrapInvoiceNumber', args),
+  dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:getScrapInvoiceByNumber', args),
+
   // Parties
   dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),
   dbAddParty: (party: any) => ipcRenderer.invoke('db:addParty', party),

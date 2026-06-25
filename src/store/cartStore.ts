@@ -36,6 +36,8 @@ interface CartState {
   currentUserRole: UserRole;
   shopDomain: ShopDomain | null;
   shopDomainConfirmed: boolean;
+  scrapDeduction: number;
+  scrapInvoiceNumber: string;
 
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
@@ -49,6 +51,9 @@ interface CartState {
   setDomain: (domain: ShopDomain) => void;
   confirmDomain: () => void;
   resetDomainConfirmation: () => void;
+  setScrapDeduction: (amount: number, invoiceNumber: string) => void;
+  setScrapInvoiceNumber: (invoiceNumber: string) => void;
+  clearScrapDeduction: () => void;
   clearCart: () => void;
 }
 
@@ -61,9 +66,11 @@ export const useCartStore = create<CartState>()(
       discountValue: 0,
       customerState: 'MH', // Default to same state (Maharashtra)
       shopState: 'MH', // Shop is in MH
-      currentUserRole: 'OWNER', // Default to OWNER for demo
+      currentUserRole: 'OWNER',
       shopDomain: null,
       shopDomainConfirmed: false,
+      scrapDeduction: 0,
+      scrapInvoiceNumber: '',
 
       addItem: (newItem) =>
         set((state) => {
@@ -120,7 +127,10 @@ export const useCartStore = create<CartState>()(
       setDomain: (domain) => set({ shopDomain: domain }),
       confirmDomain: () => set({ shopDomainConfirmed: true }),
       resetDomainConfirmation: () => set({ shopDomainConfirmed: false }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH' }),
+      setScrapDeduction: (amount, invoiceNumber) => set({ scrapDeduction: amount, scrapInvoiceNumber: invoiceNumber }),
+      setScrapInvoiceNumber: (invoiceNumber) => set({ scrapInvoiceNumber: invoiceNumber }),
+      clearScrapDeduction: () => set({ scrapDeduction: 0, scrapInvoiceNumber: '' }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '' }),
     }),
     {
       name: 'vendora-cart-storage',

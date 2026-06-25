@@ -249,7 +249,8 @@ export function initDb() {
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
-        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount', 'updated_at'
+        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount', 'updated_at',
+        'scrap_deduction', 'scrap_invoice_number'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
@@ -270,7 +271,7 @@ export function initDb() {
         'scrap_item_id', 'tenant_id', 'name', 'scrap_category_id', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_transactions: [
-        'transaction_id', 'tenant_id', 'type', 'scrap_item_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at'
+        'transaction_id', 'tenant_id', 'type', 'scrap_item_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'scrap_invoice_number'
     ],
     quotations: [
         'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'

@@ -3,7 +3,7 @@ import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Lock, Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
-  Smartphone, X, RotateCcw
+  Smartphone, X, RotateCcw, Trash2
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -60,6 +60,7 @@ const GENERAL_SECTIONS: SettingSection[] = [
   { id: 'scale', icon: Scale, title: 'Electronic Weighing Scale', desc: 'Configure the serial port connection for your weighing scale.' },
   { id: 'updates', icon: RefreshCw, title: 'System Updates', desc: 'Check for new versions and update your application.' },
   { id: 'appearance', icon: Type, title: 'Appearance & Font Size', desc: 'Adjust the UI font size for better readability.' },
+  { id: 'scrap-rates', icon: Trash2, title: 'Scrap Rates', desc: 'Set rates for scrap materials (e.g., steel) per kg. Used in billing scrap deduction.', ownerOnly: true },
 ];
 
 function formatTimeAgo(date: Date): string {
@@ -118,6 +119,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [showUpiQr, setShowUpiQr] = useState(true);
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
+  const [scrapRates, setScrapRates] = useState<{ name: string; rate: string }[]>([]);
+  const [newScrapName, setNewScrapName] = useState('');
+  const [newScrapRate, setNewScrapRate] = useState('');
 
   // Track initial loaded values to detect unsaved changes
   const initialSnapshot = useRef<string>('');
@@ -226,6 +230,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (phoneVal) setShopPhone(phoneVal);
       if (upiVal) setUpiId(upiVal);
       if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
+
+      const scrapRatesVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scrap_rates' });
+      if (Array.isArray(scrapRatesVal)) setScrapRates(scrapRatesVal);
 
       const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
       if (invCfg) {
@@ -360,6 +367,13 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
           value: { prefix: invoicePrefix, counter: Number(invoiceStartNumber) || 1 },
         });
         if (!resInvNum.success) throw new Error(resInvNum.error);
+
+        const resScrapRates = await window.electronAPI.settingsSet({
+          tenant_id: tenantId || 'global',
+          key: 'scrap_rates',
+          value: scrapRates,
+        });
+        if (!resScrapRates.success) throw new Error(resScrapRates.error);
 
         useCartStore.setState({ shopState });
 
@@ -1137,6 +1151,76 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 className="mt-4 px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
               >
                 Reset to Default
+              </button>
+            </div>
+          </div>
+        );
+
+      case 'scrap-rates':
+        return (
+          <div className="mt-5 space-y-4">
+            <p className="text-xs text-muted-foreground">Define scrap materials and their rates per kg. These appear in billing for quick scrap deduction.</p>
+            {scrapRates.length > 0 && (
+              <div className="space-y-2">
+                {scrapRates.map((sr, idx) => (
+                  <div key={idx} className="flex items-center gap-3 p-3 bg-muted/20 border border-border rounded-xl">
+                    <span className="font-bold text-sm text-foreground min-w-[100px]">{sr.name}</span>
+                    <span className="text-xs text-muted-foreground">Rate: ₹</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={sr.rate}
+                      onChange={e => {
+                        const updated = [...scrapRates];
+                        updated[idx] = { ...updated[idx], rate: e.target.value };
+                        setScrapRates(updated);
+                      }}
+                      className="w-24 bg-background border border-border rounded-lg px-3 py-1.5 text-sm font-bold text-foreground text-right focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    <span className="text-xs text-muted-foreground">/Kg</span>
+                    <button
+                      onClick={() => setScrapRates(prev => prev.filter((_, i) => i !== idx))}
+                      className="ml-auto p-1.5 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex items-center gap-3 p-3 bg-muted/10 border border-dashed border-border rounded-xl">
+              <input
+                type="text"
+                value={newScrapName}
+                onChange={e => setNewScrapName(e.target.value)}
+                placeholder="Material name (e.g., Steel)"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">₹</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={newScrapRate}
+                  onChange={e => setNewScrapRate(e.target.value)}
+                  placeholder="Rate"
+                  className="w-20 bg-background border border-border rounded-lg px-3 py-2 text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+              </div>
+              <button
+                onClick={() => {
+                  if (newScrapName.trim() && newScrapRate) {
+                    setScrapRates(prev => [...prev, { name: newScrapName.trim(), rate: newScrapRate }]);
+                    setNewScrapName('');
+                    setNewScrapRate('');
+                  }
+                }}
+                disabled={!newScrapName.trim() || !newScrapRate}
+                className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-bold transition-all hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
               </button>
             </div>
           </div>

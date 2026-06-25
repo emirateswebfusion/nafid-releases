@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
-  Search, X, Package, Trash2, RotateCcw, Minus, Plus, CreditCard,
+  Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Receipt, Settings, Tag, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp
@@ -61,7 +61,8 @@ export function BillingPage() {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
     addItem, updateQuantity, removeItem, updateWeight,
-    customerState, setCustomerState
+    customerState, setCustomerState,
+    scrapDeduction, scrapInvoiceNumber, setScrapDeduction, setScrapInvoiceNumber, clearScrapDeduction
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
@@ -122,7 +123,8 @@ export function BillingPage() {
   const customerPhone = activeTab?.customerPhone ?? '';
   const customerGstin = activeTab?.customerGstin ?? '';
 
-  const balanceAmount = receivedAmount - grandTotal;
+  const displayGrandTotal = Math.max(0, grandTotal - scrapDeduction);
+  const balanceAmount = receivedAmount - displayGrandTotal;
 
   useEffect(() => {
     if (initialized.current) return;
@@ -175,6 +177,14 @@ export function BillingPage() {
   const [editedItems, setEditedItems] = useState<any[]>([]);
   const [pastBillView, setPastBillView] = useState<'search' | 'detail'>('search');
 
+  // Scrap state
+  const [isScrapMode, setIsScrapMode] = useState(false);
+  const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
+  const [showScrapKgDialog, setShowScrapKgDialog] = useState(false);
+  const [selectedScrapItem, setSelectedScrapItem] = useState<any>(null);
+  const [scrapKgInput, setScrapKgInput] = useState('');
+  const [scrapProcessing, setScrapProcessing] = useState(false);
+
 
 
   useEffect(() => {
@@ -201,6 +211,20 @@ export function BillingPage() {
     }, 150);
     return () => clearTimeout(t);
   }, [searchQuery]);
+
+  // Scrap item search (when scrap mode active)
+  useEffect(() => {
+    if (!isScrapMode || searchQuery.length < 2) { setScrapSearchResults([]); return; }
+    const t = setTimeout(async () => {
+      if (!window.electronAPI) return;
+      const { tenantId } = useAuthStore.getState();
+      const items = await window.electronAPI.dbGetScrapItemsBySearch({ tenant_id: tenantId || '', search: searchQuery });
+      if (Array.isArray(items)) {
+        setScrapSearchResults(items);
+      }
+    }, 150);
+    return () => clearTimeout(t);
+  }, [searchQuery, isScrapMode]);
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -358,6 +382,70 @@ export function BillingPage() {
     }, 0);
   };
 
+  const handleSelectScrapItem = (item: any) => {
+    setSelectedScrapItem(item);
+    setScrapKgInput('');
+    setShowScrapKgDialog(true);
+    setScrapSearchResults([]);
+    setSearchQuery('');
+  };
+
+  const handleSaveScrapTransaction = async () => {
+    if (!selectedScrapItem || !scrapKgInput || !window.electronAPI) return;
+    const kg = Number(scrapKgInput);
+    if (kg <= 0) return;
+    setScrapProcessing(true);
+    try {
+      const { tenantId } = useAuthStore.getState();
+      const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
+      if (!numRes.success || !numRes.invoiceNumber) throw new Error('Failed to generate scrap invoice number');
+      const scrapInvoiceNum = numRes.invoiceNumber;
+      const rate = Number(selectedScrapItem.purchase_price) || 0;
+      const totalAmount = kg * rate;
+      const txRes = await window.electronAPI.dbAddScrapTransaction({
+        transaction_id: uuidv4(),
+        tenant_id: tenantId,
+        type: 'PURCHASE',
+        scrap_item_id: selectedScrapItem.scrap_item_id,
+        quantity: kg,
+        rate,
+        total_amount: totalAmount,
+        party_name: '',
+        notes: `Generated from billing - Invoice: ${scrapInvoiceNum}`,
+        scrap_invoice_number: scrapInvoiceNum || null,
+      });
+      if (txRes.success) {
+        setScrapDeduction(totalAmount, scrapInvoiceNum);
+        setShowScrapKgDialog(false);
+        setSelectedScrapItem(null);
+        setScrapKgInput('');
+      } else {
+        console.error('Failed to save scrap transaction', txRes.error);
+      }
+    } catch (e) {
+      console.error('Scrap transaction error', e);
+    } finally {
+      setScrapProcessing(false);
+    }
+  };
+
+  const handleScrapInvoiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    // Only allow digits — strip any non-digit characters
+    const digits = raw.replace(/\D/g, '');
+    const fullNumber = digits ? `SCRAP-${digits}` : '';
+    setScrapInvoiceNumber(fullNumber);
+    if (fullNumber) {
+      window.electronAPI?.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: fullNumber }).then((res: any) => {
+        if (res && res.totalAmount) {
+          setScrapDeduction(res.totalAmount, fullNumber);
+        }
+      });
+    } else {
+      clearScrapDeduction();
+    }
+  };
+
   const handleSearchKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, results.length - 1)); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { setSelectedIndex(i => Math.max(i - 1, 0)); e.preventDefault(); }
@@ -366,7 +454,7 @@ export function BillingPage() {
   };
 
   const handleCheckout = async () => {
-    if (grandTotal === 0 || items.length === 0) return;
+    if (displayGrandTotal === 0 || items.length === 0) return;
     if (!window.electronAPI) return;
     if (paymentMethod === 'CREDIT' && (!customerName.trim() || !customerPhone.trim())) {
       setHardwareError('Customer name and phone are required for Credit');
@@ -445,6 +533,7 @@ export function BillingPage() {
         igst: invoiceType === 'GST' ? igst : undefined,
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal,
+        scrapDeduction, scrapInvoiceNumber: scrapInvoiceNumber || undefined,
         receivedAmount, balanceAmount, invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
@@ -464,11 +553,12 @@ export function BillingPage() {
         invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
         invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
         discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-        grand_total: grandTotal, payment_method: paymentMethod,
+        grand_total: displayGrandTotal, payment_method: paymentMethod,
         received_amount: receivedAmount, balance_amount: balanceAmount,
         customer_name: customerName || null, customer_phone: customerPhone || null,
         customer_gstin: invoiceType === 'GST' ? customerGstin || null : null,
         customer_state: invoiceType === 'GST' ? customerState || null : null,
+        scrap_deduction: scrapDeduction, scrap_invoice_number: scrapInvoiceNumber || null,
         items: lineItems,
       });
       if (!result.success) { setHardwareError(`Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
@@ -676,6 +766,19 @@ export function BillingPage() {
             <span>History</span>
           </button>
           <button
+            onClick={() => setIsScrapMode(!isScrapMode)}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
+              isScrapMode
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+            title="Scrap Mode"
+          >
+            <Recycle className={clsx("w-4 h-4", isScrapMode && "text-amber-500")} />
+            <span>Scrap</span>
+          </button>
+          <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Settings"
@@ -724,7 +827,7 @@ export function BillingPage() {
                     ref={searchRef}
                     type="text"
                     autoFocus
-                    placeholder="Search products or scan barcode... (Press F2)"
+                    placeholder={isScrapMode ? "Search scrap items or products... (Scrap Mode)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
@@ -748,7 +851,7 @@ export function BillingPage() {
                 </button>
               </div>
 
-              {results.length > 0 && (
+              {(results.length > 0 || (isScrapMode && scrapSearchResults.length > 0)) && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[260px] overflow-y-auto">
                     {results.map((p, i) => {
@@ -796,6 +899,42 @@ export function BillingPage() {
                             ) : (
                               <div className="font-black text-sm text-primary">{formatCurrency(displayPrice)}</div>
                             )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                    {isScrapMode && scrapSearchResults.length > 0 && results.length > 0 && (
+                      <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-y border-border/40">
+                        Scrap Items
+                      </div>
+                    )}
+                    {isScrapMode && scrapSearchResults.map((s, i) => {
+                      const rate = Number(s.selling_price) || 0;
+                      const stock = Number(s.current_stock) || 0;
+                      return (
+                        <button
+                          key={s.scrap_item_id}
+                          onClick={() => handleSelectScrapItem(s)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer hover:bg-amber-500/5"
+                        >
+                          <div className="p-2 rounded-xl shrink-0 bg-amber-500/10 text-amber-500">
+                            <Recycle className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
+                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                              <span className="font-semibold text-amber-600 dark:text-amber-400">Scrap</span>
+                              <span>&middot;</span>
+                              <span className={clsx(
+                                'font-semibold',
+                                stock <= 0 ? 'text-destructive' : 'text-emerald-500'
+                              )}>
+                                Stock: {stock.toFixed(1)} {s.unit || 'Kgs'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="font-black text-sm text-amber-500">{formatCurrency(rate)}/{s.unit || 'Kg'}</div>
                           </div>
                         </button>
                       );
@@ -1123,6 +1262,9 @@ export function BillingPage() {
                   {discount > 0 && (
                     <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
                   )}
+                  {scrapDeduction > 0 && (
+                    <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+                  )}
                 </div>
                 {/* Inline discount input */}
                 <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
@@ -1156,14 +1298,54 @@ export function BillingPage() {
                 </div>
               </div>
 
+            {/* Scrap deduction row */}
+            {scrapDeduction > 0 && (
+              <div className="flex justify-between items-center pt-1 border-t border-border/30">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-semibold text-sm">Scrap ({scrapInvoiceNumber})</span>
+                </div>
+                <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+              </div>
+            )}
+
+            {/* Scrap invoice number field */}
+            <div className={clsx(
+              'flex items-center justify-between pt-1 border-t border-border/30 transition-all duration-300',
+              isScrapMode ? 'opacity-0 pointer-events-none' : 'opacity-100'
+            )}>
+              <div className="flex items-center gap-1.5">
+                <span className="text-muted-foreground font-semibold text-sm">Scrap Inv</span>
+              </div>
+              <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
+                  onChange={handleScrapInvoiceChange}
+                  placeholder="001"
+                  className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                {scrapInvoiceNumber && (
+                  <button
+                    onClick={() => clearScrapDeduction()}
+                    className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            </div>
+
             </div>
 
             {/* Grand Total + Received + Change — same container always (no layout shift) */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
               {/* Total amount */}
               <div className="shrink-0">
-                <p className="text-[9px] font-black text-primary uppercase tracking-wider">Total</p>
-                <p className="text-xl font-black text-foreground leading-none">{formatCurrency(grandTotal)}</p>
+                <p className="text-[9px] font-black text-primary uppercase tracking-wider">
+                  {scrapDeduction > 0 ? 'After Scrap' : 'Total'}
+                </p>
+                <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
               </div>
               {/* Divider — fades for CARD/UPI */}
               <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
@@ -1268,6 +1450,58 @@ export function BillingPage() {
         </div>
 
       </div>
+
+      {/* ─── Scrap Kg Input Dialog ─── */}
+      <Modal
+        isOpen={showScrapKgDialog}
+        onClose={() => { setShowScrapKgDialog(false); setSelectedScrapItem(null); setScrapKgInput(''); }}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Recycle className="w-5 h-5 text-amber-500" />
+            <span>Scrap - {selectedScrapItem?.name || ''}</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 p-2">
+          <div>
+            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Quantity (Kgs)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.1"
+              value={scrapKgInput}
+              onChange={e => setScrapKgInput(e.target.value)}
+              placeholder="Enter kg"
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+              autoFocus
+            />
+          </div>
+          <div className="text-xs text-muted-foreground">
+            Rate: <span className="font-bold text-amber-500">{formatCurrency(Number(selectedScrapItem?.selling_price) || 0)}/kg</span>
+            {scrapKgInput && !isNaN(Number(scrapKgInput)) && Number(scrapKgInput) > 0 && (
+              <span>
+                &nbsp;&middot;&nbsp; Total: <span className="font-bold text-foreground">{formatCurrency(Number(scrapKgInput) * (Number(selectedScrapItem?.selling_price) || 0))}</span>
+              </span>
+            )}
+          </div>
+          <div className="flex gap-2 pt-2">
+            <Button
+              onClick={() => { setShowScrapKgDialog(false); setSelectedScrapItem(null); setScrapKgInput(''); }}
+              variant="outline"
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveScrapTransaction}
+              disabled={!scrapKgInput || isNaN(Number(scrapKgInput)) || Number(scrapKgInput) <= 0 || scrapProcessing}
+              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+            >
+              {scrapProcessing ? 'Saving...' : 'Add & Deduct'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       {/* ─── Past Bill Modal Archive ─── */}
       <Modal

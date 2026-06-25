@@ -721,9 +721,10 @@ ipcMain.handle('db:checkout', (event, payload) => {
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
-        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, sync_status
+        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, sync_status,
+        scrap_deduction, scrap_invoice_number
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -743,7 +744,9 @@ ipcMain.handle('db:checkout', (event, payload) => {
       invoice.customer_name || null,
       invoice.customer_phone || null,
       invoice.customer_gstin || null,
-      invoice.customer_state || null
+      invoice.customer_state || null,
+      invoice.scrap_deduction ?? 0,
+      invoice.scrap_invoice_number || null
     );
 
     // 2. Insert items and update stock
@@ -1258,6 +1261,64 @@ ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_item_id }: 
     }
     query += ' ORDER BY st.created_at DESC LIMIT 500';
     return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getScrapItemsBySearch', (event, { tenant_id, search }: { tenant_id: string; search: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id || !search) return [];
+    return db.prepare(`
+      SELECT si.*, sc.name as category_name 
+      FROM scrap_items si 
+      LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id 
+      WHERE si.tenant_id = ? AND si.is_deleted = 0 AND si.name LIKE ?
+      ORDER BY si.name COLLATE NOCASE ASC
+      LIMIT 10
+    `).all(tenant_id, `%${search}%`);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const prefix = 'SCRAP-';
+    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tenant_id || 'global', 'scrap_invoice_counter');
+    let counter = 1;
+    if (row) {
+      try { counter = JSON.parse(row.value).counter || 1; } catch { counter = 1; }
+    }
+    const invoiceNumber = `${prefix}${counter}`;
+    db.prepare(`
+      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      ON CONFLICT(tenant_id, key) DO UPDATE SET
+        value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    `).run(tenant_id || 'global', 'scrap_invoice_counter', JSON.stringify({ counter: counter + 1 }));
+    return { success: true, invoiceNumber };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_number }: { tenant_id: string; scrap_invoice_number: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id || !scrap_invoice_number) return null;
+    const rows: any[] = db.prepare(`
+      SELECT st.*, si.name as scrap_item_name
+      FROM scrap_transactions st
+      LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id
+      WHERE st.tenant_id = ? AND st.scrap_invoice_number = ?
+      ORDER BY st.created_at DESC
+    `).all(tenant_id, scrap_invoice_number);
+    if (rows.length === 0) return null;
+    const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
+    return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number };
   } catch (error: any) {
     return { error: error.message };
   }

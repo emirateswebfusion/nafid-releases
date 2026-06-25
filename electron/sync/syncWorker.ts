@@ -3,8 +3,8 @@ import path from 'path';
 import { app, BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
-const BATCH_SIZE = 100;
-const FETCH_TIMEOUT_MS = 120000;
+const BATCH_SIZE = 20;
+const FETCH_TIMEOUT_MS = 300000;
 let syncInProgress = false;
 
 function toSqliteDate(iso: string | null | undefined): string {
@@ -104,7 +104,7 @@ async function runSyncCycle() {
   }
 }
 
-// ── Batch push helper ───────────────────────────────────────────────────────────
+// ── Batch push helper with retries ───────────────────────────────────────────────
 async function pushBatch<T>(
   url: string,
   token: string,
@@ -114,32 +114,49 @@ async function pushBatch<T>(
 ): Promise<string[]> {
   if (batch.length === 0) return [];
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ [bodyKey]: batch }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 1000;
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}`);
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ [bodyKey]: batch }),
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+
+      if (!response.ok) {
+        console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}`);
+        return [];
+      }
+
+      const result: any = await response.json();
+      if (result.synced?.length > 0) {
+        console.log(`[SyncWorker] ${label}: ${result.synced_count} synced, ${result.failed_count} failed.`);
+      } else if (result.failed?.length > 0) {
+        console.log(`[SyncWorker] ${label}: 0 synced, ${result.failed_count} failed. First error: ${result.failed[0].error}`);
+      } else {
+        console.warn(`[SyncWorker] ${label}: 0 synced, 0 failed — unexpected response shape. Body: ${JSON.stringify(result).slice(0, 500)}`);
+      }
+      return result.synced || [];
+    } catch (err: any) {
+      const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout') || err.message?.includes('aborted');
+      const isNetworkError = err.message?.includes('fetch failed') || err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED');
+
+      if (attempt < MAX_RETRIES && (isTimeout || isNetworkError)) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.log(`[SyncWorker] ${label} attempt ${attempt}/${MAX_RETRIES} failed (${err.message}). Retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      console.error(`[SyncWorker] ${label} batch error after ${attempt} attempt(s): ${err.message}`);
       return [];
     }
-
-    const result: any = await response.json();
-    if (result.synced?.length > 0) {
-      console.log(`[SyncWorker] ${label}: ${result.synced_count} synced, ${result.failed_count} failed.`);
-    } else if (result.failed?.length > 0) {
-      console.log(`[SyncWorker] ${label}: 0 synced, ${result.failed_count} failed. First error: ${result.failed[0].error}`);
-    } else {
-      console.warn(`[SyncWorker] ${label}: 0 synced, 0 failed — unexpected response shape. Body: ${JSON.stringify(result).slice(0, 500)}`);
-    }
-    return result.synced || [];
-  } catch (err: any) {
-    console.error(`[SyncWorker] ${label} batch error: ${err.message}`);
-    return [];
   }
+
+  return [];
 }
 
 // ── Product Grades Sync (Edge → Cloud) ───────────────────────────────────────────
