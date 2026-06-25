@@ -1,6 +1,8 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import net from 'net';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
 import { getDb } from '../db/localDb';
 
 // Generic ESC/POS Hex Commands
@@ -40,6 +42,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
 
 let currentBulkPrintItems: any[] = [];
 let currentReceiptText: string = '';
+let currentA4Html: string = '';
 
 export function initPrinter() {
   ipcMain.handle('hardware:getBulkPrintItems', () => currentBulkPrintItems);
@@ -55,6 +58,28 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:getReceiptText', () => currentReceiptText);
 
+  ipcMain.handle('hardware:getA4Html', () => currentA4Html);
+
+  ipcMain.handle('hardware:printA4Html', async (event, { tenant_id, htmlContent }: { tenant_id: string; htmlContent: string }) => {
+    try {
+      const db = getDb();
+      const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tenant_id || 'global', 'a4_printer_config');
+      const config = row ? JSON.parse(row.value) : { deviceName: '' };
+
+      if (config.deviceName) {
+        currentA4Html = htmlContent;
+        await printA4USB(config.deviceName);
+      } else {
+        // No specific A4 printer configured — use default print dialog via popup
+        return { success: false, useDefaultDialog: true };
+      }
+
+      return { success: true };
+    } catch (error: any) {
+      console.error('[Hardware] A4 Print Error:', error);
+      return { success: false, error: error.message };
+    }
+  });
 
   ipcMain.handle('hardware:printReceipt', async (event, { tenant_id, textData }: { tenant_id: string; textData: string }) => {
     console.log(`[Hardware] Received Print Request for tenant: ${tenant_id}`);
@@ -281,6 +306,54 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
           resolve();
         } else {
           reject(new Error(`Print failed: ${failureReason}`));
+        }
+      });
+    });
+  });
+}
+
+function printA4USB(deviceName: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const printWindow = new BrowserWindow({
+      show: false,
+      width: 800,
+      height: 600,
+      webPreferences: {
+        preload: path.join(__dirname, '../preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    });
+
+    if (app.isPackaged) {
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
+    } else {
+      printWindow.loadURL(`http://localhost:5173/#/print-a4`);
+    }
+
+    const timer = setTimeout(() => {
+      if (!printWindow.isDestroyed()) {
+        printWindow.close();
+        reject(new Error('A4 print timeout'));
+      }
+    }, 30000);
+
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
+      printWindow.webContents.print({
+        silent: true,
+        deviceName: deviceName,
+        margins: { marginType: 'default' },
+        pageSize: 'A4'
+      }, (success, failureReason) => {
+        clearTimeout(timer);
+        setTimeout(() => {
+          if (!printWindow.isDestroyed()) printWindow.close();
+        }, 3000);
+
+        if (success) {
+          resolve();
+        } else {
+          reject(new Error(`A4 Print failed: ${failureReason}`));
         }
       });
     });

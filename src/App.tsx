@@ -17,6 +17,7 @@ import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
 import { ScrapManager } from './components/ScrapManager';
 import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
+import { PrintA4View } from './components/PrintA4View';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
@@ -28,6 +29,7 @@ function App() {
   const [printBarcodeColumns, setPrintBarcodeColumns] = useState<number>(1);
   const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
   const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
+  const [showPrintA4, setShowPrintA4] = useState(false);
 
   useEffect(() => {
     if (window.location.hash.startsWith('#/print-barcode')) {
@@ -56,6 +58,8 @@ function App() {
       setPrintReceiptData(urlParams.get('text') || ''); // '' triggers IPC fallback in PrintReceiptView
     } else if (window.location.hash.startsWith('#/print-bulk-barcode')) {
       setShowPrintBulkBarcode(true);
+    } else if (window.location.hash.startsWith('#/print-a4')) {
+      setShowPrintA4(true);
     }
   }, []);
 
@@ -112,7 +116,18 @@ function App() {
     const handleOpenScrapManager = () => setShowScrapManager(true);
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
-    
+    const handleOpenQuotationEdit = () => {
+      // Close any open managers and show BillingPage which will pick up the quotation data from localStorage
+      setShowQuotationManager(false);
+      setShowInventoryManager(false);
+      setShowSalesHistory(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowWarrantyManager(false);
+    };
+
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
@@ -122,6 +137,7 @@ function App() {
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
+    window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
 
     if (window.electronAPI) {
       window.electronAPI.onBarcodeScanned(async (code) => {
@@ -155,6 +171,7 @@ function App() {
         window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
+      window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
     };
   }, [addItem]);
 
@@ -168,6 +185,10 @@ function App() {
 
   if (showPrintBulkBarcode) {
     return <PrintBulkBarcodeView />;
+  }
+
+  if (showPrintA4) {
+    return <PrintA4View />;
   }
 
   if (isSyncing) {

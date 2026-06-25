@@ -45,8 +45,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => ipcRenderer.invoke('hardware:printBulkBarcodes', { tenant_id, items }),
   getBulkPrintItems: () => ipcRenderer.invoke('hardware:getBulkPrintItems'),
   getReceiptText: () => ipcRenderer.invoke('hardware:getReceiptText'),
+  getA4Html: () => ipcRenderer.invoke('hardware:getA4Html'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: () => ipcRenderer.invoke('hardware:printReady'),
+  printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   
   onUpdateStatus: (callback: (status: string) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));
@@ -68,18 +70,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
 
-  // Scrap
+  // Scrap (categories ARE items with price/stock/unit)
   dbGetScrapCategories: (tenant_id: string) => ipcRenderer.invoke('db:getScrapCategories', tenant_id),
   dbAddScrapCategory: (cat: any) => ipcRenderer.invoke('db:addScrapCategory', cat),
   dbUpdateScrapCategory: (cat: any) => ipcRenderer.invoke('db:updateScrapCategory', cat),
   dbDeleteScrapCategory: (scrap_category_id: string) => ipcRenderer.invoke('db:deleteScrapCategory', scrap_category_id),
-  dbGetScrapItems: (tenant_id: string) => ipcRenderer.invoke('db:getScrapItems', tenant_id),
-  dbAddScrapItem: (item: any) => ipcRenderer.invoke('db:addScrapItem', item),
-  dbUpdateScrapItem: (item: any) => ipcRenderer.invoke('db:updateScrapItem', item),
-  dbDeleteScrapItem: (scrap_item_id: string) => ipcRenderer.invoke('db:deleteScrapItem', scrap_item_id),
-  dbAdjustScrapStock: (args: { scrap_item_id: string; delta: number }) => ipcRenderer.invoke('db:adjustScrapStock', args),
   dbAddScrapTransaction: (t: any) => ipcRenderer.invoke('db:addScrapTransaction', t),
-  dbGetScrapTransactions: (args: { tenant_id: string; scrap_item_id?: string }) => ipcRenderer.invoke('db:getScrapTransactions', args),
+  dbGetScrapTransactions: (args: { tenant_id: string; scrap_category_id?: string }) => ipcRenderer.invoke('db:getScrapTransactions', args),
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => ipcRenderer.invoke('db:getStockReport', tenant_id),
@@ -90,6 +87,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetQuotations: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getQuotations', args),
   dbGetQuotationItems: (quotation_id: string) => ipcRenderer.invoke('db:getQuotationItems', quotation_id),
   dbUpdateQuotationStatus: (args: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => ipcRenderer.invoke('db:updateQuotationStatus', args),
+  dbDeleteQuotation: (quotation_id: string) => ipcRenderer.invoke('db:deleteQuotation', quotation_id),
+  dbUpdateQuotation: (q: any) => ipcRenderer.invoke('db:updateQuotation', q),
 
   // Warranties
   dbSaveWarranty: (w: any) => ipcRenderer.invoke('db:saveWarranty', w),
@@ -97,7 +96,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbDeleteWarranty: (warranty_id: string) => ipcRenderer.invoke('db:deleteWarranty', warranty_id),
 
   // Scrap Invoice
-  dbGetScrapItemsBySearch: (args: { tenant_id: string; search: string }) => ipcRenderer.invoke('db:getScrapItemsBySearch', args),
+  dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => ipcRenderer.invoke('db:getScrapCategoriesBySearch', args),
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getNextScrapInvoiceNumber', args),
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:getScrapInvoiceByNumber', args),
 

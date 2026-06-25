@@ -38,7 +38,9 @@ export interface IElectronAPI {
   getBulkPrintItems: () => Promise<any[]>;
   getPrinters: () => Promise<any[]>;
   getReceiptText: () => Promise<string>;
+  getA4Html: () => Promise<string>;
   printReady: () => Promise<{ success: boolean; error?: string }>;
+  printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
@@ -54,19 +56,14 @@ export interface IElectronAPI {
   dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
-  // Scrap
+  // Scrap (categories ARE items with price/stock/unit)
   dbGetScrapCategories: (tenant_id: string) => Promise<any[]>;
   dbAddScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapCategory: (scrap_category_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbGetScrapItems: (tenant_id: string) => Promise<any[]>;
-  dbAddScrapItem: (item: any) => Promise<{ success: boolean; error?: string }>;
-  dbUpdateScrapItem: (item: any) => Promise<{ success: boolean; error?: string }>;
-  dbDeleteScrapItem: (scrap_item_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbAdjustScrapStock: (args: { scrap_item_id: string; delta: number }) => Promise<{ success: boolean; error?: string }>;
   dbAddScrapTransaction: (t: any) => Promise<{ success: boolean; error?: string }>;
-  dbGetScrapTransactions: (args: { tenant_id: string; scrap_item_id?: string }) => Promise<any[]>;
-  dbGetScrapItemsBySearch: (args: { tenant_id: string; search: string }) => Promise<any[]>;
+  dbGetScrapTransactions: (args: { tenant_id: string; scrap_category_id?: string }) => Promise<any[]>;
+  dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => Promise<any[]>;
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<any>;
 
@@ -79,6 +76,8 @@ export interface IElectronAPI {
   dbGetQuotations: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbGetQuotationItems: (quotation_id: string) => Promise<any[]>;
   dbUpdateQuotationStatus: (args: { quotation_id: string; status?: string; converted_to_invoice?: number; invoice_id?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteQuotation: (quotation_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateQuotation: (q: any) => Promise<{ success: boolean; error?: string }>;
 
   // Warranties
   dbSaveWarranty: (w: any) => Promise<{ success: boolean; error?: string }>;

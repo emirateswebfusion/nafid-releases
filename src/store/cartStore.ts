@@ -38,6 +38,9 @@ interface CartState {
   shopDomainConfirmed: boolean;
   scrapDeduction: number;
   scrapInvoiceNumber: string;
+  isQuotationMode: boolean;
+  editingQuotationId: string | null;
+  editingQuotationNumber: string | null;
 
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
@@ -54,6 +57,8 @@ interface CartState {
   setScrapDeduction: (amount: number, invoiceNumber: string) => void;
   setScrapInvoiceNumber: (invoiceNumber: string) => void;
   clearScrapDeduction: () => void;
+  setQuotationMode: (isQuotationMode: boolean) => void;
+  setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
   clearCart: () => void;
 }
 
@@ -71,6 +76,9 @@ export const useCartStore = create<CartState>()(
       shopDomainConfirmed: false,
       scrapDeduction: 0,
       scrapInvoiceNumber: '',
+      isQuotationMode: false,
+      editingQuotationId: null,
+      editingQuotationNumber: null,
 
       addItem: (newItem) =>
         set((state) => {
@@ -130,7 +138,9 @@ export const useCartStore = create<CartState>()(
       setScrapDeduction: (amount, invoiceNumber) => set({ scrapDeduction: amount, scrapInvoiceNumber: invoiceNumber }),
       setScrapInvoiceNumber: (invoiceNumber) => set({ scrapInvoiceNumber: invoiceNumber }),
       clearScrapDeduction: () => set({ scrapDeduction: 0, scrapInvoiceNumber: '' }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '' }),
+      setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
+      setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null }),
     }),
     {
       name: 'vendora-cart-storage',

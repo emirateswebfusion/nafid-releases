@@ -90,6 +90,9 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
+  const [selectedNameIndex, setSelectedNameIndex] = useState(0);
+  const nameContainerRef = useRef<HTMLDivElement>(null);
 
   const configuredCategories = Array.from(new Set(grades.map(g => g.category)));
 
@@ -185,7 +188,66 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
     setIsFetching(false);
   };
 
-  // Intersection Observer for infinite scrolling
+  // ── Name autocomplete ───────────────────────────────────────────────
+  const nameSearchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!formData.name || formData.name.length < 2) {
+      setNameSuggestions([]);
+      return;
+    }
+    if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
+    nameSearchTimeout.current = setTimeout(async () => {
+      if (!window.electronAPI) return;
+      const { tenantId } = useAuthStore.getState();
+      const products = await window.electronAPI.dbGetProducts({
+        tenant_id: tenantId,
+        search: formData.name,
+        limit: 8,
+        sortBy: 'name'
+      });
+      if (Array.isArray(products)) {
+        setNameSuggestions(products);
+        setSelectedNameIndex(0);
+      }
+    }, 300);
+    return () => {
+      if (nameSearchTimeout.current) clearTimeout(nameSearchTimeout.current);
+    };
+  }, [formData.name]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (nameContainerRef.current && !nameContainerRef.current.contains(e.target as Node)) {
+        setNameSuggestions([]);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  const handleNameKeyDown = (e: React.KeyboardEvent) => {
+    if (!nameSuggestions.length) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedNameIndex(prev => Math.min(prev + 1, nameSuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedNameIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && selectedNameIndex >= 0) {
+      e.preventDefault();
+      selectNameSuggestion(nameSuggestions[selectedNameIndex]);
+    } else if (e.key === 'Escape') {
+      setNameSuggestions([]);
+    }
+  };
+
+  const selectNameSuggestion = (product: Product) => {
+    setNameSuggestions([]);
+    openEdit(product);
+  };
+
+  // ── Intersection Observer for infinite scrolling ──
   const observer = useRef<IntersectionObserver | null>(null);
   const lastElementRef = useCallback((node: HTMLDivElement | null) => {
     if (isFetching || !hasMore || view !== 'list') return;
@@ -1107,9 +1169,45 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
               </div>
               <div className="grid grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <div>
+                  <div ref={nameContainerRef} className="relative">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                    <input type="text" value={formData.name} onChange={e => handleInputChange('name', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    <input type="text" value={formData.name} onChange={e => { handleInputChange('name', e.target.value); setSelectedNameIndex(0); }} onKeyDown={handleNameKeyDown} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    {nameSuggestions.length > 0 && (
+                      <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                        {nameSuggestions.map((p, i) => (
+                          <button
+                            key={p.product_id}
+                            type="button"
+                            onMouseDown={() => selectNameSuggestion(p)}
+                            onMouseEnter={() => setSelectedNameIndex(i)}
+                            className={clsx(
+                              'w-full text-left px-4 py-3 flex items-center gap-3 border-b border-border/40 last:border-0 transition-colors cursor-pointer',
+                              i === selectedNameIndex ? 'bg-primary/10 text-primary' : 'bg-card text-foreground hover:bg-muted'
+                            )}
+                          >
+                            <Package className="w-4 h-4 shrink-0 text-muted-foreground" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold truncate">{p.name}</p>
+                              <p className="text-xs text-muted-foreground font-mono truncate">
+                                {p.item_code && <span className="font-bold mr-1.5 text-primary">{p.item_code}</span>}
+                                {p.sku_barcode}
+                                {p.brand_manufacturer && <span className="ml-1.5 text-muted-foreground/60">| {p.brand_manufacturer}</span>}
+                              </p>
+                            </div>
+                            {p.current_stock !== undefined && (
+                              <span className={clsx(
+                                'text-xs font-bold shrink-0 px-2 py-0.5 rounded-full',
+                                Number(p.current_stock) <= 0 ? 'bg-red-500/10 text-red-500' :
+                                Number(p.current_stock) <= Number(p.reorder_level) ? 'bg-amber-500/10 text-amber-500' :
+                                'bg-emerald-500/10 text-emerald-500'
+                              )}>
+                                {Number(p.current_stock).toFixed(0)} in stock
+                              </span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>

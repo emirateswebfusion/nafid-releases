@@ -142,18 +142,6 @@ export function initDb() {
         scrap_category_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
-        is_deleted INTEGER DEFAULT 0,
-        sync_status TEXT DEFAULT 'SYNCED',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(tenant_id, name)
-    );
-
-    CREATE TABLE IF NOT EXISTS scrap_items (
-        scrap_item_id TEXT PRIMARY KEY,
-        tenant_id TEXT NOT NULL,
-        name TEXT NOT NULL,
-        scrap_category_id TEXT,
         purchase_price REAL DEFAULT 0,
         selling_price REAL DEFAULT 0,
         current_stock REAL DEFAULT 0,
@@ -169,7 +157,7 @@ export function initDb() {
         transaction_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
         type TEXT NOT NULL CHECK(type IN ('PURCHASE', 'SALE')),
-        scrap_item_id TEXT NOT NULL,
+        scrap_category_id TEXT NOT NULL,
         quantity REAL NOT NULL,
         rate REAL NOT NULL,
         total_amount REAL NOT NULL,
@@ -265,13 +253,10 @@ export function initDb() {
         'party_id', 'tenant_id', 'name', 'phone', 'balance', 'notes', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_categories: [
-        'scrap_category_id', 'tenant_id', 'name', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
-    ],
-    scrap_items: [
-        'scrap_item_id', 'tenant_id', 'name', 'scrap_category_id', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'scrap_category_id', 'tenant_id', 'name', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_transactions: [
-        'transaction_id', 'tenant_id', 'type', 'scrap_item_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'scrap_invoice_number'
+        'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'scrap_invoice_number'
     ],
     quotations: [
         'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
@@ -501,6 +486,48 @@ export function initDb() {
   ];
   for (const q of dateFixQueries) {
     try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }
+  }
+
+  // Migrate legacy scrap_items data into scrap_categories (categories ARE items now)
+  try {
+    const hasScrapItems = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scrap_items'").get();
+    if (hasScrapItems) {
+      const legacyItems: any[] = db.prepare(
+        "SELECT si.*, sc.name as cat_name FROM scrap_items si LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id WHERE si.is_deleted = 0"
+      ).all();
+      for (const item of legacyItems) {
+        if (item.scrap_category_id && item.cat_name) {
+          // Item has a category: add its stock to the category
+          db.prepare(`UPDATE scrap_categories SET current_stock = COALESCE(current_stock,0) + ?, purchase_price = MAX(COALESCE(purchase_price,0), ?), selling_price = MAX(COALESCE(selling_price,0), ?), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(
+            item.current_stock || 0, item.purchase_price || 0, item.selling_price || 0, item.scrap_category_id
+          );
+        } else {
+          // Item without a category: create a new category with this item's data
+          const existing = db.prepare("SELECT scrap_category_id FROM scrap_categories WHERE tenant_id = ? AND name = ?").get(item.tenant_id, item.name);
+          if (!existing) {
+            db.prepare(`
+              INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted, sync_status, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
+            `).run(item.scrap_item_id, item.tenant_id, item.name, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs', item.created_at || new Date().toISOString(), item.updated_at || new Date().toISOString());
+          }
+        }
+      }
+      // Migrate scrap_transactions to reference scrap_categories
+      const legacyTxs: any[] = db.prepare(
+        `SELECT st.*, si.scrap_category_id as si_cat_id FROM scrap_transactions st LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id`
+      ).all();
+      for (const tx of legacyTxs) {
+        const catId = tx.si_cat_id || tx.scrap_category_id;
+        if (catId && !tx.scrap_category_id) {
+          db.prepare("UPDATE scrap_transactions SET scrap_category_id = ? WHERE transaction_id = ?").run(catId, tx.transaction_id);
+        }
+      }
+      // Drop the scrap_items table
+      db.exec("DROP TABLE IF EXISTS scrap_items");
+      console.log('[DB Migration] Legacy scrap_items data migrated to scrap_categories');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Scrap items migration skipped:', e.message);
   }
 
   // Initialize hardware defaults if empty

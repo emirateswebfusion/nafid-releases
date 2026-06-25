@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Receipt, Settings, Tag, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp
+  CheckCircle2, Building, TrendingUp, FileText, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -185,10 +185,18 @@ export function BillingPage() {
   const [scrapKgInput, setScrapKgInput] = useState('');
   const [scrapProcessing, setScrapProcessing] = useState(false);
 
+  // Quotation state
+  const { isQuotationMode, setQuotationMode, editingQuotationId, editingQuotationNumber, setEditingQuotation } = useCartStore();
+  const [quotationAddress, setQuotationAddress] = useState('');
+  const [quotationTerms, setQuotationTerms] = useState('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+  const [quotationSaving, setQuotationSaving] = useState(false);
+  const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
+
 
 
   useEffect(() => {
-    if (searchQuery.length < 2) { setResults([]); return; }
+    // In scrap mode, only search scrap items — skip product search
+    if (isScrapMode || searchQuery.length < 2) { setResults([]); return; }
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
@@ -210,17 +218,17 @@ export function BillingPage() {
       }
     }, 150);
     return () => clearTimeout(t);
-  }, [searchQuery]);
+  }, [searchQuery, isScrapMode]);
 
-  // Scrap item search (when scrap mode active)
+  // Scrap category search (when scrap mode active - categories ARE items)
   useEffect(() => {
     if (!isScrapMode || searchQuery.length < 2) { setScrapSearchResults([]); return; }
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
-      const items = await window.electronAPI.dbGetScrapItemsBySearch({ tenant_id: tenantId || '', search: searchQuery });
-      if (Array.isArray(items)) {
-        setScrapSearchResults(items);
+      const cats = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: searchQuery });
+      if (Array.isArray(cats)) {
+        setScrapSearchResults(cats);
       }
     }, 150);
     return () => clearTimeout(t);
@@ -382,8 +390,8 @@ export function BillingPage() {
     }, 0);
   };
 
-  const handleSelectScrapItem = (item: any) => {
-    setSelectedScrapItem(item);
+  const handleSelectScrapItem = (cat: any) => {
+    setSelectedScrapItem(cat);
     setScrapKgInput('');
     setShowScrapKgDialog(true);
     setScrapSearchResults([]);
@@ -406,7 +414,7 @@ export function BillingPage() {
         transaction_id: uuidv4(),
         tenant_id: tenantId,
         type: 'PURCHASE',
-        scrap_item_id: selectedScrapItem.scrap_item_id,
+        scrap_category_id: selectedScrapItem.scrap_category_id,
         quantity: kg,
         rate,
         total_amount: totalAmount,
@@ -446,11 +454,247 @@ export function BillingPage() {
     }
   };
 
+  // Listen for open-quotation-edit event
+  useEffect(() => {
+    const handler = () => {
+      const raw = localStorage.getItem('editQuotationData');
+      if (!raw) return;
+      localStorage.removeItem('editQuotationData');
+      try {
+        const { quotation, items: qItems } = JSON.parse(raw);
+        if (!qItems?.length) return;
+        clearCart();
+        setQuotationMode(true);
+        if (quotation.customer_name) updateActiveTab({ customerName: quotation.customer_name });
+        if (quotation.customer_phone) updateActiveTab({ customerPhone: quotation.customer_phone });
+        if (quotation.customer_address) setQuotationAddress(quotation.customer_address);
+        if (quotation.terms_conditions) setQuotationTerms(quotation.terms_conditions);
+        setEditingQuotation(quotation.quotation_id, quotation.quotation_number);
+        qItems.forEach((item: any) => {
+          const productId = item.product_id || item.item_id || `qtn-${Date.now()}-${Math.random()}`;
+          addItem({
+            product_id: productId,
+            name: item.name || 'Product',
+            base_price: Number(item.rate) || 0,
+            purchase_price: Number(item.rate) || 0,
+            tax_rate_percent: 0,
+            billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : undefined,
+          });
+          const qty = Number(item.quantity) || 1;
+          if (qty > 0) updateQuantity(productId, qty);
+          if (item.weight && Number(item.weight) > 0) updateWeight(productId, Number(item.weight));
+        });
+        syncActiveSnapshot();
+      } catch (e) {
+        console.error('Failed to load quotation edit data', e);
+      }
+    };
+    window.addEventListener('open-quotation-edit', handler);
+    return () => window.removeEventListener('open-quotation-edit', handler);
+  }, []);
+
+  const handleSaveQuotation = async () => {
+    if (items.length === 0) return;
+    if (!window.electronAPI) return;
+    setQuotationSaving(true);
+    setHardwareError(null);
+    try {
+      const tid = tenantId || '';
+      let quotationId = editingQuotationId || uuidv4();
+      let quotationNumber = editingQuotationNumber || '';
+
+      if (!editingQuotationId) {
+        const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tid });
+        if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
+        quotationNumber = numRes.quotationNumber || '';
+      }
+
+      const qItems = items.map(item => {
+        const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+        const qty = Number(item.quantity) || 0;
+        const isWeight = item.billing_type === 'WEIGHT';
+        const effectiveQty = isWeight ? 1 : qty;
+        const weight = isWeight ? (item.calculated_weight || 0) : 0;
+        const amount = isWeight ? rate * weight : rate * qty;
+        return {
+          item_id: uuidv4(),
+          product_id: item.product_id,
+          name: item.name,
+          quantity: effectiveQty,
+          weight,
+          rate,
+          amount,
+        };
+      });
+
+      const qSubtotal = qItems.reduce((s, i) => s + i.amount, 0);
+      const qTaxTotal = invoiceType === 'GST' ? qSubtotal * 0.18 : 0;
+      const qGrandTotal = qSubtotal + qTaxTotal;
+
+      if (editingQuotationId) {
+        // Update existing quotation
+        await window.electronAPI.dbUpdateQuotation({
+          quotation_id: quotationId,
+          tenant_id: tid,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: quotationAddress,
+          terms_conditions: quotationTerms,
+          subtotal: qSubtotal,
+          tax_total: qTaxTotal,
+          grand_total: qGrandTotal,
+          items: qItems.map(i => ({ ...i, tenant_id: tid })),
+        });
+      } else {
+        // Save new quotation
+        await window.electronAPI.dbSaveQuotation({
+          quotation_id: quotationId,
+          tenant_id: tid,
+          quotation_number: quotationNumber,
+          customer_name: customerName,
+          customer_phone: customerPhone,
+          customer_address: quotationAddress,
+          terms_conditions: quotationTerms,
+          subtotal: qSubtotal,
+          tax_total: qTaxTotal,
+          grand_total: qGrandTotal,
+          items: qItems.map(i => ({ ...i, tenant_id: tid })),
+        });
+      }
+
+      // Generate HTML for A4 print
+      const fullHtml = `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Quotation - ${shopName}</title>
+            <style>
+              @page { size: A4; margin: 15mm; }
+              body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+              .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .header h1 { font-size: 24px; margin: 0; }
+              .header p { font-size: 13px; color: #666; margin: 3px 0; }
+              .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; }
+              th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
+              td { padding: 6px; border: 1px solid #ddd; }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              .total-row td { font-weight: bold; }
+              .terms { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
+              .terms h3 { font-size: 14px; margin-bottom: 8px; }
+              .terms p { font-size: 11px; color: #555; white-space: pre-line; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>${shopName || 'Shop'}</h1>
+              <p>${shopAddress || ''}</p>
+              <p>Phone: ${shopPhone || ''}</p>
+              ${shopGstin ? `<p>GST: ${shopGstin}</p>` : ''}
+              <h2 style="margin-top: 10px;">QUOTATION</h2>
+            </div>
+            <div class="qtn-info">
+              <div>
+                <p><strong>Quotation #:</strong> ${quotationNumber}</p>
+                <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+              </div>
+              <div style="text-align: right;">
+                <p><strong>Customer:</strong> ${customerName || 'N/A'}</p>
+                <p><strong>Phone:</strong> ${customerPhone || ''}</p>
+                <p><strong>Address:</strong> ${quotationAddress || ''}</p>
+              </div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th class="text-center" style="width: 40px;">#</th>
+                  <th>Item</th>
+                  <th class="text-center" style="width: 100px;">Qty/Weight</th>
+                  <th class="text-right" style="width: 80px;">Rate</th>
+                  <th class="text-right" style="width: 100px;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${qItems.map((item, idx) => `
+                  <tr>
+                    <td class="border p-2 text-center">${idx + 1}</td>
+                    <td class="border p-2">${item.name}</td>
+                    <td class="border p-2 text-center">${item.quantity}${item.weight > 0 ? ` (${item.weight.toFixed(3)} ${item.weight > 0 ? 'KG' : ''})` : ''}</td>
+                    <td class="border p-2 text-right">\u20B9${item.rate.toFixed(2)}</td>
+                    <td class="border p-2 text-right font-bold">\u20B9${item.amount.toFixed(2)}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td colspan="4" class="text-right">Subtotal</td>
+                  <td class="text-right">\u20B9${qSubtotal.toFixed(2)}</td>
+                </tr>
+                ${qTaxTotal > 0 ? `<tr><td colspan="4" class="text-right">GST (18%)</td><td class="text-right">\u20B9${qTaxTotal.toFixed(2)}</td></tr>` : ''}
+                <tr class="total-row" style="font-size: 16px;">
+                  <td colspan="4" class="text-right">Grand Total</td>
+                  <td class="text-right" style="color: #2563eb;">\u20B9${qGrandTotal.toFixed(2)}</td>
+                </tr>
+              </tfoot>
+            </table>
+            <div class="terms">
+              <h3>Terms & Conditions</h3>
+              <p>${quotationTerms || '1. This quotation is valid for 15 days from the date of issue.'}</p>
+            </div>
+            <p style="text-align: center; font-size: 10px; color: #999; margin-top: 20px; border-top: 1px solid #ddd; padding-top: 10px;">
+              Generated by Vendora POS — ${new Date().toLocaleString('en-IN')}
+            </p>
+          </body>
+        </html>`;
+
+      // Try silent A4 print first, fall back to system dialog
+      try {
+        const printRes = await window.electronAPI.printA4Html(tid, fullHtml);
+        if (!printRes.success && printRes.useDefaultDialog) {
+          const pw = window.open('', '_blank');
+          if (pw) {
+            pw.document.write(fullHtml);
+            pw.document.close();
+            setTimeout(() => pw.print(), 500);
+          }
+        }
+      } catch {
+        const pw = window.open('', '_blank');
+        if (pw) {
+          pw.document.write(fullHtml);
+          pw.document.close();
+          setTimeout(() => pw.print(), 500);
+        }
+      }
+
+      setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}`);
+      if (!editingQuotationId) {
+        clearCart();
+        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0 });
+        syncActiveSnapshot();
+        setQuotationAddress('');
+        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+      }
+    } catch (e) {
+      setHardwareError('Failed to save quotation');
+      console.error(e);
+    }
+    setQuotationSaving(false);
+    setTimeout(() => setQuotationSuccess(null), 4000);
+  };
+
   const handleSearchKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, results.length - 1)); e.preventDefault(); }
+    const maxLen = isScrapMode ? scrapSearchResults.length : results.length;
+    if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, maxLen - 1)); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { setSelectedIndex(i => Math.max(i - 1, 0)); e.preventDefault(); }
-    else if (e.key === 'Enter') { if (results[selectedIndex]) handleSelectProduct(results[selectedIndex]); }
-    else if (e.key === 'Escape') { setResults([]); setSearchQuery(''); }
+    else if (e.key === 'Enter') {
+      if (isScrapMode) {
+        if (scrapSearchResults[selectedIndex]) handleSelectScrapItem(scrapSearchResults[selectedIndex]);
+      } else {
+        if (results[selectedIndex]) handleSelectProduct(results[selectedIndex]);
+      }
+    }
+    else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setSearchQuery(''); }
   };
 
   const handleCheckout = async () => {
@@ -562,6 +806,20 @@ export function BillingPage() {
         items: lineItems,
       });
       if (!result.success) { setHardwareError(`Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
+
+      // If this was a quotation being billed, mark it as CONVERTED
+      if (editingQuotationId) {
+        try {
+          await window.electronAPI.dbUpdateQuotationStatus({
+            quotation_id: editingQuotationId,
+            status: 'CONVERTED',
+            converted_to_invoice: 1,
+            invoice_id,
+          });
+        } catch (e) {
+          console.error('Failed to update quotation status', e);
+        }
+      }
     } catch {
       setHardwareError('Hardware communication error.'); setIsCheckingOut(false); return;
     }
@@ -708,7 +966,13 @@ export function BillingPage() {
   useKeyboardShortcuts({
     'F2': () => searchRef.current?.focus(),
     'F8': () => discountRef.current?.focus(),
-    'F12': handleCheckout,
+    'F12': () => {
+      if (isQuotationMode && !editingQuotationId) {
+        handleSaveQuotation();
+      } else {
+        handleCheckout();
+      }
+    },
   });
 
   const emptyIcon = (
@@ -766,7 +1030,10 @@ export function BillingPage() {
             <span>History</span>
           </button>
           <button
-            onClick={() => setIsScrapMode(!isScrapMode)}
+            onClick={() => {
+              setIsScrapMode(!isScrapMode);
+              if (!isScrapMode && isQuotationMode) setQuotationMode(false);
+            }}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
               isScrapMode
@@ -777,6 +1044,22 @@ export function BillingPage() {
           >
             <Recycle className={clsx("w-4 h-4", isScrapMode && "text-amber-500")} />
             <span>Scrap</span>
+          </button>
+          <button
+            onClick={() => {
+              setQuotationMode(!isQuotationMode);
+              if (!isQuotationMode && isScrapMode) setIsScrapMode(false);
+            }}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
+              isQuotationMode
+                ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+            )}
+            title="Quotation Mode"
+          >
+            <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
+            <span>Quotation</span>
           </button>
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
@@ -827,7 +1110,7 @@ export function BillingPage() {
                     ref={searchRef}
                     type="text"
                     autoFocus
-                    placeholder={isScrapMode ? "Search scrap items or products... (Scrap Mode)" : "Search products or scan barcode... (Press F2)"}
+                    placeholder={isScrapMode ? "Search scrap categories... (Scrap Mode)" : isQuotationMode ? "Search products... (Quotation Mode)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
@@ -851,10 +1134,10 @@ export function BillingPage() {
                 </button>
               </div>
 
-              {(results.length > 0 || (isScrapMode && scrapSearchResults.length > 0)) && (
+              {(isScrapMode ? scrapSearchResults.length > 0 : results.length > 0) && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[260px] overflow-y-auto">
-                    {results.map((p, i) => {
+                    {!isScrapMode && results.map((p, i) => {
                       const mrp = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
                       const showOffer = p.offer_price && Number(p.offer_price) > 0;
                       const displayPrice = showOffer ? Number(p.offer_price) : mrp;
@@ -903,21 +1186,24 @@ export function BillingPage() {
                         </button>
                       );
                     })}
-                    {isScrapMode && scrapSearchResults.length > 0 && results.length > 0 && (
-                      <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-y border-border/40">
-                        Scrap Items
-                      </div>
-                    )}
                     {isScrapMode && scrapSearchResults.map((s, i) => {
                       const rate = Number(s.selling_price) || 0;
                       const stock = Number(s.current_stock) || 0;
+                      const isSelected = i === selectedIndex;
                       return (
                         <button
-                          key={s.scrap_item_id}
+                          key={s.scrap_category_id}
                           onClick={() => handleSelectScrapItem(s)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer hover:bg-amber-500/5"
+                          onMouseEnter={() => setSelectedIndex(i)}
+                          className={clsx(
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
+                            isSelected ? 'bg-amber-500/10 border-l-4 border-l-amber-500 pl-2' : 'hover:bg-amber-500/5'
+                          )}
                         >
-                          <div className="p-2 rounded-xl shrink-0 bg-amber-500/10 text-amber-500">
+                          <div className={clsx(
+                            'p-2 rounded-xl shrink-0 transition-colors',
+                            isSelected ? 'bg-amber-500/15 text-amber-500' : 'bg-amber-500/10 text-amber-500'
+                          )}>
                             <Recycle className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -1185,7 +1471,13 @@ export function BillingPage() {
 
           {/* ── Scrollable content area ── */}
           <div className="flex-1 overflow-y-auto px-5 py-3">
-            {/* Payment method grid buttons */}
+            {/* Payment method grid buttons — smoothly replaced by Quotation Details in quotation mode */}
+            <div className={clsx(
+              'overflow-hidden transition-all duration-400 ease-in-out',
+              isQuotationMode || editingQuotationId
+                ? 'max-h-0 opacity-0 scale-95 py-0'
+                : 'max-h-[280px] opacity-100 scale-100'
+            )}>
               <div className="grid grid-cols-2 gap-2">
                 {PAYMENT_OPTIONS.map(opt => {
                   const isActive = paymentMethod === opt.value;
@@ -1221,6 +1513,44 @@ export function BillingPage() {
                 })}
               </div>
             </div>
+
+            {/* ── Quotation Details — smoothly replaces payment methods ── */}
+            <div className={clsx(
+              'overflow-hidden transition-all duration-400 ease-in-out',
+              isQuotationMode || editingQuotationId
+                ? 'max-h-[500px] opacity-100 scale-100'
+                : 'max-h-0 opacity-0 scale-95'
+            )}>
+              <div className="space-y-3 p-4 bg-blue-500/5 border border-blue-500/20 rounded-2xl mt-1">
+                <div className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-blue-500" />
+                  <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                    {editingQuotationId ? `Editing Quotation ${editingQuotationNumber}` : 'New Quotation'}
+                  </span>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Customer Address</label>
+                  <input
+                    type="text"
+                    value={quotationAddress}
+                    onChange={e => setQuotationAddress(e.target.value)}
+                    placeholder="Customer address for quotation"
+                    className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Terms & Conditions</label>
+                  <textarea
+                    value={quotationTerms}
+                    onChange={e => setQuotationTerms(e.target.value)}
+                    rows={3}
+                    placeholder="Terms and conditions..."
+                    className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* ── STICKY FOOTER: Totals + Actions ── */}
           <div className="shrink-0 border-t border-border/50 bg-background">
@@ -1299,46 +1629,55 @@ export function BillingPage() {
               </div>
 
             {/* Scrap deduction row */}
-            {scrapDeduction > 0 && (
+            <div className={clsx(
+              'overflow-hidden transition-all duration-300 ease-in-out',
+              scrapDeduction > 0 && !isScrapMode && !isQuotationMode
+                ? 'max-h-[40px] opacity-100'
+                : 'max-h-0 opacity-0'
+            )}>
               <div className="flex justify-between items-center pt-1 border-t border-border/30">
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground font-semibold text-sm">Scrap ({scrapInvoiceNumber})</span>
                 </div>
                 <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
               </div>
-            )}
+            </div>
 
             {/* Scrap invoice number field */}
             <div className={clsx(
-              'flex items-center justify-between pt-1 border-t border-border/30 transition-all duration-300',
-              isScrapMode ? 'opacity-0 pointer-events-none' : 'opacity-100'
+              'overflow-hidden transition-all duration-300 ease-in-out',
+              !isScrapMode && !isQuotationMode
+                ? 'max-h-[52px] opacity-100'
+                : 'max-h-0 opacity-0'
             )}>
-              <div className="flex items-center gap-1.5">
-                <span className="text-muted-foreground font-semibold text-sm">Scrap Inv</span>
-              </div>
-              <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
-                  onChange={handleScrapInvoiceChange}
-                  placeholder="001"
-                  className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                {scrapInvoiceNumber && (
-                  <button
-                    onClick={() => clearScrapDeduction()}
-                    className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
+              <div className="flex items-center justify-between pt-1.5 border-t border-border/30">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-muted-foreground font-semibold text-sm">Scrap Inv</span>
+                </div>
+                <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
+                    onChange={handleScrapInvoiceChange}
+                    placeholder="001"
+                    className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  {scrapInvoiceNumber && (
+                    <button
+                      onClick={() => clearScrapDeduction()}
+                      className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
             </div>
 
-            {/* Grand Total + Received + Change — same container always (no layout shift) */}
+            {/* Grand Total + Received + Change */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
               {/* Total amount */}
               <div className="shrink-0">
@@ -1347,10 +1686,10 @@ export function BillingPage() {
                 </p>
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
               </div>
-              {/* Divider — fades for CARD/UPI */}
-              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
-              {/* Received input — fades for CARD/UPI (keeps space) */}
-              <div className={clsx('flex-1 min-w-0 transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Divider — fades for CARD/UPI; hidden in quotation mode */}
+              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
+              {/* Received input — fades for CARD/UPI; hidden in quotation mode */}
+              <div className={clsx('flex-1 min-w-0 transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Paid' : 'Received'}
                 </p>
@@ -1370,8 +1709,8 @@ export function BillingPage() {
                   />
                 </div>
               </div>
-              {/* Change input — fades for CARD/UPI (keeps space) */}
-              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Change input — fades for CARD/UPI; hidden in quotation mode */}
+              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}
                 </p>
@@ -1415,34 +1754,92 @@ export function BillingPage() {
                   <span>Invoice completed & Receipt printed!</span>
                 </div>
               )}
+              {quotationSuccess && (
+                <div className="px-3 py-2.5 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold animate-in fade-in duration-200">
+                  <FileText className="w-4 h-4 shrink-0" />
+                  <span>{quotationSuccess}</span>
+                </div>
+              )}
             </div>
 
             {/* Action buttons */}
             <div className="flex gap-2.5 px-4 py-3">
-              <button
-                onClick={handleHoldBill}
-                disabled={items.length === 0}
-                className="w-[30%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
-              >
-                Hold
-              </button>
-              <button
-                onClick={handleCheckout}
-                disabled={isCheckingOut || items.length === 0}
-                className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
-              >
-                {isCheckingOut ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-                    <span>FINALIZING...</span>
-                  </>
-                ) : (
-                  <>
-                    <CreditCard className="w-4.5 h-4.5" />
-                    <span>PRINT &amp; CHECKOUT (F12)</span>
-                  </>
-                )}
-              </button>
+              {isQuotationMode && !editingQuotationId ? (
+                /* ── Quotation Create Mode ── */
+                <button
+                  onClick={handleSaveQuotation}
+                  disabled={quotationSaving || items.length === 0}
+                  className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-blue-500 text-white font-black text-sm shadow-md hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                >
+                  {quotationSaving ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>SAVING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4.5 h-4.5" />
+                      <span>SAVE QUOTATION &amp; PRINT</span>
+                    </>
+                  )}
+                </button>
+              ) : editingQuotationId ? (
+                /* ── Quotation Edit Mode ── */
+                <>
+                  <button
+                    onClick={handleSaveQuotation}
+                    disabled={quotationSaving || items.length === 0}
+                    className="w-[35%] py-3 rounded-xl border-2 border-blue-400 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-500/10 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    {quotationSaving ? 'Saving...' : 'Save Draft'}
+                  </button>
+                  <button
+                    onClick={handleCheckout}
+                    disabled={isCheckingOut || items.length === 0}
+                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-white font-black text-sm shadow-md hover:bg-emerald-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                  >
+                    {isCheckingOut ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        <span>FINALIZING...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4.5 h-4.5" />
+                        <span>PRINT &amp; BILL (F12)</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              ) : (
+                /* ── Normal Billing Mode ── */
+                <>
+                  <button
+                    onClick={handleHoldBill}
+                    disabled={items.length === 0}
+                    className="w-[30%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    Hold
+                  </button>
+                  <button
+                    onClick={handleCheckout}
+                    disabled={isCheckingOut || items.length === 0}
+                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                  >
+                    {isCheckingOut ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                        <span>FINALIZING...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="w-4.5 h-4.5" />
+                        <span>PRINT &amp; CHECKOUT (F12)</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
 
           </div>

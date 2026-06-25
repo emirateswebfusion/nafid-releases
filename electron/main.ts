@@ -1114,6 +1114,7 @@ ipcMain.handle('db:debug:dumpInvoices', () => {
 });
 
 // ── Scrap Categories IPC ───────────────────────────────────────
+// ── Scrap Categories IPC (categories ARE items, with price/stock/unit) ──
 ipcMain.handle('db:getScrapCategories', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -1128,9 +1129,9 @@ ipcMain.handle('db:addScrapCategory', (event, cat) => {
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, is_deleted, sync_status)
-      VALUES (?, ?, ?, 0, 'PENDING')
-    `).run(cat.scrap_category_id, cat.tenant_id, cat.name);
+      INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'PENDING')
+    `).run(cat.scrap_category_id, cat.tenant_id, cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs');
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -1141,9 +1142,9 @@ ipcMain.handle('db:updateScrapCategory', (event, cat) => {
   try {
     const db = getDb();
     db.prepare(`
-      UPDATE scrap_categories SET name = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      UPDATE scrap_categories SET name = ?, purchase_price = ?, selling_price = ?, current_stock = ?, unit = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE scrap_category_id = ?
-    `).run(cat.name, cat.scrap_category_id);
+    `).run(cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs', cat.scrap_category_id);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -1160,82 +1161,17 @@ ipcMain.handle('db:deleteScrapCategory', (event, scrapCategoryId: string) => {
   }
 });
 
-// ── Scrap Items IPC ────────────────────────────────────────────
-ipcMain.handle('db:getScrapItems', (event, tenantId: string) => {
-  try {
-    const db = getDb();
-    if (!tenantId) return [];
-    return db.prepare(`
-      SELECT si.*, sc.name as category_name 
-      FROM scrap_items si 
-      LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id 
-      WHERE si.tenant_id = ? AND si.is_deleted = 0 
-      ORDER BY si.name COLLATE NOCASE ASC
-    `).all(tenantId);
-  } catch (error: any) {
-    return { error: error.message };
-  }
-});
-
-ipcMain.handle('db:addScrapItem', (event, item) => {
-  try {
-    const db = getDb();
-    db.prepare(`
-      INSERT INTO scrap_items (scrap_item_id, tenant_id, name, scrap_category_id, purchase_price, selling_price, current_stock, unit, is_deleted, sync_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING')
-    `).run(item.scrap_item_id, item.tenant_id, item.name, item.scrap_category_id || null, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs');
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('db:updateScrapItem', (event, item) => {
-  try {
-    const db = getDb();
-    db.prepare(`
-      UPDATE scrap_items SET name = ?, scrap_category_id = ?, purchase_price = ?, selling_price = ?, current_stock = ?, unit = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-      WHERE scrap_item_id = ?
-    `).run(item.name, item.scrap_category_id || null, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs', item.scrap_item_id);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('db:deleteScrapItem', (event, scrapItemId: string) => {
-  try {
-    const db = getDb();
-    db.prepare(`UPDATE scrap_items SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?`).run(scrapItemId);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('db:adjustScrapStock', (event, { scrap_item_id, delta }) => {
-  try {
-    const db = getDb();
-    db.prepare(`
-      UPDATE scrap_items SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?
-    `).run(delta, scrap_item_id);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
-// ── Scrap Transactions IPC ─────────────────────────────────────
+// ── Scrap Transactions IPC (now references scrap_categories) ──
 ipcMain.handle('db:addScrapTransaction', (event, t) => {
   try {
     const db = getDb();
     const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
     const result = db.transaction(() => {
       db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_item_id, quantity, rate, total_amount, party_name, notes, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_item_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null);
-      db.prepare(`UPDATE scrap_items SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_item_id = ?`).run(delta, t.scrap_item_id);
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null, t.scrap_invoice_number || null);
+      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
       return { success: true };
     })();
     return result;
@@ -1244,20 +1180,20 @@ ipcMain.handle('db:addScrapTransaction', (event, t) => {
   }
 });
 
-ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_item_id }: { tenant_id: string; scrap_item_id?: string }) => {
+ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_category_id }: { tenant_id: string; scrap_category_id?: string }) => {
   try {
     const db = getDb();
     if (!tenant_id) return [];
     let query = `
-      SELECT st.*, si.name as scrap_item_name, si.unit 
+      SELECT st.*, sc.name as scrap_category_name, sc.unit 
       FROM scrap_transactions st 
-      LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id 
+      LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id 
       WHERE st.tenant_id = ?
     `;
     const params: any[] = [tenant_id];
-    if (scrap_item_id) {
-      query += ' AND st.scrap_item_id = ?';
-      params.push(scrap_item_id);
+    if (scrap_category_id) {
+      query += ' AND st.scrap_category_id = ?';
+      params.push(scrap_category_id);
     }
     query += ' ORDER BY st.created_at DESC LIMIT 500';
     return db.prepare(query).all(...params);
@@ -1266,16 +1202,14 @@ ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_item_id }: 
   }
 });
 
-ipcMain.handle('db:getScrapItemsBySearch', (event, { tenant_id, search }: { tenant_id: string; search: string }) => {
+ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: { tenant_id: string; search: string }) => {
   try {
     const db = getDb();
     if (!tenant_id || !search) return [];
     return db.prepare(`
-      SELECT si.*, sc.name as category_name 
-      FROM scrap_items si 
-      LEFT JOIN scrap_categories sc ON si.scrap_category_id = sc.scrap_category_id 
-      WHERE si.tenant_id = ? AND si.is_deleted = 0 AND si.name LIKE ?
-      ORDER BY si.name COLLATE NOCASE ASC
+      SELECT * FROM scrap_categories 
+      WHERE tenant_id = ? AND is_deleted = 0 AND name LIKE ?
+      ORDER BY name COLLATE NOCASE ASC
       LIMIT 10
     `).all(tenant_id, `%${search}%`);
   } catch (error: any) {
@@ -1310,9 +1244,9 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
     const db = getDb();
     if (!tenant_id || !scrap_invoice_number) return null;
     const rows: any[] = db.prepare(`
-      SELECT st.*, si.name as scrap_item_name
+      SELECT st.*, sc.name as scrap_category_name
       FROM scrap_transactions st
-      LEFT JOIN scrap_items si ON st.scrap_item_id = si.scrap_item_id
+      LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
       WHERE st.tenant_id = ? AND st.scrap_invoice_number = ?
       ORDER BY st.created_at DESC
     `).all(tenant_id, scrap_invoice_number);
@@ -1419,6 +1353,51 @@ ipcMain.handle('db:getQuotationItems', (event, quotationId: string) => {
     return db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
   } catch (error: any) {
     return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:deleteQuotation', (event, quotationId: string) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(quotationId);
+      db.prepare('DELETE FROM quotations WHERE quotation_id = ?').run(quotationId);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateQuotation', (event, q) => {
+  try {
+    const db = getDb();
+    const result = db.transaction(() => {
+      // Update header
+      db.prepare(`
+        UPDATE quotations SET 
+          customer_name = ?, customer_phone = ?, customer_address = ?, terms_conditions = ?,
+          subtotal = ?, tax_total = ?, grand_total = ?,
+          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE quotation_id = ?
+      `).run(q.customer_name || null, q.customer_phone || null, q.customer_address || null, q.terms_conditions || null, q.subtotal, q.tax_total, q.grand_total, q.quotation_id);
+
+      // Delete old items
+      db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(q.quotation_id);
+
+      // Insert new items
+      const stmt = db.prepare(`
+        INSERT INTO quotation_items (item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `);
+      for (const item of q.items) {
+        stmt.run(item.item_id, q.quotation_id, q.tenant_id, item.product_id || null, item.name, item.quantity, item.weight || null, item.rate, item.amount);
+      }
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 });
 

@@ -1,32 +1,27 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Package, Search, RefreshCw, Recycle, AlertTriangle } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
-type View = 'list' | 'add' | 'edit' | 'transaction';
+type View = 'list' | 'transaction' | 'selling';
 
 interface ScrapCategory {
   scrap_category_id: string;
+  tenant_id: string;
   name: string;
-}
-
-interface ScrapItem {
-  scrap_item_id: string;
-  name: string;
-  scrap_category_id: string;
-  category_name: string;
   purchase_price: number;
   selling_price: number;
   current_stock: number;
   unit: string;
+  is_deleted?: number;
 }
 
 interface ScrapTransaction {
   transaction_id: string;
   type: 'PURCHASE' | 'SALE';
-  scrap_item_id: string;
-  scrap_item_name: string;
+  scrap_category_id: string;
+  scrap_category_name: string;
   quantity: number;
   rate: number;
   total_amount: number;
@@ -39,34 +34,29 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
   const { tenantId } = useAuthStore();
   const [view, setView] = useState<View>('list');
   const [categories, setCategories] = useState<ScrapCategory[]>([]);
-  const [items, setItems] = useState<ScrapItem[]>([]);
   const [transactions, setTransactions] = useState<ScrapTransaction[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedItem, setSelectedItem] = useState<ScrapItem | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<ScrapCategory | null>(null);
   const [search, setSearch] = useState('');
-  const [showCategoryManager, setShowCategoryManager] = useState(false);
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<ScrapCategory | null>(null);
+  const [formData, setFormData] = useState({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    scrap_category_id: '',
-    purchase_price: '',
-    selling_price: '',
-    current_stock: '',
-    unit: 'Kgs',
-  });
 
   const [txForm, setTxForm] = useState({
     type: 'PURCHASE' as 'PURCHASE' | 'SALE',
-    scrap_item_id: '',
+    categoryId: '',
     quantity: '',
     rate: '',
     party_name: '',
     notes: '',
   });
 
-  const [catForm, setCatForm] = useState({ name: '' });
-  const [editingCat, setEditingCat] = useState<ScrapCategory | null>(null);
+  // Selling page state
+  const [sellingSearch, setSellingSearch] = useState('');
+  const [sellingResults, setSellingResults] = useState<ScrapCategory[]>([]);
+  const [sellingSelected, setSellingSelected] = useState<{ category: ScrapCategory; qty: number; rate: number }[]>([]);
+  const [sellingProcessing, setSellingProcessing] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -75,12 +65,8 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI) {
         const tid = tenantId || '';
-        const [cats, its] = await Promise.all([
-          window.electronAPI.dbGetScrapCategories(tid),
-          window.electronAPI.dbGetScrapItems(tid),
-        ]);
+        const cats = await window.electronAPI.dbGetScrapCategories(tid);
         if (Array.isArray(cats)) setCategories(cats);
-        if (Array.isArray(its)) setItems(its);
       }
     } catch (err) {
       console.error('[ScrapManager] Failed to load data:', err);
@@ -88,18 +74,18 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     setLoading(false);
   };
 
-  const loadTransactions = async (itemId?: string) => {
+  const loadTransactions = async (categoryId?: string) => {
     if (window.electronAPI) {
-      const txs = await window.electronAPI.dbGetScrapTransactions({ tenant_id: tenantId || '', scrap_item_id: itemId });
+      const txs = await window.electronAPI.dbGetScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
       if (Array.isArray(txs)) setTransactions(txs);
     }
   };
 
-  const handleAddItem = async () => {
+  const handleAddCategory = async () => {
     if (!formData.name) { setStatusMessage({ text: 'Name is required', type: 'error' }); return; }
     if (window.electronAPI) {
-      const res = await window.electronAPI.dbAddScrapItem({
-        scrap_item_id: uuidv4(),
+      const res = await window.electronAPI.dbAddScrapCategory({
+        scrap_category_id: uuidv4(),
         tenant_id: tenantId,
         ...formData,
         purchase_price: Number(formData.purchase_price) || 0,
@@ -107,9 +93,9 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
         current_stock: Number(formData.current_stock) || 0,
       });
       if (res.success) {
-        setStatusMessage({ text: 'Scrap item added', type: 'success' });
-        setFormData({ name: '', scrap_category_id: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' });
-        setView('list');
+        setStatusMessage({ text: 'Category added', type: 'success' });
+        setFormData({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' });
+        setShowCategoryForm(false);
         loadData();
       } else {
         setStatusMessage({ text: res.error || 'Failed', type: 'error' });
@@ -118,19 +104,22 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleUpdateItem = async () => {
-    if (!selectedItem) return;
+  const handleUpdateCategory = async () => {
+    if (!editingCategory) return;
     if (window.electronAPI) {
-      const res = await window.electronAPI.dbUpdateScrapItem({
-        scrap_item_id: selectedItem.scrap_item_id,
-        ...formData,
+      const res = await window.electronAPI.dbUpdateScrapCategory({
+        scrap_category_id: editingCategory.scrap_category_id,
+        name: formData.name,
         purchase_price: Number(formData.purchase_price) || 0,
         selling_price: Number(formData.selling_price) || 0,
         current_stock: Number(formData.current_stock) || 0,
+        unit: formData.unit || 'Kgs',
       });
       if (res.success) {
-        setStatusMessage({ text: 'Scrap item updated', type: 'success' });
-        setView('list');
+        setStatusMessage({ text: 'Category updated', type: 'success' });
+        setEditingCategory(null);
+        setShowCategoryForm(false);
+        setFormData({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' });
         loadData();
       } else {
         setStatusMessage({ text: res.error || 'Failed', type: 'error' });
@@ -139,53 +128,57 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleDeleteItem = async (id: string) => {
-    if (!confirm('Delete this scrap item?')) return;
+  const handleDeleteCategory = async (id: string) => {
+    const cat = categories.find(c => c.scrap_category_id === id);
+    if (!cat) return;
+    if (!confirm(`Delete category "${cat.name}"?`)) return;
     if (window.electronAPI) {
-      const res = await window.electronAPI.dbDeleteScrapItem(id);
-      if (res.success) { loadData(); } else { alert(res.error); }
+      await window.electronAPI.dbDeleteScrapCategory(id);
+      loadData();
     }
   };
 
-  const openEdit = (item: ScrapItem) => {
-    setSelectedItem(item);
+  const openEdit = (cat: ScrapCategory) => {
+    setEditingCategory(cat);
     setFormData({
-      name: item.name,
-      scrap_category_id: item.scrap_category_id || '',
-      purchase_price: item.purchase_price.toString(),
-      selling_price: item.selling_price.toString(),
-      current_stock: item.current_stock.toString(),
-      unit: item.unit || 'Kgs',
+      name: cat.name,
+      purchase_price: cat.purchase_price.toString(),
+      selling_price: cat.selling_price.toString(),
+      current_stock: cat.current_stock.toString(),
+      unit: cat.unit || 'Kgs',
     });
-    setView('edit');
+    setShowCategoryForm(true);
   };
 
-  const openTransaction = (item: ScrapItem) => {
-    setSelectedItem(item);
-    setTxForm({ type: 'PURCHASE', scrap_item_id: item.scrap_item_id, quantity: '', rate: '', party_name: '', notes: '' });
+  const openTransaction = (cat: ScrapCategory) => {
+    setSelectedCategory(cat);
+    setTxForm({ type: 'PURCHASE', categoryId: cat.scrap_category_id, quantity: '', rate: '', party_name: '', notes: '' });
     setView('transaction');
-    loadTransactions(item.scrap_item_id);
+    loadTransactions(cat.scrap_category_id);
   };
 
   const handleAddTransaction = async () => {
     if (!txForm.quantity || !txForm.rate) { setStatusMessage({ text: 'Quantity and Rate required', type: 'error' }); return; }
     const qty = Number(txForm.quantity);
     const rate = Number(txForm.rate);
-    if (txForm.type === 'SALE' && selectedItem && qty > Number(selectedItem.current_stock)) {
+    if (txForm.type === 'SALE' && selectedCategory && qty > Number(selectedCategory.current_stock)) {
       setStatusMessage({ text: 'Insufficient stock', type: 'error' }); return;
     }
     if (window.electronAPI) {
       const res = await window.electronAPI.dbAddScrapTransaction({
         transaction_id: uuidv4(),
         tenant_id: tenantId,
-        ...txForm,
+        type: txForm.type,
+        scrap_category_id: txForm.categoryId,
         quantity: qty,
         rate,
         total_amount: qty * rate,
+        party_name: txForm.party_name || '',
+        notes: txForm.notes || '',
       });
       if (res.success) {
         setStatusMessage({ text: `${txForm.type === 'PURCHASE' ? 'Purchase' : 'Sale'} recorded`, type: 'success' });
-        loadTransactions(txForm.scrap_item_id);
+        loadTransactions(txForm.categoryId);
         loadData();
         setTxForm(prev => ({ ...prev, quantity: '', rate: '', party_name: '', notes: '' }));
       } else {
@@ -195,51 +188,76 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleAddCategory = async () => {
-    if (!catForm.name) return;
-    if (window.electronAPI) {
-      const res = await window.electronAPI.dbAddScrapCategory({ scrap_category_id: uuidv4(), tenant_id: tenantId, name: catForm.name });
-      if (res.success) {
-        setCatForm({ name: '' });
-        const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
-        if (Array.isArray(cats)) setCategories(cats);
+  // Selling search effect
+  useEffect(() => {
+    if (sellingSearch.length < 2) { setSellingResults([]); return; }
+    const t = setTimeout(async () => {
+      if (!window.electronAPI) return;
+      const res = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
+      if (Array.isArray(res)) setSellingResults(res);
+    }, 150);
+    return () => clearTimeout(t);
+  }, [sellingSearch, tenantId]);
+
+  const handleAddToSellingCart = (cat: ScrapCategory) => {
+    setSellingSelected(prev => {
+      const existing = prev.find(s => s.category.scrap_category_id === cat.scrap_category_id);
+      if (existing) {
+        return prev.map(s => s.category.scrap_category_id === cat.scrap_category_id ? { ...s, qty: s.qty + 1 } : s);
+      }
+      return [...prev, { category: cat, qty: 1, rate: Number(cat.selling_price) || 0 }];
+    });
+    setSellingSearch('');
+    setSellingResults([]);
+  };
+
+  const handleRecordSales = async () => {
+    if (sellingSelected.length === 0) return;
+    setSellingProcessing(true);
+    let successCount = 0;
+    for (const entry of sellingSelected) {
+      if (entry.qty <= 0 || entry.rate <= 0) continue;
+      if (entry.qty > Number(entry.category.current_stock)) {
+        setStatusMessage({ text: `Insufficient stock for ${entry.category.name}`, type: 'error' });
+        setTimeout(() => setStatusMessage(null), 3000);
+        continue;
+      }
+      if (window.electronAPI) {
+        const res = await window.electronAPI.dbAddScrapTransaction({
+          transaction_id: uuidv4(),
+          tenant_id: tenantId,
+          type: 'SALE',
+          scrap_category_id: entry.category.scrap_category_id,
+          quantity: entry.qty,
+          rate: entry.rate,
+          total_amount: entry.qty * entry.rate,
+          party_name: '',
+          notes: 'Direct scrap sale',
+        });
+        if (res.success) successCount++;
       }
     }
-  };
-
-  const handleUpdateCategory = async () => {
-    if (!editingCat) return;
-    if (window.electronAPI) {
-      await window.electronAPI.dbUpdateScrapCategory({ scrap_category_id: editingCat.scrap_category_id, name: catForm.name });
-      setEditingCat(null);
-      setCatForm({ name: '' });
-      const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
-      if (Array.isArray(cats)) setCategories(cats);
+    if (successCount > 0) {
+      setStatusMessage({ text: `${successCount} item(s) sold successfully!`, type: 'success' });
+      setSellingSelected([]);
+      await loadData();
     }
+    setSellingProcessing(false);
+    setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleDeleteCategory = async (id: string) => {
-    if (!confirm('Delete this category?')) return;
-    if (window.electronAPI) {
-      await window.electronAPI.dbDeleteScrapCategory(id);
-      const cats = await window.electronAPI.dbGetScrapCategories(tenantId || '');
-      if (Array.isArray(cats)) setCategories(cats);
-    }
-  };
-
-  const filteredItems = items.filter(i =>
-    i.name.toLowerCase().includes(search.toLowerCase()) ||
-    (i.category_name || '').toLowerCase().includes(search.toLowerCase())
+  const filteredCategories = categories.filter(c =>
+    c.name.toLowerCase().includes(search.toLowerCase())
   );
 
   const totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
   const totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
   const profit = totalSales - totalPurchases;
 
-  const totalStock = items.reduce((s, i) => s + Number(i.current_stock), 0);
-  const estimatedValue = items.reduce((s, i) => s + Number(i.purchase_price) * Number(i.current_stock), 0);
+  const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
+  const estimatedValue = categories.reduce((s, c) => s + Number(c.purchase_price) * Number(c.current_stock), 0);
 
-  const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
+  const formatCurrency = (amount: number | undefined | null) => amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
 
   if (loading) {
     return (
@@ -268,17 +286,17 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 shadow-inner">
-            {view === 'list' ? <Recycle className="w-5 h-5" /> : view === 'transaction' ? <TrendingUp className="w-5 h-5" /> : <Package className="w-5 h-5" />}
+            {view === 'list' ? <Recycle className="w-5 h-5" /> : view === 'selling' ? <ShoppingCart className="w-5 h-5" /> : view === 'transaction' ? <TrendingUp className="w-5 h-5" /> : <Package className="w-5 h-5" />}
           </div>
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Scrap Management' : view === 'add' ? 'Add Scrap Item' : view === 'edit' ? `Edit: ${selectedItem?.name}` : `Transactions — ${selectedItem?.name}`}
+                {view === 'list' ? 'Scrap Management' : view === 'selling' ? 'Sell Scrap Items' : view === 'add' ? 'Add Scrap Category' : view === 'edit' ? `Edit: ${selectedCategory?.name}` : `Transactions — ${selectedCategory?.name}`}
               </h1>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
             {view === 'list' && (
-              <p className="text-xs text-muted-foreground font-semibold mt-0.5">{items.length} scrap items &middot; {categories.length} categories</p>
+              <p className="text-xs text-muted-foreground font-semibold mt-0.5">{categories.length} categories</p>
             )}
             {view !== 'list' && (
               <span className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
@@ -308,7 +326,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search scrap items by name or category..."
+                placeholder="Search scrap categories..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
@@ -317,54 +335,70 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setShowCategoryManager(true)}
-              className="px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+              onClick={() => { setSellingSelected([]); setSellingSearch(''); setView('selling'); }}
+              className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-emerald-500/20 active:scale-95 cursor-pointer"
             >
-              Manage Categories
+              <ShoppingCart className="w-4 h-4" /> Sell Scrap
             </button>
             <button
-              onClick={() => { setFormData({ name: '', scrap_category_id: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' }); setView('add'); }}
+              onClick={() => { setEditingCategory(null); setFormData({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' }); setShowCategoryForm(true); }}
               className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer"
             >
-              <Plus className="w-4 h-4" /> Add Scrap Item
+              <Plus className="w-4 h-4" /> Add Category
             </button>
           </div>
         </div>
       )}
 
       <div className="flex-1 overflow-y-auto min-h-0 p-6">
-        {/* ── Category Manager Modal ── */}
-        {showCategoryManager && (
+        {/* ── ADD / EDIT CATEGORY MODAL ── */}
+        {showCategoryForm && (
           <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center">
-            <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-md shadow-xl">
+            <div className="bg-card border border-border rounded-2xl p-6 w-full max-w-lg shadow-xl">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="font-bold text-lg">Scrap Categories</h2>
-                <button onClick={() => setShowCategoryManager(false)} className="p-1 hover:bg-muted rounded-lg"><X className="w-5 h-5" /></button>
+                <h2 className="font-bold text-lg">{editingCategory ? 'Edit Category' : 'Add Category'}</h2>
+                <button onClick={() => { setShowCategoryForm(false); setEditingCategory(null); setFormData({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' }); }} className="p-1 hover:bg-muted rounded-lg"><X className="w-5 h-5" /></button>
               </div>
-              <div className="space-y-3 max-h-80 overflow-y-auto">
-                {categories.map(cat => (
-                  <div key={cat.scrap_category_id} className="flex items-center justify-between p-3 bg-muted/20 rounded-xl border border-border">
-                    {editingCat?.scrap_category_id === cat.scrap_category_id ? (
-                      <div className="flex-1 flex gap-2">
-                        <input value={catForm.name} onChange={e => setCatForm({ name: e.target.value })} className="flex-1 bg-background border border-border rounded-lg p-2 text-sm" />
-                        <button onClick={handleUpdateCategory} className="p-2 text-primary"><Save className="w-4 h-4" /></button>
-                        <button onClick={() => setEditingCat(null)} className="p-2 text-muted-foreground"><X className="w-4 h-4" /></button>
-                      </div>
-                    ) : (
-                      <>
-                        <span className="font-medium text-sm">{cat.name}</span>
-                        <div className="flex gap-1">
-                          <button onClick={() => { setEditingCat(cat); setCatForm({ name: cat.name }); }} className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground"><Pencil className="w-3.5 h-3.5" /></button>
-                          <button onClick={() => handleDeleteCategory(cat.scrap_category_id)} className="p-1.5 hover:bg-destructive/20 rounded-lg text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
-                      </>
-                    )}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Category Name *</label>
+                  <input type="text" value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm" />
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Purchase Rate (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                      <input type="number" step="0.01" onWheel={e => (e.target as HTMLInputElement).blur()} value={formData.purchase_price} onChange={e => setFormData(p => ({ ...p, purchase_price: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all no-spinners text-sm" />
+                    </div>
                   </div>
-                ))}
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">Selling Rate (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                      <input type="number" step="0.01" onWheel={e => (e.target as HTMLInputElement).blur()} value={formData.selling_price} onChange={e => setFormData(p => ({ ...p, selling_price: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all no-spinners text-sm" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-muted-foreground mb-1">{editingCategory ? 'Current Stock' : 'Opening Stock'}</label>
+                    <input type="number" step="0.001" onWheel={e => (e.target as HTMLInputElement).blur()} value={formData.current_stock} onChange={e => setFormData(p => ({ ...p, current_stock: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all no-spinners text-sm font-bold" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground mb-1">Unit</label>
+                  <select value={formData.unit} onChange={e => setFormData(p => ({ ...p, unit: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all appearance-none text-sm">
+                    <option value="Kgs">Kgs</option>
+                    <option value="Pcs">Pcs</option>
+                    <option value="Grams">Grams</option>
+                    <option value="Ltrs">Ltrs</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex gap-2 mt-4">
-                <input value={catForm.name} onChange={e => setCatForm({ name: e.target.value })} placeholder="New category name" className="flex-1 bg-background border border-border rounded-xl p-3 text-sm" />
-                <button onClick={editingCat ? handleUpdateCategory : handleAddCategory} className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-sm font-bold"><Plus className="w-4 h-4" /></button>
+              <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border/60">
+                <button onClick={() => { setShowCategoryForm(false); setEditingCategory(null); setFormData({ name: '', purchase_price: '', selling_price: '', current_stock: '', unit: 'Kgs' }); }} className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer">Cancel</button>
+                <button onClick={editingCategory ? handleUpdateCategory : handleAddCategory} disabled={!formData.name.trim()} className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
+                  <Save className="w-3.5 h-3.5" /> {editingCategory ? 'Update' : 'Add'}
+                </button>
               </div>
             </div>
           </div>
@@ -377,21 +411,21 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
             <div className="grid grid-cols-4 gap-4">
               <div className="bg-card border border-border/80 border-l-4 border-l-amber-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black">{items.length}</span>
+                  <span className="text-2xl font-black">{categories.length}</span>
                   <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
                     <Recycle className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Scrap Items</div>
+                <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Scrap Categories</div>
               </div>
               <div className="bg-card border border-border/80 border-l-4 border-l-emerald-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-emerald-500">{totalStock.toFixed(1)}</span>
+                  <span className="text-2xl font-black text-emerald-500">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)} crt`}</span>
                   <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
                     <Package className="w-4 h-4" />
                   </div>
                 </div>
-                <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Total Stock (Kgs)</div>
+                <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Total Stock</div>
               </div>
               <div className="bg-card border border-border/80 border-l-4 border-l-blue-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
@@ -413,70 +447,50 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
               </div>
             </div>
 
-            {/* Table Header */}
+            {/* Table */}
             <div className="border border-border rounded-xl overflow-hidden">
               <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
                 <div className="col-span-3">Name</div>
-                <div className="col-span-2">Category</div>
                 <div className="col-span-2 text-right">Purchase Rate</div>
+                <div className="col-span-2 text-right">Selling Rate</div>
                 <div className="col-span-2 text-right">Stock</div>
                 <div className="col-span-1 text-center">Unit</div>
                 <div className="col-span-2 text-center">Actions</div>
               </div>
 
-              {/* Rows */}
               <div className="divide-y divide-border">
-                {filteredItems.length === 0 ? (
+                {filteredCategories.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                     <Recycle className="w-12 h-12 mb-3 text-amber-500/30" />
-                    <p className="font-medium text-foreground">No scrap items found</p>
-                    <p className="text-sm mt-1">Click "Add Scrap Item" to get started</p>
+                    <p className="font-medium text-foreground">No scrap categories found</p>
+                    <p className="text-sm mt-1">Click "Add Category" to get started</p>
                   </div>
-                ) : filteredItems.map(item => (
-                  <div key={item.scrap_item_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-amber-500/30 hover:shadow-sm transition-all duration-150 group">
+                ) : filteredCategories.map(cat => (
+                  <div key={cat.scrap_category_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-amber-500/30 hover:shadow-sm transition-all duration-150 group">
                     <div className="col-span-3">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
                           <Recycle className="w-3.5 h-3.5" />
                         </div>
                         <div>
-                          <p className="text-foreground font-bold text-sm">{item.name}</p>
+                          <p className="text-foreground font-bold text-sm">{cat.name}</p>
                         </div>
                       </div>
                     </div>
-                    <div className="col-span-2">
-                      <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{item.category_name || '-'}</span>
-                    </div>
-                    <div className="col-span-2 text-right text-foreground font-semibold text-sm">{formatCurrency(item.purchase_price)}</div>
+                    <div className="col-span-2 text-right text-foreground font-semibold text-sm">{formatCurrency(cat.purchase_price)}</div>
+                    <div className="col-span-2 text-right text-foreground font-semibold text-sm">{formatCurrency(cat.selling_price)}</div>
                     <div className="col-span-2 text-right">
-                      <span className={clsx(
-                        'font-bold text-sm',
-                        Number(item.current_stock) <= 0 ? 'text-destructive' : 'text-emerald-500'
-                      )}>
-                        {Number(item.current_stock).toFixed(1)}
-                      </span>
+                      {(() => { const stock = Number(cat.current_stock); if (isNaN(stock)) return <span className="text-muted-foreground text-sm font-semibold">-</span>; return <span className={clsx('font-bold text-sm', stock <= 0 ? 'text-destructive' : 'text-emerald-500')}>{stock.toFixed(1)} in stock</span>; })()}
                     </div>
-                    <div className="col-span-1 text-center text-muted-foreground text-sm font-semibold">{item.unit}</div>
+                    <div className="col-span-1 text-center text-muted-foreground text-sm font-semibold">{cat.unit}</div>
                     <div className="col-span-2 flex items-center justify-center gap-1">
-                      <button
-                        onClick={() => openTransaction(item)}
-                        className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                        title="Add Transaction"
-                      >
+                      <button onClick={() => openTransaction(cat)} className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer" title="Add Transaction">
                         <TrendingUp className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => openEdit(item)}
-                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                        title="Edit"
-                      >
+                      <button onClick={() => openEdit(cat)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-lg transition-all active:scale-90 cursor-pointer" title="Edit">
                         <Pencil className="w-4 h-4" />
                       </button>
-                      <button
-                        onClick={() => handleDeleteItem(item.scrap_item_id)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                        title="Delete"
-                      >
+                      <button onClick={() => handleDeleteCategory(cat.scrap_category_id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all active:scale-90 cursor-pointer" title="Delete">
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
@@ -487,188 +501,186 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           </div>
         )}
 
-        {/* ── ADD / EDIT VIEW ── */}
-        {(view === 'add' || view === 'edit') && (
-          <div className="max-w-2xl mx-auto space-y-6">
-            {/* Section Header */}
-            <div className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-4 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                  <Package className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-amber-500 uppercase tracking-wider">
-                  {view === 'add' ? 'New Scrap Item' : 'Edit Scrap Item'}
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="col-span-2">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={e => setFormData(p => ({ ...p, name: e.target.value }))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                  <select
-                    value={formData.scrap_category_id}
-                    onChange={e => setFormData(p => ({ ...p, scrap_category_id: e.target.value }))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
-                  >
-                    <option value="">-- No Category --</option>
-                    {categories.map(c => <option key={c.scrap_category_id} value={c.scrap_category_id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Unit</label>
-                  <select
-                    value={formData.unit}
-                    onChange={e => setFormData(p => ({ ...p, unit: e.target.value }))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
-                  >
-                    <option value="Kgs">Kgs</option>
-                    <option value="Pcs">Pcs</option>
-                    <option value="Grams">Grams</option>
-                    <option value="Ltrs">Ltrs</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Rate (₹)</label>
-                  <input
-                    type="number" step="0.01"
-                    onWheel={e => (e.target as HTMLInputElement).blur()}
-                    value={formData.purchase_price}
-                    onChange={e => setFormData(p => ({ ...p, purchase_price: e.target.value }))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Selling Rate (₹)</label>
-                  <input
-                    type="number" step="0.01"
-                    onWheel={e => (e.target as HTMLInputElement).blur()}
-                    value={formData.selling_price}
-                    onChange={e => setFormData(p => ({ ...p, selling_price: e.target.value }))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                  />
-                </div>
-                {view === 'add' && (
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Opening Stock</label>
-                    <input
-                      type="number" step="0.001"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={formData.current_stock}
-                      onChange={e => setFormData(p => ({ ...p, current_stock: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                    />
+        {/* ── SELLING VIEW ── */}
+        {view === 'selling' && (
+          <div className="max-w-4xl mx-auto space-y-5">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input
+                type="text"
+                value={sellingSearch}
+                onChange={e => setSellingSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && sellingResults.length > 0) {
+                    handleAddToSellingCart(sellingResults[0]);
+                  }
+                  if (e.key === 'Escape') { setSellingSearch(''); setSellingResults([]); }
+                }}
+                placeholder="Search scrap categories to sell..."
+                autoFocus
+                className="w-full pl-10 pr-4 py-3 bg-background border-2 border-emerald-500/30 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+              />
+              {sellingResults.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="max-h-[240px] overflow-y-auto">
+                    {sellingResults.map((s, i) => (
+                      <button
+                        key={s.scrap_category_id}
+                        onClick={() => handleAddToSellingCart(s)}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border/40 last:border-0 cursor-pointer"
+                      >
+                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
+                          <Recycle className="w-4 h-4" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            Stock: <span className="font-semibold">{Number(s.current_stock).toFixed(1)} {s.unit} &middot; ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
+                          </div>
+                        </div>
+                        <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                          + Add
+                        </div>
+                      </button>
+                    ))}
                   </div>
+                </div>
+              )}
+            </div>
+
+            {/* Selling cart */}
+            <div className="bg-card border border-border/80 rounded-xl shadow-sm divide-y divide-border/60">
+              <div className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingCart className="w-4 h-4 text-emerald-500" />
+                  <span className="text-sm font-bold text-foreground">Sale Items ({sellingSelected.length})</span>
+                </div>
+                {sellingSelected.length > 0 && (
+                  <button onClick={() => setSellingSelected([])} className="text-xs font-bold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-lg transition-colors cursor-pointer">Clear All</button>
                 )}
+              </div>
+
+              {sellingSelected.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                  <ShoppingCart className="w-10 h-10 mb-3 text-emerald-500/30" />
+                  <p className="font-medium text-foreground">No items selected</p>
+                  <p className="text-sm mt-1">Search and add scrap categories above</p>
+                </div>
+              ) : (
+                <div className="px-4 py-2 space-y-2 max-h-[400px] overflow-y-auto">
+                  {sellingSelected.map((entry, idx) => (
+                    <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border/60 rounded-xl group hover:border-emerald-500/30 transition-all duration-150">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          Stock: <span className={clsx('font-semibold', Number(entry.category.current_stock) <= 0 ? 'text-destructive' : 'text-emerald-500')}>{Number(entry.category.current_stock).toFixed(1)} {entry.category.unit}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-0.5 bg-muted/60 border border-border/80 rounded-lg p-0.5">
+                          <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: Math.max(0.1, s.qty - 0.1) } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <input type="number" min="0.1" step="0.1" value={entry.qty} onChange={e => { const val = e.target.value === '' ? 0.1 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: val } : s)); }} className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                          <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: s.qty + 0.1 } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+
+                        <div className="relative w-20">
+                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                          <input type="number" min="0" step="0.01" value={entry.rate} onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }} className="w-full pl-6 pr-2 py-1.5 bg-background border border-border rounded-lg text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-emerald-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                        </div>
+
+                        <div className="text-right min-w-[70px]">
+                          <div className="font-black text-sm text-emerald-500">₹{(entry.qty * entry.rate).toFixed(2)}</div>
+                        </div>
+
+                        <button onClick={() => setSellingSelected(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <div>
+                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Sale Amount</span>
+                <div className="text-2xl font-black text-emerald-500 mt-0.5">
+                  {formatCurrency(sellingSelected.reduce((sum, s) => sum + s.qty * s.rate, 0))}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setView('list')} className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors active:scale-95 cursor-pointer">Cancel</button>
+                <button onClick={handleRecordSales} disabled={sellingSelected.length === 0 || sellingProcessing} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-emerald-500/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                  {sellingProcessing ? (
+                    <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>
+                  ) : (
+                    <><ShoppingCart className="w-4 h-4" /> Complete Sale</>
+                  )}
+                </button>
               </div>
             </div>
 
             {statusMessage && (
-              <div className={clsx('px-4 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2', statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20')}>
-                {statusMessage.type === 'error' ? <AlertTriangle className="w-4 h-4" /> : <Save className="w-4 h-4" />}
-                {statusMessage.text}
+              <div className={clsx("px-4 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200", statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive")}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                <span className="flex-1">{statusMessage.text}</span>
               </div>
             )}
-
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setView('list')} className="px-4 py-2.5 text-sm font-bold text-destructive hover:bg-destructive/10 border border-destructive/30 rounded-xl transition-all active:scale-95 cursor-pointer">
-                Cancel
-              </button>
-              <button onClick={view === 'edit' ? handleUpdateItem : handleAddItem} className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
-                <Save className="w-4 h-4" /> {view === 'edit' ? 'Update' : 'Save'}
-              </button>
-            </div>
           </div>
         )}
 
         {/* ── TRANSACTION VIEW ── */}
-        {view === 'transaction' && selectedItem && (
+        {view === 'transaction' && selectedCategory && (
           <div className="grid grid-cols-2 gap-6">
             {/* Left: Transaction Form */}
             <div className="space-y-6">
-              {/* Item Summary Cards */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="bg-card border border-border/80 border-l-4 border-l-amber-500 rounded-xl p-4 shadow-sm">
                   <div className="text-sm text-muted-foreground font-semibold uppercase tracking-wider">Stock</div>
-                  <div className="text-xl font-black mt-1">{Number(selectedItem.current_stock).toFixed(1)} {selectedItem.unit}</div>
+                  <div className="text-xl font-black mt-1">{Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}</div>
                 </div>
                 <div className="bg-card border border-border/80 border-l-4 border-l-emerald-500 rounded-xl p-4 shadow-sm">
                   <div className="text-sm text-muted-foreground font-semibold uppercase tracking-wider">Purchase Rate</div>
-                  <div className="text-xl font-black mt-1 text-emerald-500">{formatCurrency(selectedItem.purchase_price)}</div>
+                  <div className="text-xl font-black mt-1 text-emerald-500">{formatCurrency(selectedCategory.purchase_price)}</div>
                 </div>
                 <div className="bg-card border border-border/80 border-l-4 border-l-blue-500 rounded-xl p-4 shadow-sm">
                   <div className="text-sm text-muted-foreground font-semibold uppercase tracking-wider">Selling Rate</div>
-                  <div className="text-xl font-black mt-1 text-blue-500">{formatCurrency(selectedItem.selling_price)}</div>
+                  <div className="text-xl font-black mt-1 text-blue-500">{formatCurrency(selectedCategory.selling_price)}</div>
                 </div>
               </div>
 
-              {/* Transaction Form */}
               <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
                 <div className="flex bg-muted rounded-lg p-0.5 mb-4">
-                  <button
-                    onClick={() => setTxForm(p => ({ ...p, type: 'PURCHASE' }))}
-                    className={clsx(
-                      'flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer',
-                      txForm.type === 'PURCHASE' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button onClick={() => setTxForm(p => ({ ...p, type: 'PURCHASE' }))} className={clsx('flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer', txForm.type === 'PURCHASE' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
                     <TrendingUp className="w-4 h-4 text-emerald-500" /> Purchase
                   </button>
-                  <button
-                    onClick={() => setTxForm(p => ({ ...p, type: 'SALE' }))}
-                    className={clsx(
-                      'flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer',
-                      txForm.type === 'SALE' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button onClick={() => setTxForm(p => ({ ...p, type: 'SALE' }))} className={clsx('flex-1 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer', txForm.type === 'SALE' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
                     <TrendingDown className="w-4 h-4 text-red-500" /> Sale
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Quantity ({selectedItem.unit})</label>
-                    <input
-                      type="number" step="0.001"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={txForm.quantity}
-                      onChange={e => setTxForm(p => ({ ...p, quantity: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                    />
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Quantity ({selectedCategory.unit})</label>
+                    <input type="number" step="0.001" onWheel={e => (e.target as HTMLInputElement).blur()} value={txForm.quantity} onChange={e => setTxForm(p => ({ ...p, quantity: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Rate (₹)</label>
-                    <input
-                      type="number" step="0.01"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={txForm.rate}
-                      onChange={e => setTxForm(p => ({ ...p, rate: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                    />
+                    <input type="number" step="0.01" onWheel={e => (e.target as HTMLInputElement).blur()} value={txForm.rate} onChange={e => setTxForm(p => ({ ...p, rate: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name</label>
-                    <input
-                      type="text"
-                      value={txForm.party_name}
-                      onChange={e => setTxForm(p => ({ ...p, party_name: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                    />
+                    <input type="text" value={txForm.party_name} onChange={e => setTxForm(p => ({ ...p, party_name: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
-                    <input
-                      type="text"
-                      value={txForm.notes}
-                      onChange={e => setTxForm(p => ({ ...p, notes: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                    />
+                    <input type="text" value={txForm.notes} onChange={e => setTxForm(p => ({ ...p, notes: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                   </div>
                 </div>
 
@@ -686,10 +698,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
 
-                <button
-                  onClick={handleAddTransaction}
-                  className="w-full mt-4 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer"
-                >
+                <button onClick={handleAddTransaction} className="w-full mt-4 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
                   <Save className="w-4 h-4" /> Record {txForm.type === 'PURCHASE' ? 'Purchase' : 'Sale'}
                 </button>
               </div>
@@ -702,12 +711,11 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   <TrendingUp className="w-4 h-4 text-amber-500" />
                   Transaction History
                 </h2>
-                <button onClick={() => loadTransactions(selectedItem.scrap_item_id)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-90 cursor-pointer" title="Refresh">
+                <button onClick={() => loadTransactions(selectedCategory.scrap_category_id)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-90 cursor-pointer" title="Refresh">
                   <RefreshCw className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Summary */}
               {(totalPurchases + totalSales) > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-3 text-center">
@@ -725,7 +733,6 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {/* Transactions Table */}
               <div className="border border-border rounded-xl overflow-hidden max-h-[500px] overflow-y-auto">
                 <div className="grid grid-cols-5 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40 sticky top-0">
                   <div className="col-span-1">Type</div>
