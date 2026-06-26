@@ -34,14 +34,12 @@ export function BillingTabBar({ onAddTab }: { onAddTab?: () => void }) {
             )}
           >
             <span className="truncate max-w-[120px]">{tab.title}</span>
-            {tabs.length > 1 && (
-              <button
-                onClick={(e) => handleClose(e, tab.id)}
-                className="p-0.5 rounded hover:bg-muted text-muted-foreground/60 hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            )}
+            <button
+              onClick={(e) => handleClose(e, tab.id)}
+              className="p-0.5 rounded hover:bg-muted text-muted-foreground/60 hover:text-foreground transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
           </div>
         ))}
         <button

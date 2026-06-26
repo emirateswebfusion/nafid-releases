@@ -48,6 +48,7 @@ export interface IElectronAPI {
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
+  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetParties: (tenant_id: string) => Promise<any[]>;
@@ -61,6 +62,7 @@ export interface IElectronAPI {
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Scrap (categories ARE items with price/stock/unit)
+  dbDeduplicateScrapCategories: () => Promise<{ removed: number }>;
   dbGetScrapCategories: (tenant_id: string) => Promise<any[]>;
   dbAddScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateScrapCategory: (cat: any) => Promise<{ success: boolean; error?: string }>;

@@ -65,6 +65,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI) {
         const tid = tenantId || '';
+        await window.electronAPI.dbDeduplicateScrapCategories();
         const cats = await window.electronAPI.dbGetScrapCategories(tid);
         if (Array.isArray(cats)) setCategories(cats);
       }
@@ -194,7 +195,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const res = await window.electronAPI.dbGetScrapCategoriesBySearch({ tenant_id: tenantId || '', search: sellingSearch });
-      if (Array.isArray(res)) setSellingResults(res);
+      if (Array.isArray(res)) setSellingResults(res.filter((c: ScrapCategory, i: number, arr: ScrapCategory[]) => arr.findIndex(x => x.scrap_category_id === c.scrap_category_id) === i));
     }, 150);
     return () => clearTimeout(t);
   }, [sellingSearch, tenantId]);
@@ -408,7 +409,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
         {view === 'list' && (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="bg-card border border-border/80 border-l-4 border-l-amber-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-black">{categories.length}</span>
@@ -420,7 +421,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
               </div>
               <div className="bg-card border border-border/80 border-l-4 border-l-emerald-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-emerald-500">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)} crt`}</span>
+                  <span className="text-2xl font-black text-emerald-500">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)}`}</span>
                   <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
                     <Package className="w-4 h-4" />
                   </div>
@@ -435,15 +436,6 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
                 <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Estimated Value</div>
-              </div>
-              <div className="bg-card border border-border/80 border-l-4 border-l-indigo-500 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-indigo-500">{categories.length}</span>
-                  <div className="p-2 rounded-lg bg-indigo-500/10 text-indigo-500">
-                    <TrendingDown className="w-4 h-4" />
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground font-semibold mt-1 uppercase tracking-wider">Categories</div>
               </div>
             </div>
 

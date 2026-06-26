@@ -314,28 +314,24 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       {view === 'list' && (
         <>
           {/* Summary Cards */}
-          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
-            <div className="grid grid-cols-2 gap-3 w-full max-w-lg">
-              <div className="bg-card p-3 rounded-xl border border-border/80 shadow-sm">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Receivable</p>
-                <p className="text-lg font-black text-destructive mt-0.5">₹{totalReceivable.toFixed(2)}</p>
-              </div>
-              <div className="bg-card p-3 rounded-xl border border-border/80 shadow-sm">
-                <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Payable</p>
-                <p className="text-lg font-black text-green-600 mt-0.5">₹{totalPayable.toFixed(2)}</p>
-              </div>
+          <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b border-border bg-card/50 shrink-0 shadow-sm">
+            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Receivable</p>
+              <p className="text-2xl font-black text-destructive mt-1">₹{totalReceivable.toFixed(2)}</p>
+            </div>
+            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Payable</p>
+              <p className="text-2xl font-black text-green-600 mt-1">₹{totalPayable.toFixed(2)}</p>
             </div>
           </div>
 
           {/* Search */}
-          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
-            <div className="flex-1 max-w-lg">
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input type="text" placeholder="Search parties..."
-                  value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-              </div>
+          <div className="px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <input type="text" placeholder="Search parties..."
+                value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+                className="w-full bg-background border border-border/80 rounded-xl py-2.5 pl-10 pr-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
@@ -36,23 +36,41 @@ export function ActionPane() {
   const [editedItems, setEditedItems] = useState<any[]>([]);
   const [pastBillView, setPastBillView] = useState<'search' | 'detail'>('search');
 
+  const [reservedInvoiceNumber, setReservedInvoiceNumber] = useState('');
+
+  const peekInvoiceNumber = useCallback(async () => {
+    if (!window.electronAPI) return;
+    if (reservedInvoiceNumber) return;
+    try {
+      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+      if (result.success && result.invoiceNumber) {
+        setReservedInvoiceNumber(result.invoiceNumber);
+      }
+    } catch (e) {
+      console.error('Failed to peek invoice number', e);
+    }
+  }, [tenantId, reservedInvoiceNumber]);
+
+  useEffect(() => {
+    peekInvoiceNumber();
+  }, [peekInvoiceNumber]);
+
   const handleCheckout = async () => {
     if (grandTotal === 0 || items.length === 0) return;
 
     if (window.electronAPI) {
       const invoice_id = uuidv4();
-      // Generate invoice number from counter, fallback to timestamp-based
-      let invoice_number = `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
-      try {
-        if (window.electronAPI) {
-          const { tenantId } = useAuthStore.getState();
-          const result = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-          if (result.success && result.invoiceNumber) {
-            invoice_number = result.invoiceNumber;
-          }
-        }
-      } catch (e) {
-        console.error('Failed to generate invoice number from counter, using fallback', e);
+      // Try cloud server first for conflict-free numbering across computers
+      let invoice_number: string;
+      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
+      if (serverResult.success && serverResult.invoiceNumber) {
+        invoice_number = serverResult.invoiceNumber;
+      } else {
+        // Offline fallback: use local counter
+        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+        invoice_number = localResult.success && localResult.invoiceNumber
+          ? localResult.invoiceNumber
+          : `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
       }
 
       const lineItems = items.map((item) => {
@@ -201,6 +219,17 @@ export function ActionPane() {
 
     clearCart();
     setIsCheckingOut(false);
+    setReservedInvoiceNumber('');
+    try {
+      if (window.electronAPI) {
+        const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+        if (result.success && result.invoiceNumber) {
+          setReservedInvoiceNumber(result.invoiceNumber);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to peek next invoice number', e);
+    }
   };
 
   const handleCloseDiscountModal = () => {

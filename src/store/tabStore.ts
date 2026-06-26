@@ -22,6 +22,9 @@ export interface Tab {
   customerGstin: string;
   paymentMethod: PaymentMethod;
   receivedAmount: number;
+  reservedInvoiceNumber: string;
+  reservedScrapInvoiceNumber: string;
+  reservedQuotationNumber: string;
 }
 
 interface TabState {
@@ -33,6 +36,7 @@ interface TabState {
   renameTab: (id: string, title: string) => void;
   updateActiveTab: (updates: Partial<Omit<Tab, 'id' | 'snapshot'>>) => void;
   syncActiveSnapshot: () => void;
+  getActiveTab: () => Tab | undefined;
 }
 
 function createDefaultTab(): Tab {
@@ -52,6 +56,9 @@ function createDefaultTab(): Tab {
     customerGstin: '',
     paymentMethod: 'CASH',
     receivedAmount: 0,
+    reservedInvoiceNumber: '',
+    reservedScrapInvoiceNumber: '',
+    reservedQuotationNumber: '',
   };
 }
 
@@ -189,5 +196,10 @@ export const useTabStore = create<TabState>((set, get) => ({
         return t;
       }),
     });
+  },
+
+  getActiveTab: () => {
+    const { tabs, activeTabId } = get();
+    return tabs.find(t => t.id === activeTabId);
   },
 }));

@@ -67,10 +67,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
+  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
 
   // Scrap (categories ARE items with price/stock/unit)
+  dbDeduplicateScrapCategories: () => ipcRenderer.invoke('db:deduplicateScrapCategories'),
   dbGetScrapCategories: (tenant_id: string) => ipcRenderer.invoke('db:getScrapCategories', tenant_id),
   dbAddScrapCategory: (cat: any) => ipcRenderer.invoke('db:addScrapCategory', cat),
   dbUpdateScrapCategory: (cat: any) => ipcRenderer.invoke('db:updateScrapCategory', cat),

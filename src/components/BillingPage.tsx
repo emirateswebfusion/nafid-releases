@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -101,13 +101,13 @@ export function BillingPage() {
   const [shopPhone, setShopPhone] = useState('');
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
-  const [nextInvoiceNumber, setNextInvoiceNumber] = useState('');
 
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const addTab = useTabStore(s => s.addTab);
   const updateActiveTab = useTabStore(s => s.updateActiveTab);
   const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
+  const getActiveTab = useTabStore(s => s.getActiveTab);
 
   const tabCounter = useRef(0);
   const initialized = useRef(false);
@@ -123,6 +123,52 @@ export function BillingPage() {
   const customerName = activeTab?.customerName ?? '';
   const customerPhone = activeTab?.customerPhone ?? '';
   const customerGstin = activeTab?.customerGstin ?? '';
+
+  const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
+  const nextScrapInvoiceNumber = activeTab?.reservedScrapInvoiceNumber ?? '';
+  const nextQuotationNumber = activeTab?.reservedQuotationNumber ?? '';
+
+  const reserveInvoiceNumberForTab = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const tab = getActiveTab();
+    if (!tab || tab.reservedInvoiceNumber) return;
+    try {
+      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+      if (result.success && result.invoiceNumber) {
+        updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber });
+      }
+    } catch (e) {
+      console.error('Failed to peek invoice number', e);
+    }
+  }, [tenantId, getActiveTab, updateActiveTab]);
+
+  const reserveScrapInvoiceNumberForTab = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const tab = getActiveTab();
+    if (!tab || tab.reservedScrapInvoiceNumber) return;
+    try {
+      const result = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
+      if (result.success && result.invoiceNumber) {
+        updateActiveTab({ reservedScrapInvoiceNumber: result.invoiceNumber });
+      }
+    } catch (e) {
+      console.error('Failed to reserve scrap invoice number', e);
+    }
+  }, [tenantId, getActiveTab, updateActiveTab]);
+
+  const reserveQuotationNumberForTab = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const tab = getActiveTab();
+    if (!tab || tab.reservedQuotationNumber) return;
+    try {
+      const result = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tenantId || '' });
+      if (result.success && result.quotationNumber) {
+        updateActiveTab({ reservedQuotationNumber: result.quotationNumber });
+      }
+    } catch (e) {
+      console.error('Failed to reserve quotation number', e);
+    }
+  }, [tenantId, getActiveTab, updateActiveTab]);
 
   const displayGrandTotal = Math.max(0, grandTotal - scrapDeduction);
   const balanceAmount = receivedAmount - displayGrandTotal;
@@ -157,12 +203,12 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' }).then((cfg: any) => {
-      if (cfg) {
-        setNextInvoiceNumber(`${cfg.prefix || 'INV-'}${cfg.counter || 1}`);
-      }
-    });
   }, [tenantId]);
+
+  // Reserve invoice number when tab becomes active without a reservation
+  useEffect(() => {
+    reserveInvoiceNumberForTab();
+  }, [activeTabId, reserveInvoiceNumberForTab]);
 
   const [showPastBill, setShowPastBill] = useState(false);
   const [pastBillSearch, setPastBillSearch] = useState('');
@@ -410,10 +456,15 @@ export function BillingPage() {
     if (kg <= 0) return;
     setScrapProcessing(true);
     try {
-      const { tenantId } = useAuthStore.getState();
-      const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
-      if (!numRes.success || !numRes.invoiceNumber) throw new Error('Failed to generate scrap invoice number');
-      const scrapInvoiceNum = numRes.invoiceNumber;
+      const tab = getActiveTab();
+      let scrapInvoiceNum = tab?.reservedScrapInvoiceNumber || '';
+      if (!scrapInvoiceNum) {
+        const { tenantId } = useAuthStore.getState();
+        const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
+        if (!numRes.success || !numRes.invoiceNumber) throw new Error('Failed to generate scrap invoice number');
+        scrapInvoiceNum = numRes.invoiceNumber;
+        updateActiveTab({ reservedScrapInvoiceNumber: scrapInvoiceNum });
+      }
       const rate = Number(selectedScrapItem.purchase_price) || 0;
       const totalAmount = kg * rate;
       const txRes = await window.electronAPI.dbAddScrapTransaction({
@@ -464,7 +515,7 @@ export function BillingPage() {
     const raw = e.target.value;
     // Only allow digits — strip any non-digit characters
     const digits = raw.replace(/\D/g, '');
-    const fullNumber = digits ? `SCRAP-${digits}` : '';
+    const fullNumber = digits ? `SCR-${digits.padStart(3, '0')}` : '';
     setScrapInvoiceNumber(fullNumber);
     if (fullNumber) {
       window.electronAPI?.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: fullNumber }).then((res: any) => {
@@ -527,9 +578,13 @@ export function BillingPage() {
       let quotationNumber = editingQuotationNumber || '';
 
       if (!editingQuotationId) {
-        const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tid });
-        if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
-        quotationNumber = numRes.quotationNumber || '';
+        const tab = getActiveTab();
+        quotationNumber = tab?.reservedQuotationNumber || '';
+        if (!quotationNumber) {
+          const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tid });
+          if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
+          quotationNumber = numRes.quotationNumber || '';
+        }
       }
 
       const qItems = items.map(item => {
@@ -729,18 +784,17 @@ export function BillingPage() {
     }
 
     const invoice_id = uuidv4();
-    // Generate invoice number from counter, fallback to timestamp-based
-    let invoice_number = `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
-    try {
-      if (window.electronAPI) {
-        const { tenantId } = useAuthStore.getState();
-        const result = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-        if (result.success && result.invoiceNumber) {
-          invoice_number = result.invoiceNumber;
-        }
-      }
-    } catch (e) {
-      console.error('Failed to generate invoice number from counter, using fallback', e);
+    // Try cloud server first for conflict-free numbering across computers
+    let invoice_number: string;
+    const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
+    if (serverResult.success && serverResult.invoiceNumber) {
+      invoice_number = serverResult.invoiceNumber;
+    } else {
+      // Offline fallback: use local counter (collision resolved on sync with -C suffix)
+      const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+      invoice_number = localResult.success && localResult.invoiceNumber
+        ? localResult.invoiceNumber
+        : `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
     }
 
     const lineItems = items.map(item => {
@@ -864,7 +918,13 @@ export function BillingPage() {
 
     setCheckoutSuccess(true);
     setIsCheckingOut(false);
-    setTimeout(() => { clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0 }); syncActiveSnapshot(); setCheckoutSuccess(false); }, 1800);
+    setTimeout(() => {
+      clearCart();
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      syncActiveSnapshot();
+      setCheckoutSuccess(false);
+      reserveInvoiceNumberForTab();
+    }, 1800);
   };
 
   const handleHoldBill = () => {
@@ -1035,10 +1095,19 @@ export function BillingPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              {nextInvoiceNumber && (
-                <span className="text-xs font-bold font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 shrink-0 flex items-center gap-1">
-                  <span                  className="text-[10px] font-sans font-bold uppercase tracking-wider text-primary/70">Inv:</span>
+              {!isScrapMode && !isQuotationMode && nextInvoiceNumber && (
+                <span className="text-xs font-bold font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 shrink-0">
                   {nextInvoiceNumber}
+                </span>
+              )}
+              {isScrapMode && nextScrapInvoiceNumber && (
+                <span className="text-xs font-bold font-mono text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 shrink-0">
+                  {nextScrapInvoiceNumber}
+                </span>
+              )}
+              {isQuotationMode && nextQuotationNumber && (
+                <span className="text-xs font-bold font-mono text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20 shrink-0">
+                  {nextQuotationNumber}
                 </span>
               )}
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
@@ -1069,8 +1138,10 @@ export function BillingPage() {
           </button>
           <button
             onClick={() => {
-              setIsScrapMode(!isScrapMode);
-              if (!isScrapMode && isQuotationMode) setQuotationMode(false);
+              const next = !isScrapMode;
+              setIsScrapMode(next);
+              if (next && isQuotationMode) setQuotationMode(false);
+              if (next) reserveScrapInvoiceNumberForTab();
             }}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
@@ -1085,8 +1156,10 @@ export function BillingPage() {
           </button>
           <button
             onClick={() => {
-              setQuotationMode(!isQuotationMode);
-              if (!isQuotationMode && isScrapMode) setIsScrapMode(false);
+              const next = !isQuotationMode;
+              setQuotationMode(next);
+              if (next && isScrapMode) setIsScrapMode(false);
+              if (next) reserveQuotationNumberForTab();
             }}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
@@ -1589,43 +1662,7 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* ── Scrap Invoice View (when in scrap mode) ── */}
-            <div className={clsx(
-              'overflow-hidden transition-all duration-400 ease-in-out',
-              isScrapMode
-                ? 'max-h-[500px] opacity-100 scale-100'
-                : 'max-h-0 opacity-0 scale-95'
-            )}>
-              <div className="space-y-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl mt-1">
-                <div className="flex items-center gap-2">
-                  <Recycle className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
-                    Scrap Invoices
-                  </span>
-                </div>
-                {scrapDeduction > 0 && scrapInvoiceNumber ? (
-                  <div className="flex items-center justify-between p-3 bg-card border border-amber-500/20 rounded-xl">
-                    <div>
-                      <p className="text-xs font-bold text-foreground">{scrapInvoiceNumber}</p>
-                      <p className="text-2xl font-black text-amber-500 mt-0.5">-{formatCurrency(scrapDeduction)}</p>
-                    </div>
-                    <button
-                      onClick={() => handleViewScrapInvoice(scrapInvoiceNumber)}
-                      disabled={scrapInvoiceViewLoading}
-                      className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                      View Details
-                    </button>
-                  </div>
-                ) : (
-                  <div className="p-3 bg-card border border-amber-500/10 rounded-xl text-center">
-                    <p className="text-xs text-muted-foreground">No scrap invoices yet</p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">Search and select scrap items above to create one</p>
-                  </div>
-                )}
-              </div>
-            </div>
+
           </div>
 
           {/* ── STICKY FOOTER: Totals + Actions ── */}
@@ -1745,7 +1782,7 @@ export function BillingPage() {
                     <input
                       type="text"
                       inputMode="numeric"
-                      value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
+                      value={scrapInvoiceNumber.replace(/^SCR(?:AP)?-/, '')}
                       onChange={handleScrapInvoiceChange}
                       placeholder="001"
                       className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

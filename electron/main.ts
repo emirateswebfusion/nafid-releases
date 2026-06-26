@@ -1230,13 +1230,34 @@ ipcMain.handle('auth:clearToken', () => {
   }
 });
 
+ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const configPath = getConfigPath();
+    if (!fs.existsSync(configPath)) return { success: false, error: 'Not authenticated', offline: true };
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const token = config.jwt_token;
+    if (!token) return { success: false, error: 'No auth token', offline: true };
+
+    const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+    const response = await fetch(`${apiUrl}/api/invoices/next-number`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(5000),
+    });
+
+    if (!response.ok) return { success: false, error: `Server returned ${response.status}`, offline: true };
+    const data = await response.json();
+    return { success: true, invoiceNumber: data.invoiceNumber };
+  } catch (error: any) {
+    return { success: false, error: error.message, offline: true };
+  }
+});
+
 ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenant_id: string; prefix?: string }) => {
   try {
     const db = getDb();
     const effectivePrefix = prefix || 'INV-';
     const configKey = 'invoice_counter_config';
 
-    // Use a transaction for atomic get-and-increment
     const result = db.transaction(() => {
       const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
       let counter = 1;
@@ -1251,9 +1272,8 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
         }
       }
 
-      const invoiceNumber = `${config.prefix || effectivePrefix}${counter}`;
+      const invoiceNumber = `${config.prefix || effectivePrefix}${String(counter).padStart(3, '0')}`;
       
-      // Increment and save
       config.counter = counter + 1;
       db.prepare(`
         INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
@@ -1345,6 +1365,26 @@ ipcMain.handle('db:deleteScrapCategory', (event, scrapCategoryId: string) => {
   }
 });
 
+ipcMain.handle('db:deduplicateScrapCategories', () => {
+  try {
+    const db = getDb();
+    const dupes: any[] = db.prepare(`
+      SELECT scrap_category_id, COUNT(*) as cnt, MIN(rowid) as keep_rowid
+      FROM scrap_categories
+      GROUP BY scrap_category_id
+      HAVING COUNT(*) > 1
+    `).all();
+    let removed = 0;
+    for (const d of dupes) {
+      const result = db.prepare(`DELETE FROM scrap_categories WHERE scrap_category_id = ? AND rowid != ?`).run(d.scrap_category_id, d.keep_rowid);
+      removed += result.changes;
+    }
+    return { removed };
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
 // ── Scrap Transactions IPC (now references scrap_categories) ──
 ipcMain.handle('db:addScrapTransaction', (event, t) => {
   try {
@@ -1404,13 +1444,13 @@ ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: {
 ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const prefix = 'SCRAP-';
+    const prefix = 'SCR-';
     const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tenant_id || 'global', 'scrap_invoice_counter');
     let counter = 1;
     if (row) {
       try { counter = JSON.parse(row.value).counter || 1; } catch { counter = 1; }
     }
-    const invoiceNumber = `${prefix}${counter}`;
+    const invoiceNumber = `${prefix}${String(counter).padStart(3, '0')}`;
     db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
       VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
@@ -1475,7 +1515,7 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id, prefix: _prefix
       } catch { counter = 1; }
     }
 
-    const quotationNumber = `${config.prefix}${counter}`;
+    const quotationNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
     config.counter = counter + 1;
     db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
