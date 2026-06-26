@@ -7,6 +7,7 @@ import clsx from 'clsx';
 import { Input } from './ui/Input';
 import { Skeleton } from './ui/Skeleton';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -357,18 +358,23 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                       if (!selectedInvoice || !window.electronAPI) return;
                       try {
                         const { tenantId } = useAuthStore.getState();
-                        const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+                        const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
                           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
                           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
                           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
                           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+                          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
                         ]);
                         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
                         const charsPerLine = receiptConfig?.charsPerLine ? Number(receiptConfig.charsPerLine) : undefined;
 
+                        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+                        const useA4 = printFmt?.format === 'a4';
+
                         const receiptData: ReceiptData = {
                           shopName: useAuthStore.getState().shopName || 'My Shop',
+                          shopGstin: shopGstin || undefined,
                           shopAddress: shopAddr || undefined,
                           shopPhone: shopPh || undefined,
                           upiId: upi || undefined,
@@ -391,8 +397,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                           isReprint: true
                         };
 
-                        const receiptText = generateReceiptText(receiptData, receiptWidthCm, charsPerLine);
-                        await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+                        if (useA4) {
+                          const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+                          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+                          if (!printResult.success && printResult.useDefaultDialog) {
+                            const pw = window.open('', '_blank');
+                            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+                          }
+                        } else {
+                          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+                          const thermalStyle = printFmt?.style || 'standard';
+                          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+                          await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+                        }
                       } catch (err) {
                         console.error('Failed to reprint', err);
                       }

@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, LayoutDashboard, Users, Store } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, Store, BookOpen } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function Layout() {
@@ -8,8 +8,9 @@ export default function Layout() {
   const location = useLocation();
 
   const links = [
-    { to: '/dashboard', label: 'Sales History', icon: LayoutDashboard },
-    { to: '/staff', label: 'Staff Admin', icon: Users },
+    { to: '/dashboard', label: 'Sales', icon: LayoutDashboard },
+    { to: '/parties', label: 'Parties', icon: BookOpen },
+    { to: '/staff', label: 'Staff', icon: Users },
   ];
 
   return (

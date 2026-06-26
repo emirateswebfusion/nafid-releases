@@ -1,22 +1,33 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Barcode from 'react-barcode';
+import QRCode from 'qrcode';
+import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { useAuthStore } from '../store/authStore';
 
-export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1 }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number }) {
+export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1, codeType = DEFAULT_CODE_TYPE }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number; codeType?: CodeType }) {
   const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
   };
+
   useEffect(() => {
-    // Give react-barcode a tiny bit of time to render the SVG/Canvas
+    if (codeType === 'qrcode') {
+      QRCode.toDataURL(barcode, { width: 120, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+        .then(url => setQrDataUrl(url))
+        .catch(console.error);
+    }
+  }, [barcode, codeType]);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       if (window.electronAPI && window.electronAPI.printReady) {
         window.electronAPI.printReady();
       }
     }, 500);
     return () => clearTimeout(timer);
-  }, [barcode, quantity, columns]);
+  }, [barcode, quantity, columns, codeType, qrDataUrl]);
 
   const pages: React.ReactNode[] = [];
   let currentQuantity = 0;
@@ -45,10 +56,15 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
                   </div>
                 </div>
               )}
-              {/* 
-                Width and height tweaked to prevent clipping on standard 50x25mm labels.
-              */}
-              <Barcode value={barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
+              {codeType === 'qrcode' ? (
+                qrDataUrl ? (
+                  <img src={qrDataUrl} alt="QR Code" style={{ width: '70px', height: '70px', imageRendering: 'pixelated' }} />
+                ) : (
+                  <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>Loading...</div>
+                )
+              ) : (
+                <Barcode value={barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
                 <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {barcode}

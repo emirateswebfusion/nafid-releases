@@ -11,6 +11,7 @@ import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 export function ActionPane() {
   const discountInputRef = useRef<HTMLInputElement>(null);
@@ -90,19 +91,24 @@ export function ActionPane() {
       setHardwareError(null);
 
       try {
-        const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+        const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
         ]);
 
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
         const charsPerLine = receiptConfig?.charsPerLine ? Number(receiptConfig.charsPerLine) : undefined;
 
+        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+        const useA4 = printFmt?.format === 'a4';
+
         const receiptData: ReceiptData = {
           shopName: shopName || 'My Shop',
+          shopGstin: shopGstin || undefined,
           shopAddress: shopAddr || undefined,
           shopPhone: shopPh || undefined,
           upiId: upi || undefined,
@@ -142,14 +148,23 @@ export function ActionPane() {
           grandTotal
         };
 
-        const receiptText = generateReceiptText(receiptData, receiptWidthCm, charsPerLine);
-        
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-        
-        if (!printResult.success) {
-          setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
-          setIsCheckingOut(false);
-          return;
+        if (useA4) {
+          const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+          if (!printResult.success && printResult.useDefaultDialog) {
+            const pw = window.open('', '_blank');
+            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+          }
+        } else {
+          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+          const thermalStyle = printFmt?.style || 'standard';
+          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+          if (!printResult.success) {
+            setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
+            setIsCheckingOut(false);
+            return;
+          }
         }
 
         const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');

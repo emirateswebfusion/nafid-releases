@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Staff from './pages/Staff';
+import Parties from './pages/Parties';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -20,6 +21,7 @@ function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="staff" element={<Staff />} />
+            <Route path="parties" element={<Parties />} />
           </Route>
         </Routes>
       </Router>

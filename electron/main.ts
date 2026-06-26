@@ -660,7 +660,12 @@ ipcMain.handle('db:getParties', (event, tenantId: string) => {
   try {
     const db = getDb();
     if (!tenantId) return [];
-    return db.prepare('SELECT * FROM parties WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC').all(tenantId);
+    const parties = db.prepare(`
+      SELECT p.*, 
+        (SELECT MAX(pl.transaction_date) FROM party_ledger pl WHERE pl.party_id = p.party_id) AS last_transaction_date
+      FROM parties p WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC
+    `).all(tenantId);
+    return parties;
   } catch (error: any) {
     return { error: error.message };
   }
@@ -669,10 +674,35 @@ ipcMain.handle('db:getParties', (event, tenantId: string) => {
 ipcMain.handle('db:addParty', (event, p) => {
   try {
     const db = getDb();
+    const bt = p.balance_type || 'RECEIVABLE';
+    const initialBalance = bt === 'RECEIVABLE'
+      ? Math.abs(p.balance || 0)
+      : -Math.abs(p.balance || 0);
+
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, balance, notes, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.balance ?? 0, p.notes || null);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, initialBalance, bt, p.notes || null);
+
+    // Create opening balance ledger entry
+    if (p.balance && parseFloat(p.balance) > 0) {
+      const amount = Math.abs(parseFloat(p.balance));
+      const ledgerId = p.party_id + '-OPENING';
+      db.prepare(`
+        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, created_by, created_by_name, created_at, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(
+        ledgerId, p.party_id, p.tenant_id,
+        `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
+        bt === 'RECEIVABLE' ? amount : 0,
+        bt === 'PAYABLE' ? amount : 0,
+        initialBalance,
+        p.created_by || null,
+        p.created_by_name || null
+      );
+      db.prepare(`UPDATE parties SET last_transaction_date = CURRENT_TIMESTAMP WHERE party_id = ?`).run(p.party_id);
+    }
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -683,9 +713,9 @@ ipcMain.handle('db:updateParty', (event, p) => {
   try {
     const db = getDb();
     db.prepare(`
-      UPDATE parties SET name = ?, phone = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      UPDATE parties SET name = ?, phone = ?, address = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE party_id = ?
-    `).run(p.name, p.phone || null, p.notes || null, p.party_id);
+    `).run(p.name, p.phone || null, p.address || null, p.notes || null, p.party_id);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -706,6 +736,160 @@ ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id
   try {
     const db = getDb();
     db.prepare("UPDATE parties SET balance = balance + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(amount, party_id);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+// ── Party Ledger Handlers ────────────────────────────────────────────────
+ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
+  try {
+    const db = getDb();
+    // Ensure the table exists (safe for first run after migration)
+    db.exec(`CREATE TABLE IF NOT EXISTS party_ledger (
+      ledger_id TEXT PRIMARY KEY,
+      party_id TEXT NOT NULL,
+      tenant_id TEXT NOT NULL,
+      transaction_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      description TEXT NOT NULL,
+      credit_amount REAL NOT NULL DEFAULT 0,
+      debit_amount REAL NOT NULL DEFAULT 0,
+      running_balance REAL NOT NULL,
+      reference_number TEXT,
+      created_by TEXT,
+      created_by_name TEXT,
+      sync_status TEXT DEFAULT 'SYNCED',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )`);
+    return db.prepare(`
+      SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+    `).all(partyId);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:addPartyLedgerEntry', (event, entry) => {
+  try {
+    const db = getDb();
+    
+    // Get current party balance
+    const party = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(entry.party_id) as any;
+    if (!party) return { success: false, error: 'Party not found' };
+
+    const currentBalance = parseFloat(party.balance) || 0;
+    const parsedAmount = Math.abs(parseFloat(entry.amount));
+    const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
+    const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
+    const newBalance = currentBalance + creditAmount - debitAmount;
+
+    db.prepare(`
+      INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      entry.ledger_id,
+      entry.party_id,
+      entry.tenant_id,
+      entry.transaction_date || new Date().toISOString(),
+      entry.description,
+      creditAmount,
+      debitAmount,
+      newBalance,
+      entry.reference_number || null,
+      entry.created_by || null,
+      entry.created_by_name || null
+    );
+
+    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+      .run(newBalance, entry.transaction_date || new Date().toISOString(), entry.party_id);
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
+  try {
+    const db = getDb();
+
+    const existing = db.prepare('SELECT * FROM party_ledger WHERE ledger_id = ? AND party_id = ?').get(entry.ledger_id, entry.party_id) as any;
+    if (!existing) return { success: false, error: 'Ledger entry not found' };
+
+    const parsedAmount = entry.amount !== undefined ? Math.abs(parseFloat(entry.amount)) : (existing.credit_amount || existing.debit_amount || 0);
+    const txType = entry.transaction_type || (existing.credit_amount > 0 ? 'CREDIT' : 'DEBIT');
+    const creditAmount = txType === 'CREDIT' ? parsedAmount : 0;
+    const debitAmount = txType === 'DEBIT' ? parsedAmount : 0;
+
+    db.prepare(`
+      UPDATE party_ledger SET 
+        transaction_date = ?, description = ?, credit_amount = ?, debit_amount = ?,
+        reference_number = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE ledger_id = ? AND party_id = ?
+    `).run(
+      entry.transaction_date || existing.transaction_date,
+      entry.description || existing.description,
+      creditAmount,
+      debitAmount,
+      entry.reference_number !== undefined ? entry.reference_number : existing.reference_number,
+      entry.ledger_id,
+      entry.party_id
+    );
+
+    // Recalculate running balance for all entries
+    const entries = db.prepare(`
+      SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+      WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+    `).all(entry.party_id) as any[];
+
+    let running = 0;
+    for (const row of entries) {
+      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+    }
+
+    const latest = db.prepare(`
+      SELECT transaction_date FROM party_ledger WHERE party_id = ?
+      ORDER BY transaction_date DESC LIMIT 1
+    `).get(entry.party_id) as any;
+
+    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+      .run(running, latest ? latest.transaction_date : null, entry.party_id);
+
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { ledger_id: string; party_id: string }) => {
+  try {
+    const db = getDb();
+    
+    db.prepare('DELETE FROM party_ledger WHERE ledger_id = ? AND party_id = ?').run(ledger_id, party_id);
+
+    // Recalculate running balance
+    const entries = db.prepare(`
+      SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+      WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+    `).all(party_id) as any[];
+
+    let running = 0;
+    for (const row of entries) {
+      running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+      db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+    }
+
+    const latest = db.prepare(`
+      SELECT transaction_date FROM party_ledger WHERE party_id = ?
+      ORDER BY transaction_date DESC LIMIT 1
+    `).get(party_id) as any;
+
+    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+      .run(running, latest ? latest.transaction_date : null, party_id);
+
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

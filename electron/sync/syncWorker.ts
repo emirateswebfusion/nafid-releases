@@ -85,6 +85,7 @@ async function runSyncCycle() {
       await syncInvoices(jwt_token, tenant_id);
       await syncSettings(jwt_token, tenant_id);
       await syncParties(jwt_token, tenant_id);
+      await syncPartyLedger(jwt_token, tenant_id);
 
       if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
       if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
@@ -92,6 +93,7 @@ async function runSyncCycle() {
       if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
       if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
       if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+      if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
     } catch (err: any) {
       console.error('[SyncWorker] Sync cycle error:', err.message);
     }
@@ -724,17 +726,20 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
 
     const upsert = db.prepare(`
       INSERT INTO parties (
-        party_id, tenant_id, name, phone, balance, notes, is_deleted,
+        party_id, tenant_id, name, phone, address, balance, balance_type, notes, last_transaction_date, is_deleted,
         sync_status, created_at, updated_at
       ) VALUES (
-        @party_id, @tenant_id, @name, @phone, @balance, @notes, @is_deleted,
+        @party_id, @tenant_id, @name, @phone, @address, @balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(party_id) DO UPDATE SET
         name = excluded.name,
         phone = excluded.phone,
+        address = excluded.address,
         balance = excluded.balance,
+        balance_type = excluded.balance_type,
         notes = excluded.notes,
+        last_transaction_date = excluded.last_transaction_date,
         is_deleted = excluded.is_deleted,
         created_at = COALESCE(parties.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
@@ -750,8 +755,11 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
             tenant_id: tenantId,
             name: p.name,
             phone: p.phone || null,
+            address: p.address || null,
             balance: p.balance ?? 0,
+            balance_type: p.balance_type || 'RECEIVABLE',
             notes: p.notes || null,
+            last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
             is_deleted: p.is_deleted ? 1 : 0,
             created_at: toSqliteDate(p.created_at),
             updated_at: toSqliteDate(p.updated_at),
@@ -769,6 +777,103 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull parties failed:', err.message);
+    return false;
+  }
+}
+
+// ── Party Ledger Sync (Edge → Cloud) ──────────────────────────────────────────
+async function syncPartyLedger(token: string, tenantId: string) {
+  const db = getDb();
+  const pendingEntries = db.prepare(`SELECT * FROM party_ledger WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  if (pendingEntries.length === 0) return;
+
+  console.log(`[SyncWorker] Pushing ${pendingEntries.length} party ledger entries to cloud...`);
+  const updateStmt = db.prepare(`UPDATE party_ledger SET sync_status = 'SYNCED' WHERE ledger_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pendingEntries.length; i += BATCH_SIZE) {
+    const batch = pendingEntries.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/party-ledger`,
+      token,
+      batch,
+      'entries',
+      `Party Ledger batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Party Ledger (Cloud → Edge) ─────────────────────────────────────────
+async function pullPartyLedger(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/party-ledger`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      if (response.status !== 404) {
+        console.error(`[SyncWorker] Pull party ledger failed: HTTP ${response.status}`);
+      }
+      return false;
+    }
+    const cloudEntries: any[] = await response.json();
+    if (!Array.isArray(cloudEntries) || cloudEntries.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO party_ledger (
+        ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
+        running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
+      ) VALUES (
+        @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
+        @running_balance, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(ledger_id) DO UPDATE SET
+        transaction_date = excluded.transaction_date,
+        description = excluded.description,
+        credit_amount = excluded.credit_amount,
+        debit_amount = excluded.debit_amount,
+        running_balance = excluded.running_balance,
+        reference_number = excluded.reference_number,
+        created_by = excluded.created_by,
+        created_by_name = excluded.created_by_name,
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+    `);
+
+    const tx = db.transaction((entries: any[]) => {
+      for (const e of entries) {
+        try {
+          upsert.run({
+            ledger_id: e.ledger_id,
+            party_id: e.party_id,
+            tenant_id: tenantId,
+            transaction_date: toSqliteDate(e.transaction_date),
+            description: e.description,
+            credit_amount: e.credit_amount ?? 0,
+            debit_amount: e.debit_amount ?? 0,
+            running_balance: e.running_balance ?? 0,
+            reference_number: e.reference_number || null,
+            created_by: e.created_by || null,
+            created_by_name: e.created_by_name || null,
+            created_at: toSqliteDate(e.created_at),
+            updated_at: toSqliteDate(e.updated_at),
+          });
+        } catch (err: any) {
+          console.error('[SyncWorker] Error pulling ledger entry:', err.message);
+        }
+      }
+    });
+    tx(cloudEntries);
+    const reconciled = reconcilePending(db, 'party_ledger', 'ledger_id', cloudEntries);
+    console.log(`[SyncWorker] Pulled ${cloudEntries.length} ledger entries from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull party ledger failed:', err.message);
     return false;
   }
 }

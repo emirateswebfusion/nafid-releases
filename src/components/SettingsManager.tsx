@@ -13,6 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
+import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, STORAGE_KEY, type CodeType } from '../labelCodeTypes';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -76,6 +77,14 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     items: [
       { id: 'coding', label: 'Price Coding', icon: Tags, ownerOnly: true },
       { id: 'grades', label: 'Categories & Grades', icon: Tags },
+    ],
+  },
+  {
+    category: 'Printing',
+    icon: Printer,
+    items: [
+      { id: 'print-format', label: 'Print Format', icon: FileText, ownerOnly: true },
+      { id: 'label-settings', label: 'Label Settings', icon: Tags, ownerOnly: true },
     ],
   },
   {
@@ -144,15 +153,20 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [shopPhone, setShopPhone] = useState('');
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
+  const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
+  const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
+  const [printWidth, setPrintWidth] = useState<number>(58);
+  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic'>('standard');
+  const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [invoicePrefix, setInvoicePrefix] = useState('INV-');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, invoicePrefix, invoiceStartNumber });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, invoicePrefix, invoiceStartNumber]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -178,7 +192,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, invoicePrefix, invoiceStartNumber });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
     }
   }, [loading]);
 
@@ -198,6 +212,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     const phoneVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' });
     const upiVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' });
     const showQrVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' });
+    const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+    const labelType = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' });
 
     if (pBarcode) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pBarcode });
     else if (pLegacy) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pLegacy });
@@ -213,6 +229,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     if (phoneVal) setShopPhone(phoneVal);
     if (upiVal) setUpiId(upiVal);
     if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
+    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) setLabelCodeType(labelType as CodeType);
+    if (printFmt) {
+      if (printFmt.format === 'a4') {
+        setPrintFormat('a4');
+        if (printFmt.style) setA4Style(printFmt.style);
+      } else {
+        setPrintFormat('thermal');
+        setPrintWidth(Number(printFmt.width) || 58);
+        if (printFmt.style) setThermalStyle(printFmt.style);
+      }
+    }
 
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
     if (invCfg) { setInvoicePrefix(invCfg.prefix || 'INV-'); setInvoiceStartNumber(invCfg.counter || 1); }
@@ -249,6 +276,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: invoicePrefix, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
       ];
 
@@ -259,7 +288,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, invoicePrefix, invoiceStartNumber });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
@@ -409,6 +438,362 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                 <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, a QR code with the bill amount pre-filled will appear on printed receipts.</p>
               </div>
+            </div>
+          </div>
+        );
+      case 'print-format':
+        return (
+          <div className="space-y-5">
+            {/* ── Format Toggle: Thermal vs A4 ── */}
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Paper Format</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => setPrintFormat('thermal')}
+                  className={clsx(
+                    "relative flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
+                    printFormat === 'thermal'
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                  )}
+                >
+                  <div className={clsx("p-2.5 rounded-xl", printFormat === 'thermal' ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-foreground">Thermal Receipt</p>
+                    <p className="text-xs text-muted-foreground">58mm / 80mm roll paper</p>
+                  </div>
+                  {printFormat === 'thermal' && (
+                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                    </div>
+                  )}
+                </button>
+                <button
+                  onClick={() => setPrintFormat('a4')}
+                  className={clsx(
+                    "relative flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
+                    printFormat === 'a4'
+                      ? "border-primary bg-primary/5 shadow-sm"
+                      : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                  )}
+                >
+                  <div className={clsx("p-2.5 rounded-xl", printFormat === 'a4' ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-bold text-foreground">A4 Invoice</p>
+                    <p className="text-xs text-muted-foreground">Full-page A4 document</p>
+                  </div>
+                  {printFormat === 'a4' && (
+                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* ── A4 Style Selection ── */}
+            {printFormat === 'a4' && (
+              <div>
+                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Invoice Style</span>
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Standard A4 */}
+                  <button onClick={() => setA4Style('standard')}
+                    className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", a4Style === 'standard' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                    {a4Style === 'standard' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                    <div className="p-2 bg-gradient-to-r from-blue-500/10 to-blue-500/5 border-b border-border/60">
+                      <span className="text-[11px] font-bold text-foreground">Standard</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 flex justify-center">
+                      <div className="bg-white shadow-sm w-full rounded-sm overflow-hidden border border-gray-200">
+                        <div className="text-center border-b border-gray-300 px-2 py-1.5">
+                          <div className="font-bold text-[6px] text-gray-900">YOUR SHOP NAME</div>
+                          <div className="text-[4px] text-gray-500">123, Main Street</div>
+                          <div className="font-bold text-[7px] text-blue-600 mt-0.5">TAX INVOICE</div>
+                        </div>
+                        <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-200">
+                          <div><span className="text-gray-500">#:</span> INV-001</div>
+                          <div className="text-right"><span className="text-gray-500">Customer:</span> Walk-in</div>
+                        </div>
+                        <div className="px-2 py-1">
+                          <table className="w-full text-[4px] border-collapse">
+                            <thead><tr className="bg-gray-100">
+                              <th className="border border-gray-300 px-0.5 text-center">#</th>
+                              <th className="border border-gray-300 px-0.5">Item</th>
+                              <th className="border border-gray-300 px-0.5 text-center">Qty</th>
+                              <th className="border border-gray-300 px-0.5 text-right">Rate</th>
+                              <th className="border border-gray-300 px-0.5 text-right">Amount</th>
+                            </tr></thead>
+                            <tbody>
+                              {['Item A||2|₹25|₹50','Item B||1|₹30|₹30'].map(r => { const c = r.split('|'); return (
+                                <tr key={c[0]}><td className="border border-gray-300 text-center px-0.5">{c[0]}</td>
+                                <td className="border border-gray-300 px-0.5">{c[1]}</td>
+                                <td className="border border-gray-300 text-center px-0.5">{c[3]}</td>
+                                <td className="border border-gray-300 text-right px-0.5">{c[4]}</td>
+                                <td className="border border-gray-300 text-right px-0.5">{c[5]}</td></tr>); })}
+                            </tbody>
+                            <tfoot>
+                              <tr><td colSpan={4} className="border border-gray-300 text-right font-bold px-0.5">Subtotal</td><td className="border border-gray-300 text-right px-0.5">₹80</td></tr>
+                              <tr className="text-blue-600 font-bold"><td colSpan={4} className="border border-gray-300 text-right px-0.5">Grand Total</td><td className="border border-gray-300 text-right px-0.5">₹84</td></tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        <div className="border-t border-gray-300 px-2 py-0.5 text-[3px] text-gray-500">Terms & Conditions apply</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Modern A4 */}
+                  <button onClick={() => setA4Style('modern')}
+                    className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", a4Style === 'modern' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                    {a4Style === 'modern' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                    <div className="p-2 bg-gradient-to-r from-amber-500/10 to-amber-500/5 border-b border-border/60">
+                      <span className="text-[11px] font-bold text-foreground">Modern</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 flex justify-center">
+                      <div className="bg-white shadow-sm w-full overflow-hidden rounded-sm border border-gray-200">
+                        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-2 py-1.5 text-white">
+                          <div className="font-bold text-[6px]">YOUR SHOP NAME</div>
+                          <div className="text-[4px] opacity-80">123, Main Street | GST: 27AAAAA1111A1Z1</div>
+                          <div className="text-[6px] font-bold mt-0.5 opacity-90">TAX INVOICE</div>
+                        </div>
+                        <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-200">
+                          <div className="text-gray-500">INV-001</div>
+                          <div className="text-gray-500">{new Date().toLocaleDateString('en-IN')}</div>
+                        </div>
+                        <div className="px-2 py-1">
+                          <table className="w-full text-[4px] border-collapse">
+                            <thead><tr className="bg-gray-50">
+                              <th className="px-0.5 text-left font-semibold text-gray-500">Item</th>
+                              <th className="px-0.5 text-center font-semibold text-gray-500">Qty</th>
+                              <th className="px-0.5 text-right font-semibold text-gray-500">Amount</th>
+                            </tr></thead>
+                            <tbody>
+                              {['Item A|2|₹50','Item B|1|₹30'].map(r => { const c = r.split('|'); return (
+                                <tr key={c[0]} className="border-b border-gray-200">
+                                  <td className="px-0.5 py-0.5 text-gray-900">{c[0]}</td>
+                                  <td className="px-0.5 py-0.5 text-center text-gray-900">{c[1]}</td>
+                                  <td className="px-0.5 py-0.5 text-right text-gray-900">{c[2]}</td>
+                                </tr>); })}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="px-2 py-1 bg-emerald-50">
+                          <div className="flex justify-between text-[5px] font-bold text-emerald-700"><span>Grand Total</span><span>₹84.00</span></div>
+                        </div>
+                        <div className="px-2 py-0.5 text-[3px] text-gray-400 text-center border-t border-gray-200">Thank you for your business!</div>
+                      </div>
+                    </div>
+                  </button>
+
+                  {/* Classic A4 */}
+                  <button onClick={() => setA4Style('classic')}
+                    className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", a4Style === 'classic' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                    {a4Style === 'classic' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                    <div className="p-2 bg-gradient-to-r from-rose-500/10 to-rose-500/5 border-b border-border/60">
+                      <span className="text-[11px] font-bold text-foreground">Classic</span>
+                    </div>
+                    <div className="bg-gray-50 p-3 flex justify-center">
+                      <div className="bg-white shadow-sm w-full overflow-hidden border-2 border-double border-gray-600">
+                        <div className="text-center border-b-2 border-double border-gray-600 px-2 py-1">
+                          <div className="font-bold text-[6px] tracking-widest text-gray-900">YOUR SHOP NAME</div>
+                          <div className="text-[4px] text-gray-500">123, Main Street, City - 400001</div>
+                          <div className="text-[4px] text-gray-500">Phone: +91 98765 43210 | GSTIN: 27AAAAA1111A1Z1</div>
+                          <div className="font-bold text-[7px] tracking-widest mt-0.5 text-gray-900">TAX INVOICE</div>
+                        </div>
+                        <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-300 text-gray-700">
+                          <div>Invoice No: INV-001</div>
+                          <div>Date: {new Date().toLocaleDateString('en-IN')}</div>
+                        </div>
+                        <div className="px-2 py-1">
+                          <table className="w-full text-[4px] border-collapse">
+                            <thead><tr className="bg-gray-100">
+                              <th className="border border-gray-300 px-0.5 text-center text-gray-700">#</th>
+                              <th className="border border-gray-300 px-0.5 text-gray-700">Particulars</th>
+                              <th className="border border-gray-300 px-0.5 text-right text-gray-700">Amount</th>
+                            </tr></thead>
+                            <tbody>
+                              {['1|Item A x 2|₹50.00','2|Item B x 1|₹30.00'].map(r => { const c = r.split('|'); return (
+                                <tr key={c[0]} className="text-gray-900">
+                                  <td className="border border-gray-300 text-center px-0.5">{c[0]}</td>
+                                  <td className="border border-gray-300 px-0.5">{c[1]}</td>
+                                  <td className="border border-gray-300 text-right px-0.5">{c[2]}</td>
+                                </tr>); })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="text-gray-900 font-bold"><td colSpan={2} className="border border-gray-300 text-right px-0.5">Subtotal</td><td className="border border-gray-300 text-right px-0.5">₹80.00</td></tr>
+                              <tr className="text-gray-700"><td colSpan={2} className="border border-gray-300 text-right px-0.5">CGST @2.5%</td><td className="border border-gray-300 text-right px-0.5">₹2.00</td></tr>
+                              <tr className="text-gray-700"><td colSpan={2} className="border border-gray-300 text-right px-0.5">SGST @2.5%</td><td className="border border-gray-300 text-right px-0.5">₹2.00</td></tr>
+                              <tr className="text-gray-900 font-bold"><td colSpan={2} className="border border-gray-300 text-right px-0.5">Grand Total</td><td className="border border-gray-300 text-right px-0.5">₹84.00</td></tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                        <div className="text-center px-2 py-0.5 text-[3px] text-gray-500 border-t border-gray-300">This is a computer generated invoice</div>
+                      </div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── Thermal: Width Toggle + Style Selection ── */}
+            {printFormat === 'thermal' && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Paper Width</span>
+                  <div className="flex items-center gap-1.5 p-0.5 bg-muted rounded-lg border border-border/60">
+                    <button onClick={() => setPrintWidth(58)}
+                      className={clsx("px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer", printWidth === 58 ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>58mm</button>
+                    <button onClick={() => setPrintWidth(80)}
+                      className={clsx("px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer", printWidth === 80 ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>80mm</button>
+                  </div>
+                </div>
+
+                <div>
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Receipt Style</span>
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Standard */}
+                    <button onClick={() => setThermalStyle('standard')}
+                      className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", thermalStyle === 'standard' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                      {thermalStyle === 'standard' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                      <div className="p-2 bg-gradient-to-r from-blue-500/10 to-blue-500/5 border-b border-border/60">
+                        <span className="text-[11px] font-bold text-foreground">Standard</span>
+                      </div>
+                      <div className="bg-muted/30 flex justify-center py-3">
+                        <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40 px-2 py-2" : "w-48 px-2 py-2")}>
+                          <div className="text-center font-bold text-[8px]">SHOP NAME</div>
+                          <div className="text-center text-[5px] text-muted-foreground">123, Main Street</div>
+                          <div className="text-center text-[4px] text-muted-foreground">GSTIN: 27AAAAA1111A1Z1</div>
+                          <div className="border-t border-dashed border-border my-1" />
+                          <div className="flex justify-between text-[5px]"><span>INV-001</span><span>{new Date().toLocaleDateString('en-IN')}</span></div>
+                          <div className="border-t border-dashed border-border my-1" />
+                          {printWidth === 58 ? (
+                            <>
+                              <div className="flex justify-between text-[5px]"><span>Item 1</span><span>₹50</span></div>
+                              <div className="text-[4px] text-muted-foreground pl-1">2 x ₹25.00</div>
+                              <div className="flex justify-between text-[5px]"><span>Item 2</span><span>₹30</span></div>
+                              <div className="text-[4px] text-muted-foreground pl-1">1 x ₹30.00</div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="grid grid-cols-4 gap-0.5 text-[5px] font-bold"><span className="col-span-2">Item</span><span className="text-center">Qty</span><span className="text-right">Total</span></div>
+                              <div className="grid grid-cols-4 gap-0.5 text-[5px]"><span className="col-span-2">Item 1</span><span className="text-center">2</span><span className="text-right">₹50</span></div>
+                              <div className="grid grid-cols-4 gap-0.5 text-[5px]"><span className="col-span-2">Item 2</span><span className="text-center">1</span><span className="text-right">₹30</span></div>
+                            </>
+                          )}
+                          <div className="border-t border-dashed border-border my-1" />
+                          <div className="flex justify-between text-[6px] font-bold"><span>GRAND TOTAL</span><span>₹84.00</span></div>
+                          <div className="border-t border-dashed border-border my-1" />
+                          <div className="text-center text-[4px] font-bold text-emerald-600">YOU SAVED ₹4.00</div>
+                          <div className="border-t border-dashed border-border my-1" />
+                          <div className="text-center text-[5px] text-muted-foreground">Thank you!</div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Compact */}
+                    <button onClick={() => setThermalStyle('compact')}
+                      className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", thermalStyle === 'compact' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                      {thermalStyle === 'compact' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                      <div className="p-2 bg-gradient-to-r from-violet-500/10 to-violet-500/5 border-b border-border/60">
+                        <span className="text-[11px] font-bold text-foreground">Compact</span>
+                      </div>
+                      <div className="bg-muted/30 flex justify-center py-3">
+                        <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40 px-2 py-2" : "w-48 px-2 py-2")}>
+                          <div className="text-[6px] font-bold">SHOP NAME</div>
+                          <div className="text-[4px] text-muted-foreground">123, Main Street, City</div>
+                          <div className="text-[3.5px] text-muted-foreground">GST: 27AAAAA1111A1Z1</div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[4px]"><span>INV-001</span><span>{new Date().toLocaleDateString('en-IN')}</span></div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="text-[4px]"><span className="font-bold">1</span> Item A <span className="float-right">₹50</span></div>
+                          <div className="text-[4px]"><span className="font-bold">2</span> Item B <span className="float-right">₹30</span></div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[5px] font-bold"><span>Total</span><span>₹80</span></div>
+                          <div className="flex justify-between text-[4px]"><span>Tax</span><span>₹4</span></div>
+                          <div className="border-t border-double border-border my-0.5" />
+                          <div className="flex justify-between text-[5px] font-bold"><span>GRAND TOTAL</span><span>₹84.00</span></div>
+                          <div className="text-center text-[4px] font-bold text-emerald-600">YOU SAVED ₹4.00</div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Modern */}
+                    <button onClick={() => setThermalStyle('modern')}
+                      className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", thermalStyle === 'modern' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                      {thermalStyle === 'modern' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                      <div className="p-2 bg-gradient-to-r from-amber-500/10 to-amber-500/5 border-b border-border/60">
+                        <span className="text-[11px] font-bold text-foreground">Modern</span>
+                      </div>
+                      <div className="bg-muted/30 flex justify-center py-3">
+                        <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40 px-2 py-2" : "w-48 px-2 py-2")}>
+                          <div className="text-center text-[7px] font-black tracking-wider">✦ SHOP NAME ✦</div>
+                          <div className="text-center text-[4px] text-muted-foreground">123, Main Street | Ph: 98765 43210</div>
+                          <div className="text-center text-[3.5px] text-muted-foreground">GST: 27AAAAA1111A1Z1</div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[4px]"><span className="font-bold">INV:</span> INV-001</div>
+                          <div className="flex justify-between text-[4px]"><span className="font-bold">Date:</span> {new Date().toLocaleDateString('en-IN')}</div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="text-[4px] font-bold border-b border-border pb-0.5 mb-0.5">ITEMS</div>
+                          <div className="grid grid-cols-2 gap-0 text-[4px]">
+                            <div>Item A</div><div className="text-right">₹50.00</div>
+                            <div className="text-[3px] text-muted-foreground">  Qty: 2 × ₹25.00</div><div></div>
+                            <div>Item B</div><div className="text-right">₹30.00</div>
+                            <div className="text-[3px] text-muted-foreground">  Qty: 1 × ₹30.00</div><div></div>
+                          </div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[5px] font-bold"><span>₹84.00</span><span>PAID</span></div>
+                          <div className="text-center text-[4px] font-bold text-emerald-600">✦ YOU SAVED ₹4.00 ✦</div>
+                          <div className="text-center text-[4px] text-muted-foreground mt-0.5">✉ Thank you! ✉</div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Classic */}
+                    <button onClick={() => setThermalStyle('classic')}
+                      className={clsx("relative rounded-xl border-2 transition-all overflow-hidden cursor-pointer text-left", thermalStyle === 'classic' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
+                      {thermalStyle === 'classic' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                      <div className="p-2 bg-gradient-to-r from-rose-500/10 to-rose-500/5 border-b border-border/60">
+                        <span className="text-[11px] font-bold text-foreground">Classic</span>
+                      </div>
+                      <div className="bg-muted/30 flex justify-center py-3">
+                        <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border-2 border-border/60", printWidth === 58 ? "w-40 px-2 py-2" : "w-48 px-2 py-2")}>
+                          <div className="text-center font-bold text-[7px]">*** SHOP NAME ***</div>
+                          <div className="text-center text-[4px] text-muted-foreground">123, Main Street, City</div>
+                          <div className="text-center text-[3.5px] text-muted-foreground">GSTIN: 27AAAAA1111A1Z1</div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[4px]"><span>Invoice No:</span><span>INV-001</span></div>
+                          <div className="flex justify-between text-[4px]"><span>Date:</span><span>{new Date().toLocaleDateString('en-IN')}</span></div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="text-[4px] font-bold text-center border-b border-border pb-0.5 mb-0.5">--- ITEMS ---</div>
+                          <div className="text-[4px]"><span>1.</span> Item A <span className="float-right">₹50.00</span></div>
+                          <div className="text-[4px]"><span>2.</span> Item B <span className="float-right">₹30.00</span></div>
+                          <div className="border-t border-double border-border my-0.5" />
+                          <div className="flex justify-between text-[4px]"><span>Subtotal:</span><span>₹80.00</span></div>
+                          <div className="flex justify-between text-[4px]"><span>CGST @2.5%:</span><span>₹2.00</span></div>
+                          <div className="flex justify-between text-[4px]"><span>SGST @2.5%:</span><span>₹2.00</span></div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="flex justify-between text-[6px] font-bold"><span>GRAND TOTAL</span><span>₹84.00</span></div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="text-center text-[4px] font-bold text-emerald-600">*** YOU SAVED ₹4.00 ***</div>
+                          <div className="border-t border-border my-0.5" />
+                          <div className="text-center text-[5px] text-muted-foreground">* Visit Again *</div>
+                        </div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
+                Changes apply only to new invoices. Previously generated invoices remain unaffected.
+              </p>
             </div>
           </div>
         );
@@ -690,6 +1075,67 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         );
+      case 'label-settings':
+        return (
+          <div className="space-y-5">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Code Type</label>
+              <div className="grid grid-cols-2 gap-3">
+                {CODE_TYPES.map((ct) => (
+                  <button
+                    key={ct.id}
+                    onClick={() => setLabelCodeType(ct.id)}
+                    className={clsx(
+                      "relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
+                      labelCodeType === ct.id
+                        ? "border-primary bg-primary/5 shadow-sm"
+                        : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
+                    )}
+                  >
+                    <div className={clsx(
+                      "p-2.5 rounded-xl",
+                      labelCodeType === ct.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                    )}>
+                      {ct.id === 'barcode' ? (
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 4h2v16H2zM6 4h1v16H6zM9 4h2v16H9zM13 4h1v16h-1zM16 4h2v16h-2zM20 4h2v16h-2z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          {[7,9,11,13,15].map(x => (
+                            <g key={x}>
+                              <rect x={x} y="7" width="1" height="2" fill="currentColor" />
+                              <rect x={x} y="11" width="1" height="2" fill="currentColor" />
+                              <rect x={x} y="15" width="1" height="2" fill="currentColor" />
+                            </g>
+                          ))}
+                          <rect x="17" y="7" width="1" height="10" fill="currentColor" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground">{ct.label}</p>
+                      <p className="text-xs text-muted-foreground">{ct.description}</p>
+                    </div>
+                    {labelCodeType === ct.id && (
+                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 rounded-xl flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
+                The selected code type will be used as the default for generating, previewing, and printing product labels. Existing labels remain unaffected.
+              </p>
+            </div>
+          </div>
+        );
       case 'grades':
         return <SettingsGrades />;
       default:
@@ -830,6 +1276,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                       {activeItem.id === 'appearance' && 'Adjust the UI font size for better readability.'}
                       {activeItem.id === 'security' && 'Manage your account password and security settings.'}
                       {activeItem.id === 'grades' && 'Manage product categories and grades.'}
+                      {activeItem.id === 'print-format' && 'Choose between thermal receipt or A4 invoice as the default print format.'}
+                      {activeItem.id === 'label-settings' && 'Choose the default code format (Barcode or QR Code) for product labels.'}
                     </p>
                   </div>
                   {activeItem.ownerOnly && (

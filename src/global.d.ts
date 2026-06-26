@@ -55,6 +55,10 @@ export interface IElectronAPI {
   dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteParty: (party_id: string) => Promise<{ success: boolean; error?: string }>;
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
+  dbGetPartyLedger: (party_id: string) => Promise<any[]>;
+  dbAddPartyLedgerEntry: (entry: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdatePartyLedgerEntry: (entry: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => Promise<{ success: boolean; error?: string }>;
 
   // Scrap (categories ARE items with price/stock/unit)
   dbGetScrapCategories: (tenant_id: string) => Promise<any[]>;

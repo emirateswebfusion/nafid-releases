@@ -4,11 +4,13 @@ import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import { ReportView } from './ReportView';
 import Barcode from 'react-barcode';
+import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { DEFAULT_CODE_TYPE, CODE_TYPE_CONFIGS, type CodeType } from '../labelCodeTypes';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {
@@ -88,6 +90,8 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
+  const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
+  const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
@@ -138,6 +142,12 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
         })
         .catch(console.error);
 
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' })
+        .then(res => {
+          if (res === 'barcode' || res === 'qrcode') setLabelCodeType(res);
+        })
+        .catch(console.error);
+
       window.electronAPI.dbGetGrades(tenantId || 'global')
         .then(res => {
           if (Array.isArray(res)) setGrades(res);
@@ -145,6 +155,16 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
         .catch(console.error);
     }
   }, [tenantId]);
+
+  useEffect(() => {
+    if (labelCodeType === 'qrcode' && formData.sku_barcode) {
+      QRCode.toDataURL(formData.sku_barcode, { width: 150, margin: 1 })
+        .then(url => setQrPreviewUrl(url))
+        .catch(() => setQrPreviewUrl(null));
+    } else {
+      setQrPreviewUrl(null);
+    }
+  }, [labelCodeType, formData.sku_barcode]);
 
   const loadProducts = async (reset = false) => {
     setIsFetching(true);
@@ -1277,7 +1297,11 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
                     <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest mb-4 shadow-sm text-sm" />
                     {formData.sku_barcode && (
                       <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
-                        <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
+                        {labelCodeType === 'qrcode' ? (
+                          <img src={qrPreviewUrl || ''} alt="QR Code" style={{ width: '100px', height: '100px', imageRendering: 'pixelated' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        ) : (
+                          <Barcode value={formData.sku_barcode} height={50} displayValue={true} background="#ffffff" />
+                        )}
                       </div>
                     )}
                   </div>
@@ -1672,7 +1696,11 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
               <div className="bg-white rounded-2xl border-2 border-dashed border-muted-foreground/25 p-6 flex flex-col items-center text-center relative overflow-hidden">
                 <div className="absolute inset-0 bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(0,0,0,0.02)_10px,rgba(0,0,0,0.02)_20px)]" />
                 <div className="relative">
-                  <Barcode value={printModalProduct.sku_barcode} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
+                  {labelCodeType === 'qrcode' ? (
+                    <QRCodePreview barcode={printModalProduct.sku_barcode} />
+                  ) : (
+                    <Barcode value={printModalProduct.sku_barcode} height={50} displayValue={false} margin={0} width={1.8} background="transparent" />
+                  )}
                   <p className="font-bold text-gray-800 text-lg mt-3 tracking-tight">{printModalProduct.name}</p>
                   <p className="font-mono text-sm text-gray-500 tracking-wider mt-0.5">{printModalProduct.sku_barcode}</p>
                   <div className={clsx(
@@ -1764,7 +1792,18 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
   );
 }
 
-// ─── Helper sub-component ────────────────────────────────────────────────────
+// ─── Helper sub-components ───────────────────────────────────────────────────
+function QRCodePreview({ barcode }: { barcode: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    QRCode.toDataURL(barcode, { width: 120, margin: 1 })
+      .then(u => setUrl(u))
+      .catch(() => setUrl(null));
+  }, [barcode]);
+  if (!url) return <div style={{ width: '100px', height: '50px', background: '#f0f0f0' }} />;
+  return <img src={url} alt="QR" style={{ width: '100px', height: '100px', imageRendering: 'pixelated' }} />;
+}
+
 function DomainField({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
   return (
     <div>

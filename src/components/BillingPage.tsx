@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Receipt, Settings, Tag, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, ChevronDown, ChevronUp
+  CheckCircle2, Building, TrendingUp, FileText
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -14,6 +14,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 
@@ -184,6 +185,11 @@ export function BillingPage() {
   const [selectedScrapItem, setSelectedScrapItem] = useState<any>(null);
   const [scrapKgInput, setScrapKgInput] = useState('');
   const [scrapProcessing, setScrapProcessing] = useState(false);
+
+  // Scrap invoice view state
+  const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
+  const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: any[]; totalAmount: number; invoiceNumber: string } | null>(null);
+  const [scrapInvoiceViewLoading, setScrapInvoiceViewLoading] = useState(false);
 
   // Quotation state
   const { isQuotationMode, setQuotationMode, editingQuotationId, editingQuotationNumber, setEditingQuotation } = useCartStore();
@@ -434,6 +440,23 @@ export function BillingPage() {
       console.error('Scrap transaction error', e);
     } finally {
       setScrapProcessing(false);
+    }
+  };
+
+  const handleViewScrapInvoice = async (invoiceNumber: string) => {
+    if (!window.electronAPI || !invoiceNumber) return;
+    setScrapInvoiceViewLoading(true);
+    try {
+      const { tenantId } = useAuthStore.getState();
+      const res = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      if (res && res.transactions) {
+        setScrapInvoiceViewData(res);
+        setShowScrapInvoiceView(true);
+      }
+    } catch (e) {
+      console.error('Failed to load scrap invoice', e);
+    } finally {
+      setScrapInvoiceViewLoading(false);
     }
   };
 
@@ -748,6 +771,9 @@ export function BillingPage() {
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
       const charsPerLine = cfg?.charsPerLine ? Number(cfg.charsPerLine) : undefined;
 
+      const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const useA4 = printFmt?.format === 'a4';
+
       const state = useCartStore.getState();
       const receiptData: ReceiptData = {
         shopName: shopName || 'My Shop', shopGstin: shopGstin || undefined,
@@ -785,10 +811,22 @@ export function BillingPage() {
         customerState: invoiceType === 'GST' ? customerState || undefined : undefined,
       };
 
-      const printResult = await window.electronAPI.printReceipt(tenantId || 'global', generateReceiptText(receiptData, width, charsPerLine));
-      if (!printResult.success) {
-        setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
-        setIsCheckingOut(false); return;
+      if (useA4) {
+        const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        if (!printResult.success && printResult.useDefaultDialog) {
+          const pw = window.open('', '_blank');
+          if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+        }
+      } else {
+        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
+        const thermalStyle = printFmt?.style || 'standard';
+        const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        if (!printResult.success) {
+          setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+          setIsCheckingOut(false); return;
+        }
       }
 
       await window.electronAPI.openCashDrawer(tenantId || 'global');
@@ -1550,6 +1588,44 @@ export function BillingPage() {
                 </div>
               </div>
             </div>
+
+            {/* ── Scrap Invoice View (when in scrap mode) ── */}
+            <div className={clsx(
+              'overflow-hidden transition-all duration-400 ease-in-out',
+              isScrapMode
+                ? 'max-h-[500px] opacity-100 scale-100'
+                : 'max-h-0 opacity-0 scale-95'
+            )}>
+              <div className="space-y-3 p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl mt-1">
+                <div className="flex items-center gap-2">
+                  <Recycle className="w-4 h-4 text-amber-500" />
+                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400">
+                    Scrap Invoices
+                  </span>
+                </div>
+                {scrapDeduction > 0 && scrapInvoiceNumber ? (
+                  <div className="flex items-center justify-between p-3 bg-card border border-amber-500/20 rounded-xl">
+                    <div>
+                      <p className="text-xs font-bold text-foreground">{scrapInvoiceNumber}</p>
+                      <p className="text-2xl font-black text-amber-500 mt-0.5">-{formatCurrency(scrapDeduction)}</p>
+                    </div>
+                    <button
+                      onClick={() => handleViewScrapInvoice(scrapInvoiceNumber)}
+                      disabled={scrapInvoiceViewLoading}
+                      className="px-3 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40 flex items-center gap-1.5"
+                    >
+                      <Receipt className="w-3.5 h-3.5" />
+                      View Details
+                    </button>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-card border border-amber-500/10 rounded-xl text-center">
+                    <p className="text-xs text-muted-foreground">No scrap invoices yet</p>
+                    <p className="text-[10px] text-muted-foreground/60 mt-1">Search and select scrap items above to create one</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
 
           {/* ── STICKY FOOTER: Totals + Actions ── */}
@@ -1639,7 +1715,17 @@ export function BillingPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground font-semibold text-sm">Scrap ({scrapInvoiceNumber})</span>
                 </div>
-                <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => scrapInvoiceNumber && handleViewScrapInvoice(scrapInvoiceNumber)}
+                    disabled={scrapInvoiceViewLoading}
+                    className="text-xs font-bold text-amber-600 hover:bg-amber-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                    title="View scrap invoice details"
+                  >
+                    View
+                  </button>
+                  <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+                </div>
               </div>
             </div>
 
@@ -1654,21 +1740,33 @@ export function BillingPage() {
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground font-semibold text-sm">Scrap Inv</span>
                 </div>
-                <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
-                    onChange={handleScrapInvoiceChange}
-                    placeholder="001"
-                    className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                  />
+                <div className="flex items-center gap-1">
+                  <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={scrapInvoiceNumber.replace(/^SCRAP-/, '')}
+                      onChange={handleScrapInvoiceChange}
+                      placeholder="001"
+                      className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    />
+                    {scrapInvoiceNumber && (
+                      <button
+                        onClick={() => clearScrapDeduction()}
+                        className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
                   {scrapInvoiceNumber && (
                     <button
-                      onClick={() => clearScrapDeduction()}
-                      className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                      onClick={() => handleViewScrapInvoice(scrapInvoiceNumber)}
+                      disabled={scrapInvoiceViewLoading}
+                      className="p-1.5 text-amber-600 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                      title="View scrap invoice details"
                     >
-                      <X className="w-3 h-3" />
+                      <Receipt className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
@@ -1676,6 +1774,18 @@ export function BillingPage() {
             </div>
 
             </div>
+
+            {/* You Saved (per-product + bill-level) */}
+            {totalItemSavings + discount > 0 && (
+              <div className="mx-3 my-1.5 px-3 py-2 bg-emerald-500/10 border border-emerald-500/25 rounded-xl">
+                <div className="flex items-center justify-center gap-1.5">
+                  <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">YOU SAVED</span>
+                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(totalItemSavings + discount)}
+                  </span>
+                </div>
+              </div>
+            )}
 
             {/* Grand Total + Received + Change */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
@@ -1896,6 +2006,85 @@ export function BillingPage() {
             >
               {scrapProcessing ? 'Saving...' : 'Add & Deduct'}
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─── Scrap Invoice View Modal ─── */}
+      <Modal
+        isOpen={showScrapInvoiceView}
+        onClose={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Recycle className="w-5 h-5 text-amber-500" />
+            <span>Scrap Invoice {scrapInvoiceViewData?.invoiceNumber || ''}</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[520px] text-foreground">
+          {scrapInvoiceViewLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-5 h-5 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+            </div>
+          ) : scrapInvoiceViewData ? (
+            <>
+              <div className="flex items-center justify-between p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Deduction</p>
+                  <p className="text-2xl font-black text-amber-500 mt-1">{formatCurrency(scrapInvoiceViewData.totalAmount)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
+                  <p className="text-sm font-bold text-foreground mt-1">{scrapInvoiceViewData.invoiceNumber}</p>
+                </div>
+              </div>
+
+              <div className="border border-border rounded-xl overflow-hidden">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                  <div className="col-span-4">Category</div>
+                  <div className="col-span-2 text-right">Qty</div>
+                  <div className="col-span-2 text-right">Rate</div>
+                  <div className="col-span-2 text-right">Total</div>
+                  <div className="col-span-2 text-center">Date</div>
+                </div>
+                <div className="divide-y divide-border max-h-[320px] overflow-y-auto">
+                  {scrapInvoiceViewData.transactions.length === 0 ? (
+                    <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
+                  ) : scrapInvoiceViewData.transactions.map((tx: any) => (
+                    <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
+                      <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
+                      <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(2)}</div>
+                      <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
+                      <div className="col-span-2 text-right font-bold text-amber-600">{formatCurrency(tx.total_amount)}</div>
+                      <div className="col-span-2 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {scrapInvoiceViewData.transactions.length > 0 && (
+                <div className="flex justify-end pt-1">
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-muted-foreground font-semibold">Total Items:</span>
+                    <span className="font-bold">{scrapInvoiceViewData.transactions.length}</span>
+                    <span className="text-muted-foreground/40">|</span>
+                    <span className="text-muted-foreground font-semibold">Grand Total:</span>
+                    <span className="font-black text-lg text-amber-600">{formatCurrency(scrapInvoiceViewData.totalAmount)}</span>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="py-8 text-center text-muted-foreground text-sm">No data found for this scrap invoice</div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t border-border/40">
+            <button
+              onClick={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
+              className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer"
+            >
+              Close
+            </button>
           </div>
         </div>
       </Modal>

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import Barcode from 'react-barcode';
+import QRCode from 'qrcode';
 import { useAuthStore } from '../store/authStore';
+import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
-export function PrintBulkBarcodeView() {
+export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeType?: CodeType }) {
   const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
   const [items, setItems] = useState<any[]>([]);
   const [columns, setColumns] = useState(1);
   const [loaded, setLoaded] = useState(false);
+  const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1]);
@@ -24,16 +27,31 @@ export function PrintBulkBarcodeView() {
   }, []);
 
   useEffect(() => {
+    if (codeType === 'qrcode' && items.length > 0) {
+      Promise.all(
+        items.map(item =>
+          QRCode.toDataURL(item.barcode, { width: 120, margin: 1, color: { dark: '#000000', light: '#ffffff' } })
+            .then(url => ({ barcode: item.barcode, url }))
+            .catch(() => ({ barcode: item.barcode, url: '' }))
+        )
+      ).then(results => {
+        const map: Record<string, string> = {};
+        results.forEach(r => { map[r.barcode] = r.url; });
+        setQrDataUrls(map);
+      });
+    }
+  }, [codeType, items]);
+
+  useEffect(() => {
     if (loaded) {
-      // Allow time for barcodes to render
       const timer = setTimeout(() => {
         if (window.electronAPI && window.electronAPI.printReady) {
           window.electronAPI.printReady();
         }
-      }, 1000); // give bulk printing a bit more time to render all SVGs
+      }, 1000);
       return () => clearTimeout(timer);
     }
-  }, [loaded, items, columns]);
+  }, [loaded, items, columns, codeType, qrDataUrls]);
 
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
@@ -43,7 +61,6 @@ export function PrintBulkBarcodeView() {
 
   const pages: any[] = [];
   
-  // Flatten items according to quantity
   const flatItems: any[] = [];
   items.forEach(item => {
     for (let i = 0; i < (item.quantity || 1); i++) {
@@ -77,7 +94,15 @@ export function PrintBulkBarcodeView() {
                   </div>
                 </div>
               )}
-              <Barcode value={item.barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
+              {codeType === 'qrcode' ? (
+                qrDataUrls[item.barcode] ? (
+                  <img src={qrDataUrls[item.barcode]} alt="QR Code" style={{ width: '70px', height: '70px', imageRendering: 'pixelated' }} />
+                ) : (
+                  <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>Loading...</div>
+                )
+              ) : (
+                <Barcode value={item.barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
                 <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {item.barcode}

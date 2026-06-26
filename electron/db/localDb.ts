@@ -121,12 +121,33 @@ export function initDb() {
         tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
         phone TEXT,
+        address TEXT,
         balance REAL NOT NULL DEFAULT 0,
+        balance_type TEXT DEFAULT 'RECEIVABLE',
         notes TEXT,
+        last_transaction_date DATETIME,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS party_ledger (
+        ledger_id TEXT PRIMARY KEY,
+        party_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        transaction_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        description TEXT NOT NULL,
+        credit_amount REAL NOT NULL DEFAULT 0,
+        debit_amount REAL NOT NULL DEFAULT 0,
+        running_balance REAL NOT NULL,
+        reference_number TEXT,
+        created_by TEXT,
+        created_by_name TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (party_id) REFERENCES parties(party_id)
     );
 
     CREATE TABLE IF NOT EXISTS settings (
@@ -250,7 +271,10 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'balance', 'notes', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    party_ledger: [
+        'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'reference_number', 'created_by', 'created_by_name', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_categories: [
         'scrap_category_id', 'tenant_id', 'name', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -483,6 +507,8 @@ export function initDb() {
     "UPDATE product_grades SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
     "UPDATE parties SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
     "UPDATE parties SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE party_ledger SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE party_ledger SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
   ];
   for (const q of dateFixQueries) {
     try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }

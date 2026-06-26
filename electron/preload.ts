@@ -106,4 +106,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdateParty: (party: any) => ipcRenderer.invoke('db:updateParty', party),
   dbDeleteParty: (party_id: string) => ipcRenderer.invoke('db:deleteParty', party_id),
   dbAdjustPartyBalance: (payload: { party_id: string; amount: number }) => ipcRenderer.invoke('db:adjustPartyBalance', payload),
+  dbGetPartyLedger: (party_id: string) => ipcRenderer.invoke('db:getPartyLedger', party_id),
+  dbAddPartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:addPartyLedgerEntry', entry),
+  dbUpdatePartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:updatePartyLedgerEntry', entry),
+  dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => ipcRenderer.invoke('db:deletePartyLedgerEntry', { ledger_id, party_id }),
 });

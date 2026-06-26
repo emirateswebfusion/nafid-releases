@@ -18,6 +18,7 @@ import { ScrapManager } from './components/ScrapManager';
 import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
 import { PrintA4View } from './components/PrintA4View';
+import { DEFAULT_CODE_TYPE, STORAGE_KEY, type CodeType } from './labelCodeTypes';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
@@ -27,6 +28,8 @@ function App() {
   const [printBarcodeName, setPrintBarcodeName] = useState<string | null>(null);
   const [printBarcodeQuantity, setPrintBarcodeQuantity] = useState<number>(1);
   const [printBarcodeColumns, setPrintBarcodeColumns] = useState<number>(1);
+  const [printBarcodeCodeType, setPrintBarcodeCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
+  const [printBulkCodeType, setPrintBulkCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [printReceiptData, setPrintReceiptData] = useState<string | null>(null);
   const [showPrintBulkBarcode, setShowPrintBulkBarcode] = useState(false);
   const [showPrintA4, setShowPrintA4] = useState(false);
@@ -53,11 +56,18 @@ function App() {
 
       const paramCols = urlParams.get('columns');
       setPrintBarcodeColumns(paramCols !== null ? parseInt(paramCols, 10) : 1);
+      const paramCodeType = urlParams.get('codeType');
+      if (paramCodeType === 'barcode' || paramCodeType === 'qrcode') setPrintBarcodeCodeType(paramCodeType);
+      else setPrintBarcodeCodeType(DEFAULT_CODE_TYPE);
     } else if (window.location.hash.startsWith('#/print-receipt')) {
       const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
       setPrintReceiptData(urlParams.get('text') || ''); // '' triggers IPC fallback in PrintReceiptView
     } else if (window.location.hash.startsWith('#/print-bulk-barcode')) {
       setShowPrintBulkBarcode(true);
+      const urlParams = new URLSearchParams(window.location.hash.split('?')[1]);
+      const bulkCodeType = urlParams.get('codeType');
+      if (bulkCodeType === 'barcode' || bulkCodeType === 'qrcode') setPrintBulkCodeType(bulkCodeType);
+      else setPrintBulkCodeType(DEFAULT_CODE_TYPE);
     } else if (window.location.hash.startsWith('#/print-a4')) {
       setShowPrintA4(true);
     }
@@ -176,7 +186,7 @@ function App() {
   }, [addItem]);
 
   if (printBarcodeData) {
-    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} />;
+    return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} codeType={printBarcodeCodeType} />;
   }
 
   if (printReceiptData !== null) {
@@ -184,7 +194,7 @@ function App() {
   }
 
   if (showPrintBulkBarcode) {
-    return <PrintBulkBarcodeView />;
+    return <PrintBulkBarcodeView codeType={printBulkCodeType} />;
   }
 
   if (showPrintA4) {

@@ -291,7 +291,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Scrap Management' : view === 'selling' ? 'Sell Scrap Items' : view === 'add' ? 'Add Scrap Category' : view === 'edit' ? `Edit: ${selectedCategory?.name}` : `Transactions — ${selectedCategory?.name}`}
+                {view === 'list' ? 'Scrap Management' : view === 'selling' ? 'Sell Scrap Items' : view === 'transaction' ? `Transactions — ${selectedCategory?.name}` : 'Scrap Management'}
               </h1>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
@@ -523,7 +523,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
               {sellingResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[240px] overflow-y-auto">
-                    {sellingResults.map((s, i) => (
+                    {sellingResults.map((s) => (
                       <button
                         key={s.scrap_category_id}
                         onClick={() => handleAddToSellingCart(s)}
