@@ -18,6 +18,7 @@ export interface IElectronAPI {
   dbCheckout: (payload: any & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
+  dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; invoiceCount: number; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
@@ -47,6 +48,8 @@ export interface IElectronAPI {
   onBarcodeScanned: (callback: (code: string) => void) => void;
   onScaleWeight: (callback: (weight: number) => void) => void;
   onSyncDataUpdated: (callback: () => void) => void;
+  onSyncCycleComplete: (callback: () => void) => void;
+  onOnlineStatus: (callback: (online: boolean) => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;

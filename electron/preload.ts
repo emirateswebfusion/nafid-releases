@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCheckout: (payload: any) => ipcRenderer.invoke('db:checkout', payload),
   dbApplyInvoiceDiscount: (payload: any) => ipcRenderer.invoke('db:applyInvoiceDiscount', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),
+  dbGetDashboardStats: (tenantId: string) => ipcRenderer.invoke('db:getDashboardStats', tenantId),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
   dbUpdateInvoice: (payload: any) => ipcRenderer.invoke('db:updateInvoice', payload),
   dbGetGrades: (tenant_id: string) => ipcRenderer.invoke('db:getGrades', tenant_id),
@@ -66,6 +67,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('hardware:scaleWeight', (_event, weight) => callback(weight));
   },
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
+  onSyncCycleComplete: (callback: () => void) => ipcRenderer.on('sync:cycle-complete', () => callback()),
+  onOnlineStatus: (callback: (online: boolean) => void) => ipcRenderer.on('sync:online-status', (_event, online) => callback(online)),
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),

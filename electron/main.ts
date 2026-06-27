@@ -111,10 +111,10 @@ function setupCSP() {
 
   if (isDev) {
     directives.push("script-src 'self' 'unsafe-inline'");
-    directives.push("connect-src 'self' ws://localhost:* http://localhost:*");
+    directives.push("connect-src 'self' ws://localhost:* http://localhost:* https://clients3.google.com");
   } else {
     directives.push("script-src 'self'");
-    const allowedConnect = ["'self'"];
+    const allowedConnect = ["'self'", "https://clients3.google.com"];
     if (apiOrigin && apiOrigin !== 'self') allowedConnect.push(apiOrigin);
     directives.push(`connect-src ${allowedConnect.join(' ')}`);
   }
@@ -1060,6 +1060,22 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
   }
 });
 
+ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    const today = new Date();
+    const dateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    const row = db.prepare(`
+      SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
+      FROM invoices
+      WHERE tenant_id = ? AND created_at >= ?
+    `).get(tenantId, dateStr) as any;
+    return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
+  } catch (error: any) {
+    return { success: false, totalSales: 0, invoiceCount: 0, error: error.message };
+  }
+});
+
 ipcMain.handle('db:getInvoiceItems', (event, invoice_id: string) => {
   try {
     const db = getDb();
@@ -1230,8 +1246,20 @@ ipcMain.handle('auth:clearToken', () => {
   }
 });
 
+function getOrInitTerminalCode(db: any): string {
+  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
+  if (row) return JSON.parse(row.value);
+  const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)`).run('global', 'terminal_code', JSON.stringify(code));
+  return code;
+}
+
 ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { tenant_id: string }) => {
   try {
+    const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+
     const configPath = getConfigPath();
     if (!fs.existsSync(configPath)) return { success: false, error: 'Not authenticated', offline: true };
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -1239,7 +1267,7 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { t
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
     const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
-    const response = await fetch(`${apiUrl}/api/invoices/next-number`, {
+    const response = await fetch(`${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(5000),
     });
@@ -1252,16 +1280,16 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { t
   }
 });
 
-ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenant_id: string; prefix?: string }) => {
+ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const effectivePrefix = prefix || 'INV-';
+    const terminalCode = getOrInitTerminalCode(db);
     const configKey = 'invoice_counter_config';
 
     const result = db.transaction(() => {
       const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
       let counter = 1;
-      let config: { prefix: string; counter: number } = { prefix: effectivePrefix, counter: 1 };
+      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-`, counter: 1 };
 
       if (row) {
         try {
@@ -1272,7 +1300,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
         }
       }
 
-      const invoiceNumber = `${config.prefix || effectivePrefix}${String(counter).padStart(3, '0')}`;
+      const invoiceNumber = `${terminalCode}-${String(counter).padStart(3, '0')}`;
       
       config.counter = counter + 1;
       db.prepare(`
@@ -1296,12 +1324,14 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, prefix }: { tenan
 ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'invoice_counter_config');
     if (row) {
       const config = JSON.parse(row.value);
-      return { success: true, invoiceNumber: `${config.prefix || 'INV-'}${config.counter || 1}` };
+      return { success: true, invoiceNumber: `${terminalCode}-${String(config.counter || 1).padStart(3, '0')}` };
     }
-    return { success: true, invoiceNumber: 'INV-1' };
+    return { success: true, invoiceNumber: `${terminalCode}-001` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

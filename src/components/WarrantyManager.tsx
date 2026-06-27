@@ -157,7 +157,7 @@ export function WarrantyManager({ onClose }: { onClose: () => void }) {
     <div className="flex-1 flex flex-col bg-background overflow-hidden">
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
+          <div className="p-2.5 rounded-xl bg-violet-500/10 text-violet-500 shadow-inner">
             <Shield className="w-5 h-5" />
           </div>
           <div className="min-w-0 leading-tight">
@@ -282,7 +282,7 @@ export function WarrantyManager({ onClose }: { onClose: () => void }) {
                             <Clock className="w-3 h-3" /> {remaining}d
                           </span>
                         ) : (
-                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center gap-1">
+                          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-violet-500/10 text-violet-500 flex items-center gap-1">
                             <CheckCircle className="w-3 h-3" /> {remaining}d
                           </span>
                         )}
@@ -346,10 +346,10 @@ export function WarrantyManager({ onClose }: { onClose: () => void }) {
 
             <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
                   <Calendar className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">3. Warranty Period</span>
+                <span className="text-xs font-black text-violet-500 uppercase tracking-wider">3. Warranty Period</span>
               </div>
               <div className="grid grid-cols-2 gap-6">
                 <div>

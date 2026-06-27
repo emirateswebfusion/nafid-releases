@@ -969,7 +969,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             <select
               value={sortBy}
               onChange={e => setSortBy(e.target.value as any)}
-              className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm font-medium text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all shadow-sm"
+              className="bg-background border border-border rounded-xl py-2.5 px-4 pr-8 text-sm font-medium text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all"
             >
               <option value="name">Sort by Name</option>
               <option value="created_at">Sort by Date Added</option>
@@ -978,7 +978,7 @@ export function InventoryManager({ onClose, initialView }: { onClose: () => void
             <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border/80 rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
-            <button onClick={openReport} className="px-3 py-2.5 text-muted-foreground hover:text-foreground hover:bg-muted border border-border/80 rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
+            <button onClick={openReport} className="px-4 py-2.5 text-muted-foreground hover:text-foreground font-medium border border-border hover:border-muted-foreground/30 rounded-xl text-sm flex items-center gap-2 transition-all active:scale-95 cursor-pointer bg-background select-none">
               <FileText className="w-4 h-4" /> Stock Report
             </button>
             <button onClick={openAdd} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">

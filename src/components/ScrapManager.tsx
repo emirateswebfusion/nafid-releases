@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
@@ -265,7 +265,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
       <div className="flex-1 flex flex-col bg-background overflow-hidden">
         <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 shadow-inner animate-pulse">
+            <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500 shadow-inner animate-pulse">
               <Recycle className="w-5 h-5" />
             </div>
             <div>
@@ -286,7 +286,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 shadow-inner">
+          <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500 shadow-inner">
             {view === 'list' ? <Recycle className="w-5 h-5" /> : view === 'selling' ? <ShoppingCart className="w-5 h-5" /> : view === 'transaction' ? <TrendingUp className="w-5 h-5" /> : <Package className="w-5 h-5" />}
           </div>
           <div className="min-w-0 leading-tight">
@@ -410,10 +410,10 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           <div className="space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-3 gap-4">
-              <div className="bg-card border border-border/80 border-l-4 border-l-amber-500 rounded-xl p-4 shadow-sm">
+              <div className="bg-card border border-border/80 border-l-4 border-l-orange-500 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <span className="text-2xl font-black">{categories.length}</span>
-                  <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
+                  <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
                     <Recycle className="w-4 h-4" />
                   </div>
                 </div>
@@ -453,15 +453,15 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
               <div className="divide-y divide-border">
                 {filteredCategories.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                    <Recycle className="w-12 h-12 mb-3 text-amber-500/30" />
+                    <Recycle className="w-12 h-12 mb-3 text-orange-500/30" />
                     <p className="font-medium text-foreground">No scrap categories found</p>
                     <p className="text-sm mt-1">Click "Add Category" to get started</p>
                   </div>
                 ) : filteredCategories.map(cat => (
-                  <div key={cat.scrap_category_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-amber-500/30 hover:shadow-sm transition-all duration-150 group">
+                  <div key={cat.scrap_category_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
                     <div className="col-span-3">
                       <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+                        <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
                           <Recycle className="w-3.5 h-3.5" />
                         </div>
                         <div>
@@ -495,135 +495,160 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
 
         {/* ── SELLING VIEW ── */}
         {view === 'selling' && (
-          <div className="max-w-4xl mx-auto space-y-5">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                value={sellingSearch}
-                onChange={e => setSellingSearch(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter' && sellingResults.length > 0) {
-                    handleAddToSellingCart(sellingResults[0]);
-                  }
-                  if (e.key === 'Escape') { setSellingSearch(''); setSellingResults([]); }
-                }}
-                placeholder="Search scrap categories to sell..."
-                autoFocus
-                className="w-full pl-10 pr-4 py-3 bg-background border-2 border-emerald-500/30 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
-              />
-              {sellingResults.length > 0 && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="max-h-[240px] overflow-y-auto">
-                    {sellingResults.map((s) => (
-                      <button
-                        key={s.scrap_category_id}
-                        onClick={() => handleAddToSellingCart(s)}
-                        className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border/40 last:border-0 cursor-pointer"
-                      >
-                        <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
-                          <Recycle className="w-4 h-4" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            Stock: <span className="font-semibold">{Number(s.current_stock).toFixed(1)} {s.unit} &middot; ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
-                          </div>
-                        </div>
-                        <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
-                          + Add
-                        </div>
-                      </button>
-                    ))}
+          <div className="flex flex-col flex-1 min-h-0 bg-background">
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
+              {/* Section 1: Search & Select */}
+              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                    <Search className="w-4 h-4" />
                   </div>
+                  <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">1. Search &amp; Select Scrap Items</span>
                 </div>
-              )}
-            </div>
-
-            {/* Selling cart */}
-            <div className="bg-card border border-border/80 rounded-xl shadow-sm divide-y divide-border/60">
-              <div className="flex items-center justify-between px-5 py-3">
-                <div className="flex items-center gap-2">
-                  <ShoppingCart className="w-4 h-4 text-emerald-500" />
-                  <span className="text-sm font-bold text-foreground">Sale Items ({sellingSelected.length})</span>
-                </div>
-                {sellingSelected.length > 0 && (
-                  <button onClick={() => setSellingSelected([])} className="text-xs font-bold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-lg transition-colors cursor-pointer">Clear All</button>
-                )}
-              </div>
-
-              {sellingSelected.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                  <ShoppingCart className="w-10 h-10 mb-3 text-emerald-500/30" />
-                  <p className="font-medium text-foreground">No items selected</p>
-                  <p className="text-sm mt-1">Search and add scrap categories above</p>
-                </div>
-              ) : (
-                <div className="px-4 py-2 space-y-2 max-h-[400px] overflow-y-auto">
-                  {sellingSelected.map((entry, idx) => (
-                    <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border/60 rounded-xl group hover:border-emerald-500/30 transition-all duration-150">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          Stock: <span className={clsx('font-semibold', Number(entry.category.current_stock) <= 0 ? 'text-destructive' : 'text-emerald-500')}>{Number(entry.category.current_stock).toFixed(1)} {entry.category.unit}</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-0.5 bg-muted/60 border border-border/80 rounded-lg p-0.5">
-                          <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: Math.max(0.1, s.qty - 0.1) } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
-                            <Minus className="w-3 h-3" />
+                <div className="relative">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={sellingSearch}
+                    onChange={e => setSellingSearch(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && sellingResults.length > 0) {
+                        handleAddToSellingCart(sellingResults[0]);
+                      }
+                      if (e.key === 'Escape') { setSellingSearch(''); setSellingResults([]); }
+                    }}
+                    placeholder="Search scrap categories to sell..."
+                    autoFocus
+                    className="w-full bg-background border border-border/80 rounded-xl py-3 pl-10 pr-4 text-sm font-medium text-foreground focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15 transition-all shadow-sm placeholder:text-muted-foreground/50"
+                  />
+                  {sellingResults.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-200">
+                      <div className="max-h-[240px] overflow-y-auto">
+                        {sellingResults.map((s) => (
+                          <button
+                            key={s.scrap_category_id}
+                            onClick={() => handleAddToSellingCart(s)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border/40 last:border-0 cursor-pointer"
+                          >
+                            <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
+                              <Recycle className="w-4 h-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
+                              <div className="text-xs text-muted-foreground mt-0.5">
+                                Stock: <span className="font-semibold">{Number(s.current_stock).toFixed(1)} {s.unit} &middot; ₹{Number(s.selling_price).toFixed(2)}/{s.unit}</span>
+                              </div>
+                            </div>
+                            <div className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-lg">
+                              + Add
+                            </div>
                           </button>
-                          <input type="number" min="0.1" step="0.1" value={entry.qty} onChange={e => { const val = e.target.value === '' ? 0.1 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: val } : s)); }} className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                          <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: s.qty + 0.1 } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-
-                        <div className="relative w-20">
-                          <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
-                          <input type="number" min="0" step="0.01" value={entry.rate} onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }} className="w-full pl-6 pr-2 py-1.5 bg-background border border-border rounded-lg text-sm font-bold text-right focus:outline-none focus:ring-2 focus:ring-emerald-500/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                        </div>
-
-                        <div className="text-right min-w-[70px]">
-                          <div className="font-black text-sm text-emerald-500">₹{(entry.qty * entry.rate).toFixed(2)}</div>
-                        </div>
-
-                        <button onClick={() => setSellingSelected(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div>
-                <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Sale Amount</span>
-                <div className="text-2xl font-black text-emerald-500 mt-0.5">
-                  {formatCurrency(sellingSelected.reduce((sum, s) => sum + s.qty * s.rate, 0))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => setView('list')} className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors active:scale-95 cursor-pointer">Cancel</button>
-                <button onClick={handleRecordSales} disabled={sellingSelected.length === 0 || sellingProcessing} className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-emerald-500/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
-                  {sellingProcessing ? (
-                    <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>
-                  ) : (
-                    <><ShoppingCart className="w-4 h-4" /> Complete Sale</>
                   )}
-                </button>
-              </div>
-            </div>
+                </div>
+              </section>
 
-            {statusMessage && (
-              <div className={clsx("px-4 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200", statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive")}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                <span className="flex-1">{statusMessage.text}</span>
-              </div>
-            )}
+              {/* Section 2: Selected Items */}
+              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-3 pb-2 border-b border-border/60">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                      <ShoppingCart className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-indigo-500 uppercase tracking-wider">2. Sale Items ({sellingSelected.length})</span>
+                  </div>
+                  {sellingSelected.length > 0 && (
+                    <button onClick={() => setSellingSelected([])} className="text-xs font-bold text-destructive hover:bg-destructive/10 px-2 py-1 rounded-lg transition-colors cursor-pointer">Clear All</button>
+                  )}
+                </div>
+
+                {sellingSelected.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
+                    <ShoppingCart className="w-10 h-10 mb-3 text-muted-foreground/30" />
+                    <p className="font-medium text-foreground">No items selected</p>
+                    <p className="text-sm mt-1">Search and add scrap categories above</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {sellingSelected.map((entry, idx) => {
+                      const stockNum = Number(entry.category.current_stock);
+                      return (
+                        <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border/60 rounded-xl group hover:border-indigo-500/30 transition-all duration-150">
+                          <div className="flex-1 min-w-0">
+                            <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Stock: <span className={clsx('font-semibold', stockNum <= 0 ? 'text-destructive' : 'text-emerald-500')}>{stockNum.toFixed(1)} {entry.category.unit}</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-0.5 bg-background border border-border/80 rounded-lg p-0.5 shadow-sm">
+                              <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: Math.max(0.1, s.qty - 0.1) } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
+                                <Minus className="w-3 h-3" />
+                              </button>
+                              <input type="number" min="0.1" step="0.1" value={entry.qty} onChange={e => { const val = e.target.value === '' ? 0.1 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: val } : s)); }} className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                              <button onClick={() => { setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: s.qty + 0.1 } : s)); }} className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer">
+                                <Plus className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            <div className="relative w-20">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">₹</span>
+                              <input type="number" min="0" step="0.01" value={entry.rate} onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }} className="w-full bg-background border border-border/80 rounded-lg pl-6 pr-2 py-1.5 text-sm font-bold text-right text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
+                            </div>
+
+                            <div className="text-right min-w-[70px]">
+                              <div className="font-black text-sm text-indigo-500">₹{(entry.qty * entry.rate).toFixed(2)}</div>
+                            </div>
+
+                            <button onClick={() => setSellingSelected(prev => prev.filter((_, i) => i !== idx))} className="p-1.5 text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer">
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+
+              {/* Section 3: Summary & Confirm */}
+              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                    <IndianRupee className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">3. Sale Summary</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Sale Amount</span>
+                    <div className="text-2xl font-black text-foreground mt-0.5">
+                      {formatCurrency(sellingSelected.reduce((sum, s) => sum + s.qty * s.rate, 0))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => setView('list')} className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors active:scale-95 cursor-pointer">Cancel</button>
+                    <button onClick={handleRecordSales} disabled={sellingSelected.length === 0 || sellingProcessing} className="px-6 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-indigo-500/20 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer">
+                      {sellingProcessing ? (
+                        <><RefreshCw className="w-4 h-4 animate-spin" /> Processing...</>
+                      ) : (
+                        <><ShoppingCart className="w-4 h-4" /> Complete Sale</>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {statusMessage && (
+                  <div className={clsx("mt-3 px-4 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200", statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive")}>
+                    {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span className="flex-1">{statusMessage.text}</span>
+                  </div>
+                )}
+              </section>
+            </div>
           </div>
         )}
 
@@ -633,7 +658,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
             {/* Left: Transaction Form */}
             <div className="space-y-6">
               <div className="grid grid-cols-3 gap-3">
-                <div className="bg-card border border-border/80 border-l-4 border-l-amber-500 rounded-xl p-4 shadow-sm">
+                <div className="bg-card border border-border/80 border-l-4 border-l-orange-500 rounded-xl p-4 shadow-sm">
                   <div className="text-sm text-muted-foreground font-semibold uppercase tracking-wider">Stock</div>
                   <div className="text-xl font-black mt-1">{Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}</div>
                 </div>
@@ -700,7 +725,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-amber-500" />
+                  <TrendingUp className="w-4 h-4 text-orange-500" />
                   Transaction History
                 </h2>
                 <button onClick={() => loadTransactions(selectedCategory.scrap_category_id)} className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-90 cursor-pointer" title="Refresh">

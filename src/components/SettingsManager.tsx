@@ -120,6 +120,7 @@ function formatBytes(bytes: number): string {
 export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [activeSection, setActiveSection] = useState('invoice');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
@@ -158,15 +159,15 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [printWidth, setPrintWidth] = useState<number>(58);
   const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
-  const [invoicePrefix, setInvoicePrefix] = useState('INV-');
+  const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -192,7 +193,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
     }
   }, [loading]);
 
@@ -241,8 +242,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       }
     }
 
+    const termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
+    setTerminalCode(termCode || '');
+
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
-    if (invCfg) { setInvoicePrefix(invCfg.prefix || 'INV-'); setInvoiceStartNumber(invCfg.counter || 1); }
+    if (invCfg) { setInvoiceStartNumber(invCfg.counter || 1); }
 
     try { const pr = await window.electronAPI.getPrinters(); setOsPrinters(pr || []); } catch (err) { console.error('Failed to get printers', err); }
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
@@ -278,7 +282,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined } }), name: 'print_format' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: invoicePrefix, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
       ];
 
       for (const { promise, name } of checks) {
@@ -288,7 +293,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, invoicePrefix, invoiceStartNumber, labelCodeType });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
+      setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
       setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
@@ -368,15 +374,19 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         return (
           <div className="grid grid-cols-2 gap-5">
             <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Invoice Prefix</label>
-              <Input type="text" value={invoicePrefix} onChange={(e) => setInvoicePrefix(e.target.value)} placeholder="e.g. INV-" />
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                Terminal Code
+                <span className="ml-2 text-[10px] font-normal text-muted-foreground bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full">Unique per computer</span>
+              </label>
+              <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated on first run" className="font-mono font-bold uppercase" maxLength={6} />
+              <p className="text-[10px] text-muted-foreground">Used as prefix: <span className="font-mono font-bold text-foreground">{terminalCode || 'POS1'}-XXX</span></p>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Starting Number</label>
-              <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 100" />
+              <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" />
             </div>
             <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
-              Next invoice: <span className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded">{invoicePrefix}{Number(invoiceStartNumber) || 1}</span>
+              Next invoice: <span className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded">{terminalCode || 'POS1'}-{String(Number(invoiceStartNumber) || 1).padStart(3, '0')}</span>
             </p>
           </div>
         );
@@ -1177,9 +1187,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </button>
           )}
           <button onClick={onClose}
-            className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
-            <X className="w-4 h-4" />
-            <span className="hidden sm:inline">Close</span>
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+            title="Close">
+            <X className="w-4 h-4 text-destructive" />
           </button>
         </div>
       </header>
@@ -1263,7 +1273,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   <div>
                     <h2 className="text-lg font-bold text-foreground tracking-tight">{activeItem.label}</h2>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {activeItem.id === 'invoice' && 'Set a starting invoice number. The system auto-increments from here.'}
+                      {activeItem.id === 'invoice' && 'Assign a unique code per computer. Invoice numbers use {code}-{number} format to avoid conflicts.'}
                       {activeItem.id === 'bulk' && 'Import products and print barcode labels in bulk.'}
                       {activeItem.id === 'gst' && 'Configure your business GSTIN and default state for GST invoices.'}
                       {activeItem.id === 'shop' && 'Manage your business name, address, phone, and UPI payment ID.'}

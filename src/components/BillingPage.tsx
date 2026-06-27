@@ -112,9 +112,24 @@ export function BillingPage() {
   const tabCounter = useRef(0);
   const initialized = useRef(false);
 
-  const handleAddTab = () => {
+  const handleAddTab = async () => {
+    let billNumber = '';
+    if (window.electronAPI) {
+      try {
+        const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+        if (result.success && result.invoiceNumber) {
+          billNumber = result.invoiceNumber;
+        }
+      } catch (e) {
+        console.error('Failed to peek invoice number', e);
+      }
+    }
     tabCounter.current++;
-    addTab(undefined, `Bill ${tabCounter.current}`);
+    const title = billNumber || `Bill ${tabCounter.current}`;
+    addTab(undefined, title);
+    if (billNumber) {
+      updateActiveTab({ reservedInvoiceNumber: billNumber });
+    }
   };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -790,11 +805,11 @@ export function BillingPage() {
     if (serverResult.success && serverResult.invoiceNumber) {
       invoice_number = serverResult.invoiceNumber;
     } else {
-      // Offline fallback: use local counter (collision resolved on sync with -C suffix)
+      // Offline fallback: use local counter
       const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
       invoice_number = localResult.success && localResult.invoiceNumber
         ? localResult.invoiceNumber
-        : `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+        : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
     }
 
     const lineItems = items.map(item => {
@@ -1101,7 +1116,7 @@ export function BillingPage() {
                 </span>
               )}
               {isScrapMode && nextScrapInvoiceNumber && (
-                <span className="text-xs font-bold font-mono text-amber-600 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20 shrink-0">
+                <span className="text-xs font-bold font-mono text-orange-600 bg-orange-500/10 px-2 py-0.5 rounded-md border border-orange-500/20 shrink-0">
                   {nextScrapInvoiceNumber}
                 </span>
               )}
@@ -1146,12 +1161,12 @@ export function BillingPage() {
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
               isScrapMode
-                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 shadow-sm"
+                ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted"
             )}
             title="Scrap Mode"
           >
-            <Recycle className={clsx("w-4 h-4", isScrapMode && "text-amber-500")} />
+            <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
             <span>Scrap</span>
           </button>
           <button
@@ -1308,19 +1323,19 @@ export function BillingPage() {
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
                             'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
-                            isSelected ? 'bg-amber-500/10 border-l-4 border-l-amber-500 pl-2' : 'hover:bg-amber-500/5'
+                            isSelected ? 'bg-orange-500/10 border-l-4 border-l-orange-500 pl-2' : 'hover:bg-orange-500/5'
                           )}
                         >
                           <div className={clsx(
                             'p-2 rounded-xl shrink-0 transition-colors',
-                            isSelected ? 'bg-amber-500/15 text-amber-500' : 'bg-amber-500/10 text-amber-500'
+                            isSelected ? 'bg-orange-500/15 text-orange-500' : 'bg-orange-500/10 text-orange-500'
                           )}>
                             <Recycle className="w-4 h-4" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-sm text-foreground truncate">{s.name}</div>
                             <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <span className="font-semibold text-amber-600 dark:text-amber-400">Scrap</span>
+                              <span className="font-semibold text-orange-600 dark:text-orange-400">Scrap</span>
                               <span>&middot;</span>
                               <span className={clsx(
                                 'font-semibold',
@@ -1331,7 +1346,7 @@ export function BillingPage() {
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-amber-500">{formatCurrency(rate)}/{s.unit || 'Kg'}</div>
+                            <div className="font-black text-sm text-orange-500">{formatCurrency(rate)}/{s.unit || 'Kg'}</div>
                           </div>
                         </button>
                       );
@@ -1706,7 +1721,7 @@ export function BillingPage() {
                     <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
                   )}
                   {scrapDeduction > 0 && (
-                    <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+                    <span className="text-xs font-black text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
                   )}
                 </div>
                 {/* Inline discount input */}
@@ -1756,12 +1771,12 @@ export function BillingPage() {
                   <button
                     onClick={() => scrapInvoiceNumber && handleViewScrapInvoice(scrapInvoiceNumber)}
                     disabled={scrapInvoiceViewLoading}
-                    className="text-xs font-bold text-amber-600 hover:bg-amber-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                    className="text-xs font-bold text-orange-600 hover:bg-orange-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
                     title="View scrap invoice details"
                   >
                     View
                   </button>
-                  <span className="text-xs font-black text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
+                  <span className="text-xs font-black text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
                 </div>
               </div>
             </div>
@@ -1785,7 +1800,7 @@ export function BillingPage() {
                       value={scrapInvoiceNumber.replace(/^SCR(?:AP)?-/, '')}
                       onChange={handleScrapInvoiceChange}
                       placeholder="001"
-                      className="w-24 h-9 bg-transparent border-0 text-base font-black text-amber-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className="w-24 h-9 bg-transparent border-0 text-base font-black text-orange-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                     {scrapInvoiceNumber && (
                       <button
@@ -1800,7 +1815,7 @@ export function BillingPage() {
                     <button
                       onClick={() => handleViewScrapInvoice(scrapInvoiceNumber)}
                       disabled={scrapInvoiceViewLoading}
-                      className="p-1.5 text-amber-600 hover:bg-amber-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
+                      className="p-1.5 text-orange-600 hover:bg-orange-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
                       title="View scrap invoice details"
                     >
                       <Receipt className="w-3.5 h-3.5" />
@@ -2001,7 +2016,7 @@ export function BillingPage() {
         onClose={() => { setShowScrapKgDialog(false); setSelectedScrapItem(null); setScrapKgInput(''); }}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Recycle className="w-5 h-5 text-amber-500" />
+            <Recycle className="w-5 h-5 text-orange-500" />
             <span>Scrap - {selectedScrapItem?.name || ''}</span>
           </div>
         }
@@ -2016,12 +2031,12 @@ export function BillingPage() {
               value={scrapKgInput}
               onChange={e => setScrapKgInput(e.target.value)}
               placeholder="Enter kg"
-              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
               autoFocus
             />
           </div>
           <div className="text-xs text-muted-foreground">
-            Rate: <span className="font-bold text-amber-500">{formatCurrency(Number(selectedScrapItem?.selling_price) || 0)}/kg</span>
+            Rate: <span className="font-bold text-orange-500">{formatCurrency(Number(selectedScrapItem?.selling_price) || 0)}/kg</span>
             {scrapKgInput && !isNaN(Number(scrapKgInput)) && Number(scrapKgInput) > 0 && (
               <span>
                 &nbsp;&middot;&nbsp; Total: <span className="font-bold text-foreground">{formatCurrency(Number(scrapKgInput) * (Number(selectedScrapItem?.selling_price) || 0))}</span>
@@ -2039,7 +2054,7 @@ export function BillingPage() {
             <Button
               onClick={handleSaveScrapTransaction}
               disabled={!scrapKgInput || isNaN(Number(scrapKgInput)) || Number(scrapKgInput) <= 0 || scrapProcessing}
-              className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
             >
               {scrapProcessing ? 'Saving...' : 'Add & Deduct'}
             </Button>
@@ -2053,7 +2068,7 @@ export function BillingPage() {
         onClose={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Recycle className="w-5 h-5 text-amber-500" />
+            <Recycle className="w-5 h-5 text-orange-500" />
             <span>Scrap Invoice {scrapInvoiceViewData?.invoiceNumber || ''}</span>
           </div>
         }
@@ -2061,14 +2076,14 @@ export function BillingPage() {
         <div className="space-y-4 min-w-[520px] text-foreground">
           {scrapInvoiceViewLoading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="w-5 h-5 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+              <div className="w-5 h-5 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
             </div>
           ) : scrapInvoiceViewData ? (
             <>
-              <div className="flex items-center justify-between p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+              <div className="flex items-center justify-between p-4 bg-orange-500/5 border border-orange-500/20 rounded-2xl">
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Deduction</p>
-                  <p className="text-2xl font-black text-amber-500 mt-1">{formatCurrency(scrapInvoiceViewData.totalAmount)}</p>
+                  <p className="text-2xl font-black text-orange-500 mt-1">{formatCurrency(scrapInvoiceViewData.totalAmount)}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
@@ -2092,7 +2107,7 @@ export function BillingPage() {
                       <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
                       <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(2)}</div>
                       <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                      <div className="col-span-2 text-right font-bold text-amber-600">{formatCurrency(tx.total_amount)}</div>
+                      <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
                       <div className="col-span-2 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
                     </div>
                   ))}
@@ -2106,7 +2121,7 @@ export function BillingPage() {
                     <span className="font-bold">{scrapInvoiceViewData.transactions.length}</span>
                     <span className="text-muted-foreground/40">|</span>
                     <span className="text-muted-foreground font-semibold">Grand Total:</span>
-                    <span className="font-black text-lg text-amber-600">{formatCurrency(scrapInvoiceViewData.totalAmount)}</span>
+                    <span className="font-black text-lg text-orange-600">{formatCurrency(scrapInvoiceViewData.totalAmount)}</span>
                   </div>
                 </div>
               )}

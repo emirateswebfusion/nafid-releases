@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -6,11 +6,27 @@ import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 
+function timeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 5) return 'just now';
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes === 1) return '1m ago';
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours === 1) return '1h ago';
+    return `${hours}h ago`;
+}
+
 export function OwnerDashboard() {
-    const { shopName } = useAuthStore();
+    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId } = useAuthStore();
     const { setRole } = useCartStore();
     const { theme, toggleTheme } = useThemeStore();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [displayTime, setDisplayTime] = useState('...');
+    const [totalSales, setTotalSales] = useState(0);
+    const [invoiceCount, setInvoiceCount] = useState(0);
+    const [isOnline, setIsOnline] = useState(true);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -23,14 +39,63 @@ export function OwnerDashboard() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const loadStats = useCallback(async () => {
+        if (!window.electronAPI?.dbGetDashboardStats || !tenantId) return;
+        const result = await window.electronAPI.dbGetDashboardStats(tenantId);
+        if (result.success) {
+            setTotalSales(result.totalSales);
+            setInvoiceCount(result.invoiceCount);
+        }
+    }, [tenantId]);
+
+    useEffect(() => {
+        loadStats();
+    }, [loadStats]);
+
+    useEffect(() => {
+        if (!window.electronAPI?.onSyncCycleComplete) return;
+        const now = Date.now();
+        setLastSyncTime(now);
+        setDisplayTime('just now');
+        window.electronAPI.onSyncCycleComplete(() => {
+            const t = Date.now();
+            setLastSyncTime(t);
+            setDisplayTime('just now');
+            loadStats();
+        });
+    }, [setLastSyncTime, loadStats]);
+
+    useEffect(() => {
+        if (window.electronAPI?.onOnlineStatus) {
+            window.electronAPI.onOnlineStatus(setIsOnline);
+            return;
+        }
+        setIsOnline(navigator.onLine);
+        const handler = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', handler);
+        window.addEventListener('offline', handler);
+        return () => {
+            window.removeEventListener('online', handler);
+            window.removeEventListener('offline', handler);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!lastSyncTime) return;
+        const interval = setInterval(() => {
+            setDisplayTime(timeAgo(lastSyncTime));
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [lastSyncTime]);
+
     const cards = [
         {
             id: 'billing',
-            title: 'POS Billing',
+            title: 'Billing',
             desc: 'Create new invoices and manage sales',
             icon: ShoppingBag,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-emerald-500',
+            bgColor: 'bg-emerald-500/10',
             action: () => setRole('CASHIER'),
             shortcut: 'F1'
         },
@@ -39,8 +104,8 @@ export function OwnerDashboard() {
             title: 'Inventory Manager',
             desc: 'Manage products, stock levels, and pricing',
             icon: Package,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-cyan-500',
+            bgColor: 'bg-cyan-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
         },
         {
@@ -48,8 +113,8 @@ export function OwnerDashboard() {
             title: 'Stock Report',
             desc: 'Print A4 stock reports with PDF export',
             icon: Printer,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-teal-500',
+            bgColor: 'bg-teal-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-stock-report')),
         },
         {
@@ -66,8 +131,8 @@ export function OwnerDashboard() {
             title: 'Warranty Bills',
             desc: 'Register and print warranty certificates',
             icon: Shield,
-            color: 'text-emerald-500',
-            bgColor: 'bg-emerald-500/10',
+            color: 'text-violet-500',
+            bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
         },
         {
@@ -75,8 +140,8 @@ export function OwnerDashboard() {
             title: 'Scrap Management',
             desc: 'Track scrap purchases, sales & profit',
             icon: Trash2,
-            color: 'text-amber-500',
-            bgColor: 'bg-amber-500/10',
+            color: 'text-orange-500',
+            bgColor: 'bg-orange-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),
         },
         {
@@ -84,8 +149,8 @@ export function OwnerDashboard() {
             title: 'Parties / Credit',
             desc: 'Track credit parties, balances, and payments',
             icon: Handshake,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-rose-500',
+            bgColor: 'bg-rose-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
         },
         {
@@ -93,8 +158,8 @@ export function OwnerDashboard() {
             title: 'Staff Administration',
             desc: 'Manage cashier accounts and permissions',
             icon: Users,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-indigo-500',
+            bgColor: 'bg-indigo-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-staff-manager')),
         },
         {
@@ -102,8 +167,8 @@ export function OwnerDashboard() {
             title: 'Sales History',
             desc: 'Review past transactions and reports',
             icon: TrendingUp,
-            color: 'text-primary',
-            bgColor: 'bg-primary/10',
+            color: 'text-amber-500',
+            bgColor: 'bg-amber-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-sales-history')),
         },
     ];
@@ -111,53 +176,74 @@ export function OwnerDashboard() {
     return (
         <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
             {/* Header */}
-            <div className="p-8 pb-4 flex justify-between items-end relative z-10 border-b border-border bg-card">
-                <div>
-                    <h1 className="text-4xl font-black text-foreground tracking-tight">
-                        Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
-                    </h1>
-                    <p className="text-muted-foreground mt-2">Manage your shop operations and staff from one place.</p>
-                </div>
-
-                <div className="flex items-center gap-4 relative" ref={menuRef}>
-                    <button 
-                        onClick={() => setMenuOpen(!menuOpen)}
-                        className="w-12 h-12 rounded-full bg-primary flex items-center justify-center font-bold text-xl text-primary-foreground shadow-sm hover:scale-105 transition-transform"
-                    >
-                        {shopName?.[0].toUpperCase() || 'A'}
-                    </button>
-
-                    {menuOpen && (
-                        <div className="absolute right-0 top-[110%] w-56 bg-card border border-border rounded-xl shadow-lg overflow-hidden z-50 animate-in fade-in slide-in-from-top-2">
-                            <div className="p-4 border-b border-border bg-muted/30">
-                                <p className="text-sm font-bold text-foreground truncate">{shopName || 'Admin'}</p>
-                                <p className="text-[10px] text-muted-foreground uppercase mt-1 tracking-widest font-bold">Owner</p>
-                            </div>
-                            <div className="p-2 space-y-1">
-                                <button 
-                                    onClick={() => { toggleTheme(); setMenuOpen(false); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-left"
-                                >
-                                    {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                                    Toggle Theme
-                                </button>
-                                <button 
-                                    onClick={() => { window.dispatchEvent(new CustomEvent('open-settings-manager')); setMenuOpen(false); }}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors text-left"
-                                >
-                                    <Settings className="w-4 h-4" />
-                                    Settings
-                                </button>
-                                <button 
-                                    onClick={() => useAuthStore.getState().logout()}
-                                    className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left"
-                                >
-                                    <LogOut className="w-4 h-4" />
-                                    Logout
-                                </button>
-                            </div>
+            <div className="px-8 py-5 border-b border-border bg-card relative z-10">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
+                            Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
+                        </h1>
+                        <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Today</span>
                         </div>
-                    )}
+                        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                            <span className="w-2 h-2 rounded-full bg-amber-500" />
+                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                        </div>
+                        <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", isOnline ? "bg-primary/10 border-primary/20" : "bg-destructive/10 border-destructive/20")}>
+                            <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-primary animate-pulse" : "bg-destructive")} />
+                            <span className={clsx("text-[10px] font-bold tracking-wider", isOnline ? "text-primary" : "text-destructive")}>{isOnline ? 'CONNECTED' : 'DISCONNECTED'}</span>
+                        </div>
+                        <div className="w-px h-6 bg-border mx-1" />
+                        <button
+                            onClick={toggleTheme}
+                            className="w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+                            title="Toggle Theme"
+                        >
+                            {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                        </button>
+                        <button
+                            onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
+                            className="w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+                            title="Settings"
+                        >
+                            <Settings className="w-4 h-4" />
+                        </button>
+                        <div className="relative" ref={menuRef}>
+                            <button
+                                onClick={() => setMenuOpen(!menuOpen)}
+                                className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-sm text-primary-foreground shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
+                                title="Profile"
+                            >
+                                {(userName || shopName)?.[0].toUpperCase() || 'A'}
+                            </button>
+                            {menuOpen && (
+                                <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="p-4 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
+                                        <p className="text-sm font-bold text-foreground truncate">{userName || shopName || 'Admin'}</p>
+                                        <p className="text-[10px] text-muted-foreground uppercase mt-1 tracking-widest font-semibold flex items-center gap-1.5">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                            Owner
+                                        </p>
+                                    </div>
+                                    <div className="p-1.5">
+                                        <button
+                                            onClick={() => useAuthStore.getState().logout()}
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                            <span>Logout</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -195,22 +281,14 @@ export function OwnerDashboard() {
                 ))}
             </div>
 
-            {/* Footer Stats Placeholder */}
-            <div className="p-8 border-t border-border bg-card relative z-0">
-                <div className="flex items-center gap-8">
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Total Sales (Today)</span>
-                        <span className="text-xl font-black text-foreground">₹0.00</span>
+            {/* Footer */}
+            <div className="px-8 py-3.5 border-t border-border bg-muted/30 relative z-0">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                        <span className={`w-1.5 h-1.5 rounded-full ${lastSyncTime && Date.now() - lastSyncTime < 120000 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span>Last sync: <span className="font-medium text-foreground/70">{displayTime}</span></span>
                     </div>
-                    <div className="w-[1px] h-8 bg-border" />
-                    <div className="flex flex-col">
-                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Active Invoices</span>
-                        <span className="text-xl font-black text-foreground">0</span>
-                    </div>
-                    <div className="ml-auto flex items-center gap-2 px-3 py-1 bg-primary/10 text-primary rounded-full text-[10px] font-bold border border-primary/20">
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" />
-                        LIVE SYNC ACTIVE
-                    </div>
+                    <span className="font-medium">© {new Date().getFullYear()} Vendora</span>
                 </div>
             </div>
         </div>

@@ -70,7 +70,7 @@ export function ActionPane() {
         const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
         invoice_number = localResult.success && localResult.invoiceNumber
           ? localResult.invoiceNumber
-          : `INV-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+          : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
       }
 
       const lineItems = items.map((item) => {

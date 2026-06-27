@@ -19,6 +19,20 @@ function notifyRenderer() {
   }
 }
 
+function notifyCycleComplete() {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    win.webContents.send('sync:cycle-complete');
+  }
+}
+
+function notifyOnlineStatus(online: boolean) {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    win.webContents.send('sync:online-status', online);
+  }
+}
+
 const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1');
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINS * 60 * 1000;
 
@@ -58,16 +72,19 @@ async function runSyncCycle() {
 
   try {
     try {
-      const res = await fetch('https://clients3.google.com/generate_204', { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-      if (!res.ok && res.status !== 204) {
-        console.log('[SyncWorker] Offline. Skipping sync cycle.');
+      const res = await fetch(getCloudApiBase() + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
+      if (!res.ok) {
+        console.log('[SyncWorker] Cloud offline. Skipping sync cycle.');
+        notifyOnlineStatus(false);
         return;
       }
     } catch {
       console.log('[SyncWorker] Offline. Skipping sync cycle.');
+      notifyOnlineStatus(false);
       return;
     }
 
+    notifyOnlineStatus(true);
     console.log('[SyncWorker] Online. Running sync...');
 
     const config = getAuthConfig();
@@ -101,6 +118,7 @@ async function runSyncCycle() {
     if (dataUpdated) {
       notifyRenderer();
     }
+    notifyCycleComplete();
   } finally {
     syncInProgress = false;
   }
@@ -809,18 +827,33 @@ async function syncPartyLedger(token: string, tenantId: string) {
 // ── Pull Party Ledger (Cloud → Edge) ─────────────────────────────────────────
 async function pullPartyLedger(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/party-ledger`, {
+
+  const doFetch = async (): Promise<Response> => {
+    return fetch(`${getCloudApiBase()}/api/sync/party-ledger`, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!response.ok) {
-      if (response.status !== 404) {
-        console.error(`[SyncWorker] Pull party ledger failed: HTTP ${response.status}`);
-      }
-      return false;
+  };
+
+  let response: Response;
+  try {
+    response = await doFetch();
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull party ledger network error:', err.message);
+    return false;
+  }
+
+  if (!response.ok) {
+    if (response.status !== 404) {
+      let body = '';
+      try { body = await response.text(); } catch { /* ignore */ }
+      console.error(`[SyncWorker] Pull party ledger failed: HTTP ${response.status} — ${body}`);
     }
+    return false;
+  }
+
+  try {
     const cloudEntries: any[] = await response.json();
     if (!Array.isArray(cloudEntries) || cloudEntries.length === 0) return false;
 

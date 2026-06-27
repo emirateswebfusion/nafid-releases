@@ -10,9 +10,11 @@ export interface AuthState {
   userName: string | null;
   shopName: string | null;
   isLoading: boolean;
+  lastSyncTime: number | null;
 
   // Actions
   login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
+  setLastSyncTime: (time: number) => void;
   register: (data: RegisterData, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
@@ -41,6 +43,9 @@ export const useAuthStore = create<AuthState>()((set) => ({
   userName: null,
   shopName: null,
   isLoading: true,
+  lastSyncTime: null,
+
+  setLastSyncTime: (time) => set({ lastSyncTime: time }),
 
   // ── On app startup: read config.json via IPC ──────────────────────────────
   checkAuth: async () => {
