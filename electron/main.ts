@@ -1209,9 +1209,14 @@ ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: s
   }
 });
 
-ipcMain.handle('sync:runInitial', async () => {
+ipcMain.handle('sync:runInitial', async (event) => {
   const { runInitialSync } = await import('./sync/syncWorker.js');
-  return runInitialSync();
+  return runInitialSync(event.sender);
+});
+
+ipcMain.handle('sync:getProgress', async () => {
+  const { getSyncProgress } = await import('./sync/syncWorker.js');
+  return getSyncProgress();
 });
 
 // ── Auth Token Persistence ───────────────────────────────────────────────────

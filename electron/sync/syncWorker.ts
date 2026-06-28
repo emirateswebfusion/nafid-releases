@@ -1,15 +1,48 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 
 const BATCH_SIZE = 20;
 const FETCH_TIMEOUT_MS = 300000;
 let syncInProgress = false;
+let syncPromise: Promise<void> | null = null;
+let currentSyncProgress: { percent: number; label: string } | null = null;
 
-function toSqliteDate(iso: string | null | undefined): string {
-  if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
-  return iso.replace('T', ' ').replace('Z', '');
+const SYNC_PHASES = [
+  'Checking connection...',
+  'Uploading grades...',
+  'Uploading products...',
+  'Uploading invoices...',
+  'Uploading settings...',
+  'Uploading parties...',
+  'Uploading ledger entries...',
+  'Downloading grades...',
+  'Downloading products...',
+  'Downloading invoices...',
+  'Downloading users...',
+  'Downloading settings...',
+  'Downloading parties...',
+  'Downloading ledger entries...',
+];
+
+function getWebContents(sender?: WebContents): WebContents | null {
+  if (sender) return sender;
+  const win = BrowserWindow.getAllWindows()[0];
+  return win?.webContents ?? null;
+}
+
+function notifyProgress(phaseIndex: number, sender?: WebContents) {
+  if (phaseIndex >= 0 && phaseIndex < SYNC_PHASES.length) {
+    const percent = Math.round(((phaseIndex + 1) / SYNC_PHASES.length) * 100);
+    currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex] };
+    const target = getWebContents(sender);
+    if (target) target.send('sync:progress', currentSyncProgress);
+  }
+}
+
+export function getSyncProgress(): { percent: number; label: string } | null {
+  return currentSyncProgress;
 }
 
 function notifyRenderer() {
@@ -33,6 +66,11 @@ function notifyOnlineStatus(online: boolean) {
   }
 }
 
+function toSqliteDate(iso: string | null | undefined): string {
+  if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
+  return iso.replace('T', ' ').replace('Z', '');
+}
+
 const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1');
 const SYNC_INTERVAL_MS = SYNC_INTERVAL_MINS * 60 * 1000;
 
@@ -53,75 +91,88 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
-  runSyncCycle().catch(err => console.error('[SyncWorker] Initial startup sync error:', err.message));
+  // Only kick off immediate sync if auth already exists (session restored).
+  // Otherwise, the renderer's runInitialSync triggers the first sync after login.
+  const config = getAuthConfig();
+  if (config) {
+    runSyncCycle().catch(err => console.error('[SyncWorker] Initial startup sync error:', err.message));
+  }
   setInterval(runSyncCycle, SYNC_INTERVAL_MS);
 }
 
-export async function runInitialSync() {
+export async function runInitialSync(sender?: WebContents) {
   console.log('[SyncWorker] Running explicit initial sync...');
-  await runSyncCycle();
+  await runSyncCycle(sender);
   return { success: true };
 }
 
-async function runSyncCycle() {
+async function runSyncCycle(sender?: WebContents): Promise<void> {
   if (syncInProgress) {
-    console.log('[SyncWorker] Sync already in progress, skipping...');
-    return;
+    console.log('[SyncWorker] Sync already in progress, waiting for it...');
+    return syncPromise ?? Promise.resolve();
   }
-  syncInProgress = true;
 
-  try {
+  syncInProgress = true;
+  currentSyncProgress = null;
+
+  syncPromise = (async () => {
     try {
-      const res = await fetch(getCloudApiBase() + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
-      if (!res.ok) {
-        console.log('[SyncWorker] Cloud offline. Skipping sync cycle.');
+      try {
+        notifyProgress(0, sender);
+        const res = await fetch(getCloudApiBase() + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
+        if (!res.ok) {
+          console.log('[SyncWorker] Cloud offline. Skipping sync cycle.');
+          notifyOnlineStatus(false);
+          return;
+        }
+      } catch {
+        console.log('[SyncWorker] Offline. Skipping sync cycle.');
         notifyOnlineStatus(false);
         return;
       }
-    } catch {
-      console.log('[SyncWorker] Offline. Skipping sync cycle.');
-      notifyOnlineStatus(false);
-      return;
+
+      notifyOnlineStatus(true);
+      console.log('[SyncWorker] Online. Running sync...');
+
+      const config = getAuthConfig();
+      if (!config) {
+        console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
+        return;
+      }
+
+      const { jwt_token, tenant_id } = config;
+      let dataUpdated = false;
+
+      try {
+        notifyProgress(1, sender); await syncGrades(jwt_token, tenant_id);
+        notifyProgress(2, sender); await syncProducts(jwt_token, tenant_id);
+        notifyProgress(3, sender); await syncInvoices(jwt_token, tenant_id);
+        notifyProgress(4, sender); await syncSettings(jwt_token, tenant_id);
+        notifyProgress(5, sender); await syncParties(jwt_token, tenant_id);
+        notifyProgress(6, sender); await syncPartyLedger(jwt_token, tenant_id);
+
+        notifyProgress(7, sender); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(8, sender); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(9, sender); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(10, sender); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(11, sender); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(12, sender); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(13, sender); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+      } catch (err: any) {
+        console.error('[SyncWorker] Sync cycle error:', err.message);
+      }
+
+      if (dataUpdated) {
+        notifyRenderer();
+      }
+      notifyCycleComplete();
+    } finally {
+      syncInProgress = false;
+      syncPromise = null;
     }
+  })();
 
-    notifyOnlineStatus(true);
-    console.log('[SyncWorker] Online. Running sync...');
-
-    const config = getAuthConfig();
-    if (!config) {
-      console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
-      return;
-    }
-
-    const { jwt_token, tenant_id } = config;
-    let dataUpdated = false;
-
-    try {
-      await syncGrades(jwt_token, tenant_id);
-      await syncProducts(jwt_token, tenant_id);
-      await syncInvoices(jwt_token, tenant_id);
-      await syncSettings(jwt_token, tenant_id);
-      await syncParties(jwt_token, tenant_id);
-      await syncPartyLedger(jwt_token, tenant_id);
-
-      if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-      if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
-    } catch (err: any) {
-      console.error('[SyncWorker] Sync cycle error:', err.message);
-    }
-
-    if (dataUpdated) {
-      notifyRenderer();
-    }
-    notifyCycleComplete();
-  } finally {
-    syncInProgress = false;
-  }
+  return syncPromise;
 }
 
 // ── Batch push helper with retries ───────────────────────────────────────────────

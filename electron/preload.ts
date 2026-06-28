@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdateGrade: (grade: any) => ipcRenderer.invoke('db:updateGrade', grade),
   dbDeleteGrade: (grade_id: string) => ipcRenderer.invoke('db:deleteGrade', grade_id),
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
+  getSyncProgress: () => ipcRenderer.invoke('sync:getProgress'),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
 
@@ -69,6 +70,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   onSyncCycleComplete: (callback: () => void) => ipcRenderer.on('sync:cycle-complete', () => callback()),
   onOnlineStatus: (callback: (online: boolean) => void) => ipcRenderer.on('sync:online-status', (_event, online) => callback(online)),
+  onSyncProgress: (callback: (progress: { percent: number; label: string }) => void) => {
+    ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
+  },
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),

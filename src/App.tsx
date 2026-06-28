@@ -86,6 +86,62 @@ function App() {
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
+  const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string } | null>(null);
+
+  const QUOTES = [
+    { text: "The best among you are those who bring benefit to others.", author: "Muhammad (SAW)" },
+    { text: "Take advantage of five before five: your youth before your old age, your health before your sickness, your wealth before your poverty, your free time before your preoccupation, and your life before your death.", author: "Muhammad (SAW)" },
+    { text: "Verily, with hardship comes ease.", author: "Muhammad (SAW)" },
+    { text: "A good word is charity.", author: "Muhammad (SAW)" },
+    { text: "The strong person is not the one who can overpower others, but the one who controls themselves in times of anger.", author: "Muhammad (SAW)" },
+    { text: "Whoever does not thank people, does not thank Allah.", author: "Muhammad (SAW)" },
+    { text: "The best of you is the one who is best to his family.", author: "Muhammad (SAW)" },
+    { text: "Make things easy, do not make things difficult.", author: "Muhammad (SAW)" },
+    { text: "If you have no shame, do whatever you please.", author: "Muhammad (SAW)" },
+    { text: "A person will be with those whom they love.", author: "Muhammad (SAW)" },
+    { text: "Success is not final, failure is not fatal: it is the courage to continue that counts.", author: "Winston Churchill" },
+    { text: "The only way to do great work is to love what you do.", author: "Steve Jobs" },
+    { text: "Your time is limited, don't waste it living someone else's life.", author: "Steve Jobs" },
+    { text: "The best time to plant a tree was 20 years ago. The second best time is now.", author: "Chinese Proverb" },
+    { text: "It does not matter how slowly you go as long as you do not stop.", author: "Confucius" },
+    { text: "Believe you can and you're halfway there.", author: "Theodore Roosevelt" },
+    { text: "The secret of getting ahead is getting started.", author: "Mark Twain" },
+    { text: "Don't watch the clock; do what it does. Keep going.", author: "Sam Levenson" },
+    { text: "The only impossible journey is the one you never begin.", author: "Tony Robbins" },
+    { text: "Success usually comes to those who are too busy to be looking for it.", author: "Henry David Thoreau" },
+    { text: "What you get by achieving your goals is not as important as what you become.", author: "Zig Ziglar" },
+    { text: "The future belongs to those who believe in the beauty of their dreams.", author: "Eleanor Roosevelt" },
+    { text: "Your attitude, not your aptitude, will determine your altitude.", author: "Zig Ziglar" },
+    { text: "The way to get started is to quit talking and begin doing.", author: "Walt Disney" },
+    { text: "The only limit to our realization of tomorrow will be our doubts of today.", author: "Franklin D. Roosevelt" },
+    { text: "A year from now you may wish you had started today.", author: "Karen Lamb" },
+    { text: "Opportunities don't happen. You create them.", author: "Chris Grosser" },
+    { text: "In the middle of difficulty lies opportunity.", author: "Albert Einstein" },
+    { text: "Act as if what you do makes a difference. It does.", author: "William James" },
+    { text: "Hardships often prepare ordinary people for an extraordinary destiny.", author: "C.S. Lewis" },
+    { text: "The harder you work, the luckier you get.", author: "Gary Player" },
+    { text: "It always seems impossible until it is done.", author: "Nelson Mandela" },
+    { text: "Whether you think you can or you think you can't, you're right.", author: "Henry Ford" },
+    { text: "Do what you can, with what you have, where you are.", author: "Theodore Roosevelt" },
+    { text: "Be the change that you wish to see in the world.", author: "Mahatma Gandhi" },
+    { text: "The only person you are destined to become is the person you decide to be.", author: "Ralph Waldo Emerson" },
+    { text: "Everything you've ever wanted is on the other side of fear.", author: "George Addair" },
+    { text: "Dream big and dare to fail.", author: "Norman Vaughan" },
+    { text: "Act now. There is never any time but now.", author: "Molière" },
+    { text: "The best revenge is massive success.", author: "Frank Sinatra" },
+    { text: "Done is better than perfect.", author: "Sheryl Sandberg" },
+    { text: "You miss 100% of the shots you don't take.", author: "Wayne Gretzky" },
+    { text: "Start where you are. Use what you have. Do what you can.", author: "Arthur Ashe" },
+    { text: "Focus on being productive instead of busy.", author: "Tim Ferriss" },
+    { text: "If opportunity doesn't knock, build a door.", author: "Milton Berle" },
+    { text: "Success is walking from failure to failure with no loss of enthusiasm.", author: "Winston Churchill" },
+    { text: "Don't let yesterday take up too much of today.", author: "Will Rogers" },
+    { text: "Energy and persistence conquer all things.", author: "Benjamin Franklin" },
+    { text: "You are never too old to set another goal or to dream a new dream.", author: "C.S. Lewis" },
+    { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
+  ];
+
+  const [quoteIndex, setQuoteIndex] = useState(0);
 
   useEffect(() => {
     checkAuth();
@@ -104,17 +160,51 @@ function App() {
       const runSync = async () => {
         console.log('[App] System authenticated. Starting cloud pull...');
         setIsSyncing(true);
+        setSyncProgress({ percent: 0, label: 'Connecting...' });
         try {
           await window.electronAPI.runInitialSync();
         } catch (error) {
           console.error('[App] Sync failed:', error);
         }
         setIsSyncing(false);
+        setSyncProgress(null);
         setSyncChecked(true);
       };
       runSync();
     }
   }, [isAuthenticated, syncChecked]);
+
+  // Simulated progress animation while syncing
+  useEffect(() => {
+    if (!isSyncing) return;
+    const interval = setInterval(() => {
+      setSyncProgress(prev => {
+        const p = prev?.percent ?? 0;
+        const increment =
+          p < 50 ? 15 :
+          p < 65 ? 8 :
+          p < 75 ? 4 :
+          p < 85 ? 2 :
+          p < 95 ? 1 :
+          Math.max(1, Math.floor((100 - p) / 4));
+        const next = Math.min(99, p + increment);
+        return { percent: next, label: prev?.label ?? 'Synchronizing...' };
+      });
+    }, 300);
+    return () => {
+      clearInterval(interval);
+      setSyncProgress({ percent: 100, label: 'Complete' });
+    };
+  }, [isSyncing]);
+
+  // Rotate quotes while syncing
+  useEffect(() => {
+    if (!isSyncing) return;
+    const interval = setInterval(() => {
+      setQuoteIndex(prev => (prev + 1) % QUOTES.length);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isSyncing]);
 
   useEffect(() => {
     const handleOpenInv = () => { setInventoryInitialView('list'); setShowInventoryManager(true); };
@@ -205,18 +295,27 @@ function App() {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-background overflow-hidden relative">
         <div className="flex flex-col items-center gap-8 relative z-10 text-center px-6">
-          <div className="relative">
-            <div className="w-24 h-24 border-4 border-primary/20 rounded-full" />
-            <div className="absolute inset-0 w-24 h-24 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-12 h-12 bg-primary rounded-full animate-pulse opacity-50" />
-            </div>
-          </div>
           <div>
             <h1 className="text-3xl font-black text-foreground mb-2 tracking-tight">Synchronizing Shop Data</h1>
-            <p className="text-muted-foreground max-w-sm leading-relaxed">
-              We're pulling your latest products, inventory, and sales history from the cloud.
-            </p>
+            <div className="w-full max-w-sm space-y-2">
+              <div className="w-full bg-primary/10 rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${syncProgress?.percent ?? 0}%` }}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {syncProgress?.label ?? 'Connecting...'} — {syncProgress?.percent ?? 0}%
+              </p>
+            </div>
+            <div className="max-w-xs mt-6">
+              <p className="text-sm text-muted-foreground/70 italic leading-relaxed animate-in fade-in duration-700">
+                &ldquo;{QUOTES[quoteIndex].text}&rdquo;
+              </p>
+              <p className="text-xs text-muted-foreground/50 mt-2 animate-in fade-in duration-700">
+                — {QUOTES[quoteIndex].author}
+              </p>
+            </div>
           </div>
         </div>
       </div>
