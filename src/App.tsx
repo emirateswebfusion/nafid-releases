@@ -18,6 +18,7 @@ import { ScrapManager } from './components/ScrapManager';
 import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
 import { PrintA4View } from './components/PrintA4View';
+import { StockReport } from './components/StockReport';
 import { DEFAULT_CODE_TYPE, STORAGE_KEY, type CodeType } from './labelCodeTypes';
 
 function App() {
@@ -76,7 +77,7 @@ function App() {
   const { currentUserRole, addItem } = useCartStore();
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
   const [showInventoryManager, setShowInventoryManager] = useState(false);
-  const [inventoryInitialView, setInventoryInitialView] = useState<'list' | 'report'>('list');
+  const [showStockReport, setShowStockReport] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
@@ -207,8 +208,8 @@ function App() {
   }, [isSyncing]);
 
   useEffect(() => {
-    const handleOpenInv = () => { setInventoryInitialView('list'); setShowInventoryManager(true); };
-    const handleOpenStockReport = () => { setInventoryInitialView('report'); setShowInventoryManager(true); };
+    const handleOpenInv = () => setShowInventoryManager(true);
+    const handleOpenStockReport = () => setShowStockReport(true);
     const handleOpenHistory = () => setShowSalesHistory(true);
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
@@ -217,9 +218,9 @@ function App() {
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
     const handleOpenQuotationEdit = () => {
-      // Close any open managers and show BillingPage which will pick up the quotation data from localStorage
       setShowQuotationManager(false);
       setShowInventoryManager(false);
+      setShowStockReport(false);
       setShowSalesHistory(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
@@ -354,7 +355,9 @@ function App() {
       ) : showSalesHistory ? (
         <SalesHistory onClose={() => setShowSalesHistory(false)} />
       ) : showInventoryManager ? (
-        <InventoryManager onClose={() => setShowInventoryManager(false)} initialView={inventoryInitialView} />
+        <InventoryManager onClose={() => setShowInventoryManager(false)} />
+      ) : showStockReport ? (
+        <StockReport onClose={() => setShowStockReport(false)} />
       ) : currentUserRole === 'OWNER' ? (
         <OwnerDashboard />
       ) : (

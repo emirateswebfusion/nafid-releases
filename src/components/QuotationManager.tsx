@@ -68,11 +68,9 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
     setShowDetail(true);
   };
 
-  const handlePrint = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+  const handlePrint = async () => {
     const content = printRef.current?.innerHTML || '';
-    printWindow.document.write(`
+    const fullHtml = `<!DOCTYPE html>
       <html>
         <head>
           <title>Quotation - ${shopName}</title>
@@ -95,10 +93,18 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
           </style>
         </head>
         <body>${content}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => printWindow.print(), 500);
+      </html>`;
+
+    if (window.electronAPI) {
+      const printResult = await window.electronAPI.printA4Html(tenantId || 'global', fullHtml);
+      if (!printResult.success && printResult.useDefaultDialog) {
+        const pw = window.open('', '_blank');
+        if (pw) { pw.document.write(fullHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+      }
+    } else {
+      const pw = window.open('', '_blank');
+      if (pw) { pw.document.write(fullHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+    }
   };
 
   const handleEditQuotation = async (q: Quotation) => {
