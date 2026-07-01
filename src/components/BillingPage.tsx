@@ -264,7 +264,7 @@ export function BillingPage() {
   // Scrap invoice view state
   const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
   const [scrapInvoiceViewData, setScrapInvoiceViewData] = useState<{ transactions: any[]; totalAmount: number; invoiceNumber: string } | null>(null);
-  const [scrapInvoiceViewLoading, setScrapInvoiceViewLoading] = useState(false);
+  const [scrapInvoiceViewLoading, _setScrapInvoiceViewLoading] = useState(false);
 
   // Quotation state
   const { isQuotationMode, setQuotationMode, editingQuotationId, editingQuotationNumber, setEditingQuotation } = useCartStore();
@@ -494,23 +494,6 @@ export function BillingPage() {
     });
     setSearchQuery('');
     setScrapSearchResults([]);
-  };
-
-  const handleViewScrapInvoice = async (invoiceNumber: string) => {
-    if (!window.electronAPI || !invoiceNumber) return;
-    setScrapInvoiceViewLoading(true);
-    try {
-      const { tenantId } = useAuthStore.getState();
-      const res = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
-      if (res && res.transactions) {
-        setScrapInvoiceViewData(res);
-        setShowScrapInvoiceView(true);
-      }
-    } catch (e) {
-      console.error('Failed to load scrap invoice', e);
-    } finally {
-      setScrapInvoiceViewLoading(false);
-    }
   };
 
   // Listen for open-quotation-edit event
@@ -926,7 +909,6 @@ export function BillingPage() {
     try {
       const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
-      const charsPerLine = cfg?.charsPerLine ? Number(cfg.charsPerLine) : undefined;
 
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const useA4 = printFmt?.format === 'a4';
@@ -1592,7 +1574,7 @@ export function BillingPage() {
                           </span>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                          <span className="text-orange-600 font-semibold text-xs">{formatCurrency(rate)}/{item.unit || 'Kg'}</span>
+                          <span className="text-orange-600 font-semibold text-xs">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
                         </div>
                       </div>
 

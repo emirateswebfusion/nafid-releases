@@ -13,7 +13,7 @@ import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
-import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, STORAGE_KEY, type CodeType } from '../labelCodeTypes';
+import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },

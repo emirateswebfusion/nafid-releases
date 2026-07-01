@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
-  Plus, Search, Loader2, UserPlus,
+  Search, Loader2, UserPlus,
   Pencil, Trash2, BookOpen, PlusCircle, MinusCircle,
   Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText, Phone, MapPin,

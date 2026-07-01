@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Store, ArrowRight, Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Building2, Mail, Lock, User, StoreIcon, ChevronLeft } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Building2, Mail, Lock, User, StoreIcon, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';

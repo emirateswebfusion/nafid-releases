@@ -55,7 +55,7 @@ module.exports = {
       owner: repository.owner,
       repo: repository.repo,
       private: true,
-      releaseType: 'draft'
+      releaseType: 'release'
     }
   ] : null
 };

@@ -9,7 +9,7 @@ import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
-import { DEFAULT_CODE_TYPE, CODE_TYPE_CONFIGS, type CodeType } from '../labelCodeTypes';
+import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {

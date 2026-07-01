@@ -19,7 +19,7 @@ import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
 import { PrintA4View } from './components/PrintA4View';
 import { StockReport } from './components/StockReport';
-import { DEFAULT_CODE_TYPE, STORAGE_KEY, type CodeType } from './labelCodeTypes';
+import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
