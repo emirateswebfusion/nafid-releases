@@ -88,6 +88,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
+  const [showLowStockAlert, setShowLowStockAlert] = useState(true);
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
@@ -404,6 +405,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         next.pricing_mode = value ? 'GRADE_RATE' : 'FIXED_PRICE';
       }
 
+      if (field === 'current_stock' && view === 'add') {
+        setPrintQuantity(value === '' ? '' : value);
+      }
+
       if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
         const pct = parseFloat(next.discount_percent as string);
         if (!isNaN(pct)) {
@@ -692,7 +697,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     setLoading(true);
 
     const payload = {
-      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending' }),
+      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toISOString() }),
       ...formData,
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
@@ -1019,10 +1024,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           )}
           
           {/* Low Stock summary bar */}
-          {products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
-            <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-6 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
+          {showLowStockAlert && products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
+            <div className="shrink-0 border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
               <AlertTriangle className="w-4 h-4 shrink-0" />
-              <span>{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
+              <span className="flex-1">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
+              <button onClick={() => setShowLowStockAlert(false)} className="p-1 rounded-md border border-amber-500/30 hover:bg-amber-500/15 transition-colors cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
             </div>
           )}
         </div>

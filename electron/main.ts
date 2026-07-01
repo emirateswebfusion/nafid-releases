@@ -897,7 +897,7 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
 });
 
 ipcMain.handle('db:checkout', (event, payload) => {
-  const { items, ...invoice } = payload;
+  const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
     // 1. Insert invoice
@@ -953,6 +953,30 @@ ipcMain.handle('db:checkout', (event, payload) => {
         item.total
       );
       stockStmt.run(item.quantity, item.product_id);
+    }
+
+    // 3. Handle scrap items — create scrap transactions and update scrap stock
+    if (scrap_items && scrap_items.length > 0) {
+      const scrapTxStmt = db.prepare(`
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status)
+        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `);
+      const scrapStockStmt = db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`);
+
+      for (const scrap of scrap_items) {
+        scrapTxStmt.run(
+          scrap.transaction_id,
+          invoice.tenant_id,
+          scrap.scrap_category_id,
+          scrap.quantity,
+          scrap.rate,
+          scrap.total_amount,
+          invoice.customer_name || null,
+          `From invoice ${invoice.invoice_number}`,
+          invoice.scrap_invoice_number || null
+        );
+        scrapStockStmt.run(scrap.quantity, scrap.scrap_category_id);
+      }
     }
   });
 
@@ -1479,20 +1503,55 @@ ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: {
 ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const prefix = 'SCR-';
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tenant_id || 'global', 'scrap_invoice_counter');
-    let counter = 1;
+    const terminalCode = getOrInitTerminalCode(db);
+    const configKey = 'scrap_invoice_counter';
+
+    const result = db.transaction(() => {
+      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+      let counter = 1;
+      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-SCR-`, counter: 1 };
+
+      if (row) {
+        try {
+          config = JSON.parse(row.value);
+          counter = (typeof config.counter === 'number' ? config.counter : 1);
+        } catch {
+          counter = 1;
+        }
+      }
+
+      const invoiceNumber = `${terminalCode}-SCR-${String(counter).padStart(3, '0')}`;
+
+      config.counter = counter + 1;
+      db.prepare(`
+        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, key) DO UPDATE SET
+          value = EXCLUDED.value,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run('global', configKey, JSON.stringify(config));
+
+      return { success: true, invoiceNumber, counter };
+    })();
+
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'scrap_invoice_counter');
     if (row) {
-      try { counter = JSON.parse(row.value).counter || 1; } catch { counter = 1; }
+      const config = JSON.parse(row.value);
+      return { success: true, invoiceNumber: `${terminalCode}-SCR-${String(config.counter || 1).padStart(3, '0')}` };
     }
-    const invoiceNumber = `${prefix}${String(counter).padStart(3, '0')}`;
-    db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-      ON CONFLICT(tenant_id, key) DO UPDATE SET
-        value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-    `).run(tenant_id || 'global', 'scrap_invoice_counter', JSON.stringify({ counter: counter + 1 }));
-    return { success: true, invoiceNumber };
+    return { success: true, invoiceNumber: `${terminalCode}-SCR-001` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }
@@ -1503,7 +1562,7 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
     const db = getDb();
     if (!tenant_id || !scrap_invoice_number) return null;
     const rows: any[] = db.prepare(`
-      SELECT st.*, sc.name as scrap_category_name
+      SELECT st.*, sc.name as scrap_category_name, sc.unit
       FROM scrap_transactions st
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
       WHERE st.tenant_id = ? AND st.scrap_invoice_number = ?
@@ -1512,6 +1571,32 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
     if (rows.length === 0) return null;
     const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
     return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number };
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    const rows: any[] = db.prepare(`
+      SELECT 
+        st.scrap_invoice_number as invoice_number,
+        COUNT(st.transaction_id) as item_count,
+        SUM(st.quantity) as total_qty,
+        GROUP_CONCAT(DISTINCT sc.unit) as units,
+        SUM(st.total_amount) as total_amount,
+        MIN(st.created_at) as created_at,
+        MAX(st.created_at) as updated_at
+      FROM scrap_transactions st
+      LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
+      WHERE st.tenant_id = ? AND st.scrap_invoice_number IS NOT NULL AND st.type = 'PURCHASE'
+      GROUP BY st.scrap_invoice_number
+      ORDER BY created_at DESC
+      LIMIT 500
+    `).all(tenant_id);
+    return rows;
   } catch (error: any) {
     return { error: error.message };
   }
@@ -1535,31 +1620,58 @@ ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
 });
 
 // ── Quotations IPC ─────────────────────────────────────────────
-ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id, prefix: _prefix }: { tenant_id: string; prefix?: string }) => {
+ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    if (!tenant_id) return { success: false, error: 'Tenant ID required' };
-    
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', 'quotation_counter');
-    let counter = 1;
-    let config: { prefix: string; counter: number } = { prefix: 'QTN-', counter: 1 };
+    const terminalCode = getOrInitTerminalCode(db);
+    const configKey = 'quotation_counter';
+
+    const result = db.transaction(() => {
+      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+      let counter = 1;
+      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-QTN-`, counter: 1 };
+
+      if (row) {
+        try {
+          config = JSON.parse(row.value);
+          counter = (typeof config.counter === 'number' ? config.counter : 1);
+        } catch {
+          counter = 1;
+        }
+      }
+
+      const quotationNumber = `${terminalCode}-QTN-${String(counter).padStart(3, '0')}`;
+
+      config.counter = counter + 1;
+      db.prepare(`
+        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, key) DO UPDATE SET
+          value = EXCLUDED.value,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run('global', configKey, JSON.stringify(config));
+
+      return { success: true, quotationNumber, counter };
+    })();
+
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'quotation_counter');
     if (row) {
-      try {
-        config = JSON.parse(row.value);
-        counter = config.counter;
-      } catch { counter = 1; }
+      const config = JSON.parse(row.value);
+      return { success: true, quotationNumber: `${terminalCode}-QTN-${String(config.counter || 1).padStart(3, '0')}` };
     }
-
-    const quotationNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
-    config.counter = counter + 1;
-    db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-      ON CONFLICT(tenant_id, key) DO UPDATE SET
-        value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-    `).run(tenant_id || 'global', 'quotation_counter', JSON.stringify(config));
-
-    return { success: true, quotationNumber };
+    return { success: true, quotationNumber: `${terminalCode}-QTN-001` };
   } catch (error: any) {
     return { success: false, error: error.message };
   }

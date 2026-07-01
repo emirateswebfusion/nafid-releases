@@ -38,6 +38,7 @@ export function PrintReceiptView({ text }: { text: string }) {
         fontFamily: '"Courier New", "Lucida Console", monospace',
         whiteSpace: 'pre',
         color: 'black',
+        fontWeight: 700,
         lineHeight: 1.2,
       }}>
         {receiptText}

@@ -76,13 +76,16 @@ export interface IElectronAPI {
   dbGetScrapTransactions: (args: { tenant_id: string; scrap_category_id?: string }) => Promise<any[]>;
   dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => Promise<any[]>;
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
+  dbPeekNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<any>;
+  dbGetScrapInvoiceList: (args: { tenant_id: string }) => Promise<any[]>;
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;
+  dbPeekNextQuotationNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;
   dbSaveQuotation: (q: any) => Promise<{ success: boolean; error?: string }>;
   dbGetQuotations: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbGetQuotationItems: (quotation_id: string) => Promise<any[]>;

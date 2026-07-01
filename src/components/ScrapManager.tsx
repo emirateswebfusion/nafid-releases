@@ -4,7 +4,7 @@ import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, Refres
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
-type View = 'list' | 'transaction' | 'selling';
+type View = 'list' | 'transaction' | 'selling' | 'invoices' | 'invoice_detail';
 
 interface ScrapCategory {
   scrap_category_id: string;
@@ -58,6 +58,11 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
   const [sellingSelected, setSellingSelected] = useState<{ category: ScrapCategory; qty: number; rate: number }[]>([]);
   const [sellingProcessing, setSellingProcessing] = useState(false);
 
+  // Invoices state
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string>('');
+  const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
+
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
@@ -80,6 +85,22 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
       const txs = await window.electronAPI.dbGetScrapTransactions({ tenant_id: tenantId || '', scrap_category_id: categoryId });
       if (Array.isArray(txs)) setTransactions(txs);
     }
+  };
+
+  const loadInvoices = async () => {
+    if (window.electronAPI) {
+      const invs = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+      if (Array.isArray(invs)) setInvoices(invs);
+    }
+  };
+
+  const openInvoiceDetail = async (invoiceNumber: string) => {
+    setSelectedInvoiceNumber(invoiceNumber);
+    if (window.electronAPI) {
+      const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
+    }
+    setView('invoice_detail');
   };
 
   const handleAddCategory = async () => {
@@ -292,7 +313,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Scrap Management' : view === 'selling' ? 'Sell Scrap Items' : view === 'transaction' ? `Transactions — ${selectedCategory?.name}` : 'Scrap Management'}
+                {view === 'list' ? 'Scrap Management' : view === 'selling' ? 'Sell Scrap Items' : view === 'transaction' ? `Transactions — ${selectedCategory?.name}` : view === 'invoices' ? 'Scrap Invoices' : view === 'invoice_detail' ? `Invoice ${selectedInvoiceNumber}` : 'Scrap Management'}
               </h1>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
@@ -307,7 +328,15 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {view !== 'list' ? (
+          {view === 'invoices' ? (
+            <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to Scrap Management">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          ) : view === 'invoice_detail' ? (
+            <button onClick={() => { loadInvoices(); setView('invoices'); }} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to Invoices">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          ) : view !== 'list' ? (
             <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
               <X className="w-4 h-4 text-destructive" />
             </button>
@@ -335,6 +364,12 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => { loadInvoices(); setView('invoices'); }}
+              className="px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-orange-500/20 active:scale-95 cursor-pointer"
+            >
+              <Recycle className="w-4 h-4" /> Invoices
+            </button>
             <button
               onClick={() => { setSellingSelected([]); setSellingSearch(''); setView('selling'); }}
               className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-emerald-500/20 active:scale-95 cursor-pointer"
@@ -648,6 +683,106 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   </div>
                 )}
               </section>
+            </div>
+          </div>
+        )}
+
+        {/* ── INVOICES LIST VIEW ── */}
+        {view === 'invoices' && (
+          <div className="space-y-4">
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                <div className="col-span-3">Invoice Number</div>
+                <div className="col-span-2 text-center">Date</div>
+                <div className="col-span-2 text-center">Items</div>
+                <div className="col-span-2 text-right">Qty</div>
+                <div className="col-span-2 text-right">Total Amount</div>
+                <div className="col-span-1 text-center">Action</div>
+              </div>
+              <div className="divide-y divide-border">
+                {invoices.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <Recycle className="w-12 h-12 mb-3 text-orange-500/30" />
+                    <p className="font-medium text-foreground">No scrap invoices found</p>
+                    <p className="text-sm mt-1">Complete a scrap purchase from billing to see it here</p>
+                  </div>
+                ) : invoices.map((inv: any) => (
+                  <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
+                    <div className="col-span-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+                          <Recycle className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
+                      </div>
+                    </div>
+                    <div className="col-span-2 text-center text-xs text-muted-foreground font-semibold">
+                      {new Date(inv.created_at).toLocaleDateString('en-IN')}
+                    </div>
+                    <div className="col-span-2 text-center font-bold text-sm text-foreground">
+                      {inv.item_count}
+                    </div>
+                    <div className="col-span-2 text-right font-bold text-sm text-foreground">
+                      {Number(inv.total_qty || 0).toFixed(2)} <span className="text-muted-foreground text-xs font-semibold">{inv.units || 'Kgs'}</span>
+                    </div>
+                    <div className="col-span-2 text-right font-bold text-sm text-orange-600">
+                      {formatCurrency(inv.total_amount)}
+                    </div>
+                    <div className="col-span-1 text-center">
+                      <button
+                        onClick={() => openInvoiceDetail(inv.invoice_number)}
+                        className="px-3 py-1.5 text-xs font-bold text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
+                      >
+                        View
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── INVOICE DETAIL VIEW ── */}
+        {view === 'invoice_detail' && (
+          <div className="space-y-4">
+            {invoiceDetailTxs.length > 0 && (
+              <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Amount</p>
+                  <p className="text-2xl font-black text-orange-500 mt-1">
+                    {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + tx.total_amount, 0))}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
+                  <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(2)} {invoiceDetailTxs[0]?.unit || 'Kgs'} &middot; {invoiceDetailTxs.length} item(s)</p>
+                </div>
+              </div>
+            )}
+
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                <div className="col-span-4">Category</div>
+                <div className="col-span-2 text-right">Qty</div>
+                <div className="col-span-2 text-right">Rate</div>
+                <div className="col-span-3 text-right">Total</div>
+                <div className="col-span-1 text-center">Date</div>
+              </div>
+              <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
+                {invoiceDetailTxs.length === 0 ? (
+                  <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
+                ) : invoiceDetailTxs.map((tx: any) => (
+                  <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
+                    <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
+                    <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(2)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span></div>
+                    <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
+                    <div className="col-span-3 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
+                    <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}

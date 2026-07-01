@@ -20,6 +20,8 @@ export interface CartItem {
   offer_price?: number | null;
   sku_barcode?: string | null;
   brand_manufacturer?: string | null;
+  isScrap?: boolean;
+  scrap_category_id?: string;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -154,8 +156,15 @@ export const useCartTotals = () => {
 
   let subtotal = 0;
   let totalTax = 0;
+  let scrapTotal = 0;
 
   items.forEach(item => {
+    if (item.isScrap) {
+      const scrapAmount = item.base_price * (item.calculated_weight || 0);
+      scrapTotal += scrapAmount;
+      return;
+    }
+
     const rawRate = item.pricing_mode === 'GRADE_RATE' 
       ? item.base_price + (item.grade_rate || 0) 
       : item.base_price;
@@ -200,5 +209,5 @@ export const useCartTotals = () => {
 
   const grandTotal = taxableAmount + adjustedTax;
 
-  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount };
+  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount, scrapTotal };
 };

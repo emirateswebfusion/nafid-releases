@@ -1273,7 +1273,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                   <div>
                     <h2 className="text-lg font-bold text-foreground tracking-tight">{activeItem.label}</h2>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {activeItem.id === 'invoice' && 'Assign a unique code per computer. Invoice numbers use {code}-{number} format to avoid conflicts.'}
+                      {activeItem.id === 'invoice' && 'Assign a unique code per computer. Invoice numbers use code - number format to avoid conflicts.'}
                       {activeItem.id === 'bulk' && 'Import products and print barcode labels in bulk.'}
                       {activeItem.id === 'gst' && 'Configure your business GSTIN and default state for GST invoices.'}
                       {activeItem.id === 'shop' && 'Manage your business name, address, phone, and UPI payment ID.'}

@@ -9,6 +9,9 @@ import { getDb } from '../db/localDb';
 const ESC_INIT = Buffer.from([0x1B, 0x40]); // Initialize Printer
 const ESC_FONT_A = Buffer.from([0x1B, 0x4D, 0x00]); // Select Font A (12 CPI, standard)
 const ESC_DEFAULT_LINE_SPACING = Buffer.from([0x1B, 0x32]); // Set default line spacing
+const ESC_BOLD_ON = Buffer.from([0x1B, 0x45, 0x01]); // ESC E 1 — Emphasized (bold) mode ON
+const ESC_BOLD_OFF = Buffer.from([0x1B, 0x45, 0x00]); // ESC E 0 — Emphasized (bold) mode OFF
+const ESC_DENSITY = Buffer.from([0x1D, 0x28, 0x41, 0x02, 0x00, 0x08, 0x00]); // GS ( A — Max print density (+50%)
 const ESC_CUT = Buffer.from([0x1D, 0x56, 0x00]); // Full Cut
 const ESC_DRAWER_KICK = Buffer.from([0x1B, 0x70, 0x00, 0x19, 0xFA]); // Open RJ11 Drawer
 
@@ -106,7 +109,8 @@ export function initPrinter() {
         // ESC/POS network printers only understand ASCII-based code pages
         const asciiText = sanitizeForEscPos(receiptText);
         const textBuffer = Buffer.from(asciiText, 'ascii');
-        const finalBuffer = Buffer.concat([ESC_POS_HEADER, textBuffer, ESC_CUT]);
+        // Apply max print density + bold/emphasized mode for darker text visibility
+        const finalBuffer = Buffer.concat([ESC_POS_HEADER, ESC_DENSITY, ESC_BOLD_ON, textBuffer, ESC_BOLD_OFF, ESC_CUT]);
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
       } else if (config.type === 'usb' && config.deviceName) {
         currentReceiptText = receiptText;

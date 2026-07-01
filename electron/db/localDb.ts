@@ -556,6 +556,48 @@ export function initDb() {
     console.warn('[DB Migration] Scrap items migration skipped:', e.message);
   }
 
+  // Drop legacy scrap_item_id / scarp_item_id columns from scrap_transactions
+  // Recreate the table to ensure the column is fully removed (more reliable than ALTER DROP COLUMN)
+  try {
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    const hasLegacyCol = scrapTxCols.includes('scrap_item_id') || scrapTxCols.includes('scarp_item_id');
+    if (hasLegacyCol) {
+      console.log('[DB Migration] Recreating scrap_transactions to remove legacy columns...');
+      db.exec('PRAGMA foreign_keys=off;');
+      const migrateScrapTx = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE scrap_transactions_new (
+            transaction_id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            type TEXT NOT NULL CHECK(type IN ('PURCHASE', 'SALE')),
+            scrap_category_id TEXT NOT NULL,
+            quantity REAL NOT NULL,
+            rate REAL NOT NULL,
+            total_amount REAL NOT NULL,
+            party_name TEXT,
+            notes TEXT,
+            transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+            sync_status TEXT DEFAULT 'SYNCED',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            scrap_invoice_number TEXT
+          );
+        `);
+        const cols = db.prepare("PRAGMA table_info(scrap_transactions)").all()
+          .map((c: any) => c.name)
+          .filter((n: string) => !['scrap_item_id', 'scarp_item_id'].includes(n))
+          .join(', ');
+        db.exec(`INSERT INTO scrap_transactions_new (${cols}) SELECT ${cols} FROM scrap_transactions;`);
+        db.exec('DROP TABLE scrap_transactions;');
+        db.exec('ALTER TABLE scrap_transactions_new RENAME TO scrap_transactions;');
+      });
+      migrateScrapTx();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] scrap_transactions recreated successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to recreate scrap_transactions table:', e.message);
+  }
+
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();
   if (!hasPrinter) {

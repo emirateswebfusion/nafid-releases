@@ -63,10 +63,11 @@ export function BillingPage() {
     currentUserRole, setRole, discountType, discountValue,
     addItem, updateQuantity, removeItem, updateWeight,
     customerState, setCustomerState,
-    scrapDeduction, scrapInvoiceNumber, setScrapDeduction, setScrapInvoiceNumber, clearScrapDeduction
+    scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
+    setScrapDeduction, clearScrapDeduction,
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
-  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
+  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals();
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const totalItemSavings = items.reduce((sum, item) => {
@@ -95,6 +96,20 @@ export function BillingPage() {
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
+  // Scrap mode (moved before displayGrandTotal which depends on it)
+  const [isScrapMode, setIsScrapMode] = useState(false);
+  const prevScrapMode = useRef(isScrapMode);
+  // Clean up incompatible items when scrap mode changes (handles indirect toggles like quotation mode)
+  useEffect(() => {
+    if (prevScrapMode.current && !isScrapMode) {
+      items.filter(i => i.isScrap).forEach(i => removeItem(i.product_id));
+    } else if (!prevScrapMode.current && isScrapMode) {
+      items.filter(i => !i.isScrap).forEach(i => removeItem(i.product_id));
+      clearScrapDeduction();
+    }
+    prevScrapMode.current = isScrapMode;
+  }, [isScrapMode]);
+
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const [shopGstin, setShopGstin] = useState('');
   const [shopAddress, setShopAddress] = useState('');
@@ -114,22 +129,30 @@ export function BillingPage() {
 
   const handleAddTab = async () => {
     let billNumber = '';
+    let scrapNumber = '';
+    let quotationNumber = '';
     if (window.electronAPI) {
       try {
-        const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-        if (result.success && result.invoiceNumber) {
-          billNumber = result.invoiceNumber;
-        }
+        const [r1, r2, r3] = await Promise.all([
+          window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' }),
+          window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' }),
+          window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' }),
+        ]);
+        if (r1?.success && r1.invoiceNumber) billNumber = r1.invoiceNumber;
+        if (r2?.success && r2.invoiceNumber) scrapNumber = r2.invoiceNumber;
+        if (r3?.success && r3.quotationNumber) quotationNumber = r3.quotationNumber;
       } catch (e) {
-        console.error('Failed to peek invoice number', e);
+        console.error('Failed to peek numbers', e);
       }
     }
     tabCounter.current++;
-    const title = billNumber || `Bill ${tabCounter.current}`;
+    const title = billNumber || scrapNumber || quotationNumber || `Bill ${tabCounter.current}`;
     addTab(undefined, title);
-    if (billNumber) {
-      updateActiveTab({ reservedInvoiceNumber: billNumber });
-    }
+    const updates: Record<string, string> = {};
+    if (billNumber) updates.reservedInvoiceNumber = billNumber;
+    if (scrapNumber) updates.reservedScrapInvoiceNumber = scrapNumber;
+    if (quotationNumber) updates.reservedQuotationNumber = quotationNumber;
+    if (Object.keys(updates).length) updateActiveTab(updates as any);
   };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
@@ -162,30 +185,32 @@ export function BillingPage() {
     const tab = getActiveTab();
     if (!tab || tab.reservedScrapInvoiceNumber) return;
     try {
-      const result = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
+      const result = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (result.success && result.invoiceNumber) {
         updateActiveTab({ reservedScrapInvoiceNumber: result.invoiceNumber });
       }
     } catch (e) {
       console.error('Failed to reserve scrap invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab]);
+  }, [getActiveTab, updateActiveTab]);
 
   const reserveQuotationNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab || tab.reservedQuotationNumber) return;
     try {
-      const result = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tenantId || '' });
+      const result = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
       if (result.success && result.quotationNumber) {
         updateActiveTab({ reservedQuotationNumber: result.quotationNumber });
       }
     } catch (e) {
       console.error('Failed to reserve quotation number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab]);
+  }, [getActiveTab, updateActiveTab]);
 
-  const displayGrandTotal = Math.max(0, grandTotal - scrapDeduction);
+  const displayGrandTotal = isScrapMode
+    ? scrapTotal
+    : Math.max(0, grandTotal - (storeScrapDeduction || 0));
   const balanceAmount = receivedAmount - displayGrandTotal;
 
   useEffect(() => {
@@ -220,11 +245,6 @@ export function BillingPage() {
     });
   }, [tenantId]);
 
-  // Reserve invoice number when tab becomes active without a reservation
-  useEffect(() => {
-    reserveInvoiceNumberForTab();
-  }, [activeTabId, reserveInvoiceNumberForTab]);
-
   const [showPastBill, setShowPastBill] = useState(false);
   const [pastBillSearch, setPastBillSearch] = useState('');
   const [foundInvoices, setFoundInvoices] = useState<any[]>([]);
@@ -239,13 +259,7 @@ export function BillingPage() {
   const [editedItems, setEditedItems] = useState<any[]>([]);
   const [pastBillView, setPastBillView] = useState<'search' | 'detail'>('search');
 
-  // Scrap state
-  const [isScrapMode, setIsScrapMode] = useState(false);
   const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
-  const [showScrapKgDialog, setShowScrapKgDialog] = useState(false);
-  const [selectedScrapItem, setSelectedScrapItem] = useState<any>(null);
-  const [scrapKgInput, setScrapKgInput] = useState('');
-  const [scrapProcessing, setScrapProcessing] = useState(false);
 
   // Scrap invoice view state
   const [showScrapInvoiceView, setShowScrapInvoiceView] = useState(false);
@@ -259,7 +273,15 @@ export function BillingPage() {
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
 
-
+  // Reserve invoice/scrap/quotation number when tab becomes active without a reservation
+  useEffect(() => {
+    reserveInvoiceNumberForTab();
+    if (isScrapMode) {
+      reserveScrapInvoiceNumberForTab();
+    } else if (isQuotationMode) {
+      reserveQuotationNumberForTab();
+    }
+  }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, isScrapMode, isQuotationMode]);
 
   useEffect(() => {
     // In scrap mode, only search scrap items — skip product search
@@ -458,55 +480,20 @@ export function BillingPage() {
   };
 
   const handleSelectScrapItem = (cat: any) => {
-    setSelectedScrapItem(cat);
-    setScrapKgInput('');
-    setShowScrapKgDialog(true);
-    setScrapSearchResults([]);
+    addItem({
+      product_id: `SCRAP-${cat.scrap_category_id}`,
+      name: cat.name,
+      base_price: Number(cat.purchase_price) || 0,
+      purchase_price: Number(cat.purchase_price) || 0,
+      tax_rate_percent: 0,
+      billing_type: 'WEIGHT',
+      weight_override_allowed: true,
+      average_weight_per_piece: 0,
+      isScrap: true,
+      scrap_category_id: cat.scrap_category_id,
+    });
     setSearchQuery('');
-  };
-
-  const handleSaveScrapTransaction = async () => {
-    if (!selectedScrapItem || !scrapKgInput || !window.electronAPI) return;
-    const kg = Number(scrapKgInput);
-    if (kg <= 0) return;
-    setScrapProcessing(true);
-    try {
-      const tab = getActiveTab();
-      let scrapInvoiceNum = tab?.reservedScrapInvoiceNumber || '';
-      if (!scrapInvoiceNum) {
-        const { tenantId } = useAuthStore.getState();
-        const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: tenantId || '' });
-        if (!numRes.success || !numRes.invoiceNumber) throw new Error('Failed to generate scrap invoice number');
-        scrapInvoiceNum = numRes.invoiceNumber;
-        updateActiveTab({ reservedScrapInvoiceNumber: scrapInvoiceNum });
-      }
-      const rate = Number(selectedScrapItem.purchase_price) || 0;
-      const totalAmount = kg * rate;
-      const txRes = await window.electronAPI.dbAddScrapTransaction({
-        transaction_id: uuidv4(),
-        tenant_id: tenantId,
-        type: 'PURCHASE',
-        scrap_category_id: selectedScrapItem.scrap_category_id,
-        quantity: kg,
-        rate,
-        total_amount: totalAmount,
-        party_name: '',
-        notes: `Generated from billing - Invoice: ${scrapInvoiceNum}`,
-        scrap_invoice_number: scrapInvoiceNum || null,
-      });
-      if (txRes.success) {
-        setScrapDeduction(totalAmount, scrapInvoiceNum);
-        setShowScrapKgDialog(false);
-        setSelectedScrapItem(null);
-        setScrapKgInput('');
-      } else {
-        console.error('Failed to save scrap transaction', txRes.error);
-      }
-    } catch (e) {
-      console.error('Scrap transaction error', e);
-    } finally {
-      setScrapProcessing(false);
-    }
+    setScrapSearchResults([]);
   };
 
   const handleViewScrapInvoice = async (invoiceNumber: string) => {
@@ -523,23 +510,6 @@ export function BillingPage() {
       console.error('Failed to load scrap invoice', e);
     } finally {
       setScrapInvoiceViewLoading(false);
-    }
-  };
-
-  const handleScrapInvoiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    // Only allow digits — strip any non-digit characters
-    const digits = raw.replace(/\D/g, '');
-    const fullNumber = digits ? `SCR-${digits.padStart(3, '0')}` : '';
-    setScrapInvoiceNumber(fullNumber);
-    if (fullNumber) {
-      window.electronAPI?.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: fullNumber }).then((res: any) => {
-        if (res && res.totalAmount) {
-          setScrapDeduction(res.totalAmount, fullNumber);
-        }
-      });
-    } else {
-      clearScrapDeduction();
     }
   };
 
@@ -582,6 +552,13 @@ export function BillingPage() {
     return () => window.removeEventListener('open-quotation-edit', handler);
   }, []);
 
+  // Auto-dismiss hardware error after 3 seconds
+  useEffect(() => {
+    if (!hardwareError) return;
+    const t = setTimeout(() => setHardwareError(null), 3000);
+    return () => clearTimeout(t);
+  }, [hardwareError]);
+
   const handleSaveQuotation = async () => {
     if (items.length === 0) return;
     if (!window.electronAPI) return;
@@ -593,13 +570,9 @@ export function BillingPage() {
       let quotationNumber = editingQuotationNumber || '';
 
       if (!editingQuotationId) {
-        const tab = getActiveTab();
-        quotationNumber = tab?.reservedQuotationNumber || '';
-        if (!quotationNumber) {
-          const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: tid });
-          if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
-          quotationNumber = numRes.quotationNumber || '';
-        }
+        const numRes = await window.electronAPI.dbGetNextQuotationNumber({ tenant_id: 'global' });
+        if (!numRes.success) { setHardwareError('Failed to generate number'); setQuotationSaving(false); return; }
+        quotationNumber = numRes.quotationNumber || '';
       }
 
       const qItems = items.map(item => {
@@ -791,10 +764,96 @@ export function BillingPage() {
   };
 
   const handleCheckout = async () => {
-    if (displayGrandTotal === 0 || items.length === 0) return;
+    if (items.length === 0) return;
     if (!window.electronAPI) return;
+
+    setIsCheckingOut(true);
+    setHardwareError(null);
+
+    if (isScrapMode) {
+      // ── Scrap Mode Checkout: save scrap transactions only, no invoice ──
+      try {
+        const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: 'global' });
+        if (!numRes.success || !numRes.invoiceNumber) {
+          setHardwareError('Failed to generate scrap invoice number');
+          setIsCheckingOut(false); return;
+        }
+        const scrapInvoiceNum = numRes.invoiceNumber;
+
+        // Save each scrap item as an individual PURCHASE transaction
+        for (const item of items) {
+          const result = await window.electronAPI.dbAddScrapTransaction({
+            transaction_id: uuidv4(),
+            tenant_id: tenantId || 'unset',
+            type: 'PURCHASE',
+            scrap_category_id: item.scrap_category_id,
+            quantity: item.calculated_weight || 0,
+            rate: item.base_price,
+            total_amount: item.base_price * (item.calculated_weight || 0),
+            party_name: customerName || null,
+            notes: '',
+            scrap_invoice_number: scrapInvoiceNum,
+          });
+          if (!result.success) {
+            setHardwareError(`Failed to save scrap item: ${result.error}`);
+            setIsCheckingOut(false); return;
+          }
+        }
+
+        // Print scrap receipt
+        const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+        const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
+        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
+        const thermalStyle = printFmt?.style || 'standard';
+
+        const scrapReceiptItems = items.map(item => ({
+          name: item.name,
+          quantity: (item.calculated_weight || 0).toFixed(1),
+          unit_price: item.base_price,
+          total: item.base_price * (item.calculated_weight || 0),
+        }));
+
+        const receiptData: ReceiptData = {
+          shopName: shopName || 'My Shop',
+          shopGstin: shopGstin || undefined,
+          shopPhone: shopPhone || undefined,
+          upiId: upiId || undefined,
+          showUpiQr: showUpiQr,
+          invoiceNumber: scrapInvoiceNum,
+          date: new Date().toLocaleString(),
+          cashierName: userName || authRole || undefined,
+          items: scrapReceiptItems,
+          subtotal: scrapTotal,
+          tax: 0,
+          discount: 0,
+          grandTotal: scrapTotal,
+        };
+
+        const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+        await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
+
+        setCheckoutSuccess(true);
+        setIsCheckingOut(false);
+        setTimeout(() => {
+          clearCart();
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+          syncActiveSnapshot();
+          setCheckoutSuccess(false);
+          reserveScrapInvoiceNumberForTab();
+          reserveInvoiceNumberForTab();
+        }, 1800);
+      } catch {
+        setHardwareError('Failed to save scrap invoice');
+        setIsCheckingOut(false);
+      }
+      return;
+    }
+
+    // ── Normal Mode Checkout ──
     if (paymentMethod === 'CREDIT' && (!customerName.trim() || !customerPhone.trim())) {
       setHardwareError('Customer name and phone are required for Credit');
+      setIsCheckingOut(false);
       return;
     }
 
@@ -812,7 +871,9 @@ export function BillingPage() {
         : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
     }
 
-    const lineItems = items.map(item => {
+    // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
+    const regularCartItems = items.filter(item => !item.isScrap);
+    const checkoutItems = regularCartItems.map(item => {
       const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
 
@@ -832,8 +893,35 @@ export function BillingPage() {
       return { item_id: uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
     });
 
-    setIsCheckingOut(true);
-    setHardwareError(null);
+    // Build receipt display items
+    const receiptItems = regularCartItems.map(item => {
+      const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+      const qty = Number(item.quantity) || 0;
+      let effectiveRate = rate;
+      if (item.offer_price) {
+        effectiveRate = Number(item.offer_price);
+      } else if (item.discount_flat) {
+        effectiveRate = rate - Number(item.discount_flat);
+      } else if (item.discount_percent) {
+        effectiveRate = rate * (1 - Number(item.discount_percent) / 100);
+      }
+      effectiveRate = Math.max(effectiveRate, 0);
+      const total = item.billing_type === 'WEIGHT' ? effectiveRate * (item.calculated_weight || 0) : effectiveRate * qty;
+      const unitPrice = qty > 0 ? total / qty : effectiveRate;
+      let originalRate: number | undefined;
+      let discountLabel: string | undefined;
+      if (item.offer_price) {
+        originalRate = rate;
+        discountLabel = 'Offer';
+      } else if (item.discount_flat) {
+        originalRate = rate;
+        discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
+      } else if (item.discount_percent) {
+        originalRate = rate;
+        discountLabel = `${item.discount_percent}% OFF`;
+      }
+      return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel };
+    });
 
     try {
       const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
@@ -853,26 +941,14 @@ export function BillingPage() {
         showUpiQr: showUpiQr,
         invoiceNumber: invoice_number, date: new Date().toLocaleString(),
         cashierName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
-        items: lineItems.map((i, idx) => {
-          const cartItem = items[idx];
-          let originalRate = cartItem.pricing_mode === 'GRADE_RATE' ? cartItem.base_price + (cartItem.grade_rate || 0) : cartItem.base_price;
-          let discountLabel: string | undefined;
-          if (cartItem.offer_price) {
-            discountLabel = 'Offer';
-          } else if (cartItem.discount_flat) {
-            discountLabel = `-₹${Number(cartItem.discount_flat).toFixed(0)}`;
-          } else if (cartItem.discount_percent) {
-            discountLabel = `${cartItem.discount_percent}% OFF`;
-          }
-          return { name: i.name, quantity: i.quantity, unit_price: i.unit_price, total: i.total, originalRate: discountLabel ? originalRate : undefined, discountLabel };
-        }),
+        items: receiptItems,
         subtotal, tax: totalTax,
         cgst: invoiceType === 'GST' ? cgst : undefined,
         sgst: invoiceType === 'GST' ? sgst : undefined,
         igst: invoiceType === 'GST' ? igst : undefined,
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal,
-        scrapDeduction, scrapInvoiceNumber: scrapInvoiceNumber || undefined,
+        scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
         receivedAmount, balanceAmount, invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
@@ -909,8 +985,9 @@ export function BillingPage() {
         customer_name: customerName || null, customer_phone: customerPhone || null,
         customer_gstin: invoiceType === 'GST' ? customerGstin || null : null,
         customer_state: invoiceType === 'GST' ? customerState || null : null,
-        scrap_deduction: scrapDeduction, scrap_invoice_number: scrapInvoiceNumber || null,
-        items: lineItems,
+        scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
+        items: checkoutItems,
+        scrap_items: [],
       });
       if (!result.success) { setHardwareError(`Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
 
@@ -935,6 +1012,7 @@ export function BillingPage() {
     setIsCheckingOut(false);
     setTimeout(() => {
       clearCart();
+      clearScrapDeduction();
       updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
       syncActiveSnapshot();
       setCheckoutSuccess(false);
@@ -1078,9 +1156,11 @@ export function BillingPage() {
 
   useKeyboardShortcuts({
     'F2': () => searchRef.current?.focus(),
-    'F8': () => discountRef.current?.focus(),
+    'F8': () => { if (!isScrapMode) discountRef.current?.focus(); },
     'F12': () => {
-      if (isQuotationMode && !editingQuotationId) {
+      if (isScrapMode) {
+        handleCheckout();
+      } else if (isQuotationMode && !editingQuotationId) {
         handleSaveQuotation();
       } else {
         handleCheckout();
@@ -1098,6 +1178,28 @@ export function BillingPage() {
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden text-foreground">
+      {/* ─── FLOATING TOASTS ─── */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md pointer-events-none">
+        {hardwareError && (
+          <div className="px-5 py-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="flex-1">{hardwareError}</span>
+          </div>
+        )}
+        {checkoutSuccess && (
+          <div className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+            <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
+            <span>Invoice completed & Receipt printed!</span>
+          </div>
+        )}
+        {quotationSuccess && (
+          <div className="px-5 py-3 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+            <FileText className="w-4 h-4 shrink-0" />
+            <span>{quotationSuccess}</span>
+          </div>
+        )}
+      </div>
+
       {/* ─── TOP HEADER ─── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
@@ -1110,21 +1212,16 @@ export function BillingPage() {
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
             </div>
             <div className="flex items-center gap-2 mt-0.5">
-              {!isScrapMode && !isQuotationMode && nextInvoiceNumber && (
-                <span className="text-xs font-bold font-mono text-primary bg-primary/10 px-2 py-0.5 rounded-md border border-primary/20 shrink-0">
-                  {nextInvoiceNumber}
-                </span>
-              )}
-              {isScrapMode && nextScrapInvoiceNumber && (
-                <span className="text-xs font-bold font-mono text-orange-600 bg-orange-500/10 px-2 py-0.5 rounded-md border border-orange-500/20 shrink-0">
-                  {nextScrapInvoiceNumber}
-                </span>
-              )}
-              {isQuotationMode && nextQuotationNumber && (
-                <span className="text-xs font-bold font-mono text-blue-600 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20 shrink-0">
-                  {nextQuotationNumber}
-                </span>
-              )}
+              <span className={clsx(
+                'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
+                isScrapMode
+                  ? 'text-orange-600 bg-orange-500/10 border-orange-500/20'
+                  : isQuotationMode
+                    ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
+                    : 'text-primary bg-primary/10 border-primary/20'
+              )}>
+                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (nextInvoiceNumber || '')}
+              </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
               </span>
@@ -1159,10 +1256,10 @@ export function BillingPage() {
               if (next) reserveScrapInvoiceNumberForTab();
             }}
             className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
               isScrapMode
-                ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border border-orange-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
             title="Scrap Mode"
           >
@@ -1177,10 +1274,10 @@ export function BillingPage() {
               if (next) reserveQuotationNumberForTab();
             }}
             className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer",
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
               isQuotationMode
-                ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border border-blue-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
             title="Quotation Mode"
           >
@@ -1313,7 +1410,7 @@ export function BillingPage() {
                       );
                     })}
                     {isScrapMode && scrapSearchResults.map((s, i) => {
-                      const rate = Number(s.selling_price) || 0;
+                      const rate = Number(s.purchase_price) || 0;
                       const stock = Number(s.current_stock) || 0;
                       const isSelected = i === selectedIndex;
                       return (
@@ -1478,6 +1575,56 @@ export function BillingPage() {
               </div>
             ) : (
               items.map(item => {
+                if (item.isScrap) {
+                  const rate = item.base_price;
+                  const weight = item.calculated_weight || 0;
+                  const total = rate * weight;
+                  return (
+                    <div
+                      key={item.product_id}
+                      className="flex items-center gap-3 px-4 py-3 bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
+                          <span className="text-[10px] font-bold text-orange-600 bg-orange-500/15 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            Scrap
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                          <span className="text-orange-600 font-semibold text-xs">{formatCurrency(rate)}/{item.unit || 'Kg'}</span>
+                        </div>
+                      </div>
+
+                      {/* Weight (KG) input for scrap */}
+                      <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg p-0.5 shrink-0">
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          className="w-16 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={item.calculated_weight || ''}
+                          onChange={e => updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
+                          placeholder="Kg"
+                        />
+                        <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
+                      </div>
+
+                      <div className="text-right min-w-[80px] shrink-0">
+                        <div className="font-black text-sm text-orange-600 dark:text-orange-400">{formatCurrency(total)}</div>
+                      </div>
+
+                      <button
+                        onClick={() => removeItem(item.product_id)}
+                        className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                        title="Remove Item"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                }
+
                 const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
                 const qty = Number(item.quantity) || 0;
 
@@ -1604,6 +1751,7 @@ export function BillingPage() {
                 ? 'max-h-0 opacity-0 scale-95 py-0'
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
+              {!isScrapMode && (
               <div className="grid grid-cols-2 gap-2">
                 {PAYMENT_OPTIONS.map(opt => {
                   const isActive = paymentMethod === opt.value;
@@ -1638,6 +1786,7 @@ export function BillingPage() {
                   );
                 })}
               </div>
+              )}
             </div>
 
             {/* ── Quotation Details — smoothly replaces payment methods ── */}
@@ -1684,11 +1833,13 @@ export function BillingPage() {
           <div className="shrink-0 border-t border-border/50 bg-background">
 
             {/* Calculation breakdown */}
-            <div className="px-5 py-2.5 space-y-1.5 text-xs border-b border-border/40">
+            <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border/40">
+              {(!isScrapMode || subtotal > 0) && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
                 <span className="font-bold text-foreground text-sm">{formatCurrency(subtotal)}</span>
               </div>
+              )}
 
               {invoiceType === 'GST' && totalTax > 0 && (
                 <>
@@ -1712,16 +1863,14 @@ export function BillingPage() {
                 </>
               )}
 
-              {/* Discount row */}
+              {/* Discount row — hidden in scrap mode */}
+              <div className={clsx('overflow-hidden transition-all duration-300 ease-in-out', isScrapMode ? 'max-h-0 opacity-0' : 'max-h-[60px] opacity-100')}>
               <div className="flex items-center justify-between pt-1 border-t border-border/30">
                 <div className="flex items-center gap-1.5">
                   <span className="text-muted-foreground font-semibold text-sm">Discount</span>
                   <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
                   {discount > 0 && (
                     <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
-                  )}
-                  {scrapDeduction > 0 && (
-                    <span className="text-xs font-black text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
                   )}
                 </div>
                 {/* Inline discount input */}
@@ -1755,103 +1904,104 @@ export function BillingPage() {
                   />
                 </div>
               </div>
-
-            {/* Scrap deduction row */}
-            <div className={clsx(
-              'overflow-hidden transition-all duration-300 ease-in-out',
-              scrapDeduction > 0 && !isScrapMode && !isQuotationMode
-                ? 'max-h-[40px] opacity-100'
-                : 'max-h-0 opacity-0'
-            )}>
-              <div className="flex justify-between items-center pt-1 border-t border-border/30">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground font-semibold text-sm">Scrap ({scrapInvoiceNumber})</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => scrapInvoiceNumber && handleViewScrapInvoice(scrapInvoiceNumber)}
-                    disabled={scrapInvoiceViewLoading}
-                    className="text-xs font-bold text-orange-600 hover:bg-orange-500/10 px-1.5 py-0.5 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
-                    title="View scrap invoice details"
-                  >
-                    View
-                  </button>
-                  <span className="text-xs font-black text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(scrapDeduction)}</span>
-                </div>
               </div>
-            </div>
 
-            {/* Scrap invoice number field */}
+            {/* ── Scrap Deduction Input (Normal Mode Only) ── */}
             <div className={clsx(
-              'overflow-hidden transition-all duration-300 ease-in-out',
+              'overflow-hidden transition-all duration-400 ease-in-out',
               !isScrapMode && !isQuotationMode
-                ? 'max-h-[52px] opacity-100'
-                : 'max-h-0 opacity-0'
+                ? 'max-h-[200px] opacity-100 scale-100'
+                : 'max-h-0 opacity-0 scale-95'
             )}>
-              <div className="flex items-center justify-between pt-1.5 border-t border-border/30">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground font-semibold text-sm">Scrap Inv</span>
-                </div>
-                <div className="flex items-center gap-1">
-                  <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={scrapInvoiceNumber.replace(/^SCR(?:AP)?-/, '')}
-                      onChange={handleScrapInvoiceChange}
-                      placeholder="001"
-                      className="w-24 h-9 bg-transparent border-0 text-base font-black text-orange-600 text-right pr-3 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                    />
-                    {scrapInvoiceNumber && (
+              <div className="px-0 py-0 mt-1 bg-orange-500/5 border border-orange-500/20 rounded-2xl">
+                <div className="flex items-center gap-1 px-2 py-1.5">
+                  {storeScrapDeduction > 0 ? (
+                    <>
+                      <div className="flex-1 flex items-center gap-2 px-2 py-1.5">
+                        <span className="text-xs font-semibold text-orange-600">Scrap Invoice {storeScrapInvoiceNumber}</span>
+                        <span className="text-sm font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
+                      </div>
                       <button
                         onClick={() => clearScrapDeduction()}
-                        className="p-1 text-destructive hover:bg-destructive/10 rounded-lg transition-colors cursor-pointer"
+                        className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer"
                       >
-                        <X className="w-3 h-3" />
+                        <X className="w-3.5 h-3.5" />
                       </button>
-                    )}
-                  </div>
-                  {scrapInvoiceNumber && (
-                    <button
-                      onClick={() => handleViewScrapInvoice(scrapInvoiceNumber)}
-                      disabled={scrapInvoiceViewLoading}
-                      className="p-1.5 text-orange-600 hover:bg-orange-500/10 rounded-lg transition-colors cursor-pointer disabled:opacity-40"
-                      title="View scrap invoice details"
-                    >
-                      <Receipt className="w-3.5 h-3.5" />
-                    </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          placeholder="Enter scrap invoice number..."
+                          value={storeScrapInvoiceNumber}
+                          onChange={e => setScrapDeduction(0, e.target.value.toUpperCase())}
+                          className="w-full pl-2 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase"
+                        />
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!storeScrapInvoiceNumber || !window.electronAPI) return;
+                          try {
+                            const res = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: storeScrapInvoiceNumber });
+                            if (res && res.totalAmount) {
+                              setScrapDeduction(res.totalAmount, storeScrapInvoiceNumber);
+                            } else {
+                              setHardwareError('Scrap invoice not found');
+                            }
+                          } catch (e) {
+                            setHardwareError('Failed to fetch scrap invoice');
+                          }
+                        }}
+                        className="px-2.5 py-1.5 bg-orange-500 text-white text-xs font-bold rounded-lg hover:bg-orange-600 transition-all active:scale-95 cursor-pointer shrink-0"
+                      >
+                        Apply
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
             </div>
 
-            </div>
-
-            {/* You Saved (per-product + bill-level) */}
-            {totalItemSavings + discount > 0 && (
-              <div className="mx-3 my-1.5 px-3 py-2 bg-emerald-500/10 border border-emerald-500/25 rounded-xl">
-                <div className="flex items-center justify-center gap-1.5">
-                  <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">YOU SAVED</span>
-                  <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
-                    {formatCurrency(totalItemSavings + discount)}
+            {/* Scrap items row — shown in scrap mode with scrap cart items */}
+            <div className={clsx(
+              'overflow-hidden transition-all duration-300 ease-in-out',
+              scrapTotal > 0 && isScrapMode && !isQuotationMode
+                ? 'max-h-[80px] opacity-100'
+                : 'max-h-0 opacity-0'
+            )}>
+              <div className="flex justify-between items-center pt-1 border-t border-border/30">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-semibold text-orange-600">Scrap Items</span>
+                  {items.filter(i => i.isScrap).map(s => (
+                    <span key={s.product_id} className="text-[10px] text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full ml-1">
+                      {s.name} {Number(s.calculated_weight || 0).toFixed(1)}Kg
+                    </span>
+                  ))}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-black text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full">
+                    {formatCurrency(scrapTotal)}
                   </span>
                 </div>
               </div>
-            )}
+            </div>
+
+            </div>
 
             {/* Grand Total + Received + Change */}
             <div className="mx-3 my-1.5 flex items-center gap-1.5 px-3 py-3 bg-primary/10 border-2 border-primary/25 rounded-2xl">
               {/* Total amount */}
               <div className="shrink-0">
                 <p className="text-[9px] font-black text-primary uppercase tracking-wider">
-                  {scrapDeduction > 0 ? 'After Scrap' : 'Total'}
+                  {isScrapMode ? 'Scrap Total' : storeScrapDeduction > 0 ? 'After Scrap' : 'Total'}
                 </p>
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
               </div>
-              {/* Divider — fades for CARD/UPI; hidden in quotation mode */}
-              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
-              {/* Received input — fades for CARD/UPI; hidden in quotation mode */}
-              <div className={clsx('flex-1 min-w-0 transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Divider — hidden in scrap/quotation/CARD/UPI mode */}
+              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
+              {/* Received input — hidden in scrap/quotation/CARD/UPI mode */}
+              <div className={clsx('flex-1 min-w-0 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Paid' : 'Received'}
                 </p>
@@ -1871,8 +2021,8 @@ export function BillingPage() {
                   />
                 </div>
               </div>
-              {/* Change input — fades for CARD/UPI; hidden in quotation mode */}
-              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Change input — hidden in scrap/quotation/CARD/UPI mode */}
+              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}
                 </p>
@@ -1899,30 +2049,7 @@ export function BillingPage() {
               </div>
             </div>
 
-            {/* Status alerts */}
-            <div className="px-4 space-y-1.5">
-              {hardwareError && (
-                <div                className="px-3 py-2.5 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold animate-in fade-in duration-200">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span className="flex-1">{hardwareError}</span>
-                  <button onClick={() => setHardwareError(null)} className="hover:bg-destructive/20 p-0.5 rounded-lg transition-colors cursor-pointer border border-destructive/30">
-                    <X className="w-3.5 h-3.5 text-destructive" />
-                  </button>
-                </div>
-              )}
-              {checkoutSuccess && (
-                <div                className="px-3 py-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold animate-in fade-in duration-200">
-                  <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
-                  <span>Invoice completed & Receipt printed!</span>
-                </div>
-              )}
-              {quotationSuccess && (
-                <div className="px-3 py-2.5 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold animate-in fade-in duration-200">
-                  <FileText className="w-4 h-4 shrink-0" />
-                  <span>{quotationSuccess}</span>
-                </div>
-              )}
-            </div>
+
 
             {/* Action buttons */}
             <div className="flex gap-2.5 px-4 py-3">
@@ -1973,6 +2100,25 @@ export function BillingPage() {
                     )}
                   </button>
                 </>
+              ) : isScrapMode ? (
+                /* ── Scrap Mode ── */
+                <button
+                  onClick={handleCheckout}
+                  disabled={isCheckingOut || items.length === 0}
+                  className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-orange-500 text-white font-black text-sm shadow-md hover:bg-orange-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
+                >
+                  {isCheckingOut ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>SAVING...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Recycle className="w-4.5 h-4.5" />
+                      <span>SAVE SCRAP &amp; PRINT (F12)</span>
+                    </>
+                  )}
+                </button>
               ) : (
                 /* ── Normal Billing Mode ── */
                 <>
@@ -2009,58 +2155,6 @@ export function BillingPage() {
         </div>
 
       </div>
-
-      {/* ─── Scrap Kg Input Dialog ─── */}
-      <Modal
-        isOpen={showScrapKgDialog}
-        onClose={() => { setShowScrapKgDialog(false); setSelectedScrapItem(null); setScrapKgInput(''); }}
-        title={
-          <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Recycle className="w-5 h-5 text-orange-500" />
-            <span>Scrap - {selectedScrapItem?.name || ''}</span>
-          </div>
-        }
-      >
-        <div className="space-y-4 p-2">
-          <div>
-            <label className="block text-sm font-semibold text-muted-foreground mb-1.5">Quantity (Kgs)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              value={scrapKgInput}
-              onChange={e => setScrapKgInput(e.target.value)}
-              placeholder="Enter kg"
-              className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500"
-              autoFocus
-            />
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Rate: <span className="font-bold text-orange-500">{formatCurrency(Number(selectedScrapItem?.selling_price) || 0)}/kg</span>
-            {scrapKgInput && !isNaN(Number(scrapKgInput)) && Number(scrapKgInput) > 0 && (
-              <span>
-                &nbsp;&middot;&nbsp; Total: <span className="font-bold text-foreground">{formatCurrency(Number(scrapKgInput) * (Number(selectedScrapItem?.selling_price) || 0))}</span>
-              </span>
-            )}
-          </div>
-          <div className="flex gap-2 pt-2">
-            <Button
-              onClick={() => { setShowScrapKgDialog(false); setSelectedScrapItem(null); setScrapKgInput(''); }}
-              variant="outline"
-              className="flex-1"
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSaveScrapTransaction}
-              disabled={!scrapKgInput || isNaN(Number(scrapKgInput)) || Number(scrapKgInput) <= 0 || scrapProcessing}
-              className="flex-1 bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              {scrapProcessing ? 'Saving...' : 'Add & Deduct'}
-            </Button>
-          </div>
-        </div>
-      </Modal>
 
       {/* ─── Scrap Invoice View Modal ─── */}
       <Modal

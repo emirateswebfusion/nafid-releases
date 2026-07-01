@@ -92,6 +92,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextQuotationNumber', payload),
+  dbPeekNextQuotationNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextQuotationNumber', payload),
   dbSaveQuotation: (q: any) => ipcRenderer.invoke('db:saveQuotation', q),
   dbGetQuotations: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getQuotations', args),
   dbGetQuotationItems: (quotation_id: string) => ipcRenderer.invoke('db:getQuotationItems', quotation_id),
@@ -107,7 +108,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Scrap Invoice
   dbGetScrapCategoriesBySearch: (args: { tenant_id: string; search: string }) => ipcRenderer.invoke('db:getScrapCategoriesBySearch', args),
   dbGetNextScrapInvoiceNumber: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getNextScrapInvoiceNumber', args),
+  dbPeekNextScrapInvoiceNumber: (args: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextScrapInvoiceNumber', args),
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:getScrapInvoiceByNumber', args),
+  dbGetScrapInvoiceList: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getScrapInvoiceList', args),
 
   // Parties
   dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),
