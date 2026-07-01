@@ -34,7 +34,7 @@ export function PrintReceiptView({ text }: { text: string }) {
       <pre style={{
         margin: 0,
         padding: '4px 0',
-        fontSize: '10pt',
+        fontSize: '9pt',
         fontFamily: '"Courier New", "Lucida Console", monospace',
         whiteSpace: 'pre',
         color: 'black',

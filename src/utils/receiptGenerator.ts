@@ -52,7 +52,7 @@ export interface ReceiptData {
  */
 export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' = 'standard'): string {
   if (charsPerLine == null) {
-    charsPerLine = widthCm >= 7.5 ? 42 : 32;
+    charsPerLine = widthCm >= 7.5 ? 38 : 32;
   }
 
   const centerText = (text: string, width: number): string => {
@@ -179,7 +179,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `    ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
       if (item.discountLabel) text += `    [${item.discountLabel}]\n`;
     });
-  } else if (charsPerLine >= 42) {
+  } else if (charsPerLine >= 38) {
     const qtyWidth = 4;
     const rateWidth = 8;
     const totalWidth = 9;
