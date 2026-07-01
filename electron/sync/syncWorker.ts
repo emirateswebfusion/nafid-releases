@@ -17,6 +17,8 @@ const SYNC_PHASES = [
   'Uploading settings...',
   'Uploading parties...',
   'Uploading ledger entries...',
+  'Uploading scrap categories...',
+  'Uploading scrap transactions...',
   'Downloading grades...',
   'Downloading products...',
   'Downloading invoices...',
@@ -24,6 +26,8 @@ const SYNC_PHASES = [
   'Downloading settings...',
   'Downloading parties...',
   'Downloading ledger entries...',
+  'Downloading scrap categories...',
+  'Downloading scrap transactions...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -150,14 +154,18 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(4, sender); await syncSettings(jwt_token, tenant_id);
         notifyProgress(5, sender); await syncParties(jwt_token, tenant_id);
         notifyProgress(6, sender); await syncPartyLedger(jwt_token, tenant_id);
+        notifyProgress(7, sender); await syncScrapCategories(jwt_token, tenant_id);
+        notifyProgress(8, sender); await syncScrapTransactions(jwt_token, tenant_id);
 
-        notifyProgress(7, sender); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(8, sender); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(9, sender); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(10, sender); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(11, sender); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(12, sender); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(13, sender); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(9, sender); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(10, sender); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(11, sender); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(12, sender); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(13, sender); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(14, sender); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(15, sender); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(16, sender); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(17, sender); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -958,6 +966,208 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull party ledger failed:', err.message);
+    return false;
+  }
+}
+
+// ── Scrap Categories Sync (Edge → Cloud) ─────────────────────────────────────
+async function syncScrapCategories(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM scrap_categories WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} scrap categories to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE scrap_categories SET sync_status = 'SYNCED' WHERE scrap_category_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const categories = batch.map((c: any) => ({
+      ...c,
+      is_deleted: !!c.is_deleted,
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/scrap_categories`,
+      token,
+      categories,
+      'scrap_categories',
+      `Scrap Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Scrap Transactions Sync (Edge → Cloud) ──────────────────────────────────
+async function syncScrapTransactions(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM scrap_transactions WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} scrap transactions to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE scrap_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/scrap_transactions`,
+      token,
+      batch,
+      'scrap_transactions',
+      `Scrap Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Scrap Categories (Cloud → Edge) ────────────────────────────────────
+async function pullScrapCategories(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/scrap_categories`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull scrap categories failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudCategories: any[] = await response.json();
+    if (!Array.isArray(cloudCategories) || cloudCategories.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO scrap_categories (
+        scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted,
+        sync_status, created_at, updated_at
+      ) VALUES (
+        @scrap_category_id, @tenant_id, @name, @purchase_price, @selling_price, @current_stock, @unit, @is_deleted,
+        'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(scrap_category_id) DO UPDATE SET
+        name = excluded.name,
+        purchase_price = excluded.purchase_price,
+        selling_price = excluded.selling_price,
+        current_stock = excluded.current_stock,
+        unit = excluded.unit,
+        is_deleted = excluded.is_deleted,
+        created_at = COALESCE(scrap_categories.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE scrap_categories.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((categories: any[]) => {
+      for (const c of categories) {
+        try {
+          upsert.run({
+            scrap_category_id: c.scrap_category_id,
+            tenant_id: tenantId,
+            name: c.name,
+            purchase_price: c.purchase_price ?? 0,
+            selling_price: c.selling_price ?? 0,
+            current_stock: c.current_stock ?? 0,
+            unit: c.unit || 'Kgs',
+            is_deleted: c.is_deleted ? 1 : 0,
+            created_at: toSqliteDate(c.created_at),
+            updated_at: toSqliteDate(c.updated_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling scrap category:', e.message);
+        }
+      }
+    });
+
+    tx(cloudCategories);
+
+    const reconciled = reconcilePending(db, 'scrap_categories', 'scrap_category_id', cloudCategories);
+    console.log(`[SyncWorker] Pulled ${cloudCategories.length} scrap categories from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull scrap categories failed:', err.message);
+    return false;
+  }
+}
+
+// ── Pull Scrap Transactions (Cloud → Edge) ─────────────────────────────────
+async function pullScrapTransactions(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/scrap_transactions`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull scrap transactions failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudTransactions: any[] = await response.json();
+    if (!Array.isArray(cloudTransactions) || cloudTransactions.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO scrap_transactions (
+        transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, transaction_date, created_at,
+        sync_status
+      ) VALUES (
+        @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @notes, @scrap_invoice_number, @transaction_date, @created_at,
+        'SYNCED'
+      )
+      ON CONFLICT(transaction_id) DO UPDATE SET
+        type = excluded.type,
+        quantity = excluded.quantity,
+        rate = excluded.rate,
+        total_amount = excluded.total_amount,
+        party_name = excluded.party_name,
+        notes = excluded.notes,
+        scrap_invoice_number = excluded.scrap_invoice_number,
+        sync_status = 'SYNCED'
+      WHERE scrap_transactions.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((transactions: any[]) => {
+      for (const t of transactions) {
+        try {
+          upsert.run({
+            transaction_id: t.transaction_id,
+            tenant_id: tenantId,
+            type: t.type,
+            scrap_category_id: t.scrap_category_id,
+            quantity: t.quantity,
+            rate: t.rate,
+            total_amount: t.total_amount ?? 0,
+            party_name: t.party_name || null,
+            notes: t.notes || null,
+            scrap_invoice_number: t.scrap_invoice_number || null,
+            transaction_date: toSqliteDate(t.transaction_date),
+            created_at: toSqliteDate(t.created_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling scrap transaction:', e.message);
+        }
+      }
+    });
+
+    tx(cloudTransactions);
+
+    const reconciled = reconcilePending(db, 'scrap_transactions', 'transaction_id', cloudTransactions);
+    console.log(`[SyncWorker] Pulled ${cloudTransactions.length} scrap transactions from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull scrap transactions failed:', err.message);
     return false;
   }
 }
