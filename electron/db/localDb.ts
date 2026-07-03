@@ -122,6 +122,7 @@ export function initDb() {
         name TEXT NOT NULL,
         phone TEXT,
         address TEXT,
+        gstin TEXT,
         balance REAL NOT NULL DEFAULT 0,
         balance_type TEXT DEFAULT 'RECEIVABLE',
         notes TEXT,
@@ -242,6 +243,41 @@ export function initDb() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS purchase_bills (
+        purchase_bill_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        bill_number TEXT NOT NULL,
+        supplier_id TEXT,
+        supplier_name TEXT NOT NULL,
+        bill_date TEXT,
+        notes TEXT,
+        total_amount REAL DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, bill_number),
+        FOREIGN KEY (supplier_id) REFERENCES parties(party_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS purchase_bill_items (
+        item_id TEXT PRIMARY KEY,
+        purchase_bill_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        quantity REAL NOT NULL DEFAULT 0,
+        purchase_price REAL NOT NULL DEFAULT 0,
+        total_amount REAL NOT NULL DEFAULT 0,
+        is_gst_applicable INTEGER DEFAULT 1,
+        tax_rate_percent REAL DEFAULT 0,
+        hsn_sac_code TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (purchase_bill_id) REFERENCES purchase_bills(purchase_bill_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+    );
   `);
 
   // Migration: Add missing columns if they don't exist (Idempotent)
@@ -272,7 +308,7 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     party_ledger: [
         'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'reference_number', 'created_by', 'created_by_name', 'sync_status', 'created_at', 'updated_at'
@@ -291,6 +327,12 @@ export function initDb() {
     ],
     warranties: [
         'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
+    ],
+    purchase_bills: [
+        'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'notes', 'total_amount', 'sync_status', 'created_at', 'updated_at'
+    ],
+    purchase_bill_items: [
+        'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
     ]
   };
 

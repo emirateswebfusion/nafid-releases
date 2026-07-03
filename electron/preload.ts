@@ -70,8 +70,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   onSyncCycleComplete: (callback: () => void) => ipcRenderer.on('sync:cycle-complete', () => callback()),
   onOnlineStatus: (callback: (online: boolean) => void) => ipcRenderer.on('sync:online-status', (_event, online) => callback(online)),
-  onSyncProgress: (callback: (progress: { percent: number; label: string }) => void) => {
+  onSyncProgress: (callback: (progress: { percent: number; label: string; recordsSynced: number; totalRecords: number }) => void) => {
     ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
+  },
+  onTokenExpired: (callback: () => void) => {
+    ipcRenderer.on('auth:token-expired', () => callback());
   },
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
@@ -122,4 +125,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbAddPartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:addPartyLedgerEntry', entry),
   dbUpdatePartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:updatePartyLedgerEntry', entry),
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => ipcRenderer.invoke('db:deletePartyLedgerEntry', { ledger_id, party_id }),
+
+  // Purchase Bills
+  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextPurchaseBillNumber', payload),
+  dbAddPurchaseBill: (payload: any) => ipcRenderer.invoke('db:addPurchaseBill', payload),
+  dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:getPurchaseBills', args),
+  dbGetPurchaseBillItems: (purchase_bill_id: string) => ipcRenderer.invoke('db:getPurchaseBillItems', purchase_bill_id),
+  dbDeletePurchaseBill: (purchase_bill_id: string) => ipcRenderer.invoke('db:deletePurchaseBill', purchase_bill_id),
+  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPurchaseBillProducts', args),
 });

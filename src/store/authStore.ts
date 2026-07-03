@@ -34,6 +34,15 @@ interface RegisterData {
 
 const CLOUD_API = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
 
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp ? payload.exp * 1000 < Date.now() : false;
+  } catch {
+    return true;
+  }
+}
+
 export const useAuthStore = create<AuthState>()((set) => ({
   isAuthenticated: false,
   token: null,
@@ -56,6 +65,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
         // Reset local store confirmation state before loading new ones
         useCartStore.getState().resetDomainConfirmation();
         if (stored?.jwt_token) {
+          if (isTokenExpired(stored.jwt_token)) {
+            if (window.electronAPI) await window.electronAPI.authClearToken();
+            set({ isAuthenticated: false });
+            return;
+          }
           set({
             isAuthenticated: true,
             token: stored.jwt_token,

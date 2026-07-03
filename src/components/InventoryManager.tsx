@@ -65,6 +65,14 @@ const DEFAULT_FORM = {
   pricing_mode: 'FIXED_PRICE',
   average_weight_per_piece: '' as string | number | null,
   weight_override_allowed: false,
+  show_gst_purchase: false,
+  gst_same_as_current: false,
+  gst_purchase_price: '' as string | number,
+  gst_purchase_quantity: '' as string | number,
+  gst_supplier_id: '',
+  gst_supplier_name: '',
+  gst_bill_number: '',
+  gst_bill_date: new Date().toISOString().split('T')[0],
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -94,6 +102,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const [grades, setGrades] = useState<any[]>([]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [showSupplierCreate, setShowSupplierCreate] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+  const [newSupplierAddress, setNewSupplierAddress] = useState('');
   const [selectedNameIndex, setSelectedNameIndex] = useState(0);
   const nameContainerRef = useRef<HTMLDivElement>(null);
 
@@ -143,8 +157,41 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           if (Array.isArray(res)) setGrades(res);
         })
         .catch(console.error);
+
+      window.electronAPI.dbGetParties(tenantId || 'global')
+        .then(res => {
+          if (Array.isArray(res)) setSuppliers(res);
+        })
+        .catch(console.error);
     }
   }, [tenantId]);
+
+  useEffect(() => {
+    if (view === 'add' && window.electronAPI) {
+      window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId || 'global' })
+        .then(res => {
+          if (res.success && res.billNumber) {
+            setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber }));
+          }
+        })
+        .catch(console.error);
+    }
+  }, [view, tenantId]);
+
+  // Keep GST fields in sync when "Same as Current Product" is enabled
+  useEffect(() => {
+    if (formData.gst_same_as_current && formData.show_gst_purchase) {
+      const syncPrice = formData.purchase_price;
+      const syncQty = formData.current_stock;
+      if (formData.gst_purchase_price !== syncPrice || formData.gst_purchase_quantity !== syncQty) {
+        setFormData(prev => ({
+          ...prev,
+          gst_purchase_price: syncPrice,
+          gst_purchase_quantity: syncQty,
+        }));
+      }
+    }
+  }, [formData.gst_same_as_current, formData.show_gst_purchase, formData.purchase_price, formData.current_stock, formData.gst_purchase_price, formData.gst_purchase_quantity]);
 
   useEffect(() => {
     if (labelCodeType === 'qrcode' && formData.sku_barcode) {
@@ -409,6 +456,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         setPrintQuantity(value === '' ? '' : value);
       }
 
+      if (field === 'gst_same_as_current' && value) {
+        next.gst_purchase_price = next.purchase_price;
+        next.gst_purchase_quantity = next.current_stock;
+      }
+
       if ((field === 'base_price' || field === 'grade_id') && next.discount_percent !== undefined && next.discount_percent !== '') {
         const pct = parseFloat(next.discount_percent as string);
         if (!isNaN(pct)) {
@@ -425,6 +477,42 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       ...prev,
       domain_attributes: { ...prev.domain_attributes, [field]: value }
     }));
+
+  const handleCreateSupplier = async () => {
+    if (!newSupplierName.trim()) return;
+    if (window.electronAPI) {
+      const partyId = uuidv4();
+      const res = await window.electronAPI.dbAddParty({
+        party_id: partyId,
+        tenant_id: tenantId,
+        name: newSupplierName.trim(),
+        phone: newSupplierPhone.trim() || null,
+        address: newSupplierAddress.trim() || null,
+        balance: 0,
+        balance_type: 'PAYABLE',
+        notes: 'Purchase Supplier',
+        created_by: useAuthStore.getState().userId,
+        created_by_name: useAuthStore.getState().userName,
+      });
+      if (res.success) {
+        const newParty = { party_id: partyId, tenant_id: tenantId, name: newSupplierName.trim(), phone: newSupplierPhone.trim() || null, address: newSupplierAddress.trim() || null, balance: 0, balance_type: 'PAYABLE' };
+        setSuppliers(prev => [...prev, newParty]);
+        setFormData(prev => ({ ...prev, gst_supplier_id: partyId, gst_supplier_name: newSupplierName.trim() }));
+        setShowSupplierCreate(false);
+        setNewSupplierName('');
+        setNewSupplierPhone('');
+        setNewSupplierAddress('');
+      } else {
+        setStatusMessage({ text: 'Failed to create supplier: ' + (res.error || ''), type: 'error' });
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    }
+  };
+
+  const filteredSuppliers = suppliers.filter(s =>
+    s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+    (s.phone && s.phone.includes(supplierSearch))
+  );
 
   const getEffectiveMrp = (data: any = formData) => {
     const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
@@ -722,6 +810,38 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
         : await window.electronAPI.dbAddProduct(payload);
 
       if (res.success) {
+        // If GST Purchase details provided, create a purchase bill entry
+        if (view === 'add' && formData.show_gst_purchase && formData.gst_purchase_price !== '' && Number(formData.gst_purchase_price) > 0) {
+          const purchaseBillId = uuidv4();
+          const itemId = uuidv4();
+          const gstQty = Number(formData.gst_purchase_quantity) || 0;
+          const gstPrice = Number(formData.gst_purchase_price) || 0;
+          const gstTotal = gstQty * gstPrice;
+          const supplierName = formData.gst_supplier_name || (suppliers.find(s => s.party_id === formData.gst_supplier_id)?.name) || 'Unknown Supplier';
+
+          await window.electronAPI.dbAddPurchaseBill({
+            purchase_bill_id: purchaseBillId,
+            tenant_id: tenantId,
+            bill_number: formData.gst_bill_number || `TEMP-${Date.now()}`,
+            supplier_id: formData.gst_supplier_id || null,
+            supplier_name: supplierName,
+            bill_date: formData.gst_bill_date || new Date().toISOString().split('T')[0],
+            notes: `Auto-created from product: ${formData.name}`,
+            total_amount: gstTotal,
+            items: [{
+              item_id: itemId,
+              product_id: payload.product_id,
+              name: formData.name,
+              quantity: gstQty,
+              purchase_price: gstPrice,
+              total_amount: gstTotal,
+              is_gst_applicable: payload.is_gst_applicable,
+              tax_rate_percent: payload.tax_rate_percent,
+              hsn_sac_code: payload.hsn_sac_code,
+            }],
+          });
+        }
+
         if (view === 'edit') {
           // Optimistic update for edit
           setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload } as Product : p));
@@ -1396,6 +1516,168 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     <DomainField label="Hallmark HUID" value={formData.domain_attributes['hallmark_huid'] || ''} onChange={v => handleDomainAttrChange('hallmark_huid', v)} />
                   </>)}
                 </div>
+              </section>
+            )}
+
+            {/* Section 6: GST Purchase Details — only in Add mode */}
+            {view === 'add' && (
+              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-purple-500 uppercase tracking-wider">6. GST Purchase Details</span>
+                  <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={formData.show_gst_purchase}
+                      onChange={e => handleInputChange('show_gst_purchase', e.target.checked)}
+                      className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-foreground">Add Purchase Entry</span>
+                  </label>
+                </div>
+
+                {formData.show_gst_purchase && (
+                  <div className="space-y-4">
+                    {/* Same as Current Product */}
+                    <label className="flex items-center gap-2 p-3 bg-muted/10 border border-border/80 rounded-xl cursor-pointer select-none hover:bg-muted/20 transition-colors">
+                      <input
+                        type="checkbox"
+                        checked={formData.gst_same_as_current}
+                        onChange={e => handleInputChange('gst_same_as_current', e.target.checked)}
+                        className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
+                      />
+                      <span className="text-sm font-bold text-foreground">Same as Current Product</span>
+                      <span className="text-xs text-muted-foreground ml-1">(Auto-fill purchase price & quantity from above)</span>
+                    </label>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Price (₹)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={formData.gst_purchase_price}
+                            onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Quantity</label>
+                        <input
+                          type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={formData.gst_purchase_quantity}
+                          onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Supplier Selection */}
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Supplier / Shop</label>
+                        {showSupplierCreate ? (
+                          <div className="space-y-2 p-3 bg-muted/10 border border-border/80 rounded-xl">
+                            <input
+                              type="text" placeholder="Supplier Name *"
+                              value={newSupplierName}
+                              onChange={e => setNewSupplierName(e.target.value)}
+                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                            />
+                            <input
+                              type="text" placeholder="Phone (optional)"
+                              value={newSupplierPhone}
+                              onChange={e => setNewSupplierPhone(e.target.value)}
+                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                            />
+                            <input
+                              type="text" placeholder="Address (optional)"
+                              value={newSupplierAddress}
+                              onChange={e => setNewSupplierAddress(e.target.value)}
+                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                            />
+                            <div className="flex gap-2">
+                              <button onClick={handleCreateSupplier} className="flex-1 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-all cursor-pointer">
+                                Save Supplier
+                              </button>
+                              <button onClick={() => { setShowSupplierCreate(false); setNewSupplierName(''); setNewSupplierPhone(''); setNewSupplierAddress(''); }} className="px-3 py-2 text-red-500 border border-red-200 dark:border-red-900 rounded-xl text-sm font-bold transition-all cursor-pointer">
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search or select supplier..."
+                              value={supplierSearch}
+                              onChange={e => {
+                                setSupplierSearch(e.target.value);
+                                const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
+                                if (match) {
+                                  setFormData(prev => ({ ...prev, gst_supplier_id: match.party_id, gst_supplier_name: match.name }));
+                                }
+                              }}
+                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm text-sm"
+                            />
+                            {supplierSearch && filteredSuppliers.length > 0 && (
+                              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                                {filteredSuppliers.map(s => (
+                                  <button
+                                    key={s.party_id}
+                                    type="button"
+                                    onMouseDown={() => {
+                                      setFormData(prev => ({ ...prev, gst_supplier_id: s.party_id, gst_supplier_name: s.name }));
+                                      setSupplierSearch(s.name);
+                                    }}
+                                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted border-b border-border/40 last:border-0 transition-colors cursor-pointer flex items-center gap-2"
+                                  >
+                                    <span className="font-bold">{s.name}</span>
+                                    {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
+                                    {s.balance_type === 'PAYABLE' && s.balance > 0 && (
+                                      <span className="text-xs text-red-500 ml-auto font-bold">₹{Number(s.balance).toFixed(2)}</span>
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setShowSupplierCreate(true)}
+                              className="mt-1.5 text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Plus className="w-3 h-3" /> Create New Supplier
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Bill Reference */}
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Bill Ref</label>
+                        <input
+                          type="text"
+                          value={formData.gst_bill_number}
+                          onChange={e => handleInputChange('gst_bill_number', e.target.value)}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm font-mono tracking-wider text-sm"
+                        />
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-3">Bill Date</label>
+                        <input
+                          type="date"
+                          value={formData.gst_bill_date}
+                          onChange={e => handleInputChange('gst_bill_date', e.target.value)}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
               </section>
             )}
           </div>

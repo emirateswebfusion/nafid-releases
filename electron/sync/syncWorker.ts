@@ -7,7 +7,14 @@ const BATCH_SIZE = 20;
 const FETCH_TIMEOUT_MS = 300000;
 let syncInProgress = false;
 let syncPromise: Promise<void> | null = null;
-let currentSyncProgress: { percent: number; label: string } | null = null;
+let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
+
+function getTotalPendingRecords(db: any, tenantId: string): number {
+  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items'];
+  const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
+  const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
+  return rows.reduce((sum, r) => sum + r.cnt, 0);
+}
 
 const SYNC_PHASES = [
   'Checking connection...',
@@ -19,15 +26,17 @@ const SYNC_PHASES = [
   'Uploading ledger entries...',
   'Uploading scrap categories...',
   'Uploading scrap transactions...',
-  'Downloading grades...',
-  'Downloading products...',
-  'Downloading invoices...',
-  'Downloading users...',
-  'Downloading settings...',
-  'Downloading parties...',
-  'Downloading ledger entries...',
-  'Downloading scrap categories...',
-  'Downloading scrap transactions...',
+  'Uploading purchase bills...',
+  'Updating grades...',
+  'Updating products...',
+  'Updating invoices...',
+  'Updating users...',
+  'Updating settings...',
+  'Updating parties...',
+  'Updating ledger entries...',
+  'Updating scrap categories...',
+  'Updating scrap transactions...',
+  'Updating purchase bills...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -36,16 +45,22 @@ function getWebContents(sender?: WebContents): WebContents | null {
   return win?.webContents ?? null;
 }
 
-function notifyProgress(phaseIndex: number, sender?: WebContents) {
+function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?: number, totalRecords?: number) {
   if (phaseIndex >= 0 && phaseIndex < SYNC_PHASES.length) {
     const percent = Math.round(((phaseIndex + 1) / SYNC_PHASES.length) * 100);
-    currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex] };
+    const db = getDb();
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id;
+    const remaining = tenantId ? getTotalPendingRecords(db, tenantId) : 0;
+    const synced = totalRecords !== undefined ? totalRecords - remaining : (recordsSynced ?? 0);
+    const total = totalRecords ?? remaining + synced;
+    currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex], recordsSynced: synced, totalRecords: total };
     const target = getWebContents(sender);
     if (target) target.send('sync:progress', currentSyncProgress);
   }
 }
 
-export function getSyncProgress(): { percent: number; label: string } | null {
+export function getSyncProgress(): { percent: number; label: string; recordsSynced: number; totalRecords: number } | null {
   return currentSyncProgress;
 }
 
@@ -90,6 +105,27 @@ function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
     return config.jwt_token ? config : null;
   } catch {
     return null;
+  }
+}
+
+function isJwtExpired(token: string): boolean {
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+    return payload.exp ? payload.exp * 1000 < Date.now() : false;
+  } catch {
+    return true;
+  }
+}
+
+async function clearAuthAndNotify() {
+  const configPath = path.join(app.getPath('userData'), 'config.json');
+  if (fs.existsSync(configPath)) {
+    fs.unlinkSync(configPath);
+    console.log('[SyncWorker] Token expired. Cleared auth config.');
+  }
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    win.webContents.send('auth:token-expired');
   }
 }
 
@@ -145,27 +181,37 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
 
       const { jwt_token, tenant_id } = config;
+
+      if (isJwtExpired(jwt_token)) {
+        console.warn('[SyncWorker] JWT token has expired. Clearing auth...');
+        await clearAuthAndNotify();
+        return;
+      }
       let dataUpdated = false;
+      const db = getDb();
+      const totalRecords = getTotalPendingRecords(db, tenant_id);
 
       try {
-        notifyProgress(1, sender); await syncGrades(jwt_token, tenant_id);
-        notifyProgress(2, sender); await syncProducts(jwt_token, tenant_id);
-        notifyProgress(3, sender); await syncInvoices(jwt_token, tenant_id);
-        notifyProgress(4, sender); await syncSettings(jwt_token, tenant_id);
-        notifyProgress(5, sender); await syncParties(jwt_token, tenant_id);
-        notifyProgress(6, sender); await syncPartyLedger(jwt_token, tenant_id);
-        notifyProgress(7, sender); await syncScrapCategories(jwt_token, tenant_id);
-        notifyProgress(8, sender); await syncScrapTransactions(jwt_token, tenant_id);
+        notifyProgress(1, sender, 0, totalRecords); await syncGrades(jwt_token, tenant_id);
+        notifyProgress(2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
+        notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
+        notifyProgress(4, sender, undefined, totalRecords); await syncSettings(jwt_token, tenant_id);
+        notifyProgress(5, sender, undefined, totalRecords); await syncParties(jwt_token, tenant_id);
+        notifyProgress(6, sender, undefined, totalRecords); await syncPartyLedger(jwt_token, tenant_id);
+        notifyProgress(7, sender, undefined, totalRecords); await syncScrapCategories(jwt_token, tenant_id);
+        notifyProgress(8, sender, undefined, totalRecords); await syncScrapTransactions(jwt_token, tenant_id);
+        notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
 
-        notifyProgress(9, sender); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(10, sender); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(11, sender); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(12, sender); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(13, sender); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(14, sender); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(15, sender); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(16, sender); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(17, sender); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(10, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(11, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(12, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(13, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(14, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(15, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(16, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(17, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(18, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(19, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -206,6 +252,11 @@ async function pushBatch<T>(
       });
 
       if (!response.ok) {
+        if (response.status === 401) {
+          console.error(`[SyncWorker] ${label} failed: HTTP 401 (token expired). Clearing auth...`);
+          await clearAuthAndNotify();
+          return [];
+        }
         console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}`);
         return [];
       }
@@ -803,16 +854,17 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
 
     const upsert = db.prepare(`
       INSERT INTO parties (
-        party_id, tenant_id, name, phone, address, balance, balance_type, notes, last_transaction_date, is_deleted,
+        party_id, tenant_id, name, phone, address, gstin, balance, balance_type, notes, last_transaction_date, is_deleted,
         sync_status, created_at, updated_at
       ) VALUES (
-        @party_id, @tenant_id, @name, @phone, @address, @balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
+        @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(party_id) DO UPDATE SET
         name = excluded.name,
         phone = excluded.phone,
         address = excluded.address,
+        gstin = excluded.gstin,
         balance = excluded.balance,
         balance_type = excluded.balance_type,
         notes = excluded.notes,
@@ -833,6 +885,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
             name: p.name,
             phone: p.phone || null,
             address: p.address || null,
+            gstin: p.gstin || null,
             balance: p.balance ?? 0,
             balance_type: p.balance_type || 'RECEIVABLE',
             notes: p.notes || null,
@@ -1231,20 +1284,171 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
            if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
         }
 
-        upsert.run({
-          tenant_id: s.tenant_id || tenantId,
-          key: s.key,
-          value: valueToSave,
-          updated_at: toSqliteDate(s.updated_at)
-        });
+    upsert.run({
+      tenant_id: s.tenant_id || tenantId,
+      key: s.key,
+      value: valueToSave,
+      updated_at: toSqliteDate(s.updated_at)
+    });
+  }
+});
+
+tx(validSettings);
+console.log(`[SyncWorker] Pulled ${validSettings.length} settings from cloud.`);
+return true;
+} catch (err: any) {
+console.error('[SyncWorker] Pull settings failed:', err.message);
+return false;
+}
+}
+
+// ── Sync Purchase Bills (Edge → Cloud) ───────────────────────────────────────
+async function syncPurchaseBills(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM purchase_bills WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} purchase bills to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE purchase_bills SET sync_status = 'SYNCED' WHERE purchase_bill_id = ? AND tenant_id = ?`);
+  const itemsUpdateStmt = db.prepare(`UPDATE purchase_bill_items SET sync_status = 'SYNCED' WHERE purchase_bill_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    // Enrich with items
+    const enriched = batch.map((bill: any) => {
+      const items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ? AND tenant_id = ?`).all(bill.purchase_bill_id, tenantId);
+      return { ...bill, items };
+    });
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/purchase_bills`,
+      token,
+      enriched,
+      'purchase_bills',
+      `Purchase Bills batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          updateStmt.run(id, tenantId);
+          itemsUpdateStmt.run(id, tenantId);
+        }
+      });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Purchase Bills (Cloud → Edge) ───────────────────────────────────────
+async function pullPurchaseBills(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/purchase_bills?tenant_id=${tenantId}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull purchase bills failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudBills: any[] = await response.json();
+    if (!Array.isArray(cloudBills) || cloudBills.length === 0) return false;
+
+    const upsertBill = db.prepare(`
+      INSERT INTO purchase_bills (
+        purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount,
+        sync_status, created_at, updated_at
+      ) VALUES (
+        @purchase_bill_id, @tenant_id, @bill_number, @supplier_id, @supplier_name, @bill_date, @notes, @total_amount,
+        'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(purchase_bill_id) DO UPDATE SET
+        bill_number = excluded.bill_number,
+        supplier_id = excluded.supplier_id,
+        supplier_name = excluded.supplier_name,
+        bill_date = excluded.bill_date,
+        notes = excluded.notes,
+        total_amount = excluded.total_amount,
+        created_at = COALESCE(purchase_bills.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE purchase_bills.sync_status != 'PENDING'
+    `);
+
+    const upsertItem = db.prepare(`
+      INSERT INTO purchase_bill_items (
+        item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount,
+        is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at
+      ) VALUES (
+        @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount,
+        @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, 'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(item_id) DO UPDATE SET
+        product_id = excluded.product_id,
+        name = excluded.name,
+        quantity = excluded.quantity,
+        purchase_price = excluded.purchase_price,
+        total_amount = excluded.total_amount,
+        is_gst_applicable = excluded.is_gst_applicable,
+        tax_rate_percent = excluded.tax_rate_percent,
+        hsn_sac_code = excluded.hsn_sac_code,
+        created_at = COALESCE(purchase_bill_items.created_at, excluded.created_at),
+        updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE purchase_bill_items.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((bills: any[]) => {
+      for (const bill of bills) {
+        try {
+          upsertBill.run({
+            purchase_bill_id: bill.purchase_bill_id,
+            tenant_id: tenantId,
+            bill_number: bill.bill_number,
+            supplier_id: bill.supplier_id || null,
+            supplier_name: bill.supplier_name,
+            bill_date: bill.bill_date || null,
+            notes: bill.notes || null,
+            total_amount: bill.total_amount ?? 0,
+            created_at: toSqliteDate(bill.created_at),
+            updated_at: toSqliteDate(bill.updated_at),
+          });
+          if (Array.isArray(bill.items)) {
+            for (const item of bill.items) {
+              upsertItem.run({
+                item_id: item.item_id,
+                purchase_bill_id: bill.purchase_bill_id,
+                tenant_id: tenantId,
+                product_id: item.product_id,
+                name: item.name,
+                quantity: item.quantity ?? 0,
+                purchase_price: item.purchase_price ?? 0,
+                total_amount: item.total_amount ?? 0,
+                is_gst_applicable: item.is_gst_applicable === false ? 0 : 1,
+                tax_rate_percent: item.tax_rate_percent ?? 0,
+                hsn_sac_code: item.hsn_sac_code || null,
+                created_at: toSqliteDate(item.created_at),
+                updated_at: toSqliteDate(item.updated_at),
+              });
+            }
+          }
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling purchase bill:', e.message);
+        }
       }
     });
 
-    tx(validSettings);
-    console.log(`[SyncWorker] Pulled ${validSettings.length} settings from cloud.`);
+    tx(cloudBills);
+
+    const reconciled = reconcilePending(db, 'purchase_bills', 'purchase_bill_id', cloudBills);
+    console.log(`[SyncWorker] Pulled ${cloudBills.length} purchase bills from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
     return true;
   } catch (err: any) {
-    console.error('[SyncWorker] Pull settings failed:', err.message);
+    console.error('[SyncWorker] Pull purchase bills failed:', err.message);
     return false;
   }
 }

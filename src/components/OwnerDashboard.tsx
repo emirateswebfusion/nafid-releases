@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield } from 'lucide-react';
+import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -18,7 +18,23 @@ function timeAgo(timestamp: number): string {
     return `${hours}h ago`;
 }
 
-export function OwnerDashboard() {
+interface SyncProgress {
+    percent: number;
+    label: string;
+    recordsSynced: number;
+    totalRecords: number;
+}
+
+interface OwnerDashboardProps {
+    isSyncing: boolean;
+    syncProgress: SyncProgress | null;
+    syncComplete: boolean;
+    shuffledQuotes: number[];
+    quoteIndex: number;
+    QUOTES: { text: string; author: string }[];
+}
+
+export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex, QUOTES }: OwnerDashboardProps) {
     const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId } = useAuthStore();
     const { setRole } = useCartStore();
     const { theme, toggleTheme } = useThemeStore();
@@ -43,8 +59,8 @@ export function OwnerDashboard() {
         if (!window.electronAPI?.dbGetDashboardStats || !tenantId) return;
         const result = await window.electronAPI.dbGetDashboardStats(tenantId);
         if (result.success) {
-            setTotalSales(result.totalSales);
-            setInvoiceCount(result.invoiceCount);
+            setTotalSales(result.totalSales ?? 0);
+            setInvoiceCount(result.invoiceCount ?? 0);
         }
     }, [tenantId]);
 
@@ -125,6 +141,15 @@ export function OwnerDashboard() {
             color: 'text-blue-500',
             bgColor: 'bg-blue-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-quotation-manager')),
+        },
+        {
+            id: 'purchase-bills',
+            title: 'Purchase Bills',
+            desc: 'Record and manage GST purchase bills',
+            icon: Receipt,
+            color: 'text-pink-500',
+            bgColor: 'bg-pink-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-purchase-bills')),
         },
         {
             id: 'warranties',
@@ -281,16 +306,45 @@ export function OwnerDashboard() {
                 ))}
             </div>
 
-            {/* Footer */}
-            <div className="px-8 py-3.5 border-t border-border bg-muted/30 relative z-0">
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                        <span className={`w-1.5 h-1.5 rounded-full ${lastSyncTime && Date.now() - lastSyncTime < 120000 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-                        <span>Last sync: <span className="font-medium text-foreground/70">{displayTime}</span></span>
+            {/* Footer — sync progress bar when syncing, last sync status when idle */}
+            {(isSyncing || syncComplete) && syncProgress ? (
+                <div className="px-6 py-2.5 border-t border-border bg-card relative z-0">
+                    <div className="flex items-center gap-3 mb-1.5">
+                        <span className="text-xs font-medium text-foreground/80 shrink-0">
+                            {syncComplete ? 'Sync Complete' : syncProgress.label}
+                        </span>
+                        <div className="flex-1 bg-primary/10 rounded-full h-2 overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all duration-500 ease-out ${syncComplete ? 'bg-emerald-500' : 'bg-primary'}`}
+                                style={{ width: `${syncComplete ? 100 : syncProgress.percent}%` }}
+                            />
+                        </div>
+                        <span className="text-xs text-muted-foreground tabular-nums shrink-0">
+                            {syncComplete ? '100%' : `${syncProgress.percent}%`}
+                        </span>
                     </div>
-                    <span className="font-medium">© {new Date().getFullYear()} Vendora</span>
+                    {!syncComplete && shuffledQuotes.length > 0 && (
+                        <div className="text-center">
+                            <p className="text-[11px] text-muted-foreground/70 italic leading-relaxed">
+                                &ldquo;{QUOTES[shuffledQuotes[quoteIndex]]?.text ?? QUOTES[quoteIndex].text}&rdquo;
+                            </p>
+                            <p className="text-[10px] text-muted-foreground/50">
+                                — {QUOTES[shuffledQuotes[quoteIndex]]?.author ?? QUOTES[quoteIndex].author}
+                            </p>
+                        </div>
+                    )}
                 </div>
-            </div>
+            ) : (
+                <div className="px-8 py-3.5 border-t border-border bg-muted/30 relative z-0">
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${lastSyncTime && Date.now() - lastSyncTime < 120000 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                            <span>Last sync: <span className="font-medium text-foreground/70">{displayTime}</span></span>
+                        </div>
+                        <span className="font-medium">© {new Date().getFullYear()} Vendora</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

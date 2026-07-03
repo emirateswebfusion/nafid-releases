@@ -1,3 +1,10 @@
+export interface SyncProgress {
+  percent: number;
+  label: string;
+  recordsSynced: number;
+  totalRecords: number;
+}
+
 export interface IElectronAPI {
   logError: (message: string, error?: any) => Promise<void>;
   ping: () => Promise<string>;
@@ -26,7 +33,7 @@ export interface IElectronAPI {
   dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteGrade: (grade_id: string) => Promise<{ success: boolean; error?: string }>;
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
-  getSyncProgress: () => Promise<{ percent: number; label: string } | null>;
+  getSyncProgress: () => Promise<SyncProgress | null>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
@@ -51,7 +58,8 @@ export interface IElectronAPI {
   onSyncDataUpdated: (callback: () => void) => void;
   onSyncCycleComplete: (callback: () => void) => void;
   onOnlineStatus: (callback: (online: boolean) => void) => void;
-  onSyncProgress: (callback: (progress: { percent: number; label: string }) => void) => void;
+  onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
+  onTokenExpired: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
@@ -97,6 +105,14 @@ export interface IElectronAPI {
   dbSaveWarranty: (w: any) => Promise<{ success: boolean; error?: string }>;
   dbGetWarranties: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbDeleteWarranty: (warranty_id: string) => Promise<{ success: boolean; error?: string }>;
+
+  // Purchase Bills
+  dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
+  dbAddPurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetPurchaseBills: (args: { tenant_id: string; search?: string; limit?: number; offset?: number }) => Promise<any[]>;
+  dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<any[]>;
+  dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
 }
 
 declare global {

@@ -680,9 +680,9 @@ ipcMain.handle('db:addParty', (event, p) => {
       : -Math.abs(p.balance || 0);
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, initialBalance, bt, p.notes || null);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, bt, p.notes || null);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
@@ -713,9 +713,9 @@ ipcMain.handle('db:updateParty', (event, p) => {
   try {
     const db = getDb();
     db.prepare(`
-      UPDATE parties SET name = ?, phone = ?, address = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE party_id = ?
-    `).run(p.name, p.phone || null, p.address || null, p.notes || null, p.party_id);
+    `).run(p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null, p.party_id);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -1826,6 +1826,177 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+});
+
+// ── Purchase Bill IPC ─────────────────────────────────────────────
+ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const terminalCode = getOrInitTerminalCode(db);
+    const configKey = 'purchase_bill_counter';
+
+    const result = db.transaction(() => {
+      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+      let counter = 1;
+      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-PUR-`, counter: 1 };
+
+      if (row) {
+        try {
+          config = JSON.parse(row.value);
+          counter = (typeof config.counter === 'number' ? config.counter : 1);
+        } catch {
+          counter = 1;
+        }
+      }
+
+      const billNumber = `${terminalCode}-PUR-${String(counter).padStart(3, '0')}`;
+
+      config.counter = counter + 1;
+      db.prepare(`
+        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        ON CONFLICT(tenant_id, key) DO UPDATE SET
+          value = EXCLUDED.value,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run('global', configKey, JSON.stringify(config));
+
+      return { success: true, billNumber, counter };
+    })();
+
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:addPurchaseBill', (event, payload: {
+  purchase_bill_id: string;
+  tenant_id: string;
+  bill_number: string;
+  supplier_id?: string;
+  supplier_name: string;
+  bill_date?: string;
+  notes?: string;
+  total_amount: number;
+  items: Array<{
+    item_id: string;
+    product_id: string;
+    name: string;
+    quantity: number;
+    purchase_price: number;
+    total_amount: number;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+  }>;
+}) => {
+  try {
+    const db = getDb();
+    const result = db.transaction(() => {
+      const { items, ...bill } = payload;
+      db.prepare(`
+        INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.notes || null, bill.total_amount);
+
+      const stmt = db.prepare(`
+        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      for (const item of items) {
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.is_gst_applicable ?? 1, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+      }
+
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset }: { tenant_id: string; search?: string; limit?: number; offset?: number }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+
+    let query = 'SELECT pb.*, p.name as supplier_phone FROM purchase_bills pb LEFT JOIN parties p ON pb.supplier_id = p.party_id WHERE pb.tenant_id = ?';
+    const params: any[] = [tenant_id];
+
+    if (search) {
+      query += ' AND (pb.bill_number LIKE ? OR pb.supplier_name LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    query += ' ORDER BY pb.created_at DESC';
+
+    if (limit) {
+      query += ' LIMIT ?';
+      params.push(limit);
+    }
+    if (offset) {
+      query += ' OFFSET ?';
+      params.push(offset);
+    }
+
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getPurchaseBillItems', (event, purchase_bill_id: string) => {
+  try {
+    const db = getDb();
+    return db.prepare('SELECT pbi.*, p.sku_barcode, p.item_code FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(purchase_bill_id);
+      db.prepare('DELETE FROM purchase_bills WHERE purchase_bill_id = ?').run(purchase_bill_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+
+    let query = `
+      SELECT p.*, 
+        COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi WHERE pbi.product_id = p.product_id), 0) as gst_purchase_quantity,
+        COALESCE((SELECT AVG(pbi.purchase_price) FROM purchase_bill_items pbi WHERE pbi.product_id = p.product_id), 0) as gst_purchase_price
+      FROM products p 
+      WHERE p.tenant_id = ? AND p.is_deleted = 0
+    `;
+    const params: any[] = [tenant_id];
+
+    if (search) {
+      if (/^\d+$/.test(search)) {
+        query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
+        params.push(`${search}%`, `${search}%`);
+      } else {
+        query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
+        params.push(`%${search}%`, `${search}%`, `${search}%`);
+      }
+    }
+
+    query += ' ORDER BY p.name COLLATE NOCASE ASC LIMIT 200';
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
   }
 });
 

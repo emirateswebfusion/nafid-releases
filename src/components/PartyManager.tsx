@@ -15,6 +15,7 @@ interface Party {
   name: string;
   phone: string;
   address: string;
+  gstin: string;
   balance: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
   notes: string;
@@ -69,7 +70,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [partyForm, setPartyForm] = useState({
-    name: '', phone: '', address: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: ''
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: ''
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -120,7 +121,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   };
 
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '' });
+    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '' });
     setEditingParty(null);
   };
 
@@ -135,6 +136,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           name: partyForm.name.trim(),
           phone: partyForm.phone.trim() || null,
           address: partyForm.address.trim() || null,
+          gstin: partyForm.gstin.trim() || null,
           notes: partyForm.notes.trim() || null,
         });
         showStatus('Party updated', 'success');
@@ -145,6 +147,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           name: partyForm.name.trim(),
           phone: partyForm.phone.trim() || null,
           address: partyForm.address.trim() || null,
+          gstin: partyForm.gstin.trim() || null,
           balance: parseFloat(partyForm.opening_balance) || 0,
           balance_type: partyForm.balance_type,
           notes: partyForm.notes.trim() || null,
@@ -364,6 +367,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                 <Phone className="w-3 h-3" /> {party.phone}
                               </span>
                             )}
+                            {party.gstin && (
+                              <span className="flex items-center gap-1 text-amber-500">
+                                <FileText className="w-3 h-3" /> {party.gstin}
+                              </span>
+                            )}
                             {party.last_transaction_date && (
                               <span className="flex items-center gap-1">
                                 <Calendar className="w-3 h-3" /> {formatDate(party.last_transaction_date)}
@@ -389,7 +397,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                           <>
                             <button onClick={() => { setEditingParty(party); setPartyForm({
                               name: party.name, phone: party.phone || '', address: party.address || '',
-                              opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
+                              gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
                             }); setView('party_form'); }}
                               className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95" title="Edit Party">
                               <Pencil className="w-4 h-4" />
@@ -422,31 +430,42 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
               </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div className="col-span-2 space-y-4">
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
                     <input type="text" placeholder="Enter party name"
                       value={partyForm.name} onChange={e => setPartyForm(f => ({ ...f, name: e.target.value }))}
                       className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                   </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Contact Number</label>
-                    <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <input type="text" placeholder="Phone number"
-                        value={partyForm.phone} onChange={e => setPartyForm(f => ({ ...f, phone: e.target.value }))}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Contact Number</label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input type="text" placeholder="Phone number"
+                          value={partyForm.phone} onChange={e => setPartyForm(f => ({ ...f, phone: e.target.value }))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
+                      <div className="relative">
+                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <input type="text" placeholder="GSTIN (optional)"
+                          value={partyForm.gstin} onChange={e => setPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm font-mono tracking-wider uppercase" />
+                      </div>
                     </div>
                   </div>
                 </div>
-                <div>
+                <div className="col-span-1 flex flex-col">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Address</label>
-                  <div className="relative">
+                  <div className="relative flex-1">
                     <MapPin className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <textarea placeholder="Optional address" rows={4}
+                    <textarea placeholder="Optional address"
                       value={partyForm.address} onChange={e => setPartyForm(f => ({ ...f, address: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
+                      className="w-full h-full min-h-[130px] bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
                   </div>
                 </div>
               </div>
@@ -536,20 +555,12 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                 </div>
               )}
             </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2" />
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => { setView('list'); resetPartyForm(); }}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
-                  <X className="w-3.5 h-3.5" />
-                  Cancel
-                </button>
-                <button type="button" disabled={isSavingParty} onClick={handleSaveParty}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
-                  {isSavingParty ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  {isSavingParty ? 'Saving...' : editingParty ? 'Update Party' : 'Add to Parties'}
-                </button>
-              </div>
+            <div className="flex items-center justify-end px-4 py-3">
+              <button type="button" disabled={isSavingParty} onClick={handleSaveParty}
+                className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                {isSavingParty ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                {isSavingParty ? 'Saving...' : editingParty ? 'Update Party' : 'Add to Parties'}
+              </button>
             </div>
           </div>
         </div>

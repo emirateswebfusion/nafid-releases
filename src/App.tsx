@@ -19,6 +19,7 @@ import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
 import { PrintA4View } from './components/PrintA4View';
 import { StockReport } from './components/StockReport';
+import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 
 function App() {
@@ -85,9 +86,11 @@ function App() {
   const [showScrapManager, setShowScrapManager] = useState(false);
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
+  const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
-  const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string } | null>(null);
+  const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
+  const [syncComplete, setSyncComplete] = useState(false);
 
   const QUOTES = [
     { text: "The best among you are those who bring benefit to others.", author: "Muhammad (SAW)" },
@@ -167,55 +170,63 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
-  // Reset syncChecked when user logs out
+  // Reset syncChecked and sync state when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
       setSyncChecked(false);
+      setIsSyncing(false);
+      setSyncProgress(null);
+      setSyncComplete(false);
     }
   }, [isAuthenticated]);
 
-  // Sync Logic (Run every time after auth or on app restart)
+  // Auto-hide sync complete bar after 4 seconds
+  useEffect(() => {
+    if (!syncComplete) return;
+    const timer = setTimeout(() => {
+      setSyncComplete(false);
+      setSyncProgress(null);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [syncComplete]);
+
+  // Trigger initial sync once on first login — progress events will activate the bar
   useEffect(() => {
     if (isAuthenticated && !syncChecked && window.electronAPI) {
-      const runSync = async () => {
-        console.log('[App] System authenticated. Starting cloud pull...');
-        setIsSyncing(true);
-        setSyncProgress({ percent: 0, label: 'Connecting...' });
-        try {
-          await window.electronAPI.runInitialSync();
-        } catch (error) {
-          console.error('[App] Sync failed:', error);
-        }
-        setIsSyncing(false);
-        setSyncProgress(null);
-        setSyncChecked(true);
-      };
-      runSync();
+      console.log('[App] System authenticated. Starting cloud sync in background...');
+      window.electronAPI.runInitialSync().then(() => {
+        console.log('[App] Initial sync completed.');
+      }).catch((error) => {
+        console.error('[App] Sync failed:', error);
+      });
+      setSyncChecked(true);
     }
   }, [isAuthenticated, syncChecked]);
 
-  // Simulated progress animation while syncing
+  // Listen to real sync progress from electron — handles ALL syncs (initial + periodic)
   useEffect(() => {
-    if (!isSyncing) return;
-    const interval = setInterval(() => {
-      setSyncProgress(prev => {
-        const p = prev?.percent ?? 0;
-        const increment =
-          p < 50 ? 15 :
-          p < 65 ? 8 :
-          p < 75 ? 4 :
-          p < 85 ? 2 :
-          p < 95 ? 1 :
-          Math.max(1, Math.floor((100 - p) / 4));
-        const next = Math.min(99, p + increment);
-        return { percent: next, label: prev?.label ?? 'Synchronizing...' };
+    if (!window.electronAPI?.onSyncProgress) return;
+    window.electronAPI.onSyncProgress((progress) => {
+      setSyncProgress({
+        percent: progress.percent ?? 0,
+        label: progress.label ?? 'Syncing...',
+        recordsSynced: progress.recordsSynced ?? 0,
+        totalRecords: progress.totalRecords ?? 0,
       });
-    }, 300);
-    return () => {
-      clearInterval(interval);
-      setSyncProgress({ percent: 100, label: 'Complete' });
-    };
-  }, [isSyncing]);
+      setIsSyncing(true);
+      setSyncComplete(false);
+    });
+  }, []);
+
+  // Listen to sync cycle complete to mark sync as done
+  useEffect(() => {
+    if (!window.electronAPI?.onSyncCycleComplete) return;
+    const cleanup = window.electronAPI.onSyncCycleComplete(() => {
+      setSyncComplete(true);
+      setIsSyncing(false);
+    });
+    return () => { /* cleanup is handled by IPC subscription */ };
+  }, []);
 
   // Rotate through shuffled quotes while syncing
   useEffect(() => {
@@ -224,7 +235,6 @@ function App() {
       setQuoteIndex(prev => {
         const next = prev + 1;
         if (next >= shuffledQuotes.length) {
-          // Reshuffle after showing all
           setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
           return 0;
         }
@@ -244,6 +254,7 @@ function App() {
     const handleOpenScrapManager = () => setShowScrapManager(true);
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
+    const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
     const handleOpenQuotationEdit = () => {
       setShowQuotationManager(false);
       setShowInventoryManager(false);
@@ -265,9 +276,15 @@ function App() {
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
+    window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
 
     if (window.electronAPI) {
+      window.electronAPI.onTokenExpired(() => {
+        console.log('[App] Token expired event received. Logging out...');
+        useAuthStore.getState().logout();
+      });
+
       window.electronAPI.onBarcodeScanned(async (code) => {
         const { tenantId } = useAuthStore.getState();
         const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code, limit: 1 });
@@ -299,6 +316,7 @@ function App() {
         window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
+      window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
     };
   }, [addItem]);
@@ -317,37 +335,6 @@ function App() {
 
   if (showPrintA4) {
     return <PrintA4View />;
-  }
-
-  if (isSyncing) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background overflow-hidden relative">
-        <div className="flex flex-col items-center gap-8 relative z-10 text-center px-6">
-          <div>
-            <h1 className="text-3xl font-black text-foreground mb-2 tracking-tight">Synchronizing Shop Data</h1>
-            <div className="w-full max-w-sm space-y-2">
-              <div className="w-full bg-primary/10 rounded-full h-2.5 overflow-hidden">
-                <div
-                  className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${syncProgress?.percent ?? 0}%` }}
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {syncProgress?.label ?? 'Connecting...'} — {syncProgress?.percent ?? 0}%
-              </p>
-            </div>
-            <div className="max-w-xs mt-6">
-              <p className="text-sm text-muted-foreground/70 italic leading-relaxed animate-in fade-in duration-700">
-                &ldquo;{QUOTES[shuffledQuotes[quoteIndex]]?.text ?? QUOTES[quoteIndex].text}&rdquo;
-              </p>
-              <p className="text-xs text-muted-foreground/50 mt-2 animate-in fade-in duration-700">
-                — {QUOTES[shuffledQuotes[quoteIndex]]?.author ?? QUOTES[quoteIndex].author}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
   }
 
   if (isLoading) {
@@ -377,6 +364,8 @@ function App() {
         <QuotationManager onClose={() => setShowQuotationManager(false)} />
       ) : showWarrantyManager ? (
         <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
+      ) : showPurchaseBillManager ? (
+        <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
       ) : showSettingsManager ? (
         <SettingsManager onClose={() => setShowSettingsManager(false)} />
       ) : showSalesHistory ? (
@@ -386,7 +375,14 @@ function App() {
       ) : showStockReport ? (
         <StockReport onClose={() => setShowStockReport(false)} />
       ) : currentUserRole === 'OWNER' ? (
-        <OwnerDashboard />
+        <OwnerDashboard
+          isSyncing={isSyncing}
+          syncProgress={syncProgress}
+          syncComplete={syncComplete}
+          shuffledQuotes={shuffledQuotes}
+          quoteIndex={quoteIndex}
+          QUOTES={QUOTES}
+        />
       ) : (
         <BillingPage />
       )}
