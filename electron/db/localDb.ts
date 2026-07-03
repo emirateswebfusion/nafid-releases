@@ -186,7 +186,8 @@ export function initDb() {
         notes TEXT,
         transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         sync_status TEXT DEFAULT 'SYNCED',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS quotations (
@@ -280,7 +281,7 @@ export function initDb() {
         'scrap_category_id', 'tenant_id', 'name', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_transactions: [
-        'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'scrap_invoice_number'
+        'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'updated_at', 'scrap_invoice_number'
     ],
     quotations: [
         'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
@@ -579,6 +580,7 @@ export function initDb() {
             transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
             sync_status TEXT DEFAULT 'SYNCED',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             scrap_invoice_number TEXT
           );
         `);

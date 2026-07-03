@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, X, Wallet, Banknote, Smartphone, BookOpen, IndianRupee, Percent, TrendingUp, CheckCircle2, Package, BarChart3 } from 'lucide-react';
+import { Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, X, Wallet, Banknote, Smartphone, BookOpen, IndianRupee, Percent, TrendingUp, CheckCircle2, Package, BarChart3, CheckCheck } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -42,6 +42,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [paymentFilter, setPaymentFilter] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [reprintSuccess, setReprintSuccess] = useState(false);
   const LIMIT = 30;
 
   useEffect(() => {
@@ -80,6 +81,12 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [selectedInvoice]);
+
+  useEffect(() => {
+    if (!reprintSuccess) return;
+    const t = setTimeout(() => setReprintSuccess(false), 2500);
+    return () => clearTimeout(t);
+  }, [reprintSuccess]);
 
   const loadInvoices = async (reset = false) => {
     setIsFetching(true);
@@ -152,6 +159,13 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="flex flex-col h-full w-full bg-background overflow-hidden">
+      {/* ─── TOAST ─── */}
+      {reprintSuccess && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <CheckCheck className="w-4 h-4 shrink-0" />
+          <span>Invoice reprinted successfully!</span>
+        </div>
+      )}
       {/* ─── TOP HEADER ─── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
@@ -409,6 +423,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                           const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
                           await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
                         }
+                        setReprintSuccess(true);
                       } catch (err) {
                         console.error('Failed to reprint', err);
                       }

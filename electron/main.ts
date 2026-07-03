@@ -958,8 +958,8 @@ ipcMain.handle('db:checkout', (event, payload) => {
     // 3. Handle scrap items — create scrap transactions and update scrap stock
     if (scrap_items && scrap_items.length > 0) {
       const scrapTxStmt = db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status)
-        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status, updated_at)
+        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
       `);
       const scrapStockStmt = db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`);
 
@@ -1451,8 +1451,8 @@ ipcMain.handle('db:addScrapTransaction', (event, t) => {
     const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
     const result = db.transaction(() => {
       db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
       `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null, t.scrap_invoice_number || null);
       db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
       return { success: true };

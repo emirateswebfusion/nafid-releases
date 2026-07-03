@@ -142,7 +142,26 @@ function App() {
     { text: "Fall seven times, stand up eight.", author: "Japanese Proverb" },
   ];
 
+  const [shuffledQuotes, setShuffledQuotes] = useState<number[]>([]);
   const [quoteIndex, setQuoteIndex] = useState(0);
+
+  // Fisher-Yates shuffle
+  function shuffleArray(arr: number[]): number[] {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // Pre-shuffle all quotes when syncing starts
+  useEffect(() => {
+    if (isSyncing) {
+      setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
+      setQuoteIndex(0);
+    }
+  }, [isSyncing]);
 
   useEffect(() => {
     checkAuth();
@@ -198,14 +217,22 @@ function App() {
     };
   }, [isSyncing]);
 
-  // Rotate quotes while syncing
+  // Rotate through shuffled quotes while syncing
   useEffect(() => {
-    if (!isSyncing) return;
+    if (!isSyncing || shuffledQuotes.length === 0) return;
     const interval = setInterval(() => {
-      setQuoteIndex(prev => (prev + 1) % QUOTES.length);
+      setQuoteIndex(prev => {
+        const next = prev + 1;
+        if (next >= shuffledQuotes.length) {
+          // Reshuffle after showing all
+          setShuffledQuotes(shuffleArray(QUOTES.map((_, i) => i)));
+          return 0;
+        }
+        return next;
+      });
     }, 5000);
     return () => clearInterval(interval);
-  }, [isSyncing]);
+  }, [isSyncing, shuffledQuotes]);
 
   useEffect(() => {
     const handleOpenInv = () => setShowInventoryManager(true);
@@ -311,10 +338,10 @@ function App() {
             </div>
             <div className="max-w-xs mt-6">
               <p className="text-sm text-muted-foreground/70 italic leading-relaxed animate-in fade-in duration-700">
-                &ldquo;{QUOTES[quoteIndex].text}&rdquo;
+                &ldquo;{QUOTES[shuffledQuotes[quoteIndex]]?.text ?? QUOTES[quoteIndex].text}&rdquo;
               </p>
               <p className="text-xs text-muted-foreground/50 mt-2 animate-in fade-in duration-700">
-                — {QUOTES[quoteIndex].author}
+                — {QUOTES[shuffledQuotes[quoteIndex]]?.author ?? QUOTES[quoteIndex].author}
               </p>
             </div>
           </div>
