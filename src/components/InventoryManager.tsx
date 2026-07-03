@@ -934,8 +934,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 placeholder="Search by name, barcode, brand, or category..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                className="w-full pl-10 pr-9 py-2.5 bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => { setSearchQuery(''); }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors border border-destructive/30"
+                >
+                  <X className="w-4 h-4 text-destructive" />
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">

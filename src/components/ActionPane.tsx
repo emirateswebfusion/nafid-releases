@@ -130,6 +130,7 @@ export function ActionPane() {
           shopPhone: shopPh || undefined,
           upiId: upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+          showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
           date: new Date().toLocaleString(),
           cashierName: useAuthStore.getState().role || undefined,

@@ -1,0 +1,256 @@
+import { useState, useMemo } from 'react';
+import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { generateReceiptText, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
+import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
+
+const SAMPLE_ITEMS: ReceiptItem[] = [
+  { name: 'Premium Basmati Rice', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: '₹15 off' },
+  { name: 'Organic Wheat Flour', quantity: 1, unit_price: 45.00, total: 45.00 },
+  { name: 'Cold Pressed Coconut Oil', quantity: 3, unit_price: 85.00, total: 255.00 },
+  { name: 'Honey (500g)', quantity: 1, unit_price: 120.00, total: 120.00 },
+  { name: 'Green Tea (100packs)', quantity: 2, unit_price: 95.00, total: 190.00, originalRate: 110.00, discountLabel: '10% off' },
+];
+
+const SAMPLE_SUBTOTAL = SAMPLE_ITEMS.reduce((s, i) => s + i.total, 0);
+const SAMPLE_CGST = 43.00;
+const SAMPLE_SGST = 43.00;
+const SAMPLE_DISCOUNT = 50.00;
+const SAMPLE_GRAND_TOTAL = SAMPLE_SUBTOTAL + SAMPLE_CGST + SAMPLE_SGST - SAMPLE_DISCOUNT;
+
+function createSampleReceiptData(showProductOffers = true): ReceiptData {
+  return {
+    shopName: 'Vendora Mart',
+    shopGstin: '27AAAAA1111A1Z1',
+    shopState: 'MH',
+    shopAddress: '123, Main Street, Mumbai - 400001',
+    shopPhone: '+91 98765 43210',
+    upiId: 'vendora@upi',
+    showUpiQr: false,
+    showProductOffers,
+    invoiceNumber: 'INV-001',
+    date: new Date().toLocaleDateString('en-IN'),
+    cashierName: 'Admin',
+    items: SAMPLE_ITEMS,
+    subtotal: SAMPLE_SUBTOTAL,
+    tax: SAMPLE_CGST + SAMPLE_SGST,
+    cgst: SAMPLE_CGST,
+    sgst: SAMPLE_SGST,
+    igst: 0,
+    discount: SAMPLE_DISCOUNT,
+    discountType: 'FIXED',
+    discountValue: 50,
+    grandTotal: SAMPLE_GRAND_TOTAL,
+    receivedAmount: 950.00,
+    balanceAmount: 950.00 - SAMPLE_GRAND_TOTAL,
+    invoiceType: 'GST',
+  };
+}
+
+function createSampleInvoiceData(): InvoiceData {
+  return {
+    shopName: 'Vendora Mart',
+    shopGstin: '27AAAAA1111A1Z1',
+    shopState: 'MH',
+    shopAddress: '123, Main Street, Mumbai - 400001',
+    shopPhone: '+91 98765 43210',
+    upiId: 'vendora@upi',
+    invoiceNumber: 'INV-001',
+    date: new Date().toLocaleDateString('en-IN'),
+    cashierName: 'Admin',
+    items: SAMPLE_ITEMS as InvoiceItemDisplay[],
+    subtotal: SAMPLE_SUBTOTAL,
+    tax: SAMPLE_CGST + SAMPLE_SGST,
+    cgst: SAMPLE_CGST,
+    sgst: SAMPLE_SGST,
+    igst: 0,
+    discount: SAMPLE_DISCOUNT,
+    discountType: 'FIXED',
+    discountValue: 50,
+    grandTotal: SAMPLE_GRAND_TOTAL,
+    receivedAmount: 950.00,
+    balanceAmount: 950.00 - SAMPLE_GRAND_TOTAL,
+    invoiceType: 'GST',
+    customerName: 'Rajesh Sharma',
+    customerPhone: '+91 98765 12345',
+    customerGstin: '27AAAAA2222A1Z1',
+    customerState: 'MH',
+  };
+}
+
+const FONT_MAP: Record<string, string> = {
+  courier: '"Courier New", monospace',
+  consolas: 'Consolas, monospace',
+  monaco: 'Monaco, monospace',
+  monospace: 'monospace',
+  menlo: 'Menlo, monospace',
+  'sf-mono': '"SF Mono", "SFMono-Regular", monospace',
+  dejavu: '"DejaVu Sans Mono", monospace',
+  fira: '"Fira Code", "Fira Mono", monospace',
+  jetbrains: '"JetBrains Mono", monospace',
+  'source-code': '"Source Code Pro", monospace',
+  ubuntu: '"Ubuntu Mono", monospace',
+  'ibm-plex': '"IBM Plex Mono", monospace',
+  inconsolata: 'Inconsolata, monospace',
+  cascadia: '"Cascadia Code", "Cascadia Mono", monospace',
+  liberation: '"Liberation Mono", monospace',
+  andale: '"Andale Mono", monospace',
+  'pt-mono': '"PT Mono", monospace',
+  'noto-sans': '"Noto Sans Mono", monospace',
+  'courier-prime': '"Courier Prime", monospace',
+};
+
+interface PaperPreviewModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  format: 'thermal' | 'a4';
+  thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe';
+  a4Style: 'standard' | 'modern' | 'classic';
+  paperWidth: number;
+  showProductOffers: boolean;
+  receiptFont?: string;
+}
+
+export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier' }: PaperPreviewModalProps) {
+  const [zoom, setZoom] = useState(1);
+
+  const style = format === 'thermal' ? thermalStyle : a4Style;
+
+  const content = useMemo(() => {
+    if (!isOpen) return '';
+    if (format === 'thermal') {
+      const data = createSampleReceiptData(showProductOffers);
+      return generateReceiptText(data, paperWidth, undefined, style);
+    } else {
+      const data = createSampleInvoiceData();
+      return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
+    }
+  }, [isOpen, format, style, paperWidth, showProductOffers]);
+
+  if (!isOpen) return null;
+
+  const styleLabel = style.charAt(0).toUpperCase() + style.slice(1);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(z => Math.max(0.3, Math.min(3, z + delta)));
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col bg-black/70 backdrop-blur-sm" onWheel={handleWheel}>
+      <div className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border shrink-0">
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-bold text-foreground">
+            {format === 'thermal' ? 'Thermal Receipt' : 'A4 Invoice'} — <span className="text-primary">{styleLabel}</span>
+          </h2>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+            {format === 'thermal' ? `${paperWidth}mm` : 'A4'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-2">
+            <button
+              onClick={() => setZoom(z => Math.max(0.3, z - 0.1))}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              title="Zoom Out"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <span className="text-xs text-muted-foreground w-10 text-center font-medium tabular-nums">{Math.round(zoom * 100)}%</span>
+            <button
+              onClick={() => setZoom(z => Math.min(3, z + 0.1))}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              title="Zoom In"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => setZoom(1)}
+              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+              title="Reset Zoom"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      <div className="flex-1 overflow-auto bg-gray-900/50">
+        <div className="min-h-full flex flex-col items-center p-6">
+        <div
+          className="transition-transform duration-150"
+          style={{
+            transform: `scale(${zoom})`,
+            transformOrigin: 'top center',
+          }}
+        >
+          {format === 'thermal' ? (
+            <div
+              className="bg-white shadow-2xl rounded-sm overflow-hidden"
+              style={{
+                width: 'fit-content',
+              }}
+            >
+              <div className="bg-gray-100 px-4 py-1 flex items-center gap-2 border-b border-gray-200">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-[10px] text-gray-400 ml-2 font-mono">thermal-receipt</span>
+              </div>
+              <pre
+                className="font-mono whitespace-pre overflow-hidden select-text"
+                style={{
+                  margin: 0,
+                  padding: '10px 8px',
+                  fontSize: '12px',
+                  fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
+                  color: '#000',
+                  fontWeight: 700,
+                  lineHeight: 1.3,
+                  background: '#fff',
+                  minHeight: '200px',
+                }}
+              >
+                {content || ' '}
+              </pre>
+            </div>
+          ) : (
+            <div
+              className="bg-white shadow-2xl overflow-hidden"
+              style={{
+                width: '820px',
+                minHeight: '1100px',
+              }}
+            >
+              <div className="bg-gray-100 px-4 py-1 flex items-center gap-2 border-b border-gray-200">
+                <div className="w-2 h-2 rounded-full bg-red-400" />
+                <div className="w-2 h-2 rounded-full bg-yellow-400" />
+                <div className="w-2 h-2 rounded-full bg-green-400" />
+                <span className="text-[10px] text-gray-400 ml-2 font-mono">a4-invoice</span>
+              </div>
+              <iframe
+                srcDoc={content}
+                title="A4 Invoice Preview"
+                className="w-full border-0"
+                style={{
+                  height: '1100px',
+                  background: '#fff',
+                }}
+                sandbox="allow-same-origin"
+              />
+            </div>
+          )}
+        </div>
+        </div>
+      </div>
+    </div>
+  );
+}

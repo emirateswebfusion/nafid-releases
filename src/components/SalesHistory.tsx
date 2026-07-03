@@ -392,6 +392,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                           shopPhone: shopPh || undefined,
                           upiId: upi || undefined,
                           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+                          showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
                           invoiceNumber: selectedInvoice.invoice_number,
                           date: new Date(selectedInvoice.created_at).toLocaleString(),
                           cashierName: selectedInvoice.cashier_name,
