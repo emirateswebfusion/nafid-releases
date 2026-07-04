@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -35,8 +35,6 @@ interface Product {
   billing_type?: string;
   grade_id?: string;
   pricing_mode?: string;
-  average_weight_per_piece?: number | null;
-  weight_override_allowed?: number;
   sync_status: string;
   created_at?: string;
   updated_at?: string;
@@ -63,8 +61,6 @@ const DEFAULT_FORM = {
   billing_type: 'PIECE',
   grade_id: '',
   pricing_mode: 'FIXED_PRICE',
-  average_weight_per_piece: '' as string | number | null,
-  weight_override_allowed: false,
   show_gst_purchase: false,
   gst_same_as_current: false,
   gst_purchase_price: '' as string | number,
@@ -376,8 +372,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       billing_type: product.billing_type || 'PIECE',
       grade_id: validGradeId,
       pricing_mode: validGradeId ? (product.pricing_mode || 'FIXED_PRICE') : 'FIXED_PRICE',
-      average_weight_per_piece: product.average_weight_per_piece ?? '',
-      weight_override_allowed: product.weight_override_allowed === 1,
     });
     setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
     setView('edit');
@@ -450,6 +444,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
       if (field === 'grade_id') {
         next.pricing_mode = value ? 'GRADE_RATE' : 'FIXED_PRICE';
+      }
+
+      if (field === 'uom') {
+        const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
+        next.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
       }
 
       if (field === 'current_stock' && view === 'add') {
@@ -800,8 +799,6 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       billing_type: formData.billing_type,
       grade_id: formData.grade_id || null,
       pricing_mode: formData.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
-      average_weight_per_piece: formData.average_weight_per_piece === '' ? null : Number(formData.average_weight_per_piece),
-      weight_override_allowed: formData.weight_override_allowed ? 1 : 0,
     };
 
     if (window.electronAPI) {
@@ -1299,58 +1296,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </div>
             </section>
 
-            {/* Section 2: Billing & Grades */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
-                  <Package className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-indigo-500 uppercase tracking-wider">2. Billing Setup & Grades</span>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Billing Type</label>
-                  <div className="grid grid-cols-2 gap-3 max-w-md">
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('billing_type', 'PIECE')}
-                      className={clsx('py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95', formData.billing_type === 'PIECE' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border')}
-                    >
-                      Piece-Based
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleInputChange('billing_type', 'WEIGHT')}
-                      className={clsx('py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95', formData.billing_type === 'WEIGHT' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border')}
-                    >
-                      Weight-Based
-                    </button>
-                  </div>
-                </div>
-                {formData.billing_type === 'WEIGHT' && (
-                  <div className="grid grid-cols-2 gap-5 p-4 bg-muted/10 border border-border/80 rounded-xl max-w-md">
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Avg Weight / Piece (Kg)</label>
-                      <input type="number" step="0.001" value={formData.average_weight_per_piece || ''} onChange={e => handleInputChange('average_weight_per_piece', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                    </div>
-                    <div className="flex items-center mt-7">
-                      <label className="flex items-center gap-2 cursor-pointer select-none">
-                        <input type="checkbox" checked={!!formData.weight_override_allowed} onChange={e => handleInputChange('weight_override_allowed', e.target.checked)} className="w-4 h-4 accent-primary rounded cursor-pointer" />
-                        <span className="text-sm font-bold text-foreground">Allow weight override</span>
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* Section 3: Inventory & Pricing */}
+            {/* Section 2: Inventory & Pricing */}
             <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <Tag className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">3. Inventory & Pricing</span>
+                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Inventory & Pricing</span>
               </div>
               <div className="grid grid-cols-5 gap-4">
                 {[
@@ -1382,17 +1334,20 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm">
                     {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
+                  {['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) && (
+                    <p className="text-[10px] text-muted-foreground/60 mt-1 font-medium">MRP = rate per {formData.uom === 'Grams' ? '100g' : formData.uom.toLowerCase()}</p>
+                  )}
                 </div>
               </div>
             </section>
 
-            {/* Section 4: Discount & Offers */}
+            {/* Section 3: Discount & Offers */}
             <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <Tag className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">4. Discount & Offers</span>
+                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Discount & Offers</span>
               </div>
               <div className="grid grid-cols-2 gap-6">
                 {/* Discount Block */}
@@ -1450,13 +1405,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </div>
             </section>
 
-            {/* Section 5: Taxes & Config */}
+            {/* Section 4: Taxes & Config */}
             <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                   <Package className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-orange-500 uppercase tracking-wider">5. Taxes & Config</span>
+                <span className="text-xs font-black text-orange-500 uppercase tracking-wider">4. Taxes & Config</span>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
@@ -1501,14 +1456,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </div>
             </section>
 
-            {/* Section 5: Domain Attributes */}
+            {/* Section 4: Domain Attributes */}
             {shopDomain !== 'GENERAL' && (
               <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
                     <Package className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">5. Domain Fields — {shopDomain}</span>
+                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">4. Domain Fields — {shopDomain}</span>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   {shopDomain === 'HARDWARE' && (<>
@@ -1527,163 +1482,246 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               </section>
             )}
 
-            {/* Section 6: GST Purchase Details — only in Add mode */}
+            {/* Section 5: GST Purchase Details — only in Add mode */}
             {view === 'add' && (
-              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
-                    <Package className="w-4 h-4" />
+              <section className="rounded-2xl overflow-hidden shadow-sm border border-purple-500/20" style={{background: 'linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--card) 96%, #a855f7) 100%)'}}>
+                {/* Section Header */}
+                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-purple-500/15" style={{background: 'linear-gradient(90deg, color-mix(in srgb, #a855f7 12%, transparent), color-mix(in srgb, #a855f7 4%, transparent))'}}>
+                  <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-purple-500/15 text-purple-500 shrink-0">
+                    <Receipt className="w-3.5 h-3.5" />
                   </div>
-                  <span className="text-xs font-black text-purple-500 uppercase tracking-wider">6. GST Purchase Details</span>
-                  <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={formData.show_gst_purchase}
-                      onChange={e => handleInputChange('show_gst_purchase', e.target.checked)}
-                      className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
-                    />
-                    <span className="text-sm font-bold text-foreground">Add Purchase Entry</span>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-xs font-black text-purple-500 uppercase tracking-widest">5. GST Purchase Entry</span>
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-tight">Record the purchase bill linked to this stock addition</p>
+                  </div>
+                  {/* Toggle Switch */}
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none shrink-0">
+                    <span className="text-xs font-bold text-muted-foreground">{formData.show_gst_purchase ? 'Enabled' : 'Disabled'}</span>
+                    <div
+                      onClick={() => handleInputChange('show_gst_purchase', !formData.show_gst_purchase)}
+                      className={clsx(
+                        'relative w-11 h-6 rounded-full transition-all duration-300 cursor-pointer shadow-inner',
+                        formData.show_gst_purchase ? 'bg-purple-500' : 'bg-muted/60 border border-border/80'
+                      )}
+                    >
+                      <div className={clsx(
+                        'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300',
+                        formData.show_gst_purchase ? 'left-5' : 'left-0.5'
+                      )} />
+                    </div>
                   </label>
                 </div>
 
-                {formData.show_gst_purchase && (
-                  <div className="space-y-4">
-                    {/* Same as Current Product */}
-                    <label className="flex items-center gap-2 p-3 bg-muted/10 border border-border/80 rounded-xl cursor-pointer select-none hover:bg-muted/20 transition-colors">
-                      <input
-                        type="checkbox"
-                        checked={formData.gst_same_as_current}
-                        onChange={e => handleInputChange('gst_same_as_current', e.target.checked)}
-                        className="w-4 h-4 accent-purple-500 rounded cursor-pointer"
-                      />
-                      <span className="text-sm font-bold text-foreground">Same as Current Product</span>
-                      <span className="text-xs text-muted-foreground ml-1">(Auto-fill purchase price & quantity from above)</span>
-                    </label>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Price (₹)</label>
-                        <div className="relative">
-                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                          <input
-                            type="number" step="0.01"
-                            onWheel={e => (e.target as HTMLInputElement).blur()}
-                            value={formData.gst_purchase_price}
-                            onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Quantity</label>
-                        <input
-                          type="number" step="0.01"
-                          onWheel={e => (e.target as HTMLInputElement).blur()}
-                          value={formData.gst_purchase_quantity}
-                          onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
-                        />
-                      </div>
+                {/* Collapsed — info callout */}
+                {!formData.show_gst_purchase && (
+                  <div className="px-5 py-4 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-purple-500/8 text-purple-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <FileText className="w-4 h-4" />
                     </div>
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">No purchase entry will be recorded</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">Enable this to log the supplier bill, purchase price, and quantity into your GST purchase ledger for ITC (Input Tax Credit) tracking.</p>
+                    </div>
+                  </div>
+                )}
 
-                    <div className="grid grid-cols-2 gap-4">
-                      {/* Supplier Selection */}
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Supplier / Shop</label>
-                        {showSupplierCreate ? (
-                          <div className="space-y-2 p-3 bg-muted/10 border border-border/80 rounded-xl">
-                            <input
-                              type="text" placeholder="Supplier Name *"
-                              value={newSupplierName}
-                              onChange={e => setNewSupplierName(e.target.value)}
-                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
-                            />
-                            <input
-                              type="text" placeholder="Phone (optional)"
-                              value={newSupplierPhone}
-                              onChange={e => setNewSupplierPhone(e.target.value)}
-                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
-                            />
-                            <input
-                              type="text" placeholder="Address (optional)"
-                              value={newSupplierAddress}
-                              onChange={e => setNewSupplierAddress(e.target.value)}
-                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
-                            />
-                            <div className="flex gap-2">
-                              <button onClick={handleCreateSupplier} className="flex-1 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-xl text-sm font-bold transition-all cursor-pointer">
-                                Save Supplier
-                              </button>
-                              <button onClick={() => { setShowSupplierCreate(false); setNewSupplierName(''); setNewSupplierPhone(''); setNewSupplierAddress(''); }} className="px-3 py-2 text-red-500 border border-red-200 dark:border-red-900 rounded-xl text-sm font-bold transition-all cursor-pointer">
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="relative">
-                            <input
-                              type="text"
-                              placeholder="Search or select supplier..."
-                              value={supplierSearch}
-                              onChange={e => {
-                                setSupplierSearch(e.target.value);
-                                const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
-                                if (match) {
-                                  setFormData(prev => ({ ...prev, gst_supplier_id: match.party_id, gst_supplier_name: match.name }));
-                                }
-                              }}
-                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm text-sm"
-                            />
-                            {supplierSearch && filteredSuppliers.length > 0 && (
-                              <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
-                                {filteredSuppliers.map(s => (
-                                  <button
-                                    key={s.party_id}
-                                    type="button"
-                                    onMouseDown={() => {
-                                      setFormData(prev => ({ ...prev, gst_supplier_id: s.party_id, gst_supplier_name: s.name }));
-                                      setSupplierSearch(s.name);
-                                    }}
-                                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted border-b border-border/40 last:border-0 transition-colors cursor-pointer flex items-center gap-2"
-                                  >
-                                    <span className="font-bold">{s.name}</span>
-                                    {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
-                                    {s.balance_type === 'PAYABLE' && s.balance > 0 && (
-                                      <span className="text-xs text-red-500 ml-auto font-bold">₹{Number(s.balance).toFixed(2)}</span>
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => setShowSupplierCreate(true)}
-                              className="mt-1.5 text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1 cursor-pointer"
-                            >
-                              <Plus className="w-3 h-3" /> Create New Supplier
-                            </button>
-                          </div>
+                {/* Expanded form */}
+                {formData.show_gst_purchase && (
+                  <div className="px-5 py-4 space-y-5">
+
+                    {/* Auto-fill toggle */}
+                    <div
+                      onClick={() => handleInputChange('gst_same_as_current', !formData.gst_same_as_current)}
+                      className={clsx(
+                        'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
+                        formData.gst_same_as_current
+                          ? 'bg-purple-500/10 border-purple-500/30 shadow-sm'
+                          : 'bg-muted/10 border-border/60 hover:bg-muted/20 hover:border-border/80'
+                      )}
+                    >
+                      <div className={clsx(
+                        'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200',
+                        formData.gst_same_as_current ? 'bg-purple-500 border-purple-500' : 'border-border/80 bg-background'
+                      )}>
+                        {formData.gst_same_as_current && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
                         )}
                       </div>
+                      <div className="flex-1 min-w-0">
+                        <span className={clsx('text-sm font-bold', formData.gst_same_as_current ? 'text-purple-600 dark:text-purple-400' : 'text-foreground')}>Same as Current Product</span>
+                        <p className="text-xs text-muted-foreground mt-0.5">Auto-fills price &amp; quantity from the main product fields above</p>
+                      </div>
+                      {formData.gst_same_as_current && (
+                        <span className="text-xs font-bold text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded-full shrink-0">Auto</span>
+                      )}
+                    </div>
 
-                      {/* Bill Reference */}
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Bill Ref</label>
-                        <input
-                          type="text"
-                          value={formData.gst_bill_number}
-                          onChange={e => handleInputChange('gst_bill_number', e.target.value)}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm font-mono tracking-wider text-sm"
-                        />
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 mt-3">Bill Date</label>
-                        <input
-                          type="date"
-                          value={formData.gst_bill_date}
-                          onChange={e => handleInputChange('gst_bill_date', e.target.value)}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all shadow-sm text-sm"
-                        />
+                    {/* Purchase Price & Quantity */}
+                    <div className="rounded-xl border border-border/60 overflow-hidden">
+                      <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
+                        <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
+                        <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Purchase Figures</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-0 divide-x divide-border/50">
+                        <div className="p-4">
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Purchase Price</label>
+                          <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm select-none">₹</span>
+                            <input
+                              type="number" step="0.01"
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              value={formData.gst_purchase_price}
+                              onChange={e => handleInputChange('gst_purchase_price', e.target.value)}
+                              disabled={formData.gst_same_as_current}
+                              placeholder="0.00"
+                              className="w-full bg-background border border-border/70 rounded-lg p-2.5 pl-7 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all no-spinners text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </div>
+                        </div>
+                        <div className="p-4">
+                          <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Quantity</label>
+                          <div className="relative">
+                            <input
+                              type="number" step="0.01"
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              value={formData.gst_purchase_quantity}
+                              onChange={e => handleInputChange('gst_purchase_quantity', e.target.value)}
+                              disabled={formData.gst_same_as_current}
+                              placeholder="0"
+                              className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all no-spinners text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
+
+                    {/* Supplier & Bill Reference */}
+                    <div className="grid grid-cols-2 gap-4">
+
+                      {/* Supplier Block */}
+                      <div className="rounded-xl border border-border/60 overflow-hidden">
+                        <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
+                          <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Supplier</span>
+                        </div>
+                        <div className="p-4">
+                          {showSupplierCreate ? (
+                            <div className="space-y-2">
+                              <input
+                                type="text" placeholder="Supplier Name *"
+                                value={newSupplierName}
+                                onChange={e => setNewSupplierName(e.target.value)}
+                                className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                              />
+                              <input
+                                type="text" placeholder="Phone (optional)"
+                                value={newSupplierPhone}
+                                onChange={e => setNewSupplierPhone(e.target.value)}
+                                className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                              />
+                              <input
+                                type="text" placeholder="Address (optional)"
+                                value={newSupplierAddress}
+                                onChange={e => setNewSupplierAddress(e.target.value)}
+                                className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-1 focus:ring-purple-500/10 focus:outline-none text-sm"
+                              />
+                              <div className="flex gap-2 pt-1">
+                                <button onClick={handleCreateSupplier} className="flex-1 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer">
+                                  Save Supplier
+                                </button>
+                                <button onClick={() => { setShowSupplierCreate(false); setNewSupplierName(''); setNewSupplierPhone(''); setNewSupplierAddress(''); }} className="px-3 py-2 text-red-500 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative">
+                              <input
+                                type="text"
+                                placeholder="Search or select supplier..."
+                                value={supplierSearch}
+                                onChange={e => {
+                                  setSupplierSearch(e.target.value);
+                                  const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
+                                  if (match) {
+                                    setFormData(prev => ({ ...prev, gst_supplier_id: match.party_id, gst_supplier_name: match.name }));
+                                  }
+                                }}
+                                className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all text-sm"
+                              />
+                              {supplierSearch && filteredSuppliers.length > 0 && (
+                                <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                                  {filteredSuppliers.map(s => (
+                                    <button
+                                      key={s.party_id}
+                                      type="button"
+                                      onMouseDown={() => {
+                                        setFormData(prev => ({ ...prev, gst_supplier_id: s.party_id, gst_supplier_name: s.name }));
+                                        setSupplierSearch(s.name);
+                                      }}
+                                      className="w-full text-left px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted border-b border-border/40 last:border-0 transition-colors cursor-pointer flex items-center gap-2"
+                                    >
+                                      <span className="font-bold">{s.name}</span>
+                                      {s.phone && <span className="text-xs text-muted-foreground">{s.phone}</span>}
+                                      {s.balance_type === 'PAYABLE' && s.balance > 0 && (
+                                        <span className="text-xs text-red-500 ml-auto font-bold">₹{Number(s.balance).toFixed(2)}</span>
+                                      )}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => setShowSupplierCreate(true)}
+                                className="mt-2 text-xs font-bold text-purple-500 hover:text-purple-600 flex items-center gap-1 cursor-pointer transition-colors"
+                              >
+                                <Plus className="w-3 h-3" /> Add New Supplier
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bill Reference Block */}
+                      <div className="rounded-xl border border-border/60 overflow-hidden">
+                        <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
+                          <FileText className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Bill Reference</span>
+                        </div>
+                        <div className="p-4 space-y-3">
+                          <div>
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bill / Invoice No.</label>
+                            <input
+                              type="text"
+                              value={formData.gst_bill_number}
+                              onChange={e => handleInputChange('gst_bill_number', e.target.value)}
+                              placeholder="e.g. INV-2024-001"
+                              className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all font-mono tracking-wider text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bill Date</label>
+                            <input
+                              type="date"
+                              value={formData.gst_bill_date}
+                              onChange={e => handleInputChange('gst_bill_date', e.target.value)}
+                              className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ITC Info strip */}
+                    <div className="flex items-start gap-2.5 px-4 py-3 rounded-xl bg-purple-500/6 border border-purple-500/15">
+                      <div className="w-4 h-4 rounded-full bg-purple-500/15 text-purple-500 flex items-center justify-center shrink-0 mt-0.5 text-xs font-black">i</div>
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        This purchase entry will be recorded in your <span className="font-bold text-foreground">GST Purchase Ledger</span> and may be used for <span className="font-bold text-foreground">Input Tax Credit (ITC)</span> reconciliation.
+                      </p>
+                    </div>
+
                   </div>
                 )}
               </section>

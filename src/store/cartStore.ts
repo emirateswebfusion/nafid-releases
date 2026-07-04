@@ -11,9 +11,6 @@ export interface CartItem {
   billing_type?: string;
   grade_id?: string;
   pricing_mode?: string;
-  average_weight_per_piece?: number;
-  weight_override_allowed?: boolean | number;
-  calculated_weight?: number;
   grade_rate?: number;
   discount_percent?: number | null;
   discount_flat?: number | null;
@@ -48,7 +45,6 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
-  updateWeight: (productId: string, weight: number) => void;
   setDiscount: (value: number, type: 'FIXED' | 'PERCENTAGE') => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
@@ -89,20 +85,14 @@ export const useCartStore = create<CartState>()(
             return {
               items: state.items.map(i => {
                 if (i.product_id === newItem.product_id) {
-                  const newQuantity = Number(i.quantity) + 1;
-                  const newWeight = i.billing_type === 'WEIGHT' && i.average_weight_per_piece 
-                    ? newQuantity * i.average_weight_per_piece 
-                    : i.calculated_weight;
-                  return { ...i, quantity: newQuantity, calculated_weight: newWeight };
+                  const delta = i.billing_type === 'WEIGHT' ? 0.1 : 1;
+                  return { ...i, quantity: Number(i.quantity) + delta };
                 }
                 return i;
               }),
             };
           }
-          const initialWeight = newItem.billing_type === 'WEIGHT' && newItem.average_weight_per_piece
-            ? 1 * newItem.average_weight_per_piece
-            : undefined;
-          return { items: [...state.items, { ...newItem, quantity: 1, calculated_weight: initialWeight }] };
+          return { items: [...state.items, { ...newItem, quantity: 1 }] };
         }),
 
       removeItem: (productId) =>
@@ -112,21 +102,8 @@ export const useCartStore = create<CartState>()(
 
       updateQuantity: (productId, quantity) =>
         set((state) => ({
-          items: state.items.map(i => {
-            if (i.product_id === productId) {
-               const newWeight = i.billing_type === 'WEIGHT' && i.average_weight_per_piece 
-                    ? Number(quantity) * i.average_weight_per_piece 
-                    : i.calculated_weight;
-               return { ...i, quantity, calculated_weight: newWeight };
-            }
-            return i;
-          }),
-        })),
-        
-      updateWeight: (productId, weight) =>
-        set((state) => ({
           items: state.items.map(i =>
-            i.product_id === productId ? { ...i, calculated_weight: weight } : i
+            i.product_id === productId ? { ...i, quantity } : i
           ),
         })),
 
@@ -160,7 +137,7 @@ export const useCartTotals = () => {
 
   items.forEach(item => {
     if (item.isScrap) {
-      const scrapAmount = item.base_price * (item.calculated_weight || 0);
+      const scrapAmount = item.base_price * (Number(item.quantity) || 0);
       scrapTotal += scrapAmount;
       return;
     }
@@ -169,7 +146,6 @@ export const useCartTotals = () => {
       ? item.base_price + (item.grade_rate || 0) 
       : item.base_price;
 
-    // Apply per-item discount / offer price (mirrors the logic in BillingPage.tsx)
     let effectiveRate = rawRate;
     if (item.offer_price) {
       effectiveRate = Number(item.offer_price);
@@ -179,10 +155,9 @@ export const useCartTotals = () => {
       effectiveRate = rawRate * (1 - Number(item.discount_percent) / 100);
     }
     effectiveRate = Math.max(effectiveRate, 0);
-      
-    const itemTotal = item.billing_type === 'WEIGHT'
-      ? effectiveRate * (item.calculated_weight || 0)
-      : effectiveRate * (Number(item.quantity) || 0);
+
+    const qty = Number(item.quantity) || 0;
+    const itemTotal = effectiveRate * qty;
     
     subtotal += itemTotal;
 

@@ -79,15 +79,9 @@ export function ActionPane() {
           : item.base_price;
           
         const pieceCount = Number(item.quantity) || 0;
-        
-        let itemTotal = 0;
-        if (item.billing_type === 'WEIGHT') {
-          const weightToUse = item.calculated_weight || 0;
-          itemTotal = effectiveRate * weightToUse;
-        } else {
-          itemTotal = effectiveRate * pieceCount;
-        }
-        
+
+        let itemTotal = effectiveRate * pieceCount;
+
         const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
         
         const taxAmount = invoiceType === 'GST'
@@ -140,15 +134,9 @@ export function ActionPane() {
               : item.base_price;
               
             const pieceCount = Number(item.quantity) || 0;
-            
-            let itemTotal = 0;
-            if (item.billing_type === 'WEIGHT') {
-              const weightToUse = item.calculated_weight || 0;
-              itemTotal = effectiveRate * weightToUse;
-            } else {
-              itemTotal = effectiveRate * pieceCount;
-            }
-            
+
+            let itemTotal = effectiveRate * pieceCount;
+
             const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
             
             return {

@@ -25,8 +25,6 @@ interface Product {
   billing_type?: string;
   grade_id?: string;
   pricing_mode?: string;
-  average_weight_per_piece?: number | null;
-  weight_override_allowed?: number;
   sync_status: string;
   created_at?: string;
   updated_at?: string;
@@ -307,7 +305,6 @@ export function ReportView({ products, grades }: ReportViewProps) {
                           const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
                           const rate = calcMrp(p);
                           const finalSellingPrice = calcSellingPrice(p);
-                          const totalWeight = p.billing_type === 'WEIGHT' && p.average_weight_per_piece ? Number(p.current_stock) * Number(p.average_weight_per_piece) : 0;
                           return (
                             <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
                               <td className="px-4 py-2.5">

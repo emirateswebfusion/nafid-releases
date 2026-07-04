@@ -26,8 +26,6 @@ interface RowData {
   discount_flat: string;
   offer_price: string;
   billing_type: 'PIECE' | 'WEIGHT';
-  average_weight_per_piece: string;
-  weight_override_allowed: boolean;
   error?: string;
 }
 
@@ -102,8 +100,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       discount_flat: '',
       offer_price: '',
       billing_type: 'PIECE',
-      average_weight_per_piece: '',
-      weight_override_allowed: false
     };
   }
 
@@ -122,7 +118,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       // Expected Order:
       // 0:Name, 1:Barcode, 2:ItemCode, 3:Brand, 4:Category, 5:GradeName, 6:PurchasePrice, 7:MRP,
       // 8:Stock, 9:Reorder Level, 10:Discount %, 11:Discount Flat, 12:Offer Price,
-      // 13:GST Applicable(Y/N), 14:Tax Rate %, 15:UOM, 16:Billing Type, 17:Avg Weight, 18:Weight Override
+      // 13:GST Applicable(Y/N), 14:Tax Rate %, 15:UOM
       
       const name = r[0] || '';
       const barcode = r[1] || '';
@@ -140,10 +136,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       const isGst = r[13] || 'Y';
       const taxRate = r[14] || '0';
       const uom = r[15] || 'Pcs';
-      const bType = r[16] || 'PIECE';
-      const avgWgt = r[17] || '';
-      const wOverride = r[18] || 'N';
-      
+
       let matchedGradeId = '';
       const cleanCat = category.trim();
       const cleanGrade = gradeName.trim();
@@ -152,6 +145,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         const found = grades.find(g => g.category.toLowerCase() === cleanCat.toLowerCase() && g.grade_name.toLowerCase() === cleanGrade.toLowerCase());
         if (found) matchedGradeId = found.grade_id;
       }
+
+      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
+      const billing_type: 'PIECE'|'WEIGHT' = weightUoms.includes(uom.trim()) ? 'WEIGHT' : 'PIECE';
 
       const newData: RowData = {
         id: uuidv4(),
@@ -171,9 +167,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         discount_percent: discPct.replace(/[^0-9.]/g, ''),
         discount_flat: discFlat.replace(/[^0-9.]/g, ''),
         offer_price: offerPrc.replace(/[^0-9.]/g, ''),
-        billing_type: (bType.trim().toUpperCase() === 'WEIGHT' ? 'WEIGHT' : 'PIECE') as 'PIECE'|'WEIGHT',
-        average_weight_per_piece: avgWgt.replace(/[^0-9.]/g, ''),
-        weight_override_allowed: wOverride.trim().toUpperCase() === 'Y' || wOverride.trim().toUpperCase() === 'YES'
+        billing_type,
       };
 
       if (currentRowIndex < newRows.length) {
@@ -264,9 +258,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       }
     } else if (field === 'billing_type') {
       row.billing_type = value;
-      if (value !== 'WEIGHT') {
-        row.average_weight_per_piece = '';
-      }
+    } else if (field === 'uom') {
+      row.uom = value;
+      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
+      row.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
     } else {
       (row as any)[field] = value;
     }
@@ -382,8 +377,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         offer_price: r.offer_price ? Number(r.offer_price) : null,
         billing_type: r.billing_type,
         pricing_mode: r.grade_id ? 'GRADE_RATE' : 'FIXED_PRICE',
-        average_weight_per_piece: r.average_weight_per_piece ? Number(r.average_weight_per_piece) : null,
-        weight_override_allowed: r.weight_override_allowed ? 1 : 0,
         domain_attributes: {}
       });
     }
@@ -558,9 +551,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                 <th className="px-3 py-3 font-semibold min-w-[80px]">GST?</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Tax %</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">UOM</th>
-                <th className="px-3 py-3 font-semibold min-w-[120px]">Billing</th>
-                <th className="px-3 py-3 font-semibold min-w-[100px]">Avg Wgt / Pc</th>
-                <th className="px-3 py-3 font-semibold min-w-[100px]">Wgt Override?</th>
                 <th className="px-3 py-3 font-semibold w-[50px] text-center sticky right-0 bg-muted/80 backdrop-blur-md z-30">Act</th>
               </tr>
             </thead>
@@ -614,14 +604,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                         {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
                       </select>
                     </td>
-                    <td className="p-1">
-                      <select value={row.billing_type} onChange={(e) => updateRow(index, 'billing_type', e.target.value as 'PIECE'|'WEIGHT')} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md">
-                        <option value="PIECE">Piece</option>
-                        <option value="WEIGHT">Weight</option>
-                      </select>
-                    </td>
-                    <td className="p-1"><input type="text" value={row.average_weight_per_piece} onChange={(e) => updateRow(index, 'average_weight_per_piece', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" disabled={row.billing_type !== 'WEIGHT'} /></td>
-                    <td className="p-1 text-center"><input type="checkbox" checked={row.weight_override_allowed} onChange={(e) => updateRow(index, 'weight_override_allowed', e.target.checked)} className="w-4 h-4 accent-primary" /></td>
                     <td className="p-1 text-center sticky right-0 bg-card z-10">
                       <button onClick={() => removeRow(index)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
                     </td>

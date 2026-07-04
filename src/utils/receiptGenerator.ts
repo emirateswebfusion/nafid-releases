@@ -123,6 +123,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
     if (data.isReprint) text += centerText('( R E P R I N T )', charsPerLine) + '\n';
     else if (data.invoiceType === 'GST') text += centerText('-- TAX INVOICE --', charsPerLine) + '\n';
+    else if (data.invoiceType === 'SCRAP') text += centerText('-- SCRAP BILL --', charsPerLine) + '\n';
     else text += centerText('-- BILL OF SUPPLY --', charsPerLine) + '\n';
     text += FRAME + '\n';
 
@@ -336,6 +337,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
     if (data.isReprint) text += centerText('[ REPRINT ]', charsPerLine) + '\n';
     else if (data.invoiceType === 'GST') text += centerText('[ TAX INVOICE ]', charsPerLine) + '\n';
+    else if (data.invoiceType === 'SCRAP') text += centerText('[ SCRAP BILL ]', charsPerLine) + '\n';
     else text += centerText('[ BILL OF SUPPLY ]', charsPerLine) + '\n';
     text += THICK + '\n';
     text += `  INV:  ${data.invoiceNumber}\n`;
@@ -471,7 +473,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item, i) => {
         const name = item.name.length > nameW ? item.name.substring(0, nameW - 2) + '..' : item.name;
-        const qty = Number(item.quantity).toFixed(2);
+        const qty = Number(item.quantity).toFixed(3).replace(/\.0+$/, '');
         const rate = item.unit_price.toFixed(2);
         const amt = item.total.toFixed(2);
         text += `${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
@@ -483,7 +485,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('No', idxW)} ${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item, i) => {
         const name = item.name.length > nameW ? item.name.substring(0, nameW - 2) + '..' : item.name;
-        const qty = Number(item.quantity).toFixed(2);
+        const qty = Number(item.quantity).toFixed(3).replace(/\.0+$/, '');
         const rate = item.unit_price.toFixed(2);
         const amt = item.total.toFixed(2);
         text += `${padRight(String(i + 1), idxW)} ${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
@@ -574,6 +576,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
     if (data.isReprint) text += centerText('--- INVOICE (REPRINT) ---', charsPerLine) + '\n';
     else if (data.invoiceType === 'GST') text += centerText('--- TAX INVOICE ---', charsPerLine) + '\n';
+    else if (data.invoiceType === 'SCRAP') text += centerText('--- SCRAP BILL ---', charsPerLine) + '\n';
     else text += centerText('--- BILL OF SUPPLY ---', charsPerLine) + '\n';
     text += FRAME + '\n';
 
@@ -686,6 +689,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
     if (data.isReprint) text += centerText('REPRINT', charsPerLine) + '\n';
     else if (data.invoiceType === 'GST') text += centerText('TAX INVOICE', charsPerLine) + '\n';
+    else if (data.invoiceType === 'SCRAP') text += centerText('SCRAP BILL', charsPerLine) + '\n';
     else text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';
     text += '\n';
     text += `${data.invoiceNumber}     ${data.date}\n`;

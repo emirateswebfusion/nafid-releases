@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee } from 'lucide-react';
+import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
@@ -62,6 +63,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string>('');
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
+  const [reprintSuccess, setReprintSuccess] = useState(false);
 
   useEffect(() => { loadData(); }, []);
 
@@ -210,6 +212,13 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
+  // Auto-dismiss reprint toast
+  useEffect(() => {
+    if (!reprintSuccess) return;
+    const t = setTimeout(() => setReprintSuccess(false), 2500);
+    return () => clearTimeout(t);
+  }, [reprintSuccess]);
+
   // Selling search effect
   useEffect(() => {
     if (sellingSearch.length < 2) { setSellingResults([]); return; }
@@ -281,6 +290,57 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
 
   const formatCurrency = (amount: number | undefined | null) => amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
 
+  const handleReprintScrap = async () => {
+    if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !window.electronAPI) return;
+    try {
+      const { tenantId } = useAuthStore.getState();
+      const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+      ]);
+      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+      const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+      const thermalStyle = printFmt?.style || 'standard';
+
+      const scrapItems = invoiceDetailTxs.map((tx: any) => ({
+        name: tx.scrap_category_name || 'Unknown',
+        quantity: Number(tx.quantity).toFixed(3),
+        unit_price: Number(tx.rate),
+        total: Number(tx.total_amount),
+      }));
+
+      const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0);
+
+      const receiptData: ReceiptData = {
+        shopName: useAuthStore.getState().shopName || 'My Shop',
+        shopAddress: shopAddr || undefined,
+        shopPhone: shopPh || undefined,
+        upiId: upi || undefined,
+        showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+        showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+        invoiceNumber: selectedInvoiceNumber,
+        invoiceType: 'SCRAP',
+        date: new Date(invoiceDetailTxs[0]?.created_at || Date.now()).toLocaleString(),
+        items: scrapItems,
+        subtotal: totalAmount,
+        tax: 0,
+        discount: 0,
+        grandTotal: totalAmount,
+        isReprint: true,
+      };
+
+      const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+      await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+      setReprintSuccess(true);
+    } catch (err) {
+      console.error('Failed to reprint scrap invoice', err);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex-1 flex flex-col bg-background overflow-hidden">
@@ -303,7 +363,14 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 bg-background overflow-hidden">
+    <>
+      {reprintSuccess && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200">
+          <CheckCheck className="w-4 h-4 shrink-0" />
+          <span>Scrap invoice reprinted successfully!</span>
+        </div>
+      )}
+      <div className="flex-1 flex flex-col min-h-0 bg-background overflow-hidden">
       {/* ── Header ── */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
@@ -723,7 +790,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                       {inv.item_count}
                     </div>
                     <div className="col-span-2 text-right font-bold text-sm text-foreground">
-                      {Number(inv.total_qty || 0).toFixed(2)} <span className="text-muted-foreground text-xs font-semibold">{inv.units || 'Kgs'}</span>
+                      {Number(inv.total_qty || 0).toFixed(3)} <span className="text-muted-foreground text-xs font-semibold">{inv.units || 'Kgs'}</span>
                     </div>
                     <div className="col-span-2 text-right font-bold text-sm text-orange-600">
                       {formatCurrency(inv.total_amount)}
@@ -754,10 +821,20 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                     {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + tx.total_amount, 0))}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
-                  <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(2)} {invoiceDetailTxs[0]?.unit || 'Kgs'} &middot; {invoiceDetailTxs.length} item(s)</p>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
+                    <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(3)} {invoiceDetailTxs[0]?.unit || 'Kgs'} &middot; {invoiceDetailTxs.length} item(s)</p>
+                  </div>
+                  <button
+                    onClick={handleReprintScrap}
+                    disabled={invoiceDetailTxs.length === 0}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-sm font-bold border border-primary/20 hover:border-primary/30 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    Reprint
+                  </button>
                 </div>
               </div>
             )}
@@ -776,7 +853,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                 ) : invoiceDetailTxs.map((tx: any) => (
                   <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
                     <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                    <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(2)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span></div>
+                    <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span></div>
                     <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                     <div className="col-span-3 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
                     <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
@@ -903,7 +980,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                           {tx.type === 'PURCHASE' ? 'PUR' : 'SALE'}
                         </span>
                       </div>
-                      <div className="col-span-1 text-right font-semibold text-sm">{tx.quantity.toFixed(2)}</div>
+                      <div className="col-span-1 text-right font-semibold text-sm">{tx.quantity.toFixed(3)}</div>
                       <div className="col-span-1 text-right font-semibold text-sm">{formatCurrency(tx.rate)}</div>
                       <div className="col-span-1 text-right font-bold text-sm">{formatCurrency(tx.total_amount)}</div>
                       <div className="col-span-1 text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
@@ -916,5 +993,6 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
         )}
       </div>
     </div>
+    </>
   );
 }

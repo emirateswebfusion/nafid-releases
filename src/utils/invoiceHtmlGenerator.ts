@@ -40,7 +40,7 @@ export interface InvoiceData {
 }
 
 export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' = 'standard'): string {
-  const title = data.isReprint ? 'INVOICE (REPRINT)' : data.invoiceType === 'GST' ? 'TAX INVOICE' : 'INVOICE';
+  const title = data.isReprint ? 'INVOICE (REPRINT)' : data.invoiceType === 'GST' ? 'TAX INVOICE' : data.invoiceType === 'SCRAP' ? 'SCRAP BILL' : 'INVOICE';
 
   if (style === 'modern') return generateModernHtml(data, title);
   if (style === 'classic') return generateClassicHtml(data, title);

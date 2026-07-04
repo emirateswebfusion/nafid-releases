@@ -61,7 +61,7 @@ export function BillingPage() {
   const {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
-    addItem, updateQuantity, removeItem, updateWeight,
+    addItem, updateQuantity, removeItem,
     customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
@@ -73,7 +73,7 @@ export function BillingPage() {
   const totalItemSavings = items.reduce((sum, item) => {
     const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
     const qty = Number(item.quantity) || 0;
-    const rawTotal = item.billing_type === 'WEIGHT' ? rate * (item.calculated_weight || 0) : rate * qty;
+    const rawTotal = rate * qty;
     let effectivePrice = rate;
     if (item.offer_price) {
       effectivePrice = Number(item.offer_price);
@@ -83,7 +83,7 @@ export function BillingPage() {
       effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
     }
     effectivePrice = Math.max(effectivePrice, 0);
-    const total = item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty;
+    const total = effectivePrice * qty;
     return sum + (rawTotal - total);
   }, 0);
 
@@ -402,26 +402,22 @@ export function BillingPage() {
             base_price: Number(item.unit_price) || 0,
             purchase_price: Number(item.purchase_price) || 0,
             tax_rate_percent: Number(item.tax_rate_percent) || 0,
-            billing_type: item.billing_type,
-            pricing_mode: item.pricing_mode,
-            grade_id: item.grade_id,
-            grade_rate: item.grade_rate,
-            average_weight_per_piece: item.average_weight_per_piece,
-            weight_override_allowed: item.weight_override_allowed,
-            discount_percent: item.discount_percent ?? null,
+      billing_type: item.billing_type,
+      pricing_mode: item.pricing_mode,
+      grade_id: item.grade_id,
+      grade_rate: item.grade_rate,
+      discount_percent: item.discount_percent ?? null,
             discount_flat: item.discount_flat ?? null,
             offer_price: item.offer_price ?? null,
             sku_barcode: item.sku_barcode || null,
             brand_manufacturer: item.brand_manufacturer || null,
           });
           // Set the quantity
-          const qty = Number(item.quantity) || 1;
+          const qty = item.billing_type === 'WEIGHT'
+            ? Number(item.calculated_weight || item.quantity) || 1
+            : Number(item.quantity) || 1;
           if (qty > 0) {
             updateQuantity(productId, qty);
-          }
-          // Set weight for weight-based items
-          if (item.billing_type === 'WEIGHT' && Number(item.calculated_weight) > 0) {
-            updateWeight(productId, Number(item.calculated_weight));
           }
         });
 
@@ -462,8 +458,6 @@ export function BillingPage() {
       billing_type: product.billing_type,
       grade_id: product.grade_id,
       pricing_mode: product.pricing_mode,
-      average_weight_per_piece: product.average_weight_per_piece,
-      weight_override_allowed: product.weight_override_allowed === 1 || product.weight_override_allowed === true,
       grade_rate: product.grade_rate,
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
@@ -487,8 +481,6 @@ export function BillingPage() {
       purchase_price: Number(cat.purchase_price) || 0,
       tax_rate_percent: 0,
       billing_type: 'WEIGHT',
-      weight_override_allowed: true,
-      average_weight_per_piece: 0,
       isScrap: true,
       scrap_category_id: cat.scrap_category_id,
     });
@@ -522,9 +514,8 @@ export function BillingPage() {
             tax_rate_percent: 0,
             billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : undefined,
           });
-          const qty = Number(item.quantity) || 1;
+          const qty = item.weight && Number(item.weight) > 0 ? Number(item.weight) : (Number(item.quantity) || 1);
           if (qty > 0) updateQuantity(productId, qty);
-          if (item.weight && Number(item.weight) > 0) updateWeight(productId, Number(item.weight));
         });
         syncActiveSnapshot();
       } catch (e) {
@@ -561,16 +552,13 @@ export function BillingPage() {
       const qItems = items.map(item => {
         const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
         const qty = Number(item.quantity) || 0;
-        const isWeight = item.billing_type === 'WEIGHT';
-        const effectiveQty = isWeight ? 1 : qty;
-        const weight = isWeight ? (item.calculated_weight || 0) : 0;
-        const amount = isWeight ? rate * weight : rate * qty;
+        const amount = rate * qty;
         return {
           item_id: uuidv4(),
           product_id: item.product_id,
           name: item.name,
-          quantity: effectiveQty,
-          weight,
+          quantity: qty,
+          weight: item.billing_type === 'WEIGHT' ? qty : 0,
           rate,
           amount,
         };
@@ -770,9 +758,9 @@ export function BillingPage() {
             tenant_id: tenantId || 'unset',
             type: 'PURCHASE',
             scrap_category_id: item.scrap_category_id,
-            quantity: item.calculated_weight || 0,
+            quantity: Number(item.quantity) || 0,
             rate: item.base_price,
-            total_amount: item.base_price * (item.calculated_weight || 0),
+            total_amount: item.base_price * (Number(item.quantity) || 0),
             party_name: customerName || null,
             notes: '',
             scrap_invoice_number: scrapInvoiceNum,
@@ -792,9 +780,9 @@ export function BillingPage() {
 
         const scrapReceiptItems = items.map(item => ({
           name: item.name,
-          quantity: (item.calculated_weight || 0).toFixed(1),
+          quantity: (Number(item.quantity) || 0).toFixed(3),
           unit_price: item.base_price,
-          total: item.base_price * (item.calculated_weight || 0),
+          total: item.base_price * (Number(item.quantity) || 0),
         }));
 
         const receiptData: ReceiptData = {
@@ -805,6 +793,7 @@ export function BillingPage() {
           showUpiQr: showUpiQr,
           showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: scrapInvoiceNum,
+          invoiceType: 'SCRAP',
           date: new Date().toLocaleString(),
           cashierName: userName || authRole || undefined,
           items: scrapReceiptItems,
@@ -872,7 +861,7 @@ export function BillingPage() {
       }
       effectiveRate = Math.max(effectiveRate, 0);
 
-      const total = item.billing_type === 'WEIGHT' ? effectiveRate * (item.calculated_weight || 0) : effectiveRate * qty;
+      const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
       return { item_id: uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
     });
@@ -890,7 +879,7 @@ export function BillingPage() {
         effectiveRate = rate * (1 - Number(item.discount_percent) / 100);
       }
       effectiveRate = Math.max(effectiveRate, 0);
-      const total = item.billing_type === 'WEIGHT' ? effectiveRate * (item.calculated_weight || 0) : effectiveRate * qty;
+      const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
       let originalRate: number | undefined;
       let discountLabel: string | undefined;
@@ -1561,7 +1550,7 @@ export function BillingPage() {
               items.map(item => {
                 if (item.isScrap) {
                   const rate = item.base_price;
-                  const weight = item.calculated_weight || 0;
+                  const weight = Number(item.quantity) || 0;
                   const total = rate * weight;
                   return (
                     <div
@@ -1587,8 +1576,8 @@ export function BillingPage() {
                           step="0.1"
                           min="0"
                           className="w-16 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={item.calculated_weight || ''}
-                          onChange={e => updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
+                          value={item.quantity || ''}
+                          onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
                           placeholder="Kg"
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
@@ -1622,7 +1611,7 @@ export function BillingPage() {
                   effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
                 }
                 effectivePrice = Math.max(effectivePrice, 0);
-                const total = item.billing_type === 'WEIGHT' ? effectivePrice * (item.calculated_weight || 0) : effectivePrice * qty;
+                const total = effectivePrice * qty;
 
                 return (
                   <div
@@ -1651,47 +1640,39 @@ export function BillingPage() {
                       </div>
                     </div>
 
-                    {/* Touch-Friendly Large Quantity Adjusters */}
+                    {/* Quantity Adjusters — Pcs or Kg based on billing type */}
                     <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg p-0.5">
                       <button
-                        onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); else removeItem(item.product_id); }}
+                        onClick={() => {
+                          const q = Number(item.quantity);
+                          const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
+                          if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3));
+                          else removeItem(item.product_id);
+                        }}
                         className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                       >
                         <Minus className="w-3.5 h-3.5" />
                       </button>
                       <input
                         type="number"
-                        min="1"
+                        min={item.billing_type === 'WEIGHT' ? '0' : '1'}
+                        step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
                         ref={(el) => { qtyRefs.current[item.product_id] = el; }}
-                        className="w-10 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        className="w-14 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                         value={item.quantity}
                         onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
                       />
                       <button
-                        onClick={() => updateQuantity(item.product_id, (Number(item.quantity) || 0) + 1)}
+                        onClick={() => {
+                          const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
+                          updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3));
+                        }}
                         className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                       >
                         <Plus className="w-3.5 h-3.5" />
                       </button>
+                      <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
                     </div>
-
-                    {/* Weight adjustments controls */}
-                    {item.billing_type === 'WEIGHT' && (
-                      <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg p-0.5 shrink-0">
-                        <input
-                          type="number"
-                          step="0.001"
-                          className={clsx(
-                            'w-14 text-center h-7 bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none',
-                            !item.weight_override_allowed && 'opacity-40 cursor-not-allowed'
-                          )}
-                          value={item.calculated_weight || ''}
-                          disabled={!item.weight_override_allowed}
-                          onChange={e => { if (item.weight_override_allowed) updateWeight(item.product_id, e.target.value === '' ? 0 : Number(e.target.value)); }}
-                        />
-                        <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
-                      </div>
-                    )}
 
                     <div className="text-right min-w-[80px] shrink-0">
                       {effectivePrice !== rate ? (
@@ -1959,7 +1940,7 @@ export function BillingPage() {
                   <span className="text-sm font-semibold text-orange-600">Scrap Items</span>
                   {items.filter(i => i.isScrap).map(s => (
                     <span key={s.product_id} className="text-[10px] text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full ml-1">
-                      {s.name} {Number(s.calculated_weight || 0).toFixed(1)}Kg
+                      {s.name} {Number(s.quantity || 0).toFixed(3)}Kg
                     </span>
                   ))}
                 </div>
@@ -2183,7 +2164,7 @@ export function BillingPage() {
                   ) : scrapInvoiceViewData.transactions.map((tx: any) => (
                     <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
                       <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                      <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(2)}</div>
+                      <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
                       <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                       <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
                       <div className="col-span-2 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
