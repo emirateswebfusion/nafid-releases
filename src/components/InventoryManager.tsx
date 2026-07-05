@@ -392,13 +392,16 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
   const handleAdjustStock = async (product: Product, delta: number) => {
     if (window.electronAPI) {
+      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
+      const step = weightUoms.includes(product.uom) ? 0.1 : 1;
+      const adjustedDelta = delta * step;
       setAdjustingStockId(product.product_id);
       try {
-        const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta });
+        const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta: adjustedDelta });
         if (res.success) {
           setProducts(prev => prev.map(p => 
             p.product_id === product.product_id 
-              ? { ...p, current_stock: Number(p.current_stock) + delta } 
+              ? { ...p, current_stock: Number(p.current_stock) + adjustedDelta } 
               : p
           ));
         } else {
@@ -1049,6 +1052,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   }
                   if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
 
+                  const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+                  const piecesPerKg = Number(da.pcs) || 0;
+                  const estPieces = piecesPerKg > 0 ? Math.round(Number(p.current_stock) * piecesPerKg) : 0;
+
                   return (
                     <div key={p.product_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
                       <div className="col-span-3">
@@ -1094,13 +1101,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black w-12 text-center flex items-center justify-center', isLowStock ? 'text-amber-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black w-14 text-center flex flex-col items-center justify-center leading-tight', isLowStock ? 'text-amber-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
                              <>
-                               {Number(p.current_stock).toFixed(0)}
-                               {isLowStock && <AlertTriangle className="inline w-3 h-3 ml-1 text-amber-500" />}
+                               <span>{Number(p.current_stock).toFixed(3).replace(/\.?0+$/, '')}</span>
+                               {estPieces > 0 && <span className="text-[9px] text-muted-foreground/60 font-medium">(~{estPieces} pcs)</span>}
+                               {isLowStock && <AlertTriangle className="w-3 h-3 ml-0.5 shrink-0 text-amber-500" />}
                              </>
                           )}
                         </span>
@@ -1304,14 +1312,14 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Inventory & Pricing</span>
               </div>
-              <div className="grid grid-cols-5 gap-4">
+              <div className="flex gap-4">
                 {[
                   { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
                   { label: 'MRP *', field: 'base_price', prefix: '₹' },
                   { label: 'Current Stock', field: 'current_stock' },
                   { label: 'Low Stock Alert', field: 'reorder_level' },
                 ].map(({ label, field, prefix }) => (
-                  <div key={field}>
+                  <div key={field} className="flex-1 min-w-0">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</label>
                     <div className="relative">
                       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
@@ -1329,14 +1337,24 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
                 ))}
-                <div>
+                <div className="flex-1 min-w-0">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">UOM</label>
                   <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm">
                     {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
                   </select>
-                  {['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) && (
-                    <p className="text-[10px] text-muted-foreground/60 mt-1 font-medium">MRP = rate per {formData.uom === 'Grams' ? '100g' : formData.uom.toLowerCase()}</p>
-                  )}
+                </div>
+                <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
+                  <div className="flex items-center gap-1 mb-1.5">
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
+                    <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
+                  </div>
+                  <input
+                    type="number" min="1" step="1"
+                    value={formData.domain_attributes?.pcs || ''}
+                    onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                    placeholder="e.g. 20"
+                  />
                 </div>
               </div>
             </section>

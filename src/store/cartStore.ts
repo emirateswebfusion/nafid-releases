@@ -9,6 +9,7 @@ export interface CartItem {
   tax_rate_percent: number;
   quantity: number | string;
   billing_type?: string;
+  pieces_per_kg?: number;
   grade_id?: string;
   pricing_mode?: string;
   grade_rate?: number;
@@ -85,7 +86,7 @@ export const useCartStore = create<CartState>()(
             return {
               items: state.items.map(i => {
                 if (i.product_id === newItem.product_id) {
-                  const delta = i.billing_type === 'WEIGHT' ? 0.1 : 1;
+                  const delta = i.billing_type === 'WEIGHT' && !i.pieces_per_kg ? 0.1 : 1;
                   return { ...i, quantity: Number(i.quantity) + delta };
                 }
                 return i;

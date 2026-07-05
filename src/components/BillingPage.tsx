@@ -449,6 +449,15 @@ export function BillingPage() {
   }, [showPastBill, pastBillSearch]);
 
   const handleSelectProduct = (product: any) => {
+    let piecesPerKg;
+    if (product.billing_type === 'WEIGHT' && product.domain_attributes) {
+      try {
+        const da = typeof product.domain_attributes === 'string'
+          ? JSON.parse(product.domain_attributes)
+          : product.domain_attributes;
+        piecesPerKg = Number(da.pcs) || undefined;
+      } catch {}
+    }
     addItem({
       product_id: product.product_id,
       name: product.name,
@@ -456,6 +465,7 @@ export function BillingPage() {
       purchase_price: product.purchase_price ?? 0,
       tax_rate_percent: product.tax_rate_percent ?? 0,
       billing_type: product.billing_type,
+      pieces_per_kg: piecesPerKg,
       grade_id: product.grade_id,
       pricing_mode: product.pricing_mode,
       grade_rate: product.grade_rate,
@@ -1363,7 +1373,10 @@ export function BillingPage() {
                                 'font-semibold',
                                 p.current_stock <= 0 ? 'text-destructive' : p.current_stock < 10 ? 'text-amber-500' : 'text-emerald-500'
                               )}>
-                                Stock: {p.current_stock}
+                                Stock: {(() => {
+                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); return Number(d.pcs) || 0; } catch { return 0; } })() : 0;
+                                  return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${'Kg'}`;
+                                })()}
                               </span>
                             </div>
                           </div>
@@ -1599,7 +1612,10 @@ export function BillingPage() {
                 }
 
                 const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
-                const qty = Number(item.quantity) || 0;
+                const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
+                const weightKg = Number(item.quantity) || 0;
+                const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;
+                const qty = weightKg;
 
                 // Apply per-item discount
                 let effectivePrice = rate;
@@ -1612,6 +1628,11 @@ export function BillingPage() {
                 }
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
+
+                const handlePcsChange = (pcsVal: number) => {
+                  const newKg = pcsVal / item.pieces_per_kg!;
+                  updateQuantity(item.product_id, +newKg.toFixed(3));
+                };
 
                 return (
                   <div
@@ -1641,37 +1662,62 @@ export function BillingPage() {
                     </div>
 
                     {/* Quantity Adjusters — Pcs or Kg based on billing type */}
-                    <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg p-0.5">
-                      <button
-                        onClick={() => {
-                          const q = Number(item.quantity);
-                          const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
-                          if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3));
-                          else removeItem(item.product_id);
-                        }}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <input
-                        type="number"
-                        min={item.billing_type === 'WEIGHT' ? '0' : '1'}
-                        step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
-                        ref={(el) => { qtyRefs.current[item.product_id] = el; }}
-                        className="w-14 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        value={item.quantity}
-                        onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                      />
-                      <button
-                        onClick={() => {
-                          const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
-                          updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3));
-                        }}
-                        className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
+                    <div className="flex flex-col items-center gap-1">
+                      {isPiecesWeight ? (
+                        <>
+                          <div className="flex items-center gap-1 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase">Pcs</span>
+                            <input
+                              type="number" min="1" step="1"
+                              className="w-12 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={pieces}
+                              onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                            />
+                          </div>
+                          <div className="flex items-center gap-1 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                            <span className="text-[10px] text-muted-foreground font-bold uppercase">Kg</span>
+                            <input
+                              type="number" min="0" step="0.001"
+                              className="w-12 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              value={weightKg}
+                              onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg p-0.5">
+                          <button
+                            onClick={() => {
+                              const q = Number(item.quantity);
+                              const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
+                              if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3));
+                              else removeItem(item.product_id);
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                          >
+                            <Minus className="w-3.5 h-3.5" />
+                          </button>
+                          <input
+                            type="number"
+                            min={item.billing_type === 'WEIGHT' ? '0' : '1'}
+                            step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
+                            ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                            className="w-14 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={item.quantity}
+                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                          />
+                          <button
+                            onClick={() => {
+                              const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
+                              updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3));
+                            }}
+                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                          >
+                            <Plus className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="text-right min-w-[80px] shrink-0">

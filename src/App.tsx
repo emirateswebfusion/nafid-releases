@@ -290,12 +290,21 @@ function App() {
         const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code, limit: 1 });
         if (Array.isArray(products) && products.length > 0) {
           const match = products[0];
+          let piecesPerKg;
+          if (match.billing_type === 'WEIGHT' && match.domain_attributes) {
+            try {
+              const da = typeof match.domain_attributes === 'string' ? JSON.parse(match.domain_attributes) : match.domain_attributes;
+              piecesPerKg = Number(da.pcs) || undefined;
+            } catch {}
+          }
           addItem({
             product_id: match.product_id,
             name: match.name,
             base_price: match.base_price,
             purchase_price: match.purchase_price ?? 0,
             tax_rate_percent: match.tax_rate_percent ?? 0,
+            billing_type: match.billing_type,
+            pieces_per_kg: piecesPerKg,
           });
           window.dispatchEvent(new CustomEvent('product-added', { detail: { product_id: match.product_id } }));
         }

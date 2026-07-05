@@ -53,6 +53,15 @@ export function CartPane() {
   }, []);
 
   const handleSelectProduct = (product: any) => {
+    let piecesPerKg;
+    if (product.billing_type === 'WEIGHT' && product.domain_attributes) {
+      try {
+        const da = typeof product.domain_attributes === 'string'
+          ? JSON.parse(product.domain_attributes)
+          : product.domain_attributes;
+        piecesPerKg = Number(da.pcs) || undefined;
+      } catch {}
+    }
     addItem({
       product_id: product.product_id,
       name: product.name,
@@ -60,6 +69,7 @@ export function CartPane() {
       purchase_price: product.purchase_price ?? 0,
       tax_rate_percent: product.tax_rate_percent ?? 0,
       billing_type: product.billing_type,
+      pieces_per_kg: piecesPerKg,
       grade_id: product.grade_id,
       pricing_mode: product.pricing_mode,
       grade_rate: product.grade_rate,
@@ -163,7 +173,10 @@ export function CartPane() {
                         ₹{(p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price).toFixed(2)}
                       </div>
                       <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
-                        Stock: {p.current_stock}
+                        Stock: {(() => {
+                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); return Number(d.pcs) || 0; } catch { return 0; } })() : 0;
+                          return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
+                        })()}
                       </div>
                     </div>
                   </button>
@@ -211,10 +224,16 @@ export function CartPane() {
               const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
                 ? item.base_price + (item.grade_rate || 0) 
                 : item.base_price;
-                
-              let itemTotal = 0;
-              const qty = Number(item.quantity) || 0;
-              itemTotal = effectiveRate * qty;
+
+              const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
+              const weightKg = Number(item.quantity) || 0;
+              const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;
+              const itemTotal = effectiveRate * weightKg;
+
+              const handlePcsChange = (pcsVal: number) => {
+                const newKg = pcsVal / item.pieces_per_kg!;
+                updateQuantity(item.product_id, +newKg.toFixed(3));
+              };
 
               return (
                 <div key={item.product_id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
@@ -235,23 +254,44 @@ export function CartPane() {
                   <div className="col-span-2 text-right text-foreground">
                     ₹{effectiveRate.toFixed(2)}
                   </div>
-                  <div className="col-span-2 flex justify-center flex-col items-center gap-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[10px] text-muted-foreground w-6 text-right font-bold uppercase">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
-                      <Input 
-                        ref={(el) => {
-                          if (el) {
-                            qtyInputsRef.current[item.product_id] = el;
-                          }
-                        }}
-                        type="number"
-                        min={item.billing_type === 'WEIGHT' ? '0' : '1'}
-                        step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
-                        className="w-16 text-center h-8 px-2"
-                        value={item.quantity}
-                        onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                      />
-                    </div>
+                  <div className="col-span-2 flex justify-center flex-col items-center gap-1">
+                    {isPiecesWeight ? (
+                      <>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase w-5">Pcs</span>
+                          <Input
+                            type="number" min="1" step="1"
+                            className="w-14 text-center h-7 px-1 text-xs"
+                            value={pieces}
+                            onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                          />
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[10px] text-muted-foreground font-bold uppercase w-5">Kg</span>
+                          <Input
+                            type="number" min="0" step="0.001"
+                            className="w-14 text-center h-7 px-1 text-xs"
+                            value={weightKg}
+                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground w-6 text-right font-bold uppercase">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
+                        <Input 
+                          ref={(el) => {
+                            if (el) qtyInputsRef.current[item.product_id] = el;
+                          }}
+                          type="number"
+                          min={item.billing_type === 'WEIGHT' ? '0' : '1'}
+                          step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
+                          className="w-16 text-center h-8 px-2"
+                          value={item.quantity}
+                          onChange={(e) => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-2 text-right font-medium text-primary">
                     ₹{itemTotal.toFixed(2)}
