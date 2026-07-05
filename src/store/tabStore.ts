@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
 
-type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
+type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
 
 export interface TabSnapshot {
   items: CartItem[];
@@ -54,7 +54,7 @@ function createDefaultTab(): Tab {
     customerName: '',
     customerPhone: '',
     customerGstin: '',
-    paymentMethod: 'CASH',
+    paymentMethod: 'PENDING',
     receivedAmount: 0,
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',

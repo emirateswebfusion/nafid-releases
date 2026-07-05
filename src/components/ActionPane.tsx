@@ -312,7 +312,7 @@ export function ActionPane() {
         discount_type: tempDiscountType,
         discount_value: tempDiscountValue,
         grand_total: newGrandTotal,
-        payment_method: selectedPastInvoice.payment_method || 'CASH',
+        payment_method: selectedPastInvoice.payment_method || 'PENDING',
         customer_name: selectedPastInvoice.customer_name,
         customer_phone: selectedPastInvoice.customer_phone,
         customer_gstin: selectedPastInvoice.customer_gstin,

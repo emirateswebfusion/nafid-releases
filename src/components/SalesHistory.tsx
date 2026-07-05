@@ -3,7 +3,7 @@ import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, X,
   BookOpen, IndianRupee, Percent, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight, ArrowUpRight,
-  SlidersHorizontal, Clock, Layers
+  SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -11,11 +11,13 @@ import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
 import { Skeleton } from './ui/Skeleton';
+import { Modal } from './ui/Modal';
 import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 
 const PAYMENT_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
   CASH: 'Cash',
   CARD: 'Card',
   UPI: 'UPI',
@@ -23,6 +25,7 @@ const PAYMENT_LABELS: Record<string, string> = {
 };
 
 const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  PENDING:{ bg: 'bg-gray-500/10',   text: 'text-gray-500',    dot: '#6b7280' },
   CASH:   { bg: 'bg-emerald-500/10', text: 'text-emerald-500', dot: '#10b981' },
   CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
@@ -94,6 +97,7 @@ function PaymentBadge({ method }: { method: string }) {
 /* ─── Invoice Row ─── */
 function InvoiceRow({ inv, isSelected, onClick }: { inv: any; isSelected: boolean; onClick: () => void }) {
   const { date, time } = formatDate(inv.created_at);
+  const isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
 
   return (
@@ -141,7 +145,7 @@ function InvoiceRow({ inv, isSelected, onClick }: { inv: any; isSelected: boolea
       </td>
       {/* Payment */}
       <td className="px-4 py-3.5 whitespace-nowrap">
-        <PaymentBadge method={inv.payment_method || 'CASH'} />
+        <PaymentBadge method={inv.payment_method || 'PENDING'} />
         {isCredit && inv.balance_amount < 0 && (
           <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
             Due: {formatCurrency(Math.abs(inv.balance_amount))}
@@ -187,7 +191,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const [reprintSuccess, setReprintSuccess] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
+  const [collectPaymentMethod, setCollectPaymentMethod] = useState<'CASH' | 'CARD' | 'UPI' | 'CREDIT'>('CASH');
+  const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
+  const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
+  const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
   const LIMIT = 30;
+
+  const COLLECT_PAYMENT_OPTIONS = [
+    { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', bg: 'bg-emerald-500/10', border: 'border-emerald-500', iconBg: 'bg-emerald-500/15' },
+    { value: 'CARD' as const, label: 'Card', icon: Wallet, color: 'text-blue-500', bg: 'bg-blue-500/10', border: 'border-blue-500', iconBg: 'bg-blue-500/15' },
+    { value: 'UPI' as const, label: 'UPI', icon: Smartphone, color: 'text-violet-500', bg: 'bg-violet-500/10', border: 'border-violet-500', iconBg: 'bg-violet-500/15' },
+    { value: 'CREDIT' as const, label: 'Credit', icon: BookOpen, color: 'text-amber-500', bg: 'bg-amber-500/10', border: 'border-amber-500', iconBg: 'bg-amber-500/15' },
+  ];
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -354,6 +370,56 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     onClose();
     if (useAuthStore.getState().role === 'OWNER') useCartStore.getState().setRole('CASHIER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
+  };
+
+  const openCollectPayment = () => {
+    if (!selectedInvoice) return;
+    setCollectPaymentMethod('CASH');
+    setCollectReceivedAmount(Number(selectedInvoice.grand_total) || 0);
+    setCollectPaymentOpen(true);
+    setCollectPaymentSuccess(false);
+  };
+
+  const handleCollectPayment = async () => {
+    if (!window.electronAPI || !selectedInvoice) return;
+    setCollectPaymentSaving(true);
+    try {
+      const { tenantId } = useAuthStore.getState();
+      const grandTotal = Number(selectedInvoice.grand_total) || 0;
+      const balanceAmount = collectPaymentMethod === 'CREDIT' ? collectReceivedAmount - grandTotal : collectReceivedAmount - grandTotal;
+
+      const result = await window.electronAPI.dbUpdateInvoicePayment({
+        invoice_id: selectedInvoice.invoice_id,
+        tenant_id: tenantId || 'global',
+        payment_method: collectPaymentMethod,
+        received_amount: collectReceivedAmount,
+        balance_amount: balanceAmount,
+      });
+
+      if (result.success) {
+        setCollectPaymentSuccess(true);
+        // Refresh the selected invoice to show updated payment
+        setSelectedInvoice({
+          ...selectedInvoice,
+          payment_method: collectPaymentMethod,
+          received_amount: collectReceivedAmount,
+          balance_amount: balanceAmount,
+        });
+        // Refresh the full list
+        loadInvoices(true);
+        setTimeout(() => {
+          setCollectPaymentOpen(false);
+          setCollectPaymentSuccess(false);
+        }, 1500);
+      } else {
+        alert('Failed to update payment: ' + result.error);
+      }
+    } catch (err) {
+      console.error('Failed to collect payment', err);
+      alert('Failed to update payment');
+    } finally {
+      setCollectPaymentSaving(false);
+    }
   };
 
   /* ════════════════════════════════════════
@@ -525,6 +591,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
               <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
               {[
                 { value: '', label: 'All' },
+                { value: 'PENDING', label: 'Pending' },
                 { value: 'CASH', label: 'Cash' },
                 { value: 'CARD', label: 'Card' },
                 { value: 'UPI', label: 'UPI' },
@@ -660,7 +727,14 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 {/* Action Buttons */}
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
+                  {selectedInvoice.payment_method === 'PENDING' && (
+                    <button onClick={openCollectPayment}
+                      className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />Collect Payment
+                    </button>
+                  )}
                   {useAuthStore.getState().role === 'OWNER' && (
                     <button onClick={handleEditBill}
                       className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
@@ -696,16 +770,23 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                   <div className="p-3.5 rounded-xl border border-border/60 bg-background space-y-1.5">
                     <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
                     <div className="flex items-center gap-2">
-                      <PaymentBadge method={selectedInvoice.payment_method || 'CASH'} />
-                      {selectedInvoice.payment_method !== 'CREDIT'
-                        ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                        : <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                      }
+                      <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
+                      {selectedInvoice.payment_method === 'PENDING' ? (
+                        <Clock className="w-3.5 h-3.5 text-gray-500" />
+                      ) : selectedInvoice.payment_method !== 'CREDIT' ? (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      ) : (
+                        <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                      )}
                     </div>
                     {(() => {
                       const received = Number(selectedInvoice.received_amount) || 0;
                       const balance = Number(selectedInvoice.balance_amount) || 0;
                       const isCredit = selectedInvoice.payment_method === 'CREDIT';
+                      const isPending = selectedInvoice.payment_method === 'PENDING';
+                      if (isPending) {
+                        return <div className="text-[10px] text-gray-500 font-semibold">Awaiting payment at counter</div>;
+                      }
                       if (!isCredit && received <= 0) return null;
                       return (
                         <div className="text-[10px] text-muted-foreground space-y-0.5">
@@ -787,6 +868,145 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+
+      {/* ─── Collect Payment Modal ─── */}
+      <Modal
+        isOpen={collectPaymentOpen}
+        onClose={() => setCollectPaymentOpen(false)}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <CreditCard className="w-5 h-5 text-emerald-500" />
+            <span>Collect Payment</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[420px] text-foreground">
+          {selectedInvoice && (
+            <>
+              <div className="flex items-center justify-between p-4 bg-primary/5 border border-primary/20 rounded-2xl">
+                <div>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
+                  <p className="text-sm font-bold text-foreground mt-0.5">{selectedInvoice.invoice_number}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Grand Total</p>
+                  <p className="text-xl font-black text-primary mt-0.5">{formatCurrency(Number(selectedInvoice.grand_total) || 0)}</p>
+                </div>
+              </div>
+
+              {/* Payment method selection */}
+              <div>
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">Payment Method</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {COLLECT_PAYMENT_OPTIONS.map(opt => {
+                    const isActive = collectPaymentMethod === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          setCollectPaymentMethod(opt.value);
+                          if (opt.value === 'CARD' || opt.value === 'UPI') {
+                            setCollectReceivedAmount(Number(selectedInvoice.grand_total) || 0);
+                          }
+                        }}
+                        className={clsx(
+                          'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                          isActive
+                            ? `${opt.bg} ${opt.border} ${opt.color} shadow-sm`
+                            : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                        )}
+                      >
+                        <div className={clsx(
+                          'p-2 rounded-xl transition-colors',
+                          isActive ? opt.iconBg : 'bg-muted'
+                        )}>
+                          <opt.icon className="w-4.5 h-4.5" />
+                        </div>
+                        <span className="text-xs font-extrabold">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Received amount — shown for CASH and CREDIT */}
+              {(collectPaymentMethod === 'CASH' || collectPaymentMethod === 'CREDIT') && (
+                <div>
+                  <p className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-1.5">
+                    {collectPaymentMethod === 'CREDIT' ? 'Amount Paid' : 'Amount Received'}
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-black text-muted-foreground/60">₹</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={collectReceivedAmount || ''}
+                      onChange={e => setCollectReceivedAmount(e.target.value === '' ? 0 : Number(e.target.value))}
+                      className="w-full pl-8 pr-4 py-2.5 bg-background border border-border rounded-xl text-sm font-black text-foreground focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      placeholder="Enter amount received"
+                    />
+                  </div>
+                  {collectReceivedAmount > 0 && (
+                    <div className={clsx(
+                      'mt-1.5 text-xs font-bold text-right',
+                      collectReceivedAmount >= (Number(selectedInvoice.grand_total) || 0)
+                        ? 'text-emerald-500'
+                        : 'text-amber-500'
+                    )}>
+                      {collectPaymentMethod === 'CREDIT' ? 'Balance Due' : 'Change'}: {formatCurrency(Math.abs(collectReceivedAmount - (Number(selectedInvoice.grand_total) || 0)))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Exact payment notice for CARD/UPI */}
+              {(collectPaymentMethod === 'CARD' || collectPaymentMethod === 'UPI') && (
+                <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Payment will be recorded as exact amount of {formatCurrency(Number(selectedInvoice.grand_total) || 0)}
+                </div>
+              )}
+
+              {/* CREDIT requires customer info */}
+              {collectPaymentMethod === 'CREDIT' && !selectedInvoice.customer_name && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-xs text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  Customer info was not collected during billing. Credit may not be fully tracked.
+                </div>
+              )}
+
+              {collectPaymentSuccess && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-xl text-center text-xs font-bold animate-in fade-in">
+                  <CheckCheck className="w-4 h-4 inline mr-1.5" />
+                  Payment recorded successfully!
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+                <button
+                  onClick={() => setCollectPaymentOpen(false)}
+                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCollectPayment}
+                  disabled={collectPaymentSaving || collectPaymentSuccess}
+                  className="px-5 py-2.5 text-sm font-black bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                >
+                  {collectPaymentSaving ? (
+                    <span className="flex items-center gap-2">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Saving...
+                    </span>
+                  ) : 'Confirm Payment'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
 
       <style>{`
         @keyframes slideDown {

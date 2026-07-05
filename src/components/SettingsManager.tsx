@@ -178,6 +178,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
   const [showProductOffers, setShowProductOffers] = useState(true);
+  const [openCashDrawerOnPending, setOpenCashDrawerOnPending] = useState(false);
   const [receiptFont, setReceiptFont] = useState('courier');
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
@@ -191,9 +192,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -256,7 +257,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     if (phoneVal) setShopPhone(phoneVal);
     if (upiVal) setUpiId(upiVal);
     if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
-    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) setLabelCodeType(labelType as CodeType);
+    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType])     setLabelCodeType(labelType as CodeType);
     if (printFmt) {
       if (printFmt.format === 'a4') {
         setPrintFormat('a4');
@@ -267,6 +268,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         if (printFmt.style) setThermalStyle(printFmt.style);
       }
       if (printFmt.showProductOffers !== undefined) setShowProductOffers(Boolean(printFmt.showProductOffers));
+      if (printFmt.openCashDrawerOnPending !== undefined) setOpenCashDrawerOnPending(Boolean(printFmt.openCashDrawerOnPending));
       if (printFmt.receiptFont) setReceiptFont(printFmt.receiptFont);
     }
 
@@ -309,7 +311,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, receiptFont } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
       ];
@@ -1115,6 +1117,16 @@ Discount          ₹-50.00
                     <div className="flex-1">
                       <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Receipt</label>
                       <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels on printed receipts.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
+                    <button onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary' : 'bg-muted-foreground/30')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', openCashDrawerOnPending ? 'translate-x-6' : 'translate-x-0')} />
+                    </button>
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
+                      <p className="text-[10px] text-muted-foreground mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing. Enable this only if you collect cash at the billing counter.</p>
                     </div>
                   </div>
 

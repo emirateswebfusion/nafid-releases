@@ -922,7 +922,7 @@ ipcMain.handle('db:checkout', (event, payload) => {
       invoice.discount_type || 'FIXED',
       invoice.discount_value || 0,
       invoice.grand_total,
-      invoice.payment_method || 'CASH',
+      invoice.payment_method || 'PENDING',
       invoice.received_amount ?? 0,
       invoice.balance_amount ?? 0,
       invoice.customer_name || null,
@@ -1156,7 +1156,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     `).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
-      invoice.grand_total, invoice.payment_method || 'CASH',
+      invoice.grand_total, invoice.payment_method || 'PENDING',
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       payload.invoice_id
@@ -1200,6 +1200,35 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
   try {
     transaction();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateInvoicePayment', (event, payload: {
+  invoice_id: string;
+  tenant_id: string;
+  payment_method: string;
+  received_amount: number;
+  balance_amount: number;
+}) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE invoices SET
+        payment_method = ?,
+        received_amount = ?,
+        balance_amount = ?,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+      WHERE invoice_id = ?
+    `).run(
+      payload.payment_method,
+      payload.received_amount,
+      payload.balance_amount,
+      payload.invoice_id
+    );
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };

@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Receipt, Settings, Tag, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText
+  CheckCircle2, Building, TrendingUp, FileText, Clock
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -40,13 +40,14 @@ const INDIAN_STATES = [
   { code: 'GA', name: 'Goa' },
 ];
 
-type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
+type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Wallet; color: string }[] = [
-  { value: 'CASH', label: 'Cash', icon: Banknote, color: 'text-emerald-500' },
+  { value: 'PENDING', label: 'Pending', icon: Clock, color: 'text-gray-500' },
   { value: 'CARD', label: 'Card', icon: Wallet, color: 'text-blue-500' },
-  { value: 'UPI', label: 'UPI', icon: Smartphone, color: 'text-violet-500' },
   { value: 'CREDIT', label: 'Credit', icon: BookOpen, color: 'text-amber-500' },
+  { value: 'UPI', label: 'UPI', icon: Smartphone, color: 'text-violet-500' },
+  { value: 'CASH', label: 'Cash', icon: Banknote, color: 'text-emerald-500' },
 ];
 
 function formatCurrency(amount: number): string {
@@ -156,7 +157,7 @@ export function BillingPage() {
   };
 
   const activeTab = tabs.find(t => t.id === activeTabId);
-  const paymentMethod = activeTab?.paymentMethod ?? 'CASH';
+  const paymentMethod = activeTab?.paymentMethod ?? 'PENDING';
   const receivedAmount = activeTab?.receivedAmount ?? 0;
   const customerName = activeTab?.customerName ?? '';
   const customerPhone = activeTab?.customerPhone ?? '';
@@ -426,7 +427,7 @@ export function BillingPage() {
           customerName: invoice.customer_name || '',
           customerPhone: invoice.customer_phone || '',
           customerGstin: invoice.customer_gstin || '',
-          paymentMethod: invoice.payment_method || 'CASH',
+          paymentMethod: invoice.payment_method || 'PENDING',
           receivedAmount: Number(invoice.received_amount) || 0,
         });
 
@@ -717,7 +718,7 @@ export function BillingPage() {
       setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}`);
       if (!editingQuotationId) {
         clearCart();
-        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0 });
+        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0 });
         syncActiveSnapshot();
         setQuotationAddress('');
         setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
@@ -820,7 +821,7 @@ export function BillingPage() {
         setIsCheckingOut(false);
         setTimeout(() => {
           clearCart();
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
           syncActiveSnapshot();
           setCheckoutSuccess(false);
           reserveScrapInvoiceNumberForTab();
@@ -839,6 +840,10 @@ export function BillingPage() {
       setIsCheckingOut(false);
       return;
     }
+
+    const isPaymentPending = paymentMethod === 'PENDING';
+    const effectiveReceivedAmount = isPaymentPending ? 0 : receivedAmount;
+    const effectiveBalanceAmount = isPaymentPending ? 0 : balanceAmount;
 
     const invoice_id = uuidv4();
     // Try cloud server first for conflict-free numbering across computers
@@ -911,6 +916,7 @@ export function BillingPage() {
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
 
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
       const useA4 = printFmt?.format === 'a4';
 
       const state = useCartStore.getState();
@@ -932,7 +938,8 @@ export function BillingPage() {
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal,
         scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
-        receivedAmount, balanceAmount, invoiceType,
+        ...(isPaymentPending ? {} : { receivedAmount: effectiveReceivedAmount, balanceAmount: effectiveBalanceAmount }),
+        invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
         customerGstin: invoiceType === 'GST' ? customerGstin || undefined : undefined,
@@ -957,14 +964,16 @@ export function BillingPage() {
         }
       }
 
-      await window.electronAPI.openCashDrawer(tenantId || 'global');
+      if (!isPaymentPending || openCashDrawerOnPending) {
+        await window.electronAPI.openCashDrawer(tenantId || 'global');
+      }
 
       const result = await window.electronAPI.dbCheckout({
         invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
         invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
         discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
         grand_total: displayGrandTotal, payment_method: paymentMethod,
-        received_amount: receivedAmount, balance_amount: balanceAmount,
+        received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
         customer_name: customerName || null, customer_phone: customerPhone || null,
         customer_gstin: invoiceType === 'GST' ? customerGstin || null : null,
         customer_state: invoiceType === 'GST' ? customerState || null : null,
@@ -996,7 +1005,7 @@ export function BillingPage() {
     setTimeout(() => {
       clearCart();
       clearScrapDeduction();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
       syncActiveSnapshot();
       setCheckoutSuccess(false);
       reserveInvoiceNumberForTab();
@@ -1083,7 +1092,7 @@ export function BillingPage() {
         discount_type: tempDiscountType,
         discount_value: tempDiscountValue,
         grand_total: newGrandTotal,
-        payment_method: selectedPastInvoice.payment_method || 'CASH',
+        payment_method: selectedPastInvoice.payment_method || 'PENDING',
         customer_name: selectedPastInvoice.customer_name,
         customer_phone: selectedPastInvoice.customer_phone,
         customer_gstin: selectedPastInvoice.customer_gstin,
@@ -1215,7 +1224,7 @@ export function BillingPage() {
         <div className="flex items-center gap-2">
           {items.length > 0 && (
             <button
-              onClick={() => { clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'CASH', receivedAmount: 0 }); syncActiveSnapshot(); }}
+              onClick={() => { clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0 }); syncActiveSnapshot(); }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
               title="Clear Cart"
             >
@@ -1763,13 +1772,15 @@ export function BillingPage() {
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
               {!isScrapMode && (
-              <div className="grid grid-cols-2 gap-2">
-                {PAYMENT_OPTIONS.map(opt => {
+              <div className="grid grid-cols-6 gap-2">
+                {PAYMENT_OPTIONS.map((opt, idx) => {
                   const isActive = paymentMethod === opt.value;
+                  const span = idx < 3 ? 'col-span-2' : 'col-span-3';
                   let activeBg = '';
                   let activeText = '';
                   let activeBorder = '';
                   let activeIconBg = '';
+                  if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
                   if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
                   if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
                   if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
@@ -1781,6 +1792,7 @@ export function BillingPage() {
                       onClick={() => updateActiveTab({ paymentMethod: opt.value })}
                       className={clsx(
                         'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                        span,
                         isActive
                           ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
                           : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
@@ -2009,10 +2021,10 @@ export function BillingPage() {
                 </p>
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
               </div>
-              {/* Divider — hidden in scrap/quotation/CARD/UPI mode */}
-              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
-              {/* Received input — hidden in scrap/quotation/CARD/UPI mode */}
-              <div className={clsx('flex-1 min-w-0 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Divider — hidden in scrap/quotation/PENDING/CARD/UPI mode */}
+              <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />
+              {/* Received input — hidden in scrap/quotation/PENDING/CARD/UPI mode */}
+              <div className={clsx('flex-1 min-w-0 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Paid' : 'Received'}
                 </p>
@@ -2032,8 +2044,8 @@ export function BillingPage() {
                   />
                 </div>
               </div>
-              {/* Change input — hidden in scrap/quotation/CARD/UPI mode */}
-              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
+              {/* Change input — hidden in scrap/quotation/PENDING/CARD/UPI mode */}
+              <div className={clsx('flex-1 min-w-0 max-w-[120px] transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0 pointer-events-none' : 'opacity-100')}>
                 <p className="text-[9px] font-black text-muted-foreground uppercase tracking-wider mb-0.5">
                   {paymentMethod === 'CREDIT' ? 'Balance' : 'Change'}
                 </p>

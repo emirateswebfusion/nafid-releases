@@ -706,7 +706,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
               discount_type: currentInv.discount_type || 'FIXED',
               discount_value: currentInv.discount_value ?? 0,
               grand_total: currentInv.grand_total,
-              payment_method: currentInv.payment_method || 'CASH',
+              payment_method: currentInv.payment_method || 'PENDING',
               received_amount: currentInv.received_amount ?? 0,
               balance_amount: currentInv.balance_amount ?? 0,
               user_id: currentInv.user_id || null,
