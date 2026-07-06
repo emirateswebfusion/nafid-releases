@@ -1,7 +1,7 @@
 {
   "name": "vendora",
   "private": true,
-  "version": "1.4.0",
+  "version": "1.4.1",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently \"vite\" \"npm run build:electron && wait-on tcp:5173 && electron .\"",

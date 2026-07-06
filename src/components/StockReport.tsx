@@ -578,6 +578,9 @@ export function StockReport({ onClose }: { onClose: () => void }) {
                           const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
                           const rate = calcMrp(p);
                           const finalSellingPrice = calcSellingPrice(p);
+                          const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+                          const unitWeightGrams = Number(da?.weight_grams) || 0;
+                          const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
                           return (
                             <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
                               <td className="px-4 py-2.5">

@@ -81,7 +81,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   const [isSavingTx, setIsSavingTx] = useState(false);
   const [txForm, setTxForm] = useState({
     amount: '', transaction_type: 'CREDIT' as 'CREDIT' | 'DEBIT',
-    description: '', transaction_date: '', reference_number: ''
+    description: '', transaction_date: '', reference_number: '',
+    payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER',
   });
 
   const showStatus = (text: string, type: 'success' | 'error') => {
@@ -213,6 +214,20 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           created_by: userId,
           created_by_name: userName || undefined,
         });
+
+        if (txForm.payment_method === 'CASH') {
+          const cashType = txForm.transaction_type === 'CREDIT' ? 'CASH_OUT' : 'CASH_IN';
+          await window.electronAPI.dbCashierAddTransaction({
+            tenant_id: tenantId!,
+            type: cashType,
+            amount: parsedAmount,
+            category: 'Party ' + (cashType === 'CASH_OUT' ? 'Payment' : 'Receipt'),
+            notes: `${selectedParty.name} - ${txForm.description.trim()}`,
+            user_id: userId!,
+            user_name: userName || undefined,
+          });
+        }
+
         showStatus('Transaction added', 'success');
       }
       await loadLedger(selectedParty.party_id);
@@ -294,7 +309,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               {isOwner && (
                 <button onClick={() => {
                   setEditingTx(null);
-                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '' });
+                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '', payment_method: 'CASH' });
                   setView('tx_form');
                 }} className="h-10 px-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
                   <PlusCircle className="w-3.5 h-3.5" /> Add Tx
@@ -713,6 +728,30 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   value={txForm.description} onChange={e => setTxForm(f => ({ ...f, description: e.target.value }))}
                   className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
               </div>
+              {!editingTx && (
+                <div className="mt-4">
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Payment Method</label>
+                  <div className="grid grid-cols-5 gap-2">
+                    {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'] as const).map(m => (
+                      <button key={m} type="button" onClick={() => setTxForm(f => ({ ...f, payment_method: m }))}
+                        className={clsx(
+                          'py-2 px-1 rounded-xl border-2 text-[11px] font-bold transition-all duration-200 active:scale-95 cursor-pointer text-center leading-tight',
+                          txForm.payment_method === m
+                            ? m === 'CASH' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                              : 'border-primary bg-primary/10 text-primary shadow-sm'
+                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                        )}>
+                        {m === 'CASH' ? '💵 Cash' : m === 'BANK_TRANSFER' ? '🏦 Bank' : m === 'UPI' ? '📱 UPI' : m === 'CARD' ? '💳 Card' : '📄 Other'}
+                      </button>
+                    ))}
+                  </div>
+                  {txForm.payment_method === 'CASH' && (
+                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1.5 flex items-center gap-1">
+                      <Banknote className="w-3 h-3" /> {txForm.transaction_type === 'CREDIT' ? 'Cash will be deducted from drawer' : 'Cash will be added to drawer'}
+                    </p>
+                  )}
+                </div>
+              )}
             </section>
           </div>
 

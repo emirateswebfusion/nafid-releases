@@ -250,11 +250,12 @@ function App() {
   }, [isSyncing, shuffledQuotes]);
 
   useEffect(() => {
-    if (!window.electronAPI) return;
-    window.electronAPI.settingsGet({ tenant_id: useAuthStore.getState().tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+    if (!window.electronAPI || !isAuthenticated) return;
+    const tid = useAuthStore.getState().tenantId;
+    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handleOpenInv = () => setShowInventoryManager(true);

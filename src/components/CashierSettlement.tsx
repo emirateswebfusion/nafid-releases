@@ -33,7 +33,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const { tenantId, userId, userName } = useAuthStore();
   const [drawer, setDrawer] = useState<any>(null);
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
-  const [expenses, setExpenses] = useState<any[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
@@ -44,10 +44,16 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [showOpeningBal, setShowOpeningBal] = useState(false);
   const [openingBalInput, setOpeningBalInput] = useState<number>(0);
 
-  const [expAmt, setExpAmt] = useState<number>(0);
-  const [expCat, setExpCat] = useState('');
-  const [expNote, setExpNote] = useState('');
-  const [expSubmitting, setExpSubmitting] = useState(false);
+  const [parties, setParties] = useState<any[]>([]);
+  const [showTxnModal, setShowTxnModal] = useState(false);
+  const [txnType, setTxnType] = useState<'CASH_IN' | 'CASH_OUT'>('CASH_OUT');
+  const [txnAmt, setTxnAmt] = useState<number>(0);
+  const [txnCat, setTxnCat] = useState('');
+  const [txnNote, setTxnNote] = useState('');
+  const [txnSubmitting, setTxnSubmitting] = useState(false);
+  const [txnPartyId, setTxnPartyId] = useState('');
+  const [txnPartyName, setTxnPartyName] = useState('');
+  const [partySearch, setPartySearch] = useState('');
 
   const [showDayClose, setShowDayClose] = useState(false);
   const [actualCash, setActualCash] = useState<number>(0);
@@ -69,7 +75,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
     ]);
     if (d && !d.error) setDrawer(d);
     if (Array.isArray(invs)) setPendingInvoices(invs);
-    if (Array.isArray(txs)) setExpenses(txs.filter((t: any) => t.type === 'CASH_OUT'));
+    if (Array.isArray(txs)) setTransactions(txs);
   }, [tenantId, searchQuery]);
 
   useEffect(() => { Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
@@ -83,16 +89,30 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
     if (r.success) { setShowOpeningBal(false); await load(); }
   };
 
-  const handleAddExpense = async () => {
-    if (!tenantId || !userId || expAmt <= 0) return;
-    setExpSubmitting(true);
+  const handleAddTransaction = async () => {
+    if (!tenantId || !userId || txnAmt <= 0) return;
+    setTxnSubmitting(true);
     const r = await window.electronAPI!.dbCashierAddTransaction({
-      tenant_id: tenantId, type: 'CASH_OUT', amount: expAmt,
-      category: expCat || undefined, notes: expNote || undefined,
+      tenant_id: tenantId, type: txnType, amount: txnAmt,
+      category: txnCat || undefined, notes: txnNote || undefined,
       user_id: userId, user_name: userName || undefined,
     });
-    setExpSubmitting(false);
-    if (r.success) { setExpAmt(0); setExpCat(''); setExpNote(''); await load(); }
+    if (r.success && txnPartyId) {
+      const partyTxnType = txnType === 'CASH_IN' ? 'DEBIT' : 'CREDIT';
+      await window.electronAPI!.dbAddPartyLedgerEntry({
+        party_id: txnPartyId,
+        tenant_id: tenantId,
+        transaction_type: partyTxnType,
+        amount: txnAmt,
+        description: `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'} - ${txnCat || 'Manual'}${txnNote ? ': ' + txnNote : ''}`,
+        reference_number: null,
+        created_by: userId,
+        created_by_name: userName || undefined,
+        ledger_id: crypto.randomUUID(),
+      });
+    }
+    setTxnSubmitting(false);
+    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowTxnModal(false); await load(); }
   };
 
   const handleDayClose = async () => {
@@ -166,6 +186,10 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               Close Day
             </button>
           )}
+          <span className="w-px h-6 bg-border/40" />
+          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+            <X className="w-4 h-4 text-destructive" />
+          </button>
         </div>
       </header>
 
@@ -251,103 +275,89 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
         </div>
 
-        {/* ═══ RIGHT: Expenses ═══ */}
+        {/* ═══ RIGHT: Cash Register ═══ */}
         <div className="w-[440px] min-w-0 flex flex-col bg-card shadow-2xl z-10">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-3 border-b border-border shrink-0">
             <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-rose-500/10">
-                <Minus className="w-4 h-4 text-rose-500" />
+              <div className="p-2 rounded-xl bg-blue-500/10">
+                <Banknote className="w-4 h-4 text-blue-500" />
               </div>
               <div>
-                <h2 className="text-sm font-extrabold text-foreground tracking-tight">Expenses</h2>
-                <p className="text-[10px] font-semibold text-muted-foreground">Cash Out</p>
+                <h2 className="text-sm font-extrabold text-foreground tracking-tight">Cash Register</h2>
+                <p className="text-[10px] font-semibold text-muted-foreground">Manual entries</p>
               </div>
             </div>
-            <button onClick={async () => {
-              if (!drawerOpen) return;
-              const r = await window.electronAPI!.dbCashierAddTransaction({
-                tenant_id: tenantId!, type: 'CASH_OUT', amount: expAmt || 1,
-                category: expCat || undefined, notes: expNote || undefined,
-                user_id: userId!, user_name: userName || undefined,
-              });
-              if (r.success) { setExpAmt(0); setExpCat(''); setExpNote(''); await load(); }
-            }}
-              className="px-3 py-2 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5">
-              <Plus className="w-3.5 h-3.5" /> Add Expense
-            </button>
-          </div>
-
-          {/* Inline Add Expense */}
-          <div className="px-6 py-3 border-b border-border/60 bg-rose-500/[0.02] space-y-2.5">
-            <div className="grid grid-cols-[1fr_1.2fr_0.7fr] gap-2">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">{'\u20B9'}</span>
-                <input type="number" value={expAmt} onChange={e => setExpAmt(Number(e.target.value))}
-                  placeholder="Amount"
-                  className="w-full pl-7 pr-3 py-2 text-sm font-black bg-card border border-border/80 rounded-xl outline-none focus:border-rose-500/30 text-foreground placeholder:text-muted-foreground/40 tabular-nums shadow-sm transition-all"
-                  step="0.01" min="0" />
-              </div>
-              <select value={expCat} onChange={e => setExpCat(e.target.value)}
-                className="px-3 py-2 text-sm bg-card border border-border/80 rounded-xl outline-none focus:border-rose-500/30 text-foreground shadow-sm transition-all">
-                <option value="">Category</option>
-                <option value="Petty Cash">Petty Cash</option>
-                <option value="Electricity">Electricity</option>
-                <option value="Rent">Rent</option>
-                <option value="Salary">Salary</option>
-                <option value="Transport">Transport</option>
-                <option value="Stationery">Stationery</option>
-                <option value="Maintenance">Maintenance</option>
-                <option value="Other">Other</option>
-              </select>
-              <input type="text" value={expNote} onChange={e => setExpNote(e.target.value)} placeholder="Notes"
-                className="px-3 py-2 text-sm bg-card border border-border/80 rounded-xl outline-none focus:border-rose-500/30 text-foreground placeholder:text-muted-foreground/40 shadow-sm transition-all" />
-            </div>
-            <div className="flex justify-end gap-1.5">
-              <button onClick={async () => {
-                if (!tenantId || !userId || expAmt <= 0) return;
-                setExpSubmitting(true);
-                const r = await window.electronAPI!.dbCashierAddTransaction({
-                  tenant_id: tenantId, type: 'CASH_OUT', amount: expAmt,
-                  category: expCat || undefined, notes: expNote || undefined,
-                  user_id: userId, user_name: userName || undefined,
-                });
-                setExpSubmitting(false);
-                if (r.success) { setExpAmt(0); setExpCat(''); setExpNote(''); await load(); }
-              }} disabled={expSubmitting || expAmt <= 0}
-                className="px-4 py-1.5 text-xs font-bold text-white bg-rose-500 rounded-xl hover:bg-rose-600 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40">
-                {expSubmitting ? 'Saving...' : 'Record Expense'}
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_IN'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId); if (Array.isArray(p)) setParties(p); } }}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-emerald-500 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" /> Cash In
+              </button>
+              <button
+                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_OUT'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId); if (Array.isArray(p)) setParties(p); } }}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5"
+              >
+                <Minus className="w-3.5 h-3.5" /> Expense
               </button>
             </div>
           </div>
 
+          {/* Summary Bar */}
+          {transactions.length > 0 && (
+            <div className="flex items-center gap-3 px-6 py-2.5 border-b border-border/60 bg-muted/10">
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                <span className="text-xs font-black text-emerald-500 tabular-nums">
+                  {formatCurrency(transactions.filter((t: any) => t.type === 'CASH_IN').reduce((s: number, t: any) => s + Number(t.amount), 0))}
+                </span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">In</span>
+              </div>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20">
+                <span className="text-xs font-black text-rose-500 tabular-nums">
+                  {formatCurrency(transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0))}
+                </span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase">Out</span>
+              </div>
+            </div>
+          )}
+
           {/* Table header */}
-          <div className="grid grid-cols-[0.7fr_1fr_0.7fr_0.7fr] gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-wider border-b border-border/60 bg-muted/30">
+          <div className="grid grid-cols-[0.6fr_0.55fr_1fr_0.7fr_auto] gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-wider border-b border-border/60 bg-muted/30">
             <span>Time</span>
+            <span>Type</span>
             <span>Category</span>
             <span className="text-right">Amount</span>
-            <span>By</span>
+            <span className="text-right">By</span>
           </div>
 
           {/* Rows */}
           <div className="flex-1 overflow-y-auto">
-            {expenses.length === 0 ? (
+            {transactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground p-8">
-                <Minus className="w-10 h-10 mb-2 text-muted-foreground/30" />
-                <p className="text-sm font-bold">No expenses</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Cash out entries appear here</p>
+                <Banknote className="w-10 h-10 mb-2 text-muted-foreground/30" />
+                <p className="text-sm font-bold">No manual entries</p>
+                <p className="text-xs text-muted-foreground/60 mt-1">Use Cash In or Expense to record transactions</p>
               </div>
             ) : (
               <div className="divide-y divide-border/40">
-                {expenses.map((tx: any) => (
-                  <div key={tx.transaction_id}
-                    className="grid grid-cols-[0.7fr_1fr_0.7fr_0.7fr] gap-2 px-6 py-2.5 bg-card hover:bg-muted/20 transition-colors">
-                    <span className="text-xs text-muted-foreground tabular-nums">{formatTime(tx.transaction_date)}</span>
-                    <span className="text-sm text-foreground truncate font-medium">{tx.category || 'Other'}</span>
-                    <span className="text-sm font-black text-destructive text-right tabular-nums">-{formatCurrency(tx.amount)}</span>
-                    <span className="text-xs text-muted-foreground truncate">{tx.entered_by_name || '-'}</span>
-                  </div>
-                ))}
+                {transactions.map((tx: any) => {
+                  const isIn = tx.type === 'CASH_IN';
+                  return (
+                    <div key={tx.transaction_id}
+                      className="grid grid-cols-[0.6fr_0.55fr_1fr_0.7fr_auto] gap-2 px-6 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center">
+                      <span className="text-xs text-muted-foreground tabular-nums">{formatTime(tx.transaction_date)}</span>
+                      <span className={clsx("text-[10px] font-black px-1.5 py-0.5 rounded-md text-center w-fit", isIn ? "text-emerald-500 bg-emerald-500/10" : "text-rose-500 bg-rose-500/10")}>
+                        {isIn ? 'IN' : 'OUT'}
+                      </span>
+                      <span className="text-sm text-foreground truncate font-medium">{tx.category || 'Other'}</span>
+                      <span className={clsx("text-sm font-black text-right tabular-nums", isIn ? "text-emerald-500" : "text-destructive")}>
+                        {isIn ? '+' : '-'}{formatCurrency(tx.amount)}
+                      </span>
+                      <span className="text-xs text-muted-foreground truncate text-right">{tx.entered_by_name || '-'}</span>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -475,7 +485,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                     <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Actual Cash Count</label>
                     <div className="relative">
                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{'\u20B9'}</span>
-                      <input type="number" value={actualCash} onChange={e => setActualCash(Number(e.target.value))}
+                      <input type="number" value={actualCash || ''} onChange={e => setActualCash(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
                         step="0.01" min="0" placeholder="Enter physical cash count" autoFocus />
                     </div>
@@ -504,19 +514,16 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       {showOpeningBal && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={() => setShowOpeningBal(false)}>
           <div className="bg-card border border-border/80 rounded-2xl shadow-xl w-80" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+            <div className="px-6 py-4 border-b border-border">
               <h2 className="text-base font-extrabold text-foreground">Opening Balance</h2>
-              <button onClick={() => setShowOpeningBal(false)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground font-medium">Cash at start of day</p>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{'\u20B9'}</span>
-                <input type="number" value={openingBalInput} onChange={e => setOpeningBalInput(Number(e.target.value))}
+                <input type="number" value={openingBalInput || ''} onChange={e => setOpeningBalInput(e.target.value === '' ? 0 : Number(e.target.value))}
                   className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
-                  step="0.01" min="0" autoFocus />
+                  step="0.01" min="0" placeholder="Enter opening balance" autoFocus />
               </div>
               <div className="flex gap-3">
                 <button onClick={() => setShowOpeningBal(false)}
@@ -602,6 +609,112 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Add Transaction Modal ─── */}
+      {showTxnModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={() => { if (!txnSubmitting) { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); } }}>
+          <div className="bg-card border border-border/80 rounded-2xl shadow-xl w-[420px]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className={clsx("p-1.5 rounded-lg", txnType === 'CASH_IN' ? "bg-emerald-500/10" : "bg-rose-500/10")}>
+                  {txnType === 'CASH_IN' ? <Plus className="w-4 h-4 text-emerald-500" /> : <Receipt className="w-4 h-4 text-rose-500" />}
+                </div>
+                <h2 className="text-base font-extrabold text-foreground">{txnType === 'CASH_IN' ? 'Cash In' : 'Record Expense'}</h2>
+              </div>
+              <button onClick={() => { if (!txnSubmitting) { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); } }}
+                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Amount</label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{'\u20B9'}</span>
+                  <input type="number" value={txnAmt || ''} onChange={e => setTxnAmt(e.target.value === '' ? 0 : Number(e.target.value))}
+                    className={clsx("w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 rounded-2xl outline-none text-foreground tabular-nums shadow-sm transition-all", txnType === 'CASH_IN' ? "border-emerald-500/25 focus:border-emerald-500" : "border-rose-500/25 focus:border-rose-500")}
+                    step="0.01" min="0" placeholder="Enter amount" autoFocus />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Category</label>
+                <select value={txnCat} onChange={e => setTxnCat(e.target.value)}
+                  className={clsx("w-full px-4 py-3 text-sm bg-card border border-border/80 rounded-2xl outline-none text-foreground shadow-sm transition-all", txnType === 'CASH_IN' ? "focus:border-emerald-500/30" : "focus:border-rose-500/30")}>
+                  <option value="">Select category</option>
+                  {txnType === 'CASH_IN' ? (
+                    <>
+                      <option value="Cash Deposit">Cash Deposit</option>
+                      <option value="Petty Cash Return">Petty Cash Return</option>
+                      <option value="Loan Repayment">Loan Repayment</option>
+                      <option value="Customer Payment">Customer Payment</option>
+                      <option value="Other Income">Other Income</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="Petty Cash">Petty Cash</option>
+                      <option value="Electricity">Electricity</option>
+                      <option value="Rent">Rent</option>
+                      <option value="Salary">Salary</option>
+                      <option value="Transport">Transport</option>
+                      <option value="Stationery">Stationery</option>
+                      <option value="Maintenance">Maintenance</option>
+                      <option value="Other">Other</option>
+                    </>
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Link to Party <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
+                {txnPartyId ? (
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border/80 rounded-2xl shadow-sm">
+                    <span className="text-sm font-bold text-foreground flex-1 truncate">{txnPartyName}</span>
+                    <button onClick={() => { setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); }}
+                      className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer">
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <input type="text" value={partySearch} onChange={e => { setPartySearch(e.target.value); }}
+                      placeholder="Search party..."
+                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-card border border-border/80 rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 shadow-sm transition-all" />
+                    {partySearch && (
+                      <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border/80 rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
+                        {parties.filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20).map((p: any) => (
+                          <button key={p.party_id} onClick={() => { setTxnPartyId(p.party_id); setTxnPartyName(p.name); setPartySearch(''); }}
+                            className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer border-b border-border/40 last:border-0">
+                            <span className="font-bold">{p.name}</span>
+                            <span className="text-xs text-muted-foreground ml-2">{p.phone || ''}</span>
+                          </button>
+                        ))}
+                        {parties.filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 && (
+                          <p className="px-4 py-3 text-xs text-muted-foreground text-center">No parties found</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Notes <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
+                <textarea value={txnNote} onChange={e => setTxnNote(e.target.value)} placeholder="Add a note..."
+                  className="w-full px-4 py-2.5 text-sm bg-card border border-border/80 rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all" />
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button onClick={() => { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); }}
+                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer">
+                  Cancel
+                </button>
+                <button onClick={handleAddTransaction} disabled={txnSubmitting || txnAmt <= 0}
+                  className={clsx("flex-1 py-3 text-sm font-black text-white rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40", txnType === 'CASH_IN' ? "bg-emerald-500 hover:bg-emerald-600" : "bg-rose-500 hover:bg-rose-600")}>
+                  {txnSubmitting ? 'Recording...' : txnType === 'CASH_IN' ? 'Record Cash In' : 'Record Expense'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
