@@ -818,7 +818,7 @@ export function BillingPage() {
           invoiceNumber: scrapInvoiceNum,
           invoiceType: 'SCRAP',
           date: new Date().toLocaleString(),
-          cashierName: userName || authRole || undefined,
+          billerName: userName || authRole || undefined,
           items: scrapReceiptItems,
           subtotal: scrapTotal,
           tax: 0,
@@ -944,7 +944,7 @@ export function BillingPage() {
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: invoice_number, date: new Date().toLocaleString(),
-        cashierName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
+        billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
         subtotal, tax: totalTax,
         cgst: billSettings.showShopGstin ? cgst : undefined,
@@ -2545,9 +2545,9 @@ export function BillingPage() {
                       </div>
                       <div className="text-right space-y-1">
                         <div className="font-black text-primary text-sm">{formatCurrency(inv.grand_total)}</div>
-                        {inv.cashier_name && (
+                        {inv.biller_name && (
                           <div className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded inline-block font-semibold">
-                            {inv.cashier_name}
+                            {inv.biller_name}
                           </div>
                         )}
                       </div>

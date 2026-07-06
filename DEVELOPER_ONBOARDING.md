@@ -17,7 +17,7 @@ Vendora is a production-grade, **offline-first, multi-domain Retail Point of Sal
 - **Soft-Delete Support:** Products are never permanently removed from the database; they are flagged as `is_deleted` to maintain historical integrity and ensure correct synchronization across devices.
 - **Indian Tax Compliance:** Built-in GST (CGST/SGST/IGST) calculation with inter-state detection, HSN/SAC code support, and Bill of Supply mode.
 - **Multi-Tenant SaaS:** The cloud backend uses PostgreSQL Row-Level Security (RLS) to strictly isolate data between tenants. Each shop is a tenant.
-- **Role-Based Access (RBAC):** Owner and Cashier roles. Owners can manage inventory and create additional staff accounts via the Staff API.
+- **Role-Based Access (RBAC):** Owner and Biller roles. Owners can manage inventory and create additional staff accounts via the Staff API.
 
 ---
 

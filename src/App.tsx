@@ -11,6 +11,7 @@ import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 
 import { PartyManager } from './components/PartyManager';
+import { CashierSettlement } from './components/CashierSettlement';
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
 import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
@@ -90,6 +91,7 @@ function App() {
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
+  const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
@@ -264,6 +266,7 @@ function App() {
     const handleOpenScrapManager = () => { if (enableScrapRef.current) setShowScrapManager(true); };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
+    const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
     const handleOpenQuotationEdit = () => {
       setShowQuotationManager(false);
@@ -287,6 +290,7 @@ function App() {
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
     window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
+    window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
 
     if (window.electronAPI) {
@@ -336,6 +340,7 @@ function App() {
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
+      window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
     };
   }, [addItem]);
@@ -377,7 +382,9 @@ function App() {
       {showStaffManager && <StaffManager onClose={() => setShowStaffManager(false)} />}
       {showPartyManager && <PartyManager onClose={() => setShowPartyManager(false)} />}
 
-      {showScrapManager ? (
+      {showCashierSettlement ? (
+        <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
+      ) : showScrapManager ? (
         <ScrapManager onClose={() => setShowScrapManager(false)} />
       ) : showQuotationManager ? (
         <QuotationManager onClose={() => setShowQuotationManager(false)} />

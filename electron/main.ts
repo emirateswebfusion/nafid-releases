@@ -4,6 +4,7 @@ import fs from 'fs';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
+import { v4 as uuidv4 } from 'uuid';
 
 
 // Initialize and configure structured logging
@@ -1035,15 +1036,15 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     if (!tenant_id) return []; // Safety: always require tenant_id
 
     let query = `
-      SELECT i.*, u.name as cashier_name 
+      SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
       WHERE i.tenant_id = ?
     `;
     const params: any[] = [tenant_id];
 
-    // If Cashier: strictly filter by their ID within the tenant
-    if (role === 'CASHIER' && user_id) {
+    // If Biller: strictly filter by their ID within the tenant
+    if (role === 'BILLER' && user_id) {
       query += ' AND i.user_id = ?';
       params.push(user_id);
     }
@@ -2024,6 +2025,269 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
 
     query += ' ORDER BY p.name COLLATE NOCASE ASC LIMIT 200';
     return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+// ── Cashier & Settlement IPC Handlers ─────────────────────────────────────────
+
+ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { tenant_id: string; business_date?: string }) => {
+  try {
+    const db = getDb();
+    const date = business_date || new Date().toISOString().split('T')[0];
+    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    
+    if (!drawer) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
+      const prevClosing = prevDrawer ? (prevDrawer.expected_closing || 0) : 0;
+      const drawer_id = uuidv4();
+      
+      db.prepare(`
+        INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, 'OPEN', 'PENDING')
+      `).run(drawer_id, tenant_id, date, prevClosing, prevClosing, prevClosing);
+      
+      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date);
+    }
+    
+    return drawer;
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => {
+  try {
+    const db = getDb();
+    const date = new Date().toISOString().split('T')[0];
+    const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    
+    if (existing) {
+      db.prepare(`
+        UPDATE cash_drawer SET opening_balance = ?, current_cash = ?, expected_closing = ?, opened_by = ?, opened_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE drawer_id = ?
+      `).run(opening_balance, opening_balance, opening_balance, user_id, existing.drawer_id);
+    } else {
+      const drawer_id = uuidv4();
+      db.prepare(`
+        INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, opened_by, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, 'PENDING')
+      `).run(drawer_id, tenant_id, date, opening_balance, opening_balance, opening_balance, user_id);
+    }
+    
+    const dId = existing ? existing.drawer_id : '';
+    db.prepare(`
+      INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+    `).run(uuidv4(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
+    
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    
+    let query = `
+      SELECT i.*, u.name as biller_name 
+      FROM invoices i 
+      LEFT JOIN users u ON i.user_id = u.user_id 
+      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING'
+    `;
+    const params: any[] = [tenant_id];
+    
+    if (search) {
+      query += ` AND (i.invoice_number LIKE ? OR i.customer_name LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`);
+    }
+    
+    query += ` ORDER BY i.created_at DESC LIMIT 100`;
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:settlePayment', (event, { tenant_id, invoice_id, received_amount, payment_method, user_id, user_name }: {
+  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; user_id: string; user_name?: string
+}) => {
+  const db = getDb();
+  const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'SPLIT'];
+  if (!validMethods.includes(payment_method)) {
+    return { success: false, error: 'Invalid payment method' };
+  }
+  
+  try {
+    const tx = db.transaction(() => {
+      const invoice = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?`).get(invoice_id, tenant_id) as any;
+      if (!invoice) throw new Error('Invoice not found');
+      
+      const grand_total = Number(invoice.grand_total);
+      const received = Number(received_amount);
+      const discount = Math.max(0, grand_total - received);
+      
+      db.prepare(`
+        UPDATE invoices SET payment_method = ?, received_amount = ?, discount_total = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE invoice_id = ? AND tenant_id = ?
+      `).run(payment_method, received, discount, invoice_id, tenant_id);
+      
+      if (payment_method === 'CASH') {
+        const date = new Date().toISOString().split('T')[0];
+        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+        if (drawer) {
+          const newCashSales = Number(drawer.cash_sales) + received;
+          const newCurrentCash = Number(drawer.current_cash) + received;
+          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - Number(drawer.cash_out);
+          db.prepare(`
+            UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashSales, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      }
+      
+      db.prepare(`
+        INSERT INTO cashier_audit_log (audit_id, tenant_id, action, details, performed_by, performed_by_name, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(
+        uuidv4(), tenant_id, 'PAYMENT_COMPLETED',
+        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, grand_total }),
+        user_id, user_name || null
+      );
+    });
+    
+    tx();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, category, notes, user_id, user_name }: {
+  tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string
+}) => {
+  const db = getDb();
+  if (!['CASH_IN', 'CASH_OUT'].includes(type)) return { success: false, error: 'Type must be CASH_IN or CASH_OUT' };
+  if (!amount || amount <= 0) return { success: false, error: 'Amount must be positive' };
+  
+  try {
+    const tx = db.transaction(() => {
+      const date = new Date().toISOString().split('T')[0];
+      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+      if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
+      
+      const transaction_id = uuidv4();
+      db.prepare(`
+        INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(transaction_id, tenant_id, drawer.drawer_id, type, amount, category || null, notes || null, user_id, user_name || null);
+      
+      let newCashIn = Number(drawer.cash_in);
+      let newCashOut = Number(drawer.cash_out);
+      let newCurrentCash = Number(drawer.current_cash);
+      
+      if (type === 'CASH_IN') {
+        newCashIn += Number(amount);
+        newCurrentCash += Number(amount);
+      } else {
+        newCashOut += Number(amount);
+        newCurrentCash -= Number(amount);
+      }
+      
+      const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + newCashIn - newCashOut;
+      
+      db.prepare(`
+        UPDATE cash_drawer SET cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE drawer_id = ?
+      `).run(newCashIn, newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+      
+      db.prepare(`
+        INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(
+        uuidv4(), tenant_id, drawer.drawer_id, type,
+        JSON.stringify({ transaction_id, amount, category, notes }),
+        user_id, user_name || null
+      );
+    });
+    
+    tx();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closing_remarks, user_id, user_name }: {
+  tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string
+}) => {
+  const db = getDb();
+  try {
+    const tx = db.transaction(() => {
+      const date = new Date().toISOString().split('T')[0];
+      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+      if (!drawer) throw new Error('No open cash drawer found for today');
+      
+      const expected = Number(drawer.expected_closing);
+      const actual = Number(actual_cash);
+      const variance = actual - expected;
+      const cash_short = variance < 0 ? Math.abs(variance) : 0;
+      const cash_excess = variance > 0 ? variance : 0;
+      
+      db.prepare(`
+        UPDATE cash_drawer SET actual_cash = ?, cash_short = ?, cash_excess = ?, closing_remarks = ?, status = 'CLOSED', closed_by = ?, closed_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE drawer_id = ?
+      `).run(actual, cash_short, cash_excess, closing_remarks || null, user_id, drawer.drawer_id);
+      
+      db.prepare(`
+        INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(
+        uuidv4(), tenant_id, drawer.drawer_id, 'DAY_CLOSED',
+        JSON.stringify({ expected_closing: expected, actual_cash: actual, cash_short, cash_excess, closing_remarks }),
+        user_id, user_name || null
+      );
+    });
+    
+    tx();
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const date = new Date().toISOString().split('T')[0];
+    const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    if (!drawer) return [];
+    
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND drawer_id = ? ORDER BY transaction_date DESC`).all(tenant_id, drawer.drawer_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) => {
+  try {
+    const db = getDb();
+    return db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? ORDER BY business_date DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) => {
+  try {
+    const db = getDb();
+    return db.prepare(`SELECT * FROM cashier_audit_log WHERE tenant_id = ? ORDER BY performed_at DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
   } catch (error: any) {
     return { error: error.message };
   }

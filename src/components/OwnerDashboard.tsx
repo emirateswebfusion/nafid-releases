@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt } from 'lucide-react';
+import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt, Banknote } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -120,8 +120,17 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             icon: ShoppingBag,
             color: 'text-emerald-500',
             bgColor: 'bg-emerald-500/10',
-            action: () => setRole('CASHIER'),
+            action: () => setRole('BILLER'),
             shortcut: 'F1'
+        },
+        {
+            id: 'cashier',
+            title: 'Cash Settlement',
+            desc: 'Settle pending bills, manage cash drawer, and day-end closing',
+            icon: Banknote,
+            color: 'text-emerald-500',
+            bgColor: 'bg-emerald-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-cashier-settlement')),
         },
         {
             id: 'inventory',
@@ -189,7 +198,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         {
             id: 'staff',
             title: 'Staff Administration',
-            desc: 'Manage cashier accounts and permissions',
+            desc: 'Manage biller accounts and permissions',
             icon: Users,
             color: 'text-indigo-500',
             bgColor: 'bg-indigo-500/10',

@@ -27,7 +27,7 @@
 - **User Interface**: 
   - Introduced Skeleton loading states (`Skeleton.tsx`) for smoother data fetching experiences.
   - Added a restart button in settings for easier app reloading.
-  - Show cashier names directly in the sales history view.
+  - Show biller names directly in the sales history view.
   - Overall polish on Owner Dashboard, Sales History, Staff Manager, and Modal UI.
 
 ## Bug Fixes

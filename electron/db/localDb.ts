@@ -24,7 +24,7 @@ export function initDb() {
         tenant_id TEXT NOT NULL,
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
-        role TEXT DEFAULT 'CASHIER',
+        role TEXT DEFAULT 'BILLER',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -260,6 +260,62 @@ export function initDb() {
         FOREIGN KEY (supplier_id) REFERENCES parties(party_id)
     );
 
+    CREATE TABLE IF NOT EXISTS cash_drawer (
+        drawer_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        business_date TEXT NOT NULL,
+        opening_balance REAL NOT NULL DEFAULT 0,
+        cash_sales REAL NOT NULL DEFAULT 0,
+        cash_in REAL NOT NULL DEFAULT 0,
+        cash_out REAL NOT NULL DEFAULT 0,
+        current_cash REAL NOT NULL DEFAULT 0,
+        expected_closing REAL NOT NULL DEFAULT 0,
+        actual_cash REAL,
+        cash_short REAL DEFAULT 0,
+        cash_excess REAL DEFAULT 0,
+        closing_remarks TEXT,
+        status TEXT NOT NULL DEFAULT 'OPEN',
+        opened_by TEXT,
+        closed_by TEXT,
+        opened_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        closed_at DATETIME,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, business_date)
+    );
+
+    CREATE TABLE IF NOT EXISTS cash_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        drawer_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('CASH_IN', 'CASH_OUT')),
+        amount REAL NOT NULL,
+        category TEXT,
+        notes TEXT,
+        reference_number TEXT,
+        entered_by TEXT,
+        entered_by_name TEXT,
+        transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (drawer_id) REFERENCES cash_drawer(drawer_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS cashier_audit_log (
+        audit_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        drawer_id TEXT,
+        action TEXT NOT NULL,
+        details TEXT,
+        performed_by TEXT,
+        performed_by_name TEXT,
+        performed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS purchase_bill_items (
         item_id TEXT PRIMARY KEY,
         purchase_bill_id TEXT NOT NULL,
@@ -333,6 +389,19 @@ export function initDb() {
     ],
     purchase_bill_items: [
         'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
+    ],
+    cash_drawer: [
+        'drawer_id', 'tenant_id', 'business_date', 'opening_balance', 'cash_sales', 'cash_in', 'cash_out',
+        'current_cash', 'expected_closing', 'actual_cash', 'cash_short', 'cash_excess', 'closing_remarks',
+        'status', 'opened_by', 'closed_by', 'opened_at', 'closed_at', 'sync_status', 'created_at', 'updated_at'
+    ],
+    cash_transactions: [
+        'transaction_id', 'tenant_id', 'drawer_id', 'type', 'amount', 'category', 'notes', 'reference_number',
+        'entered_by', 'entered_by_name', 'transaction_date', 'sync_status', 'created_at', 'updated_at'
+    ],
+    cashier_audit_log: [
+        'audit_id', 'tenant_id', 'drawer_id', 'action', 'details', 'performed_by', 'performed_by_name',
+        'performed_at', 'sync_status', 'created_at'
     ]
   };
 
@@ -641,6 +710,9 @@ export function initDb() {
   } catch (e: any) {
     console.warn('[DB Migration] Failed to recreate scrap_transactions table:', e.message);
   }
+
+  // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
+  db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");
 
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();

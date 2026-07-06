@@ -137,9 +137,9 @@ function InvoiceRow({ inv, isSelected, onClick }: { inv: any; isSelected: boolea
       {/* Customer */}
       <td className="px-4 py-3.5">
         <div className="text-xs font-semibold text-foreground/80 truncate max-w-[120px]">{inv.customer_name || 'Walk-in'}</div>
-        {inv.cashier_name && (
+        {inv.biller_name && (
           <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
-            <User className="w-2.5 h-2.5" />{inv.cashier_name}
+            <User className="w-2.5 h-2.5" />{inv.biller_name}
           </div>
         )}
       </td>
@@ -337,7 +337,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: selectedInvoice.invoice_number,
         date: new Date(selectedInvoice.created_at).toLocaleString(),
-        cashierName: selectedInvoice.cashier_name,
+        billerName: selectedInvoice.biller_name,
         items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total })),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
@@ -373,7 +373,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     if (!window.electronAPI || !selectedInvoice) return;
     localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items }));
     onClose();
-    if (useAuthStore.getState().role === 'OWNER') useCartStore.getState().setRole('CASHIER');
+    if (useAuthStore.getState().role === 'OWNER') useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
   };
 
@@ -719,10 +719,10 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                         <span className="opacity-60">at</span>
                         {formatDate(selectedInvoice.created_at).time}
                       </span>
-                      {selectedInvoice.cashier_name && (
+                      {selectedInvoice.biller_name && (
                         <span className="flex items-center gap-1">
                           <User className="w-3 h-3" />
-                          {selectedInvoice.cashier_name}
+                          {selectedInvoice.biller_name}
                         </span>
                       )}
                     </div>

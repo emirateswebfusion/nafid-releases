@@ -18,7 +18,7 @@ export interface InvoiceData {
   upiId?: string;
   invoiceNumber: string;
   date: string;
-  cashierName?: string;
+  billerName?: string;
   items: InvoiceItemDisplay[];
   subtotal: number;
   tax: number;
@@ -112,7 +112,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     <div class="info-block">
       <p><span class="label">Invoice #:</span> ${data.invoiceNumber}</p>
       <p><span class="label">Date:</span> ${data.date}</p>
-      ${data.cashierName ? `<p><span class="label">Cashier:</span> ${data.cashierName}</p>` : ''}
+      ${data.billerName ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
     </div>
     <div class="info-block" style="text-align:right">
       ${data.customerName ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
@@ -200,7 +200,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <div class="block">
         <p><span class="lbl">Invoice #</span><br>${data.invoiceNumber}</p>
         <p><span class="lbl">Date</span><br>${data.date}</p>
-        ${data.cashierName ? `<p><span class="lbl">Cashier</span><br>${data.cashierName}</p>` : ''}
+        ${data.billerName ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
       </div>
       <div class="block" style="text-align:right">
         ${data.customerName ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
@@ -297,7 +297,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         <td style="width:50%">
           <span class="lbl">Invoice No:</span> ${data.invoiceNumber}<br>
           <span class="lbl">Date:</span> ${data.date}<br>
-          ${data.cashierName ? `<span class="lbl">Cashier:</span> ${data.cashierName}<br>` : ''}
+          ${data.billerName ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
         </td>
         <td style="width:50%;text-align:right">
           ${data.customerName ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}

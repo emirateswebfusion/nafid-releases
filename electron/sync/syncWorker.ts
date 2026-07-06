@@ -10,7 +10,7 @@ let syncPromise: Promise<void> | null = null;
 let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items'];
+  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -27,6 +27,8 @@ const SYNC_PHASES = [
   'Uploading scrap categories...',
   'Uploading scrap transactions...',
   'Uploading purchase bills...',
+  'Uploading cash drawer...',
+  'Uploading cash transactions...',
   'Updating grades...',
   'Updating products...',
   'Updating invoices...',
@@ -37,6 +39,7 @@ const SYNC_PHASES = [
   'Updating scrap categories...',
   'Updating scrap transactions...',
   'Updating purchase bills...',
+  'Updating cash drawer...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -201,17 +204,20 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(7, sender, undefined, totalRecords); await syncScrapCategories(jwt_token, tenant_id);
         notifyProgress(8, sender, undefined, totalRecords); await syncScrapTransactions(jwt_token, tenant_id);
         notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
+        notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
+        notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
 
-        notifyProgress(10, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(11, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(12, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(13, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(14, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(15, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(16, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(17, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(18, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(19, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(12, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(13, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(14, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(15, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(16, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(17, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(18, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(19, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(20, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(21, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(22, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -1449,6 +1455,135 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull purchase bills failed:', err.message);
+    return false;
+  }
+}
+
+// ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
+async function syncCashDrawer(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM cash_drawer WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} cash drawer records to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE cash_drawer SET sync_status = 'SYNCED' WHERE drawer_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/cash_drawer`,
+      token, batch, 'cash_drawer', `Cash Drawer batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Cash Transactions Sync (Edge → Cloud) ───────────────────────────────────────
+async function syncCashTransactions(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM cash_transactions WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} cash transactions to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE cash_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/cash_transactions`,
+      token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Cash Drawer (Cloud → Edge) ─────────────────────────────────────────────
+async function pullCashDrawer(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/cash_drawer`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull cash drawer failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudRows: any[] = await response.json();
+    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO cash_drawer (
+        drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out,
+        current_cash, expected_closing, actual_cash, cash_short, cash_excess, closing_remarks,
+        status, opened_by, closed_by, opened_at, closed_at, sync_status, created_at, updated_at
+      ) VALUES (
+        @drawer_id, @tenant_id, @business_date, @opening_balance, @cash_sales, @cash_in, @cash_out,
+        @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
+        @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(drawer_id) DO UPDATE SET
+        opening_balance = excluded.opening_balance, cash_sales = excluded.cash_sales,
+        cash_in = excluded.cash_in, cash_out = excluded.cash_out,
+        current_cash = excluded.current_cash, expected_closing = excluded.expected_closing,
+        actual_cash = excluded.actual_cash, cash_short = excluded.cash_short,
+        cash_excess = excluded.cash_excess, closing_remarks = excluded.closing_remarks,
+        status = excluded.status, closed_by = excluded.closed_by,
+        closed_at = excluded.closed_at, updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE cash_drawer.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((rows: any[]) => {
+      for (const r of rows) {
+        try {
+          upsert.run({
+            drawer_id: r.drawer_id,
+            tenant_id: tenantId,
+            business_date: r.business_date,
+            opening_balance: r.opening_balance ?? 0,
+            cash_sales: r.cash_sales ?? 0,
+            cash_in: r.cash_in ?? 0,
+            cash_out: r.cash_out ?? 0,
+            current_cash: r.current_cash ?? 0,
+            expected_closing: r.expected_closing ?? 0,
+            actual_cash: r.actual_cash ?? null,
+            cash_short: r.cash_short ?? 0,
+            cash_excess: r.cash_excess ?? 0,
+            closing_remarks: r.closing_remarks || null,
+            status: r.status || 'OPEN',
+            opened_by: r.opened_by || null,
+            closed_by: r.closed_by || null,
+            opened_at: toSqliteDate(r.opened_at),
+            closed_at: toSqliteDate(r.closed_at),
+            created_at: toSqliteDate(r.created_at),
+            updated_at: toSqliteDate(r.updated_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling cash drawer:', e.message);
+        }
+      }
+    });
+
+    tx(cloudRows);
+
+    const reconciled = reconcilePending(db, 'cash_drawer', 'drawer_id', cloudRows);
+    console.log(`[SyncWorker] Pulled ${cloudRows.length} cash drawer records from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull cash drawer failed:', err.message);
     return false;
   }
 }

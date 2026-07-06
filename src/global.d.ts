@@ -107,6 +107,17 @@ export interface IElectronAPI {
   dbGetWarranties: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbDeleteWarranty: (warranty_id: string) => Promise<{ success: boolean; error?: string }>;
 
+  // Cashier & Settlement
+  dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => Promise<any>;
+  dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
+  dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;
+  dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
+  dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
+
   // Purchase Bills
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;
   dbAddPurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;

@@ -43,7 +43,7 @@ export interface ReceiptData {
   showUpiQr?: boolean;
   invoiceNumber: string;
   date: string;
-  cashierName?: string;
+  billerName?: string;
   items: ReceiptItem[];
   subtotal: number;
   tax: number;
@@ -176,7 +176,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Meta ──
     text += `  INV No:  ${data.invoiceNumber}\n`;
     text += `  Date:    ${data.date}\n`;
-    if (data.cashierName) text += `  Staff:   ${data.cashierName}\n`;
+    if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
 
     // ── Customer ──
     if (data.customerName || data.customerPhone || data.customerGstin) {
@@ -293,7 +293,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
     text += DASH + '\n';
     text += `${data.invoiceNumber}  ${data.date}\n`;
-    if (data.cashierName) text += `${data.cashierName}\n`;
+    if (data.billerName) text += `${data.billerName}\n`;
 
     // ── Customer ──
     if (data.customerName || data.customerPhone || data.customerGstin) {
@@ -400,7 +400,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     text += `  INV:  ${data.invoiceNumber}\n`;
     text += `  Date: ${data.date}\n`;
-    if (data.cashierName) text += `  Staff: ${data.cashierName}\n`;
+    if (data.billerName) text += `  Staff: ${data.billerName}\n`;
 
     // ── Customer ──
     if (data.customerName || data.customerPhone || data.customerGstin) {
@@ -510,7 +510,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Meta ──
     text += `Date: ${data.date}\n`;
     text += `Receipt No: ${data.invoiceNumber}\n`;
-    if (data.cashierName) text += `Staff: ${data.cashierName}\n`;
+    if (data.billerName) text += `Staff: ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
@@ -651,7 +651,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Meta ──
     text += `  Invoice No:  ${data.invoiceNumber}\n`;
     text += `  Date:        ${data.date}\n`;
-    if (data.cashierName) text += `  Cashier:     ${data.cashierName}\n`;
+    if (data.billerName) text += `  Biller:      ${data.billerName}\n`;
 
     // ── Customer ──
     if (data.customerName || data.customerPhone || data.customerGstin) {
@@ -769,7 +769,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += '\n';
     }
     text += `${data.invoiceNumber}     ${data.date}\n`;
-    if (data.cashierName) text += `Staff: ${data.cashierName}\n`;
+    if (data.billerName) text += `Staff: ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
@@ -861,7 +861,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (bs?.showShopGstin && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
     if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
     text += `\n${data.invoiceNumber}  ${data.date}\n`;
-    if (data.cashierName) text += `${data.cashierName}\n`;
+    if (data.billerName) text += `${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
@@ -944,7 +944,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     text += `  Invoice: ${data.invoiceNumber}\n`;
     text += `  Date:    ${data.date}\n`;
-    if (data.cashierName) text += `  Staff:   ${data.cashierName}\n`;
+    if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──

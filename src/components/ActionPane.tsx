@@ -128,7 +128,7 @@ export function ActionPane() {
           showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
           date: new Date().toLocaleString(),
-          cashierName: useAuthStore.getState().role || undefined,
+          billerName: useAuthStore.getState().role || undefined,
           items: items.map(item => {
             const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
               ? item.base_price + (item.grade_rate || 0) 
@@ -418,10 +418,10 @@ export function ActionPane() {
           {authRole === 'OWNER' && (
             <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg border border-border">
               <button
-                onClick={() => setRole('CASHIER')}
-                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', currentUserRole === 'CASHIER' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
+                onClick={() => setRole('BILLER')}
+                className={clsx('px-2 py-1 text-[10px] font-bold rounded transition-colors', currentUserRole === 'BILLER' ? 'bg-primary text-primary-foreground shadow' : 'text-muted-foreground hover:text-foreground')}
               >
-                CASHIER
+                BILLER
               </button>
               <button
                 onClick={() => setRole('OWNER')}
@@ -827,7 +827,7 @@ export function ActionPane() {
                       </div>
                       <div className="text-right">
                         <div className="font-bold">₹{inv.grand_total.toFixed(2)}</div>
-                        {inv.cashier_name && <div className="text-[10px] text-muted-foreground">{inv.cashier_name}</div>}
+                        {inv.biller_name && <div className="text-[10px] text-muted-foreground">{inv.biller_name}</div>}
                       </div>
                     </div>
                   ))}

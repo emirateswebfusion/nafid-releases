@@ -126,6 +126,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdatePartyLedgerEntry: (entry: any) => ipcRenderer.invoke('db:updatePartyLedgerEntry', entry),
   dbDeletePartyLedgerEntry: (ledger_id: string, party_id: string) => ipcRenderer.invoke('db:deletePartyLedgerEntry', { ledger_id, party_id }),
 
+  // Cashier & Settlement
+  dbCashierGetDrawer: (params: { tenant_id: string; business_date?: string }) => ipcRenderer.invoke('db:cashier:getDrawer', params),
+  dbCashierSetOpeningBalance: (params: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:setOpeningBalance', params),
+  dbCashierGetPendingInvoices: (params: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:cashier:getPendingInvoices', params),
+  dbCashierSettlePayment: (params: { tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:settlePayment', params),
+  dbCashierAddTransaction: (params: { tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:addTransaction', params),
+  dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:dayClosing', params),
+  dbCashierGetTransactions: (params: { tenant_id: string }) => ipcRenderer.invoke('db:cashier:getTransactions', params),
+  dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getHistory', params),
+  dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getAuditLog', params),
+
   // Purchase Bills
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextPurchaseBillNumber', payload),
   dbAddPurchaseBill: (payload: any) => ipcRenderer.invoke('db:addPurchaseBill', payload),

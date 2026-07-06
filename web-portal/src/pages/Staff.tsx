@@ -34,7 +34,7 @@ export default function Staff() {
     try {
       await fetchApi('/auth/staff', {
         method: 'POST',
-        body: JSON.stringify({ name, email, password, role: 'CASHIER' })
+        body: JSON.stringify({ name, email, password, role: 'BILLER' })
       });
       setName(''); setEmail(''); setPassword('');
       loadStaff();
@@ -59,11 +59,11 @@ export default function Staff() {
     <div className="space-y-6 pb-20">
       <div>
         <h1 className="text-xl font-bold mb-1">Staff Administration</h1>
-        <p className="text-sm text-muted-foreground">Manage cashiers for your shop.</p>
+        <p className="text-sm text-muted-foreground">Manage billers for your shop.</p>
       </div>
 
       <form onSubmit={handleCreate} className="bg-card p-4 rounded-xl border border-border space-y-4">
-        <h2 className="font-semibold">Add New Cashier</h2>
+        <h2 className="font-semibold">Add New Biller</h2>
         <div className="space-y-3">
           <input required type="text" placeholder="Name" value={name} onChange={e=>setName(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm" />
           <input required type="email" placeholder="Email" value={email} onChange={e=>setEmail(e.target.value)} className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm" />

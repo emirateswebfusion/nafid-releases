@@ -11,7 +11,7 @@ interface StaffMember {
   user_id: string;
   name: string;
   email: string;
-  role: 'OWNER' | 'CASHIER';
+  role: 'OWNER' | 'BILLER';
   created_at: string;
 }
 
@@ -47,7 +47,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     name: '',
     email: '',
     password: '',
-    role: 'CASHIER' as 'OWNER' | 'CASHIER',
+    role: 'BILLER' as 'OWNER' | 'BILLER',
   });
 
   useEffect(() => {
@@ -93,7 +93,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           created_at: new Date().toISOString()
         }]);
         setView('list');
-        setFormData({ name: '', email: '', password: '', role: 'CASHIER' });
+        setFormData({ name: '', email: '', password: '', role: 'BILLER' });
       } else {
         alert(data.error || 'Failed to add staff');
       }
@@ -116,7 +116,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           </div>
           <div>
             <h2 className="text-xl font-bold">Staff Management</h2>
-            <p className="text-muted-foreground text-xs font-normal">Manage cashiers and shop owners</p>
+            <p className="text-muted-foreground text-xs font-normal">Manage billers and shop owners</p>
           </div>
         </div>
       }
@@ -250,13 +250,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <div className="grid grid-cols-2 gap-3">
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, role: 'CASHIER'})}
+                      onClick={() => setFormData({...formData, role: 'BILLER'})}
                       className={clsx(
                         "flex items-center justify-center gap-2 py-3 rounded-xl border font-bold text-xs transition-all",
-                        formData.role === 'CASHIER' ? "bg-primary border-primary text-primary-foreground" : "bg-background border-border text-muted-foreground hover:bg-muted"
+                        formData.role === 'BILLER' ? "bg-primary border-primary text-primary-foreground" : "bg-background border-border text-muted-foreground hover:bg-muted"
                       )}
                     >
-                      <Users className="w-3.5 h-3.5" /> CASHIER
+                      <Users className="w-3.5 h-3.5" /> BILLER
                     </button>
                     <button
                       type="button"
