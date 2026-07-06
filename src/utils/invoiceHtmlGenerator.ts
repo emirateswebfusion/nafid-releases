@@ -39,6 +39,7 @@ export interface InvoiceData {
   customerState?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
+  showProductOffers?: boolean;
   billSettings?: BillSettings;
 }
 
@@ -67,7 +68,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   const itemsHtml = data.items.map((item, idx) => `
     <tr>
       <td class="text-center">${idx + 1}</td>
-      <td>${item.name}${item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td>${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td class="text-center">${item.quantity}</td>
       <td class="text-right">₹${item.unit_price.toFixed(2)}</td>
       <td class="text-right">₹${item.total.toFixed(2)}</td>
@@ -153,7 +154,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
   const itemsHtml = data.items.map((item, idx) => `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
-      <td style="padding:6px 4px;font-size:11px;color:#374151">${item.name}${item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:6px 4px;font-size:11px;color:#374151">${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${item.quantity}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${item.unit_price.toFixed(2)}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${item.total.toFixed(2)}</td>
@@ -246,7 +247,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
   const itemsHtml = data.items.map((item, idx) => `
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${idx + 1}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${item.name}${item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${item.quantity}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${item.unit_price.toFixed(2)}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${item.total.toFixed(2)}</td>

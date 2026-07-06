@@ -34,9 +34,9 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
     items: SAMPLE_ITEMS,
     subtotal: SAMPLE_SUBTOTAL,
     tax: SAMPLE_CGST + SAMPLE_SGST,
-    cgst: bs.showShopGstin ? SAMPLE_CGST : undefined,
-    sgst: bs.showShopGstin ? SAMPLE_SGST : undefined,
-    igst: bs.showShopGstin ? 0 : undefined,
+    cgst: bs.showTaxBreakup ? SAMPLE_CGST : undefined,
+    sgst: bs.showTaxBreakup ? SAMPLE_SGST : undefined,
+    igst: bs.showTaxBreakup ? 0 : undefined,
     discount: SAMPLE_DISCOUNT,
     discountType: 'FIXED',
     discountValue: 50,
@@ -48,7 +48,7 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
   };
 }
 
-function createSampleInvoiceData(billSettings?: BillSettings): InvoiceData {
+function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSettings): InvoiceData {
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
     shopName: bs.showShopName ? 'Vendora Mart' : '',
@@ -63,9 +63,9 @@ function createSampleInvoiceData(billSettings?: BillSettings): InvoiceData {
     items: SAMPLE_ITEMS as InvoiceItemDisplay[],
     subtotal: SAMPLE_SUBTOTAL,
     tax: SAMPLE_CGST + SAMPLE_SGST,
-    cgst: bs.showShopGstin ? SAMPLE_CGST : undefined,
-    sgst: bs.showShopGstin ? SAMPLE_SGST : undefined,
-    igst: bs.showShopGstin ? 0 : undefined,
+    cgst: bs.showTaxBreakup ? SAMPLE_CGST : undefined,
+    sgst: bs.showTaxBreakup ? SAMPLE_SGST : undefined,
+    igst: bs.showTaxBreakup ? 0 : undefined,
     discount: SAMPLE_DISCOUNT,
     discountType: 'FIXED',
     discountValue: 50,
@@ -77,6 +77,7 @@ function createSampleInvoiceData(billSettings?: BillSettings): InvoiceData {
     customerPhone: '+91 98765 12345',
     customerGstin: bs.showCustomerGstin ? '27AAAAA2222A1Z1' : undefined,
     customerState: bs.showCustomerGstin ? 'MH' : undefined,
+    showProductOffers,
     billSettings: bs,
   };
 }
@@ -112,7 +113,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
       const data = createSampleReceiptData(showProductOffers, billSettings);
       return generateReceiptText(data, paperWidth, undefined, style);
     } else {
-      const data = createSampleInvoiceData(billSettings);
+      const data = createSampleInvoiceData(showProductOffers, billSettings);
       return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
     }
   }, [isOpen, format, style, paperWidth, showProductOffers, billSettings]);

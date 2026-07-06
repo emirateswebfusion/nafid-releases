@@ -1152,6 +1152,7 @@ Discount          ₹-50.00
                         { key: 'showShopState', label: 'Shop State' },
                         { key: 'showTitle', label: 'Document Title' },
                         { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                        { key: 'showTaxBreakup', label: 'Tax Breakup (CGST/SGST/IGST)' },
                       ].map(({ key, label }) => {
                         const forcedOn = key === 'showTitle' && billSettings.estimateMode;
                         return (

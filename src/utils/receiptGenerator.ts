@@ -19,6 +19,7 @@ export interface BillSettings {
   showCustomerGstin: boolean;
   estimateMode: boolean;
   showScrapHeading: boolean;
+  showTaxBreakup: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -31,6 +32,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showCustomerGstin: true,
   estimateMode: false,
   showScrapHeading: true,
+  showTaxBreakup: true,
 };
 
 export interface ReceiptData {
@@ -316,7 +318,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
       } else {
         text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += `  ${item.discountLabel}\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
 
@@ -425,7 +427,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += `  ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
       } else {
         text += `  ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
       }
     });
 
@@ -676,7 +678,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += `     ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
       } else {
         text += `     ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += `     [${item.discountLabel}]\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += `     [${item.discountLabel}]\n`;
       }
     });
 
@@ -794,7 +796,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += `  ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
       } else {
         text += `  ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += `  ${item.discountLabel}\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
     text += DASH + '\n';
@@ -877,7 +879,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += ` ${item.quantity}x${item.unit_price.toFixed(2)}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
       } else {
         text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += ` ${item.discountLabel}\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += ` ${item.discountLabel}\n`;
       }
     });
 
@@ -974,7 +976,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += '\n';
       } else {
         text += `     ${item.quantity} \u00D7 ${item.unit_price.toFixed(2)}\n`;
-        if (item.discountLabel) text += `     ${item.discountLabel}\n`;
+        if (data.showProductOffers !== false && item.discountLabel) text += `     ${item.discountLabel}\n`;
       }
     });
     text += '\n';
