@@ -244,7 +244,8 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                       <span className="text-xs font-black text-foreground text-right tabular-nums">{formatCurrency(inv.grand_total)}</span>
                       <div className="relative">
                         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{'\u20B9'}</span>
-                        <input type="number" value={rd} onChange={e => setRowDiscs(p => ({ ...p, [inv.invoice_id]: Math.max(0, Number(e.target.value)) }))}
+                        <input type="number" value={rd || ''} onChange={e => setRowDiscs(p => ({ ...p, [inv.invoice_id]: Math.max(0, Number(e.target.value)) }))}
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
                           className="w-full pl-[18px] pr-1.5 py-1.5 text-xs font-bold bg-card border border-amber-500/25 rounded-lg outline-none focus:border-amber-500 text-foreground tabular-nums text-right"
                           step="1" min="0" placeholder="0" />
                       </div>
