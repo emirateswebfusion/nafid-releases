@@ -536,8 +536,9 @@ export function BillingPage() {
   };
 
   const handleSelectScrapItem = (cat: any) => {
+    const itemId = uuidv4();
     addItem({
-      product_id: `SCRAP-${cat.scrap_category_id}`,
+      product_id: itemId,
       name: cat.name,
       base_price: Number(cat.purchase_price) || 0,
       purchase_price: Number(cat.purchase_price) || 0,
@@ -545,9 +546,14 @@ export function BillingPage() {
       billing_type: 'WEIGHT',
       isScrap: true,
       scrap_category_id: cat.scrap_category_id,
+      quantity: 0,
     });
     setSearchQuery('');
     setScrapSearchResults([]);
+    setTimeout(() => {
+      const input = qtyRefs.current[itemId];
+      if (input) { input.focus(); input.select(); }
+    }, 0);
   };
 
   // Listen for open-quotation-edit event
@@ -866,11 +872,21 @@ export function BillingPage() {
         const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
         const thermalStyle = printFmt?.style || 'standard';
 
-        const scrapReceiptItems = items.map(item => ({
+        // Group scrap items by category for receipt
+        const scrapGrouped = items.reduce((acc, item) => {
+          const key = item.scrap_category_id || item.product_id;
+          if (!acc[key]) {
+            acc[key] = { name: item.name, quantity: 0, unit_price: item.base_price, total: 0 };
+          }
+          acc[key].quantity += Number(item.quantity) || 0;
+          acc[key].total = acc[key].unit_price * acc[key].quantity;
+          return acc;
+        }, {} as Record<string, { name: string; quantity: number; unit_price: number; total: number }>);
+        const scrapReceiptItems = Object.values(scrapGrouped).map(item => ({
           name: item.name,
-          quantity: (Number(item.quantity) || 0).toFixed(3),
-          unit_price: item.base_price,
-          total: item.base_price * (Number(item.quantity) || 0),
+          quantity: item.quantity.toFixed(3),
+          unit_price: item.unit_price,
+          total: item.total,
         }));
 
         const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
@@ -1647,8 +1663,9 @@ export function BillingPage() {
                       <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg p-0.5 shrink-0">
                         <input
                           type="number"
-                          step="0.1"
+                          step="0.001"
                           min="0"
+                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
                           className="w-16 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
@@ -2032,9 +2049,16 @@ export function BillingPage() {
               <div className="flex justify-between items-center pt-1 border-t border-border/30">
                 <div className="flex items-center gap-1.5">
                   <span className="text-sm font-semibold text-orange-600">Scrap Items</span>
-                  {items.filter(i => i.isScrap).map(s => (
-                    <span key={s.product_id} className="text-[10px] text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full ml-1">
-                      {s.name} {Number(s.quantity || 0).toFixed(3)}Kg
+                  {Object.values(
+                    items.filter(i => i.isScrap).reduce((acc, s) => {
+                      const key = s.scrap_category_id;
+                      if (!acc[key]) acc[key] = { name: s.name, quantity: 0 };
+                      acc[key].quantity += Number(s.quantity || 0);
+                      return acc;
+                    }, {} as Record<string, { name: string; quantity: number }>)
+                  ).map(s => (
+                    <span key={s.name} className="text-[10px] text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded-full ml-1">
+                      {s.name} {s.quantity.toFixed(3)}Kg
                     </span>
                   ))}
                 </div>

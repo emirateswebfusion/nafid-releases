@@ -47,7 +47,7 @@ interface CartState {
   editingInvoiceRole: 'OWNER' | 'BILLER' | null;
 
   // Actions
-  addItem: (item: Omit<CartItem, 'quantity'>) => void;
+  addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
   setDiscount: (value: number, type: 'FIXED' | 'PERCENTAGE') => void;
@@ -101,7 +101,7 @@ export const useCartStore = create<CartState>()(
               }),
             };
           }
-          return { items: [...state.items, { ...newItem, quantity: 1 }] };
+          return { items: [...state.items, { ...newItem, quantity: newItem.quantity ?? 1 }] };
         }),
 
       removeItem: (productId) =>
