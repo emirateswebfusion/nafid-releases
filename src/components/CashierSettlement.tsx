@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal, CheckCircle2, Plus, Minus, History, ShieldAlert, X, ChevronRight, Receipt, Clock, DollarSign } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
@@ -31,20 +31,15 @@ interface CashierSettlementProps {
 
 export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const { tenantId, userId, userName } = useAuthStore();
-  const settleRowRef = useRef<HTMLDivElement>(null);
-
   const [drawer, setDrawer] = useState<any>(null);
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  const [selectedInv, setSelectedInv] = useState<any>(null);
-  const [receivedAmt, setReceivedAmt] = useState<number>(0);
-  const [discountAmt, setDiscountAmt] = useState<number>(0);
-  const [payMethod, setPayMethod] = useState<PaymentMethod>('CASH');
-  const [settling, setSettling] = useState(false);
-  const [settleOk, setSettleOk] = useState(false);
+  const [rowDiscs, setRowDiscs] = useState<Record<string, number>>({});
+  const [rowMethods, setRowMethods] = useState<Record<string, PaymentMethod>>({});
+  const [payingRow, setPayingRow] = useState<string | null>(null);
 
   const [showOpeningBal, setShowOpeningBal] = useState(false);
   const [openingBalInput, setOpeningBalInput] = useState<number>(0);
@@ -78,32 +73,6 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   }, [tenantId, searchQuery]);
 
   useEffect(() => { Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
-
-  const handleSelect = (inv: any) => {
-    setSelectedInv(inv);
-    setReceivedAmt(inv.grand_total);
-    setDiscountAmt(0);
-    setPayMethod('CASH');
-    setSettleOk(false);
-    setTimeout(() => settleRowRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
-  };
-
-  const handleSettle = async () => {
-    if (!selectedInv || !tenantId || !userId || receivedAmt <= 0) return;
-    setSettling(true);
-    const r = await window.electronAPI!.dbCashierSettlePayment({
-      tenant_id: tenantId, invoice_id: selectedInv.invoice_id,
-      received_amount: receivedAmt, payment_method: payMethod,
-      user_id: userId, user_name: userName || undefined,
-    });
-    setSettling(false);
-    if (r.success) {
-      setSettleOk(true);
-      setSelectedInv(null);
-      await load();
-      setTimeout(() => setSettleOk(false), 1500);
-    }
-  };
 
   const handleSetOpening = async () => {
     if (!tenantId || !userId) return;
@@ -239,102 +208,47 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               </div>
             ) : (
               <div className="divide-y divide-border/40">
-                {pendingInvoices.map((inv) => (
-                  <button key={inv.invoice_id} onClick={() => handleSelect(inv)}
-                    className={clsx(
-                      "w-full grid grid-cols-[0.9fr_1.1fr_0.55fr_0.5fr_0.55fr_0.55fr_0.55fr] gap-2 px-6 py-3 text-left bg-card hover:bg-muted/20 transition-all duration-200 active:scale-[0.99] cursor-pointer",
-                      selectedInv?.invoice_id === inv.invoice_id && "bg-primary/5 border-l-2 border-l-primary"
-                    )}>
-                    <span className="text-sm font-bold text-foreground truncate">{inv.invoice_number}</span>
-                    <span className="text-sm text-muted-foreground truncate">{inv.customer_name || '—'}</span>
-                    <span className="text-sm font-black text-foreground text-right tabular-nums">{formatCurrency(inv.grand_total)}</span>
-                    <span className="text-sm font-bold text-amber-600 dark:text-amber-400 text-right tabular-nums">{inv.discount_total > 0 ? `-${formatCurrency(inv.discount_total)}` : '\u2014'}</span>
-                    <span className="text-sm font-black text-primary text-right tabular-nums">{formatCurrency(inv.grand_total - (inv.discount_total || 0))}</span>
-                    <span className="flex items-center justify-center">
-                      <span className="text-[10px] font-black text-amber-500 bg-amber-500/10 px-1.5 py-0.5 rounded-md border border-amber-500/20">PEND</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground text-right tabular-nums">{formatTime(inv.created_at)}</span>
-                  </button>
-                ))}
+                {pendingInvoices.map((inv) => {
+                  const rd = rowDiscs[inv.invoice_id] ?? 0;
+                  const rm = rowMethods[inv.invoice_id] ?? 'CASH';
+                  const net = Math.max(0, inv.grand_total - rd);
+                  return (
+                    <div key={inv.invoice_id}
+                      className="grid grid-cols-[0.9fr_1.1fr_0.5fr_0.5fr_0.5fr_0.45fr_0.35fr] gap-1.5 px-4 py-2 bg-card hover:bg-muted/20 transition-colors items-center">
+                      <span className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</span>
+                      <span className="text-xs text-muted-foreground truncate">{inv.customer_name || '\u2014'}</span>
+                      <span className="text-xs font-black text-foreground text-right tabular-nums">{formatCurrency(inv.grand_total)}</span>
+                      <div className="relative">
+                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground">{'\u20B9'}</span>
+                        <input type="number" value={rd} onChange={e => setRowDiscs(p => ({ ...p, [inv.invoice_id]: Math.max(0, Number(e.target.value)) }))}
+                          className="w-full pl-[18px] pr-1.5 py-1.5 text-xs font-bold bg-card border border-amber-500/25 rounded-lg outline-none focus:border-amber-500 text-foreground tabular-nums text-right"
+                          step="1" min="0" placeholder="0" />
+                      </div>
+                      <span className="text-xs font-black text-primary text-right tabular-nums">{formatCurrency(net)}</span>
+                      <select value={rm} onChange={e => setRowMethods(p => ({ ...p, [inv.invoice_id]: e.target.value as PaymentMethod }))}
+                        className="px-1 py-1.5 text-[10px] font-bold bg-card border border-border/60 rounded-lg outline-none text-foreground text-center">
+                        {PAYMENT_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                      <button onClick={async () => {
+                        if (payingRow) return;
+                        setPayingRow(inv.invoice_id);
+                        const r = await window.electronAPI!.dbCashierSettlePayment({
+                          tenant_id: tenantId!, invoice_id: inv.invoice_id,
+                          received_amount: net, payment_method: rm,
+                          user_id: userId!, user_name: userName || undefined,
+                        });
+                        setPayingRow(null);
+                        if (r.success) await load();
+                      }} disabled={payingRow === inv.invoice_id}
+                        className="px-2 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 active:scale-95 transition-all cursor-pointer disabled:opacity-40">
+                        {payingRow === inv.invoice_id ? '...' : 'Pay'}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
-
-          {/* Settle bar */}
-          {selectedInv && (
-            <div ref={settleRowRef} className="border-t-2 border-primary/30 bg-muted/10 px-6 py-4 shrink-0">
-              {settleOk ? (
-                <div className="flex items-center gap-3 py-2">
-                  <div className="p-2 rounded-xl bg-emerald-500/10">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-extrabold text-emerald-600 dark:text-emerald-400">{selectedInv.invoice_number} — Payment Complete</p>
-                    <p className="text-[10px] text-muted-foreground font-semibold">{formatCurrency(selectedInv.grand_total)} received via {payMethod}</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Receipt className="w-4 h-4 text-primary" />
-                      <span className="text-sm font-extrabold text-foreground">{selectedInv.invoice_number}</span>
-                      <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-md">{selectedInv.customer_name || 'Walk-in'}</span>
-                    </div>
-                    <span className="text-lg font-black text-foreground tabular-nums">{formatCurrency(selectedInv.grand_total)}</span>
-                  </div>
-
-                  <div className="flex items-end gap-3">
-                    <div className="w-44">
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider block mb-1">Received Amount</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{'\u20B9'}</span>
-                        <input type="number" value={receivedAmt} onChange={e => { const v = Number(e.target.value); setReceivedAmt(v); setDiscountAmt(Math.max(0, selectedInv.grand_total - v)); }}
-                          className="w-full pl-8 pr-3 py-2 text-sm font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all duration-200"
-                          step="0.01" min="0" autoFocus />
-                      </div>
-                    </div>
-                    <div className="w-28">
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider block mb-1">Discount</label>
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">{'\u20B9'}</span>
-                        <input type="number" value={discountAmt} onChange={e => { const v = Number(e.target.value); setDiscountAmt(v); setReceivedAmt(Math.max(0, selectedInv.grand_total - v)); }}
-                          className="w-full pl-8 pr-3 py-2 text-sm font-black bg-card border-2 border-amber-500/30 rounded-2xl outline-none focus:border-amber-500 text-foreground tabular-nums shadow-sm transition-all duration-200"
-                          step="0.01" min="0" />
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <label className="text-[10px] font-black text-muted-foreground uppercase tracking-wider block mb-1">Payment Method</label>
-                      <div className="flex gap-1.5">
-                        {PAYMENT_OPTIONS.map(opt => (
-                          <button key={opt.value} onClick={() => setPayMethod(opt.value)}
-                            className={clsx(
-                              "flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer",
-                              payMethod === opt.value
-                                ? "border-primary bg-primary/10 text-primary shadow-sm"
-                                : "border-border/60 text-muted-foreground hover:border-primary/30 hover:text-foreground bg-card"
-                            )}>
-                            <opt.icon className="w-3.5 h-3.5" />
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="flex gap-2 pt-5">
-                      <button onClick={() => setSelectedInv(null)}
-                        className="px-4 py-2 text-xs font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-95 cursor-pointer">
-                        Cancel
-                      </button>
-                      <button onClick={handleSettle} disabled={settling || receivedAmt <= 0}
-                        className="px-6 py-2 text-xs font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-                        {settling ? 'Processing...' : `Pay ${formatCurrency(receivedAmt)}`}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* ═══ RIGHT: Expenses ═══ */}
