@@ -9,6 +9,30 @@ export interface ReceiptItem {
   discountLabel?: string;
 }
 
+export interface BillSettings {
+  showShopName: boolean;
+  showShopAddress: boolean;
+  showPhone: boolean;
+  showShopGstin: boolean;
+  showShopState: boolean;
+  showTitle: boolean;
+  showCustomerGstin: boolean;
+  estimateMode: boolean;
+  showScrapHeading: boolean;
+}
+
+export const DEFAULT_BILL_SETTINGS: BillSettings = {
+  showShopName: true,
+  showShopAddress: true,
+  showPhone: true,
+  showShopGstin: true,
+  showShopState: true,
+  showTitle: true,
+  showCustomerGstin: true,
+  estimateMode: false,
+  showScrapHeading: true,
+};
+
 export interface ReceiptData {
   shopName: string;
   shopGstin?: string;
@@ -41,6 +65,7 @@ export interface ReceiptData {
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
   showProductOffers?: boolean;
+  billSettings?: BillSettings;
 }
 
 /**
@@ -86,6 +111,18 @@ function numberToIndianWords(amount: number): string {
   return words || 'Zero';
 }
 
+function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean): string {
+  if (isReprint) return '( R E P R I N T )';
+  if (estimateMode) return 'ESTIMATE';
+  switch (invoiceType) {
+    case 'GST': return 'TAX INVOICE';
+    case 'SCRAP': return 'SCRAP BILL';
+    case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
+    case 'ESTIMATE': return 'ESTIMATE';
+    default: return 'INVOICE';
+  }
+}
+
 export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' = 'standard'): string {
   if (charsPerLine == null) {
     charsPerLine = widthCm >= 7.5 ? 36 : 32;
@@ -115,17 +152,26 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const LIGHT = '-'.repeat(charsPerLine);
 
     // ── Header ──
-    text += FRAME + '\n';
-    text += centerText(data.shopName, charsPerLine) + '\n';
-    if (data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-    if (data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
-    if (data.isReprint) text += centerText('( R E P R I N T )', charsPerLine) + '\n';
-    else if (data.invoiceType === 'GST') text += centerText('-- TAX INVOICE --', charsPerLine) + '\n';
-    else if (data.invoiceType === 'SCRAP') text += centerText('-- SCRAP BILL --', charsPerLine) + '\n';
-    else text += centerText('-- BILL OF SUPPLY --', charsPerLine) + '\n';
-    text += FRAME + '\n';
+    const bs = data.billSettings;
+    const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
+    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    if (hasHeader) {
+      text += FRAME + '\n';
+      if (bs?.showShopName) text += centerText(data.shopName, charsPerLine) + '\n';
+      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
+      const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+      if (bs?.showTitle || showScrap) {
+        if (data.isReprint) text += centerText('( R E P R I N T )', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('-- ESTIMATE --', charsPerLine) + '\n';
+        else if (data.invoiceType === 'GST') text += centerText('-- TAX INVOICE --', charsPerLine) + '\n';
+        else if (data.invoiceType === 'SCRAP') text += centerText('-- SCRAP BILL --', charsPerLine) + '\n';
+        else text += centerText('-- BILL OF SUPPLY --', charsPerLine) + '\n';
+      }
+      text += FRAME + '\n';
+    }
 
     // ── Meta ──
     text += `  INV No:  ${data.invoiceNumber}\n`;
@@ -138,7 +184,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += centerText('CUSTOMER', charsPerLine) + '\n';
       if (data.customerName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
     }
 
     text += LIGHT + '\n';
@@ -238,10 +284,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    text += `${data.shopName}\n`;
-    if (data.shopAddress) text += `${data.shopAddress}\n`;
-    if (data.shopPhone) text += `${data.shopPhone}\n`;
-    if (data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    const bs = data.billSettings;
+    if (bs?.showShopName) text += `${data.shopName}\n`;
+    if (bs?.showShopAddress && data.shopAddress) text += `${data.shopAddress}\n`;
+    if (bs?.showPhone && data.shopPhone) text += `${data.shopPhone}\n`;
+    if (bs?.showShopGstin && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    if (bs?.showShopState && data.shopState) text += `${data.shopState}\n`;
+    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
     text += DASH + '\n';
     text += `${data.invoiceNumber}  ${data.date}\n`;
     if (data.cashierName) text += `${data.cashierName}\n`;
@@ -251,7 +300,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (data.customerName) text += `${data.customerName}`;
       if (data.customerPhone) text += `  ${data.customerPhone}`;
       text += '\n';
-      if (data.customerGstin) text += `GST: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
     }
 
     text += DASH + '\n';
@@ -330,16 +379,25 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    text += centerText(`✦ ${data.shopName} ✦`, charsPerLine) + '\n';
-    text += centerText(data.shopAddress || '', charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(`📞 ${data.shopPhone}`, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
-    if (data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
-    if (data.isReprint) text += centerText('[ REPRINT ]', charsPerLine) + '\n';
-    else if (data.invoiceType === 'GST') text += centerText('[ TAX INVOICE ]', charsPerLine) + '\n';
-    else if (data.invoiceType === 'SCRAP') text += centerText('[ SCRAP BILL ]', charsPerLine) + '\n';
-    else text += centerText('[ BILL OF SUPPLY ]', charsPerLine) + '\n';
-    text += THICK + '\n';
+    const bs = data.billSettings;
+    const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
+    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    if (hasHeader) {
+      if (bs?.showShopName) text += centerText(`✦ ${data.shopName} ✦`, charsPerLine) + '\n';
+      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone && data.shopPhone) text += centerText(`📞 ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
+      const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+      if (bs?.showTitle || showScrap) {
+        if (data.isReprint) text += centerText('[ REPRINT ]', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('[ ESTIMATE ]', charsPerLine) + '\n';
+        else if (data.invoiceType === 'GST') text += centerText('[ TAX INVOICE ]', charsPerLine) + '\n';
+        else if (data.invoiceType === 'SCRAP') text += centerText('[ SCRAP BILL ]', charsPerLine) + '\n';
+        else text += centerText('[ BILL OF SUPPLY ]', charsPerLine) + '\n';
+      }
+      text += THICK + '\n';
+    }
     text += `  INV:  ${data.invoiceNumber}\n`;
     text += `  Date: ${data.date}\n`;
     if (data.cashierName) text += `  Staff: ${data.cashierName}\n`;
@@ -350,7 +408,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += centerText('[ CUSTOMER ]', charsPerLine) + '\n';
       if (data.customerName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
     }
 
     text += THIN + '\n';
@@ -441,12 +499,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    text += '\n';
-    text += centerText(data.shopName, charsPerLine) + '\n';
-    if (data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-    text += '\n';
+    const bs = data.billSettings;
+    if (bs?.showShopName) { text += '\n'; text += centerText(data.shopName, charsPerLine) + '\n'; }
+    if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+    if (bs?.showPhone && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
+    if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
+    if (bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += '\n';
 
     // ── Meta ──
     text += `Date: ${data.date}\n`;
@@ -458,7 +517,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.customerName || data.customerPhone || data.customerGstin) {
       if (data.customerName) text += `${data.customerName}\n`;
       if (data.customerPhone) text += `${data.customerPhone}\n`;
-      if (data.customerGstin) text += `GSTIN: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GSTIN: ${data.customerGstin}\n`;
     }
 
     // ── Items table: No | ITEM | QTY | RATE | AMOUNT ──
@@ -568,17 +627,26 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header (ornate banner with ***) ──
-    text += FRAME + '\n';
-    text += centerText(`*** ${data.shopName} ***`, charsPerLine) + '\n';
-    if (data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(`Phone: ${data.shopPhone}`, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-    if (data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
-    if (data.isReprint) text += centerText('--- INVOICE (REPRINT) ---', charsPerLine) + '\n';
-    else if (data.invoiceType === 'GST') text += centerText('--- TAX INVOICE ---', charsPerLine) + '\n';
-    else if (data.invoiceType === 'SCRAP') text += centerText('--- SCRAP BILL ---', charsPerLine) + '\n';
-    else text += centerText('--- BILL OF SUPPLY ---', charsPerLine) + '\n';
-    text += FRAME + '\n';
+    const bs = data.billSettings;
+    const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
+    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    if (hasHeader) {
+      text += FRAME + '\n';
+      if (bs?.showShopName) text += centerText(`*** ${data.shopName} ***`, charsPerLine) + '\n';
+      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone && data.shopPhone) text += centerText(`Phone: ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState && data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
+      const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+      if (bs?.showTitle || showScrap) {
+        if (data.isReprint) text += centerText('--- INVOICE (REPRINT) ---', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('--- ESTIMATE ---', charsPerLine) + '\n';
+        else if (data.invoiceType === 'GST') text += centerText('--- TAX INVOICE ---', charsPerLine) + '\n';
+        else if (data.invoiceType === 'SCRAP') text += centerText('--- SCRAP BILL ---', charsPerLine) + '\n';
+        else text += centerText('--- BILL OF SUPPLY ---', charsPerLine) + '\n';
+      }
+      text += FRAME + '\n';
+    }
 
     // ── Meta ──
     text += `  Invoice No:  ${data.invoiceNumber}\n`;
@@ -591,7 +659,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += centerText('CUSTOMER DETAILS', charsPerLine) + '\n';
       if (data.customerName) text += `  Name:   ${data.customerName}\n`;
       if (data.customerPhone) text += `  Phone:  ${data.customerPhone}\n`;
-      if (data.customerGstin) text += `  GSTIN:  ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN:  ${data.customerGstin}\n`;
     }
 
     text += LIGHT + '\n';
@@ -683,15 +751,23 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header centered ──
-    text += centerText(data.shopName, charsPerLine) + '\n';
-    if (data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(data.shopPhone, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
-    if (data.isReprint) text += centerText('REPRINT', charsPerLine) + '\n';
-    else if (data.invoiceType === 'GST') text += centerText('TAX INVOICE', charsPerLine) + '\n';
-    else if (data.invoiceType === 'SCRAP') text += centerText('SCRAP BILL', charsPerLine) + '\n';
-    else text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';
-    text += '\n';
+    const bs = data.billSettings;
+    const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || showScrap;
+    if (hasHeader) {
+      if (bs?.showShopName) text += centerText(data.shopName, charsPerLine) + '\n';
+      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone && data.shopPhone) text += centerText(data.shopPhone, charsPerLine) + '\n';
+      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showTitle || showScrap) {
+        if (data.isReprint) text += centerText('REPRINT', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('ESTIMATE', charsPerLine) + '\n';
+        else if (data.invoiceType === 'GST') text += centerText('TAX INVOICE', charsPerLine) + '\n';
+        else if (data.invoiceType === 'SCRAP') text += centerText('SCRAP BILL', charsPerLine) + '\n';
+        else text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';
+      }
+      text += '\n';
+    }
     text += `${data.invoiceNumber}     ${data.date}\n`;
     if (data.cashierName) text += `Staff: ${data.cashierName}\n`;
     text += '\n';
@@ -699,7 +775,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Customer ──
     if (data.customerName || data.customerPhone || data.customerGstin) {
       if (data.customerName) text += `${data.customerName}  ${data.customerPhone || ''}\n`;
-      if (data.customerGstin) text += `GST: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
     }
 
     // ── Items (dot leaders between name and total) ──
@@ -778,17 +854,19 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    text += `${data.shopName}\n`;
-    if (data.shopAddress) text += `${data.shopAddress}\n`;
-    if (data.shopPhone) text += `${data.shopPhone}\n`;
-    if (data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    const bs = data.billSettings;
+    if (bs?.showShopName) text += `${data.shopName}\n`;
+    if (bs?.showShopAddress && data.shopAddress) text += `${data.shopAddress}\n`;
+    if (bs?.showPhone && data.shopPhone) text += `${data.shopPhone}\n`;
+    if (bs?.showShopGstin && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
     text += `\n${data.invoiceNumber}  ${data.date}\n`;
     if (data.cashierName) text += `${data.cashierName}\n`;
     text += '\n';
 
     // ── Customer ──
     if (data.customerName) text += `${data.customerName}\n`;
-    if (data.customerGstin) text += `GST: ${data.customerGstin}\n`;
+    if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
 
     // ── Items (name + total right-aligned, no qty/rate unless offer) ──
     data.items.forEach(item => {
@@ -852,12 +930,18 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    text += THICK + '\n';
-    text += centerText(` ${data.shopName} `, charsPerLine) + '\n';
-    if (data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (data.shopPhone) text += centerText(`\u260E ${data.shopPhone}`, charsPerLine) + '\n';
-    if (data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-    text += THICK + '\n';
+    const bs = data.billSettings;
+    const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
+    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || showScrapH;
+    if (hasHeader) {
+      text += THICK + '\n';
+      if (bs?.showShopName) text += centerText(` ${data.shopName} `, charsPerLine) + '\n';
+      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone && data.shopPhone) text += centerText(`\u260E ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showTitle || showScrapH) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode)} --`, charsPerLine) + '\n';
+      text += THICK + '\n';
+    }
     text += `  Invoice: ${data.invoiceNumber}\n`;
     text += `  Date:    ${data.date}\n`;
     if (data.cashierName) text += `  Staff:   ${data.cashierName}\n`;
@@ -869,7 +953,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += centerText('CUSTOMER', charsPerLine) + '\n';
       if (data.customerName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
       text += '\n';
     }
 

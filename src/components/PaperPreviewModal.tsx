@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
-import { generateReceiptText, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
 
 const SAMPLE_ITEMS: ReceiptItem[] = [
@@ -17,25 +17,26 @@ const SAMPLE_SGST = 43.00;
 const SAMPLE_DISCOUNT = 50.00;
 const SAMPLE_GRAND_TOTAL = SAMPLE_SUBTOTAL + SAMPLE_CGST + SAMPLE_SGST - SAMPLE_DISCOUNT;
 
-function createSampleReceiptData(showProductOffers = true): ReceiptData {
+function createSampleReceiptData(showProductOffers = true, billSettings?: BillSettings): ReceiptData {
+  const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
-    shopName: 'Vendora Mart',
-    shopGstin: '27AAAAA1111A1Z1',
-    shopState: 'MH',
-    shopAddress: '123, Main Street, Mumbai - 400001',
-    shopPhone: '+91 98765 43210',
+    shopName: bs.showShopName ? 'Vendora Mart' : '',
+    shopGstin: bs.showShopGstin ? '27AAAAA1111A1Z1' : undefined,
+    shopState: bs.showShopState ? 'MH' : undefined,
+    shopAddress: bs.showShopAddress ? '123, Main Street, Mumbai - 400001' : undefined,
+    shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
     upiId: 'vendora@upi',
     showUpiQr: false,
     showProductOffers,
     invoiceNumber: 'INV-001',
     date: new Date().toLocaleDateString('en-IN'),
-    cashierName: 'Admin',
+    cashierName: bs.showShopName ? 'Admin' : undefined,
     items: SAMPLE_ITEMS,
     subtotal: SAMPLE_SUBTOTAL,
     tax: SAMPLE_CGST + SAMPLE_SGST,
-    cgst: SAMPLE_CGST,
-    sgst: SAMPLE_SGST,
-    igst: 0,
+    cgst: bs.showShopGstin ? SAMPLE_CGST : undefined,
+    sgst: bs.showShopGstin ? SAMPLE_SGST : undefined,
+    igst: bs.showShopGstin ? 0 : undefined,
     discount: SAMPLE_DISCOUNT,
     discountType: 'FIXED',
     discountValue: 50,
@@ -43,16 +44,18 @@ function createSampleReceiptData(showProductOffers = true): ReceiptData {
     receivedAmount: 950.00,
     balanceAmount: 950.00 - SAMPLE_GRAND_TOTAL,
     invoiceType: 'GST',
+    billSettings: bs,
   };
 }
 
-function createSampleInvoiceData(): InvoiceData {
+function createSampleInvoiceData(billSettings?: BillSettings): InvoiceData {
+  const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
-    shopName: 'Vendora Mart',
-    shopGstin: '27AAAAA1111A1Z1',
-    shopState: 'MH',
-    shopAddress: '123, Main Street, Mumbai - 400001',
-    shopPhone: '+91 98765 43210',
+    shopName: bs.showShopName ? 'Vendora Mart' : '',
+    shopGstin: bs.showShopGstin ? '27AAAAA1111A1Z1' : undefined,
+    shopState: bs.showShopState ? 'MH' : undefined,
+    shopAddress: bs.showShopAddress ? '123, Main Street, Mumbai - 400001' : undefined,
+    shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
     upiId: 'vendora@upi',
     invoiceNumber: 'INV-001',
     date: new Date().toLocaleDateString('en-IN'),
@@ -60,9 +63,9 @@ function createSampleInvoiceData(): InvoiceData {
     items: SAMPLE_ITEMS as InvoiceItemDisplay[],
     subtotal: SAMPLE_SUBTOTAL,
     tax: SAMPLE_CGST + SAMPLE_SGST,
-    cgst: SAMPLE_CGST,
-    sgst: SAMPLE_SGST,
-    igst: 0,
+    cgst: bs.showShopGstin ? SAMPLE_CGST : undefined,
+    sgst: bs.showShopGstin ? SAMPLE_SGST : undefined,
+    igst: bs.showShopGstin ? 0 : undefined,
     discount: SAMPLE_DISCOUNT,
     discountType: 'FIXED',
     discountValue: 50,
@@ -72,31 +75,18 @@ function createSampleInvoiceData(): InvoiceData {
     invoiceType: 'GST',
     customerName: 'Rajesh Sharma',
     customerPhone: '+91 98765 12345',
-    customerGstin: '27AAAAA2222A1Z1',
-    customerState: 'MH',
+    customerGstin: bs.showCustomerGstin ? '27AAAAA2222A1Z1' : undefined,
+    customerState: bs.showCustomerGstin ? 'MH' : undefined,
+    billSettings: bs,
   };
 }
 
 const FONT_MAP: Record<string, string> = {
   courier: '"Courier New", monospace',
   consolas: 'Consolas, monospace',
-  monaco: 'Monaco, monospace',
+  lucida: '"Lucida Console", monospace',
+  'lucida-sans': '"Lucida Sans Typewriter", "Lucida Console", monospace',
   monospace: 'monospace',
-  menlo: 'Menlo, monospace',
-  'sf-mono': '"SF Mono", "SFMono-Regular", monospace',
-  dejavu: '"DejaVu Sans Mono", monospace',
-  fira: '"Fira Code", "Fira Mono", monospace',
-  jetbrains: '"JetBrains Mono", monospace',
-  'source-code': '"Source Code Pro", monospace',
-  ubuntu: '"Ubuntu Mono", monospace',
-  'ibm-plex': '"IBM Plex Mono", monospace',
-  inconsolata: 'Inconsolata, monospace',
-  cascadia: '"Cascadia Code", "Cascadia Mono", monospace',
-  liberation: '"Liberation Mono", monospace',
-  andale: '"Andale Mono", monospace',
-  'pt-mono': '"PT Mono", monospace',
-  'noto-sans': '"Noto Sans Mono", monospace',
-  'courier-prime': '"Courier Prime", monospace',
 };
 
 interface PaperPreviewModalProps {
@@ -108,9 +98,10 @@ interface PaperPreviewModalProps {
   paperWidth: number;
   showProductOffers: boolean;
   receiptFont?: string;
+  billSettings?: BillSettings;
 }
 
-export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier' }: PaperPreviewModalProps) {
+export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier', billSettings }: PaperPreviewModalProps) {
   const [zoom, setZoom] = useState(1);
 
   const style = format === 'thermal' ? thermalStyle : a4Style;
@@ -118,13 +109,13 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
   const content = useMemo(() => {
     if (!isOpen) return '';
     if (format === 'thermal') {
-      const data = createSampleReceiptData(showProductOffers);
+      const data = createSampleReceiptData(showProductOffers, billSettings);
       return generateReceiptText(data, paperWidth, undefined, style);
     } else {
-      const data = createSampleInvoiceData();
+      const data = createSampleInvoiceData(billSettings);
       return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
     }
-  }, [isOpen, format, style, paperWidth, showProductOffers]);
+  }, [isOpen, format, style, paperWidth, showProductOffers, billSettings]);
 
   if (!isOpen) return null;
 

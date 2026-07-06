@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { BillingPage } from './components/BillingPage';
 import { DomainWizard } from './components/DomainWizard';
 import { InventoryManager } from './components/InventoryManager';
@@ -84,6 +84,9 @@ function App() {
   const [showSettingsManager, setShowSettingsManager] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
   const [showScrapManager, setShowScrapManager] = useState(false);
+  const [enableScrap, setEnableScrap] = useState(false);
+  const enableScrapRef = useRef(false);
+  enableScrapRef.current = enableScrap;
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
@@ -245,13 +248,20 @@ function App() {
   }, [isSyncing, shuffledQuotes]);
 
   useEffect(() => {
+    if (!window.electronAPI) return;
+    window.electronAPI.settingsGet({ tenant_id: useAuthStore.getState().tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+      if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+    });
+  }, []);
+
+  useEffect(() => {
     const handleOpenInv = () => setShowInventoryManager(true);
     const handleOpenStockReport = () => setShowStockReport(true);
     const handleOpenHistory = () => setShowSalesHistory(true);
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
     const handleOpenParties = () => setShowPartyManager(true);
-    const handleOpenScrapManager = () => setShowScrapManager(true);
+    const handleOpenScrapManager = () => { if (enableScrapRef.current) setShowScrapManager(true); };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);

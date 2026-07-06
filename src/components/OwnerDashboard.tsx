@@ -43,6 +43,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [totalSales, setTotalSales] = useState(0);
     const [invoiceCount, setInvoiceCount] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
+    const [enableScrap, setEnableScrap] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -67,6 +68,13 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     useEffect(() => {
         loadStats();
     }, [loadStats]);
+
+    useEffect(() => {
+        if (!window.electronAPI) return;
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+            if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+        });
+    }, [tenantId]);
 
     useEffect(() => {
         if (!window.electronAPI?.onSyncCycleComplete) return;
@@ -160,7 +168,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
         },
-        {
+        ...(enableScrap ? [{
             id: 'scrap',
             title: 'Scrap Management',
             desc: 'Track scrap purchases, sales & profit',
@@ -168,7 +176,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-orange-500',
             bgColor: 'bg-orange-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),
-        },
+        }] : []),
         {
             id: 'parties',
             title: 'Parties / Credit',

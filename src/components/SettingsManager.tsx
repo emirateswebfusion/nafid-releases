@@ -4,7 +4,7 @@ import {
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
   Smartphone, X, RotateCcw, Maximize2,
-  Store, Package, Monitor, ChevronRight, Shield, FileText
+  Store, Package, Monitor, ChevronRight, Shield, FileText, Recycle
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -14,6 +14,7 @@ import { Input } from './ui/Input';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
+import { DEFAULT_BILL_SETTINGS, type BillSettings } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 const INDIAN_STATES = [
@@ -41,23 +42,9 @@ const INDIAN_STATES = [
 const FONT_OPTIONS = [
   { id: 'courier', name: 'Courier New', family: '"Courier New", monospace' },
   { id: 'consolas', name: 'Consolas', family: 'Consolas, monospace' },
-  { id: 'monaco', name: 'Monaco', family: 'Monaco, monospace' },
+  { id: 'lucida', name: 'Lucida Console', family: '"Lucida Console", monospace' },
+  { id: 'lucida-sans', name: 'Lucida Sans Typewriter', family: '"Lucida Sans Typewriter", "Lucida Console", monospace' },
   { id: 'monospace', name: 'System Monospace', family: 'monospace' },
-  { id: 'menlo', name: 'Menlo', family: 'Menlo, monospace' },
-  { id: 'sf-mono', name: 'SF Mono', family: '"SF Mono", "SFMono-Regular", monospace' },
-  { id: 'dejavu', name: 'DejaVu Sans Mono', family: '"DejaVu Sans Mono", monospace' },
-  { id: 'fira', name: 'Fira Code', family: '"Fira Code", "Fira Mono", monospace' },
-  { id: 'jetbrains', name: 'JetBrains Mono', family: '"JetBrains Mono", monospace' },
-  { id: 'source-code', name: 'Source Code Pro', family: '"Source Code Pro", monospace' },
-  { id: 'ubuntu', name: 'Ubuntu Mono', family: '"Ubuntu Mono", monospace' },
-  { id: 'ibm-plex', name: 'IBM Plex Mono', family: '"IBM Plex Mono", monospace' },
-  { id: 'inconsolata', name: 'Inconsolata', family: 'Inconsolata, monospace' },
-  { id: 'cascadia', name: 'Cascadia Code', family: '"Cascadia Code", "Cascadia Mono", monospace' },
-  { id: 'liberation', name: 'Liberation Mono', family: '"Liberation Mono", monospace' },
-  { id: 'andale', name: 'Andale Mono', family: '"Andale Mono", monospace' },
-  { id: 'pt-mono', name: 'PT Mono', family: '"PT Mono", monospace' },
-  { id: 'noto-sans', name: 'Noto Sans Mono', family: '"Noto Sans Mono", monospace' },
-  { id: 'courier-prime', name: 'Courier Prime', family: '"Courier Prime", monospace' },
 ] as const;
 
 interface SidebarItem {
@@ -82,6 +69,7 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
       { id: 'gst', label: 'GST Details', icon: Building, ownerOnly: true },
       { id: 'shop', label: 'Shop Details', icon: Building, ownerOnly: true },
       { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
+      { id: 'scrap', label: 'Scrap Settings', icon: Recycle, ownerOnly: true },
     ],
   },
   {
@@ -180,21 +168,24 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [showProductOffers, setShowProductOffers] = useState(true);
   const [openCashDrawerOnPending, setOpenCashDrawerOnPending] = useState(false);
   const [receiptFont, setReceiptFont] = useState('courier');
+  const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
+  const [scrapBillSettings, setScrapBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [printWidth, setPrintWidth] = useState<number>(58);
   const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
+  const [enableScrap, setEnableScrap] = useState(false);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -220,7 +211,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
     }
   }, [loading]);
 
@@ -257,6 +248,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     if (phoneVal) setShopPhone(phoneVal);
     if (upiVal) setUpiId(upiVal);
     if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
+    const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
+    if (scrapEnabled !== null && scrapEnabled !== undefined) setEnableScrap(Boolean(scrapEnabled));
     if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType])     setLabelCodeType(labelType as CodeType);
     if (printFmt) {
       if (printFmt.format === 'a4') {
@@ -270,6 +263,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
       if (printFmt.showProductOffers !== undefined) setShowProductOffers(Boolean(printFmt.showProductOffers));
       if (printFmt.openCashDrawerOnPending !== undefined) setOpenCashDrawerOnPending(Boolean(printFmt.openCashDrawerOnPending));
       if (printFmt.receiptFont) setReceiptFont(printFmt.receiptFont);
+      if (printFmt.billSettings) setBillSettings({ ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings });
+      if (printFmt.scrapBillSettings) setScrapBillSettings({ ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings });
     }
 
     const termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
@@ -310,8 +305,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
       ];
@@ -323,7 +319,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -477,6 +473,20 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               <div className="flex-1">
                 <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, a QR code with the bill amount pre-filled will appear on printed receipts.</p>
+              </div>
+            </div>
+          </div>
+        );
+      case 'scrap':
+        return (
+          <div>
+            <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
+              <button onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', enableScrap ? 'bg-primary' : 'bg-muted-foreground/30')}>
+                <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', enableScrap ? 'translate-x-6' : 'translate-x-0')} />
+              </button>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, scrap manager, and scrap dashboard card. Use this for shops that do not deal with scrap (e.g. fruit shops).</p>
               </div>
             </div>
           </div>
@@ -1131,7 +1141,95 @@ Discount          ₹-50.00
                   </div>
 
                   <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Receipt Preview Font</label>
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Bill Content</label>
+                    <p className="text-[10px] text-muted-foreground mb-3">Tick what to show on printed bills & invoices</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                      {[
+                        { key: 'showShopName', label: 'Shop Name' },
+                        { key: 'showShopAddress', label: 'Shop Address' },
+                        { key: 'showPhone', label: 'Phone Number' },
+                        { key: 'showShopGstin', label: 'Shop GSTIN' },
+                        { key: 'showShopState', label: 'Shop State' },
+                        { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                      ].map(({ key, label }) => {
+                        const forcedOn = key === 'showTitle' && billSettings.estimateMode;
+                        return (
+                          <label key={key} className={`flex items-center gap-2.5 py-1.5 ${forcedOn ? '' : 'cursor-pointer group'}`}>
+                            <button
+                              onClick={() => {
+                                if (forcedOn) return;
+                                setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
+                              }}
+                              className={clsx(
+                                'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
+                                (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50',
+                                forcedOn && 'opacity-50'
+                              )}
+                            >
+                              {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                            </button>
+                            <span className={`text-xs select-none ${forcedOn ? 'text-muted-foreground' : 'text-foreground'}`}>
+                              {label}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      <div className="col-span-2 border-t border-border/60 my-1.5" />
+                      <label className="flex items-center gap-2.5 py-1.5 cursor-pointer group col-span-2">
+                        <button
+                          onClick={() => {
+                            if (!billSettings.estimateMode) {
+                              setBillSettings(s => ({ ...s, estimateMode: true, showTitle: true }));
+                            } else {
+                              setBillSettings(s => ({ ...s, estimateMode: false }));
+                            }
+                          }}
+                          className={clsx(
+                            'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
+                            billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50'
+                          )}
+                        >
+                          {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                        </button>
+                        <div>
+                          <span className="text-xs text-foreground select-none font-bold">Force "ESTIMATE" title</span>
+                          <p className="text-[10px] text-muted-foreground">Overrides document title to ESTIMATE. Automatically enables Document Title.</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Scrap Bill Content</label>
+                    <p className="text-[10px] text-muted-foreground mb-3">Separate settings for scrap bill receipts</p>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                      {[
+                        { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
+                        { key: 'showShopName', label: 'Shop Name' },
+                        { key: 'showShopAddress', label: 'Shop Address' },
+                        { key: 'showPhone', label: 'Phone Number' },
+                        { key: 'showShopGstin', label: 'Shop GSTIN' },
+                        { key: 'showTitle', label: 'Document Title' },
+                      ].map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-2.5 py-1.5 cursor-pointer group">
+                          <button
+                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
+                            className={clsx(
+                              'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
+                              (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50'
+                            )}
+                          >
+                            {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          </button>
+                          <span className="text-xs text-foreground select-none">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
+                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Receipt Font</label>
                     <div className="flex flex-wrap gap-2">
                       {FONT_OPTIONS.map(f => (
                         <button
@@ -1149,7 +1247,7 @@ Discount          ₹-50.00
                         </button>
                       ))}
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Changes the font used for the on-screen receipt preview. Thermal printers use their own built-in font.</p>
+                    <p className="text-[10px] text-muted-foreground mt-2">Font used when printing thermal receipts. Pick one installed on your system.</p>
                   </div>
                 </div>
                 </>
@@ -1642,8 +1740,9 @@ Discount          ₹-50.00
                       {activeItem.id === 'appearance' && 'Adjust the UI font size for better readability.'}
                       {activeItem.id === 'security' && 'Manage your account password and security settings.'}
                       {activeItem.id === 'grades' && 'Manage product categories and grades.'}
-                      {activeItem.id === 'print-format' && 'Choose between thermal receipt or A4 invoice as the default print format.'}
+                       {activeItem.id === 'print-format' && 'Choose between thermal receipt or A4 invoice as the default print format and select what details appear on the bill.'}
                       {activeItem.id === 'label-settings' && 'Choose the default code format (Barcode or QR Code) for product labels.'}
+                      {activeItem.id === 'scrap' && 'Enable or disable scrap management for shops that do not deal with scrap.'}
                     </p>
                   </div>
                   {activeItem.ownerOnly && (
@@ -1679,6 +1778,7 @@ Discount          ₹-50.00
         paperWidth={printWidth}
         showProductOffers={showProductOffers}
         receiptFont={receiptFont}
+        billSettings={billSettings}
       />
     </div>
   );

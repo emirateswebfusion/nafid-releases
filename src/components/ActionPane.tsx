@@ -10,7 +10,7 @@ import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Modal } from './ui/Modal';
 import { Input } from './ui/Input';
-import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 export function ActionPane() {
@@ -116,12 +116,13 @@ export function ActionPane() {
 
         const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
         const useA4 = printFmt?.format === 'a4';
+        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
         const receiptData: ReceiptData = {
-          shopName: shopName || 'My Shop',
-          shopGstin: shopGstin || undefined,
-          shopAddress: shopAddr || undefined,
-          shopPhone: shopPh || undefined,
+          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
           upiId: upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -132,7 +133,7 @@ export function ActionPane() {
             const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
               ? item.base_price + (item.grade_rate || 0) 
               : item.base_price;
-              
+               
             const pieceCount = Number(item.quantity) || 0;
 
             let itemTotal = effectiveRate * pieceCount;
@@ -151,7 +152,9 @@ export function ActionPane() {
           discount,
           discountType: useCartStore.getState().discountType,
           discountValue: useCartStore.getState().discountValue,
-          grandTotal
+          grandTotal,
+          invoiceType,
+          billSettings,
         };
 
         if (useA4) {

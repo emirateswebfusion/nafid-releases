@@ -12,7 +12,7 @@ import clsx from 'clsx';
 import { Input } from './ui/Input';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
-import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 
@@ -325,11 +325,13 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const useA4 = printFmt?.format === 'a4';
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+      const invoiceType = selectedInvoice.invoice_type;
       const receiptData: ReceiptData = {
-        shopName: useAuthStore.getState().shopName || 'My Shop',
-        shopGstin: shopGstin || undefined,
-        shopAddress: shopAddr || undefined,
-        shopPhone: shopPh || undefined,
+        shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+        shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -344,6 +346,9 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         discountValue: selectedInvoice.discount_value,
         grandTotal: selectedInvoice.grand_total,
         isReprint: true,
+        invoiceType,
+        customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
+        billSettings,
       };
       if (useA4) {
         const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');

@@ -13,7 +13,7 @@ import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
-import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
@@ -99,6 +99,7 @@ export function BillingPage() {
 
   // Scrap mode (moved before displayGrandTotal which depends on it)
   const [isScrapMode, setIsScrapMode] = useState(false);
+  const [enableScrap, setEnableScrap] = useState(false);
   const prevScrapMode = useRef(isScrapMode);
   // Clean up incompatible items when scrap mode changes (handles indirect toggles like quotation mode)
   useEffect(() => {
@@ -110,6 +111,12 @@ export function BillingPage() {
     }
     prevScrapMode.current = isScrapMode;
   }, [isScrapMode]);
+
+  useEffect(() => {
+    if (!enableScrap && isScrapMode) {
+      setIsScrapMode(false);
+    }
+  }, [enableScrap, isScrapMode]);
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
   const [shopGstin, setShopGstin] = useState('');
@@ -243,6 +250,9 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
+      if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
   }, [tenantId]);
 
@@ -796,10 +806,12 @@ export function BillingPage() {
           total: item.base_price * (Number(item.quantity) || 0),
         }));
 
+        const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
         const receiptData: ReceiptData = {
-          shopName: shopName || 'My Shop',
-          shopGstin: shopGstin || undefined,
-          shopPhone: shopPhone || undefined,
+          shopName: scrapBillSettings.showShopName ? (shopName || 'My Shop') : '',
+          shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+          shopAddress: scrapBillSettings.showShopAddress ? (shopAddress || undefined) : undefined,
+          shopPhone: scrapBillSettings.showPhone ? (shopPhone || undefined) : undefined,
           upiId: upiId || undefined,
           showUpiQr: showUpiQr,
           showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -812,6 +824,7 @@ export function BillingPage() {
           tax: 0,
           discount: 0,
           grandTotal: scrapTotal,
+          billSettings: scrapBillSettings,
         };
 
         const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
@@ -918,13 +931,15 @@ export function BillingPage() {
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
       const useA4 = printFmt?.format === 'a4';
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
       const state = useCartStore.getState();
       const receiptData: ReceiptData = {
-        shopName: shopName || 'My Shop', shopGstin: shopGstin || undefined,
-        shopState: state.shopState || undefined,
-        shopAddress: shopAddress || undefined,
-        shopPhone: shopPhone || undefined,
+        shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+        shopState: billSettings.showShopState ? (state.shopState || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress ? (shopAddress || undefined) : undefined,
+        shopPhone: billSettings.showPhone ? (shopPhone || undefined) : undefined,
         upiId: upiId || undefined,
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -932,9 +947,9 @@ export function BillingPage() {
         cashierName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
         subtotal, tax: totalTax,
-        cgst: invoiceType === 'GST' ? cgst : undefined,
-        sgst: invoiceType === 'GST' ? sgst : undefined,
-        igst: invoiceType === 'GST' ? igst : undefined,
+        cgst: billSettings.showShopGstin ? cgst : undefined,
+        sgst: billSettings.showShopGstin ? sgst : undefined,
+        igst: billSettings.showShopGstin ? igst : undefined,
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal,
         scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
@@ -942,8 +957,9 @@ export function BillingPage() {
         invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
-        customerGstin: invoiceType === 'GST' ? customerGstin || undefined : undefined,
-        customerState: invoiceType === 'GST' ? customerState || undefined : undefined,
+        customerGstin: billSettings.showCustomerGstin ? (customerGstin || undefined) : undefined,
+        customerState: billSettings.showCustomerGstin ? (customerState || undefined) : undefined,
+        billSettings,
       };
 
       if (useA4) {
@@ -975,8 +991,8 @@ export function BillingPage() {
         grand_total: displayGrandTotal, payment_method: paymentMethod,
         received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
         customer_name: customerName || null, customer_phone: customerPhone || null,
-        customer_gstin: invoiceType === 'GST' ? customerGstin || null : null,
-        customer_state: invoiceType === 'GST' ? customerState || null : null,
+        customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
+        customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
         scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
         items: checkoutItems,
         scrap_items: [],
@@ -1240,24 +1256,26 @@ export function BillingPage() {
             <TrendingUp className="w-4 h-4 text-primary" />
             <span>History</span>
           </button>
-          <button
-            onClick={() => {
-              const next = !isScrapMode;
-              setIsScrapMode(next);
-              if (next && isQuotationMode) setQuotationMode(false);
-              if (next) reserveScrapInvoiceNumberForTab();
-            }}
-            className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-              isScrapMode
-                ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="Scrap Mode"
-          >
-            <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
-            <span>Scrap</span>
-          </button>
+          {enableScrap && (
+            <button
+              onClick={() => {
+                const next = !isScrapMode;
+                setIsScrapMode(next);
+                if (next && isQuotationMode) setQuotationMode(false);
+                if (next) reserveScrapInvoiceNumberForTab();
+              }}
+              className={clsx(
+                "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
+                isScrapMode
+                  ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+              )}
+              title="Scrap Mode"
+            >
+              <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
+              <span>Scrap</span>
+            </button>
+          )}
           <button
             onClick={() => {
               const next = !isQuotationMode;
@@ -1932,7 +1950,7 @@ export function BillingPage() {
             {/* ── Scrap Deduction Input (Normal Mode Only) ── */}
             <div className={clsx(
               'overflow-hidden transition-all duration-400 ease-in-out',
-              !isScrapMode && !isQuotationMode
+              !isScrapMode && !isQuotationMode && enableScrap
                 ? 'max-h-[200px] opacity-100 scale-100'
                 : 'max-h-0 opacity-0 scale-95'
             )}>
@@ -1989,7 +2007,7 @@ export function BillingPage() {
             {/* Scrap items row — shown in scrap mode with scrap cart items */}
             <div className={clsx(
               'overflow-hidden transition-all duration-300 ease-in-out',
-              scrapTotal > 0 && isScrapMode && !isQuotationMode
+              scrapTotal > 0 && isScrapMode && !isQuotationMode && enableScrap
                 ? 'max-h-[80px] opacity-100'
                 : 'max-h-0 opacity-0'
             )}>

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { generateReceiptText, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -294,11 +294,12 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
     if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !window.electronAPI) return;
     try {
       const { tenantId } = useAuthStore.getState();
-      const [shopAddr, shopPh, upi, showQr] = await Promise.all([
+      const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
       ]);
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
@@ -315,10 +316,12 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
 
       const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0);
 
+      const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
       const receiptData: ReceiptData = {
-        shopName: useAuthStore.getState().shopName || 'My Shop',
-        shopAddress: shopAddr || undefined,
-        shopPhone: shopPh || undefined,
+        shopName: scrapBillSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+        shopAddress: scrapBillSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+        shopPhone: scrapBillSettings.showPhone ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -331,6 +334,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
         discount: 0,
         grandTotal: totalAmount,
         isReprint: true,
+        billSettings: scrapBillSettings,
       };
 
       const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);

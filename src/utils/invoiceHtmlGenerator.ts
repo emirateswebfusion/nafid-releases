@@ -1,3 +1,5 @@
+import type { BillSettings } from './receiptGenerator';
+
 export interface InvoiceItemDisplay {
   name: string;
   quantity: number | string;
@@ -37,10 +39,24 @@ export interface InvoiceData {
   customerState?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
+  billSettings?: BillSettings;
+}
+
+function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean): string {
+  if (isReprint) return 'INVOICE (REPRINT)';
+  if (estimateMode) return 'ESTIMATE';
+  switch (invoiceType) {
+    case 'GST': return 'TAX INVOICE';
+    case 'SCRAP': return 'SCRAP BILL';
+    case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
+    case 'ESTIMATE': return 'ESTIMATE';
+    default: return 'INVOICE';
+  }
 }
 
 export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' = 'standard'): string {
-  const title = data.isReprint ? 'INVOICE (REPRINT)' : data.invoiceType === 'GST' ? 'TAX INVOICE' : data.invoiceType === 'SCRAP' ? 'SCRAP BILL' : 'INVOICE';
+  const bs = data.billSettings;
+  const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode);
 
   if (style === 'modern') return generateModernHtml(data, title);
   if (style === 'classic') return generateClassicHtml(data, title);
@@ -89,7 +105,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     <h1>${data.shopName}</h1>
     ${data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
     ${data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-    ${data.shopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+    ${data.shopGstin && data.billSettings?.showShopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
   </div>
   <div class="invoice-title">${title}</div>
   <div class="info-row">
@@ -101,8 +117,8 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     <div class="info-block" style="text-align:right">
       ${data.customerName ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
       ${data.customerPhone ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
-      ${data.customerGstin ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
-      ${data.customerState ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
+      ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
+      ${data.customerState && data.billSettings?.showCustomerGstin ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
     </div>
   </div>
   <table>
@@ -176,7 +192,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <h1>${data.shopName}</h1>
       ${data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
       ${data.shopPhone ? `<p>${data.shopPhone}</p>` : ''}
-      ${data.shopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+      ${data.shopGstin && data.billSettings?.showShopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
       <div class="invoice-badge">${title}</div>
     </div>
 
@@ -189,7 +205,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <div class="block" style="text-align:right">
         ${data.customerName ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
         ${data.customerPhone ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
-        ${data.customerGstin ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
+        ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
       </div>
     </div>
 
@@ -272,9 +288,9 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
       <h1>${data.shopName}</h1>
       ${data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
       ${data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-      ${data.shopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-    </div>
-    <div class="invoice-title">— ${title} —</div>
+    ${data.shopGstin && data.billSettings?.showShopGstin ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+  </div>
+  <div class="invoice-title">— ${title} —</div>
 
     <table class="info-table">
       <tr>
@@ -286,8 +302,8 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         <td style="width:50%;text-align:right">
           ${data.customerName ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
           ${data.customerPhone ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
-          ${data.customerGstin ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
-          ${data.customerState ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
+          ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
+          ${data.customerState && data.billSettings?.showCustomerGstin ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
         </td>
       </tr>
     </table>

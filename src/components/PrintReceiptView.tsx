@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react';
+import { useAuthStore } from '../store/authStore';
+
+const FONT_MAP: Record<string, string> = {
+  courier: '"Courier New", monospace',
+  consolas: 'Consolas, monospace',
+  lucida: '"Lucida Console", monospace',
+  'lucida-sans': '"Lucida Sans Typewriter", "Lucida Console", monospace',
+  monospace: 'monospace',
+};
 
 const printStyles = `
   @page { margin: 0; size: auto; }
@@ -7,6 +16,7 @@ const printStyles = `
 
 export function PrintReceiptView({ text }: { text: string }) {
   const [receiptText, setReceiptText] = useState(text || '');
+  const [fontFamily, setFontFamily] = useState('"Courier New", monospace');
 
   useEffect(() => {
     if (!text && window.electronAPI?.getReceiptText) {
@@ -15,6 +25,20 @@ export function PrintReceiptView({ text }: { text: string }) {
       });
     }
   }, [text]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const tenantId = useAuthStore.getState().tenantId;
+        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+        if (printFmt?.receiptFont && FONT_MAP[printFmt.receiptFont]) {
+          setFontFamily(FONT_MAP[printFmt.receiptFont]);
+        }
+      } catch {
+        // fallback to default
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (!receiptText) return;
@@ -35,7 +59,7 @@ export function PrintReceiptView({ text }: { text: string }) {
         margin: 0,
         padding: '4px 0',
         fontSize: '9pt',
-        fontFamily: '"Courier New", "Lucida Console", monospace',
+        fontFamily,
         whiteSpace: 'pre',
         color: 'black',
         fontWeight: 700,
