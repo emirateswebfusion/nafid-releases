@@ -1,10 +1,10 @@
 import { app, BrowserWindow, ipcMain, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'node:crypto';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
-import { v4 as uuidv4 } from 'uuid';
 
 
 // Initialize and configure structured logging
@@ -275,6 +275,17 @@ ipcMain.handle('app:checkForUpdates', async () => {
     if (msg.includes('404') || msg.includes('Cannot find') || msg.includes('no published version')) {
       return { success: true, updateInfo: null };
     }
+    // Network errors — show a clean message
+    if (
+      msg.includes('net::ERR_') ||
+      msg.includes('ENOTFOUND') ||
+      msg.includes('ECONNREFUSED') ||
+      msg.includes('ENETUNREACH') ||
+      msg.includes('request failed') ||
+      msg.toLowerCase().includes('network')
+    ) {
+      return { success: false, error: 'No internet connection' };
+    }
     return { success: false, error: msg };
   }
 });
@@ -299,12 +310,12 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     } else if (search) {
        // Numeric search: only match barcode/item_code with prefix (so "87" → 8749,8750 NOT 987,687, nor names containing "87")
        if (/^\d+$/.test(search)) {
-         query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
-         params.push(`${search}%`, `${search}%`);
-       } else {
-         // Text search: name/brand substring, barcode/item_code prefix
-         query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ?)';
-         params.push(`%${search}%`, `${search}%`, `${search}%`, `%${search}%`);
+          query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
+          params.push(`%${search}%`, `%${search}%`);
+        } else {
+          // Text search: substring match on all fields
+          query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ?)';
+          params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
        }
     }
 
@@ -350,11 +361,11 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     if (arg?.search) {
        // Mirror logic from db:getProducts — numeric: barcode/code only; text: all fields
        if (/^\d+$/.test(arg.search)) {
-         query += ' AND (sku_barcode LIKE ? OR item_code LIKE ?)';
-         params.push(`${arg.search}%`, `${arg.search}%`);
-       } else {
-         query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ?)';
-         params.push(`%${arg.search}%`, `${arg.search}%`, `${arg.search}%`, `%${arg.search}%`);
+          query += ' AND (sku_barcode LIKE ? OR item_code LIKE ?)';
+          params.push(`%${arg.search}%`, `%${arg.search}%`);
+        } else {
+          query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ?)';
+          params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`);
        }
     }
 
@@ -1139,7 +1150,6 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   if (payload.role !== 'OWNER') {
     return { success: false, error: 'Only owners can edit past bills' };
   }
-  const { v4: uuidv4 } = await import('uuid');
   const { items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -1173,7 +1183,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     `);
     for (const item of items) {
       itemStmt.run(
-        item.item_id || uuidv4(),
+        item.item_id || crypto.randomUUID(),
         payload.invoice_id,
         payload.tenant_id,
         item.product_id,
@@ -2044,7 +2054,7 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
       const yesterdayStr = yesterday.toISOString().split('T')[0];
       const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
       const prevClosing = prevDrawer ? (prevDrawer.expected_closing || 0) : 0;
-      const drawer_id = uuidv4();
+      const drawer_id = crypto.randomUUID();
       
       db.prepare(`
         INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, sync_status)
@@ -2072,7 +2082,7 @@ ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_bala
         WHERE drawer_id = ?
       `).run(opening_balance, opening_balance, opening_balance, user_id, existing.drawer_id);
     } else {
-      const drawer_id = uuidv4();
+      const drawer_id = crypto.randomUUID();
       db.prepare(`
         INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, opened_by, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, 'PENDING')
@@ -2083,7 +2093,7 @@ ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_bala
     db.prepare(`
       INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
-    `).run(uuidv4(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
+    `).run(crypto.randomUUID(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
     
     return { success: true };
   } catch (error: any) {
@@ -2156,7 +2166,7 @@ ipcMain.handle('db:cashier:settlePayment', (event, { tenant_id, invoice_id, rece
         INSERT INTO cashier_audit_log (audit_id, tenant_id, action, details, performed_by, performed_by_name, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
-        uuidv4(), tenant_id, 'PAYMENT_COMPLETED',
+        crypto.randomUUID(), tenant_id, 'PAYMENT_COMPLETED',
         JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, grand_total }),
         user_id, user_name || null
       );
@@ -2182,7 +2192,7 @@ ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, c
       const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
       
-      const transaction_id = uuidv4();
+      const transaction_id = crypto.randomUUID();
       db.prepare(`
         INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
@@ -2211,7 +2221,7 @@ ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, c
         INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
-        uuidv4(), tenant_id, drawer.drawer_id, type,
+        crypto.randomUUID(), tenant_id, drawer.drawer_id, type,
         JSON.stringify({ transaction_id, amount, category, notes }),
         user_id, user_name || null
       );
@@ -2249,7 +2259,7 @@ ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closin
         INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
-        uuidv4(), tenant_id, drawer.drawer_id, 'DAY_CLOSED',
+        crypto.randomUUID(), tenant_id, drawer.drawer_id, 'DAY_CLOSED',
         JSON.stringify({ expected_closing: expected, actual_cash: actual, cash_short, cash_excess, closing_remarks }),
         user_id, user_name || null
       );

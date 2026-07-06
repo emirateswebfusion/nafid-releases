@@ -369,9 +369,15 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     }
   };
 
-  const handleEditBill = () => {
+  const handleEditBill = async () => {
     if (!window.electronAPI || !selectedInvoice) return;
-    localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items }));
+    let currentItems = items;
+    if (!currentItems.length) {
+      const data = await window.electronAPI.dbGetInvoiceItems(selectedInvoice.invoice_id);
+      currentItems = Array.isArray(data) ? data : [];
+    }
+    if (!currentItems.length) return;
+    localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
     if (useAuthStore.getState().role === 'OWNER') useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
@@ -463,10 +469,12 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             endDate={filterDateEnd}
             onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
           />
-          <button onClick={onClose}
-            className="h-8 px-3 text-xs font-bold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer"
+           <button
+            onClick={onClose}
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+            title="Close"
           >
-            <X className="w-3.5 h-3.5" />Close
+            <X className="w-4 h-4 text-destructive" />
           </button>
         </div>
       </header>
@@ -744,7 +752,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                     <button onClick={handleEditBill}
                       className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />Edit Bill
+                       <Edit3 className="w-3.5 h-3.5" />Edit Bill
                     </button>
                   )}
                   <button onClick={handleReprint}

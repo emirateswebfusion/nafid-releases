@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
-  Store, LogOut, Receipt, Settings, Tag, Phone, User,
+  Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp, FileText, Clock
 } from 'lucide-react';
@@ -10,8 +10,6 @@ import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
-import { Button } from './ui/Button';
-import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
@@ -66,6 +64,7 @@ export function BillingPage() {
     customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
+    editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals();
@@ -226,6 +225,7 @@ export function BillingPage() {
     initialized.current = true;
     useTabStore.setState({ tabs: [], activeTabId: '' });
     handleAddTab();
+    useCartStore.getState().setEditingInvoice(null, null, null);
   }, []);
 
   // receivedAmount stays 0 until user enters a value — no auto-fill to grandTotal
@@ -256,19 +256,7 @@ export function BillingPage() {
     });
   }, [tenantId]);
 
-  const [showPastBill, setShowPastBill] = useState(false);
-  const [pastBillSearch, setPastBillSearch] = useState('');
-  const [foundInvoices, setFoundInvoices] = useState<any[]>([]);
-  const [selectedPastInvoiceId, setSelectedPastInvoiceId] = useState<string | null>(null);
-  const [selectedPastInvoice, setSelectedPastInvoice] = useState<any | null>(null);
-  const [pastInvoiceItems, setPastInvoiceItems] = useState<any[]>([]);
-  const [isSavingPastBill, setIsSavingPastBill] = useState(false);
-  const [pastBillSuccess, setPastBillSuccess] = useState<string | null>(null);
-  const [tempDiscountValue, setTempDiscountValue] = useState(0);
-  const [tempDiscountType, setTempDiscountType] = useState<'FIXED' | 'PERCENTAGE'>('FIXED');
-  const [editMode, setEditMode] = useState(false);
-  const [editedItems, setEditedItems] = useState<any[]>([]);
-  const [pastBillView, setPastBillView] = useState<'search' | 'detail'>('search');
+
 
   const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
 
@@ -358,38 +346,29 @@ export function BillingPage() {
     return () => window.removeEventListener('product-added', handler as EventListener);
   }, []);
 
-  useEffect(() => {
-    const search = localStorage.getItem('pastBillSearch');
-    if (search) {
-      setPastBillSearch(search);
-      setShowPastBill(true);
-      localStorage.removeItem('pastBillSearch');
-    }
-  }, []);
-
-  useEffect(() => {
-    const handler = () => {
-      const search = localStorage.getItem('pastBillSearch');
-      if (search) {
-        setPastBillSearch(search);
-        setShowPastBill(true);
-        localStorage.removeItem('pastBillSearch');
-      }
-    };
-    window.addEventListener('open-past-bill', handler);
-    return () => window.removeEventListener('open-past-bill', handler);
-  }, []);
-
   // Listen for Edit Bill from Sales History — loads items directly into cart
   useEffect(() => {
-    const handler = () => {
+    const handler = async () => {
       const raw = localStorage.getItem('editBillData');
       if (!raw) return;
       localStorage.removeItem('editBillData');
 
       try {
-        const { invoice, items: invoiceItems } = JSON.parse(raw);
+        const { invoice, items: invoiceItems, originalRole } = JSON.parse(raw);
         if (!invoiceItems?.length) return;
+
+        // Enrich items with product data (barcode, brand) if missing from invoice items
+        if (!invoiceItems[0]?.sku_barcode) {
+          for (const item of invoiceItems) {
+            if (!item.sku_barcode && item.product_id) {
+              try {
+                const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: item.product_id, limit: 1 });
+                const p = Array.isArray(products) ? products.find((p: any) => p.product_id === item.product_id) : null;
+                if (p) { item.sku_barcode = p.sku_barcode || null; item.brand_manufacturer = p.brand_manufacturer || null; }
+              } catch {}
+            }
+          }
+        }
 
         // Clear current cart and load items
         clearCart();
@@ -408,6 +387,7 @@ export function BillingPage() {
         invoiceItems.forEach((item: any) => {
           const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
           addItem({
+            item_id: item.item_id,
             product_id: productId,
             name: item.name || 'Product',
             base_price: Number(item.unit_price) || 0,
@@ -432,6 +412,9 @@ export function BillingPage() {
           }
         });
 
+        // Restore customer state for correct tax type (CGST/SGST vs IGST)
+        setCustomerState(invoice.customer_state || 'MH');
+
         // Set customer info
         updateActiveTab({
           customerName: invoice.customer_name || '',
@@ -440,6 +423,11 @@ export function BillingPage() {
           paymentMethod: invoice.payment_method || 'PENDING',
           receivedAmount: Number(invoice.received_amount) || 0,
         });
+
+        // Mark as editing existing invoice (so checkout updates instead of creating new)
+        useCartStore.getState().setEditingInvoice(invoice.invoice_id, invoice.invoice_number, originalRole || authRole);
+        // Show the editing invoice number in the tab header
+        updateActiveTab({ title: invoice.invoice_number });
 
         // Sync tab snapshot so items persist across tab switches
         syncActiveSnapshot();
@@ -451,13 +439,6 @@ export function BillingPage() {
     window.addEventListener('open-edit-bill', handler);
     return () => window.removeEventListener('open-edit-bill', handler);
   }, []);
-
-  useEffect(() => {
-    if (showPastBill && pastBillSearch) {
-      const timer = setTimeout(() => handleSearchPast(), 100);
-      return () => clearTimeout(timer);
-    }
-  }, [showPastBill, pastBillSearch]);
 
   const handleSelectProduct = (product: any) => {
     let piecesPerKg;
@@ -832,13 +813,16 @@ export function BillingPage() {
 
         setCheckoutSuccess(true);
         setIsCheckingOut(false);
-        setTimeout(() => {
+        setTimeout(async () => {
           clearCart();
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
           syncActiveSnapshot();
           setCheckoutSuccess(false);
-          reserveScrapInvoiceNumberForTab();
-          reserveInvoiceNumberForTab();
+          await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
+          const tab = getActiveTab();
+          if (tab?.reservedScrapInvoiceNumber) {
+            updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
+          }
         }, 1800);
       } catch {
         setHardwareError('Failed to save scrap invoice');
@@ -854,22 +838,30 @@ export function BillingPage() {
       return;
     }
 
+    const cartStore = useCartStore.getState();
+    const editingInvoiceId = cartStore.editingInvoiceId;
+    const editingInvoiceNumber = cartStore.editingInvoiceNumber;
+    const editingInvoiceRole = cartStore.editingInvoiceRole;
+    const isEditing = !!editingInvoiceId;
+
     const isPaymentPending = paymentMethod === 'PENDING';
     const effectiveReceivedAmount = isPaymentPending ? 0 : receivedAmount;
     const effectiveBalanceAmount = isPaymentPending ? 0 : balanceAmount;
 
-    const invoice_id = uuidv4();
-    // Try cloud server first for conflict-free numbering across computers
+    const invoice_id = isEditing ? editingInvoiceId : uuidv4();
     let invoice_number: string;
-    const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
-    if (serverResult.success && serverResult.invoiceNumber) {
-      invoice_number = serverResult.invoiceNumber;
+    if (isEditing && editingInvoiceNumber) {
+      invoice_number = editingInvoiceNumber;
     } else {
-      // Offline fallback: use local counter
-      const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-      invoice_number = localResult.success && localResult.invoiceNumber
-        ? localResult.invoiceNumber
-        : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
+      if (serverResult.success && serverResult.invoiceNumber) {
+        invoice_number = serverResult.invoiceNumber;
+      } else {
+        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+        invoice_number = localResult.success && localResult.invoiceNumber
+          ? localResult.invoiceNumber
+          : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+      }
     }
 
     // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
@@ -891,7 +883,7 @@ export function BillingPage() {
 
       const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
-      return { item_id: uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
+      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
     });
 
     // Build receipt display items
@@ -984,20 +976,37 @@ export function BillingPage() {
         await window.electronAPI.openCashDrawer(tenantId || 'global');
       }
 
-      const result = await window.electronAPI.dbCheckout({
-        invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
-        invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
-        discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-        grand_total: displayGrandTotal, payment_method: paymentMethod,
-        received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
-        customer_name: customerName || null, customer_phone: customerPhone || null,
-        customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
-        customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
-        scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
-        items: checkoutItems,
-        scrap_items: [],
-      });
-      if (!result.success) { setHardwareError(`Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
+      let result: any;
+      if (isEditing) {
+        result = await window.electronAPI.dbUpdateInvoice({
+          invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
+          subtotal, tax_total: totalTax, discount_total: discount,
+          discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
+          grand_total: displayGrandTotal, payment_method: paymentMethod,
+          customer_name: customerName || null, customer_phone: customerPhone || null,
+          customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
+          customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          items: checkoutItems,
+        });
+      } else {
+        result = await window.electronAPI.dbCheckout({
+          invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
+          invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
+          discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
+          grand_total: displayGrandTotal, payment_method: paymentMethod,
+          received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
+          customer_name: customerName || null, customer_phone: customerPhone || null,
+          customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
+          customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
+          items: checkoutItems,
+          scrap_items: [],
+        });
+      }
+      if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
+
+      // Update tab title to reflect the completed invoice number
+      updateActiveTab({ title: invoice_number });
 
       // If this was a quotation being billed, mark it as CONVERTED
       if (editingQuotationId) {
@@ -1018,13 +1027,17 @@ export function BillingPage() {
 
     setCheckoutSuccess(true);
     setIsCheckingOut(false);
-    setTimeout(() => {
+    setTimeout(async () => {
       clearCart();
       clearScrapDeduction();
       updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
       syncActiveSnapshot();
       setCheckoutSuccess(false);
-      reserveInvoiceNumberForTab();
+      await reserveInvoiceNumberForTab();
+      const tab = getActiveTab();
+      if (tab?.reservedInvoiceNumber) {
+        updateActiveTab({ title: tab.reservedInvoiceNumber });
+      }
     }, 1800);
   };
 
@@ -1035,131 +1048,6 @@ export function BillingPage() {
     stored.push(bill);
     localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
     clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '' }); syncActiveSnapshot();
-  };
-
-  const handleSearchPast = async () => {
-    if (!window.electronAPI || !pastBillSearch) return;
-    setPastBillSuccess(null);
-    setPastBillView('search');
-    const res = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId || 'global', search: pastBillSearch });
-    setFoundInvoices(Array.isArray(res) ? res : []);
-    if (Array.isArray(res) && res.length === 1) {
-      setSelectedPastInvoiceId(res[0].invoice_id);
-    } else {
-      setSelectedPastInvoiceId(null);
-    }
-  };
-
-  const handleSelectPastInvoice = async (inv: any) => {
-    setSelectedPastInvoice(inv);
-    setSelectedPastInvoiceId(inv.invoice_id);
-    setPastBillView('detail');
-    setEditMode(false);
-    setPastBillSuccess(null);
-    setTempDiscountValue(inv.discount_value || 0);
-    setTempDiscountType(inv.discount_type || 'FIXED');
-    if (window.electronAPI) {
-      const data = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
-      const items = Array.isArray(data) ? data : [];
-      setPastInvoiceItems(items);
-      setEditedItems(items.map((item: any) => ({ ...item })));
-    }
-  };
-
-  const handleEditItem = (index: number, field: string, value: any) => {
-    setEditedItems(prev => {
-      const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
-      if (field === 'quantity' || field === 'unit_price') {
-        const qty = field === 'quantity' ? Number(value) : Number(updated[index].quantity);
-        const price = field === 'unit_price' ? Number(value) : Number(updated[index].unit_price);
-        updated[index].total = qty * price;
-      }
-      return updated;
-    });
-  };
-
-  const handleRemoveEditItem = (index: number) => {
-    setEditedItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleSavePastBill = async () => {
-    if (!window.electronAPI || !selectedPastInvoice || !authRole) return;
-    setIsSavingPastBill(true);
-    setPastBillSuccess(null);
-    try {
-      const newSubtotal = editedItems.reduce((sum, item) => sum + item.total, 0);
-      const newTaxTotal = editedItems.reduce((sum, item) => sum + (item.tax_amount || 0), 0);
-      let newDiscountTotal = 0;
-      if (tempDiscountType === 'PERCENTAGE') {
-        newDiscountTotal = newSubtotal * (tempDiscountValue / 100);
-      } else {
-        newDiscountTotal = tempDiscountValue;
-      }
-      const newGrandTotal = newSubtotal + newTaxTotal - newDiscountTotal;
-
-      const r = await window.electronAPI.dbUpdateInvoice({
-        invoice_id: selectedPastInvoice.invoice_id,
-        tenant_id: tenantId || 'global',
-        role: authRole,
-        subtotal: newSubtotal,
-        tax_total: newTaxTotal,
-        discount_total: newDiscountTotal,
-        discount_type: tempDiscountType,
-        discount_value: tempDiscountValue,
-        grand_total: newGrandTotal,
-        payment_method: selectedPastInvoice.payment_method || 'PENDING',
-        customer_name: selectedPastInvoice.customer_name,
-        customer_phone: selectedPastInvoice.customer_phone,
-        customer_gstin: selectedPastInvoice.customer_gstin,
-        customer_state: selectedPastInvoice.customer_state,
-        items: editedItems.map(item => ({
-          item_id: item.item_id,
-          product_id: item.product_id,
-          name: item.name,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          tax_amount: Number(item.tax_amount || 0),
-          total: Number(item.total),
-        })),
-      });
-      if (r.success) {
-        setPastBillSuccess('Bill updated successfully!');
-        setEditMode(false);
-      } else {
-        alert('Failed: ' + r.error);
-      }
-    } catch {
-      alert('Failed to save bill');
-    } finally {
-      setIsSavingPastBill(false);
-    }
-  };
-
-  const handleApplyPastDiscount = async () => {
-    if (!window.electronAPI || !selectedPastInvoiceId || !authRole) return;
-    setIsSavingPastBill(true);
-    setPastBillSuccess(null);
-    try {
-      const r = await window.electronAPI.dbApplyInvoiceDiscount({
-        invoice_id: selectedPastInvoiceId,
-        discount_type: tempDiscountType,
-        discount_value: tempDiscountValue,
-        role: authRole,
-      });
-      if (r.success) {
-        setPastBillSuccess('Discount applied successfully!');
-        if (selectedPastInvoice) {
-          setSelectedPastInvoice({ ...selectedPastInvoice, discount_type: tempDiscountType, discount_value: tempDiscountValue });
-        }
-      } else {
-        alert('Failed: ' + r.error);
-      }
-    } catch {
-      alert('Failed to apply discount');
-    } finally {
-      setIsSavingPastBill(false);
-    }
   };
 
   useKeyboardShortcuts({
@@ -1228,7 +1116,7 @@ export function BillingPage() {
                     ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
                     : 'text-primary bg-primary/10 border-primary/20'
               )}>
-                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (nextInvoiceNumber || '')}
+                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : nextInvoiceNumber || '')}
               </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
@@ -1358,13 +1246,7 @@ export function BillingPage() {
                     </button>
                   )}
                 </div>
-                <button
-                  onClick={() => setShowPastBill(true)}
-                    className="px-3 py-2.5 bg-background hover:bg-muted border border-border/80 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground transition-all duration-200 flex items-center gap-1.5 whitespace-nowrap shadow-sm active:scale-95 cursor-pointer"
-                  >
-                    <Receipt className="w-3.5 h-3.5 text-primary" />
-                  <span>Past Bill</span>
-                </button>
+
               </div>
 
               {(isScrapMode ? scrapSearchResults.length > 0 : results.length > 0) && (
@@ -2180,6 +2062,11 @@ export function BillingPage() {
                         <div className="w-4 h-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
                         <span>FINALIZING...</span>
                       </>
+                    ) : editingActive ? (
+                      <>
+                        <CreditCard className="w-4.5 h-4.5" />
+                        <span>UPDATE &amp; PRINT (F12)</span>
+                      </>
                     ) : (
                       <>
                         <CreditCard className="w-4.5 h-4.5" />
@@ -2276,294 +2163,7 @@ export function BillingPage() {
         </div>
       </Modal>
 
-      {/* ─── Past Bill Modal Archive ─── */}
-      <Modal
-        isOpen={showPastBill}
-        onClose={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
-        title={
-          <div className="flex items-center gap-2.5 font-bold text-foreground">
-            <Receipt className="w-5 h-5 text-primary" />
-            <span>Invoice History Archive</span>
-          </div>
-        }
-      >
-        <div className="space-y-4 min-w-[560px] text-foreground">
-          {pastBillSuccess && pastBillView === 'search' ? (
-            <div className="p-8 bg-primary/5 text-primary border border-primary/20 rounded-2xl text-center space-y-4 shadow-inner">
-              <CheckCircle2 className="w-12 h-12 mx-auto text-primary animate-pulse" />
-              <div>
-                <p className="font-black text-base">{pastBillSuccess}</p>
-                <p className="text-xs text-muted-foreground/80 mt-1">Receipt configurations updated on active POS databases</p>
-              </div>
-              <button
-                onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
-                className="px-4 py-2 text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200"
-              >
-                Close View
-              </button>
-            </div>
-          ) : pastBillView === 'detail' && selectedPastInvoice ? (
-            <div className="space-y-4.5">
-              {/* Back link */}
-              <button
-                onClick={() => { setPastBillView('search'); setEditMode(false); }}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 font-bold transition-colors active:scale-95"
-              >
-                &larr; Back to Search Archive
-              </button>
 
-              {/* Invoice details header */}
-              <div className="flex justify-between items-start border-b border-border/60 pb-3">
-                <div>
-                  <h3 className="font-extrabold text-base text-foreground tracking-wide">{selectedPastInvoice.invoice_number}</h3>
-                  <p className="text-xs text-muted-foreground mt-0.5">{new Date(selectedPastInvoice.created_at).toLocaleString()}</p>
-                </div>
-                <div className="text-right">
-                  <div className="text-xl font-black text-primary">{formatCurrency(selectedPastInvoice.grand_total)}</div>
-                  <div className="text-xs text-muted-foreground font-semibold mt-0.5 uppercase tracking-wider">{selectedPastInvoice.payment_method}</div>
-                </div>
-              </div>
-
-              {/* Customer summary */}
-              {(selectedPastInvoice.customer_name || selectedPastInvoice.customer_phone) && (
-                <div className="grid grid-cols-2 gap-4 p-3.5 bg-muted/40 border border-border/50 rounded-2xl text-sm">
-                  {selectedPastInvoice.customer_name && (
-                    <div>
-                      <span className="text-muted-foreground font-medium text-sm">Customer Name:</span>
-                      <p className="font-bold text-foreground mt-0.5 text-sm">{selectedPastInvoice.customer_name}</p>
-                    </div>
-                  )}
-                  {selectedPastInvoice.customer_phone && (
-                    <div>
-                      <span className="text-muted-foreground font-medium text-sm">Phone Number:</span>
-                      <p className="font-bold text-foreground mt-0.5 text-sm">{selectedPastInvoice.customer_phone}</p>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Invoice items table */}
-              <div className="border border-border/80 rounded-2xl overflow-hidden bg-card shadow-sm">
-                <div className="grid grid-cols-12 gap-2.5 px-4 py-2.5 text-xs font-black text-muted-foreground bg-muted/40 uppercase tracking-widest border-b border-border">
-                  <div className="col-span-5">Product Details</div>
-                  <div className="col-span-2 text-center">Qty</div>
-                  <div className="col-span-2 text-right">Rate</div>
-                  <div className="col-span-2 text-right">Total</div>
-                  {editMode && <div className="col-span-1" />}
-                </div>
-                <div className="divide-y divide-border/50 max-h-60 overflow-y-auto">
-                  {(editMode ? editedItems : pastInvoiceItems).map((item, index) => (
-                    <div key={item.item_id || index} className="grid grid-cols-12 gap-2.5 px-4 py-3 items-center text-sm">
-                      <div className="col-span-5 font-bold text-foreground/90 truncate">{item.name}</div>
-                      {editMode ? (
-                        <>
-                          <div className="col-span-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              className="w-full text-center h-8 bg-muted/30 border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={item.quantity}
-                              onChange={e => handleEditItem(index, 'quantity', e.target.value === '' ? 0 : Number(e.target.value))}
-                            />
-                          </div>
-                          <div className="col-span-2">
-                            <input
-                              type="number"
-                              min="0"
-                              step="any"
-                              className="w-full text-right h-8 bg-muted/30 border border-border rounded-xl text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={item.unit_price}
-                              onChange={e => handleEditItem(index, 'unit_price', e.target.value === '' ? 0 : Number(e.target.value))}
-                            />
-                          </div>
-                          <div className="col-span-2 text-right font-extrabold text-foreground">{formatCurrency(item.total)}</div>
-                          <div className="col-span-1 text-right">
-                            <button
-                              onClick={() => handleRemoveEditItem(index)}
-                              className="p-1 text-muted-foreground/60 hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors border border-destructive/30"
-                            >
-                              <X className="w-3.5 h-3.5 text-destructive" />
-                            </button>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="col-span-2 text-center text-muted-foreground font-semibold">{item.quantity}</div>
-                          <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(item.unit_price)}</div>
-                          <div className="col-span-2 text-right font-extrabold text-foreground">{formatCurrency(item.total)}</div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Detail Totals calculation summary */}
-              <div className="space-y-2 text-sm border-b border-border/50 pb-3">
-                <div className="flex justify-between text-muted-foreground font-medium">
-                  <span>Subtotal</span>
-                  <span className="font-bold text-foreground">{formatCurrency(editMode ? editedItems.reduce((s, i) => s + i.total, 0) : selectedPastInvoice.subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground font-medium">
-                  <span>Tax Amount</span>
-                  <span className="font-bold text-foreground">{formatCurrency(editMode ? editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) : selectedPastInvoice.tax_total)}</span>
-                </div>
-                {selectedPastInvoice.discount_total > 0 && !editMode && (
-                  <div className="flex justify-between text-destructive font-medium">
-                    <span>Discount Applied {selectedPastInvoice.discount_type === 'PERCENTAGE' && selectedPastInvoice.discount_value ? `(${selectedPastInvoice.discount_value}%)` : ''}</span>
-                    <span className="font-bold">-{formatCurrency(selectedPastInvoice.discount_total)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between font-black text-sm pt-2.5 border-t border-border">
-                  <span>Grand Total</span>
-                  <span className="text-primary font-black text-base">
-                    {formatCurrency(
-                      editMode
-                        ? (editedItems.reduce((s, i) => s + i.total, 0) + editedItems.reduce((s, i) => s + (i.tax_amount || 0), 0) -
-                          (tempDiscountType === 'PERCENTAGE'
-                            ? editedItems.reduce((s, i) => s + i.total, 0) * (tempDiscountValue / 100)
-                            : tempDiscountValue))
-                        : selectedPastInvoice.grand_total
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              {/* Admin modifications block */}
-              {authRole === 'OWNER' && (
-                <div className="space-y-4 p-4 bg-muted/20 border border-border/60 rounded-2xl shadow-inner">
-                  <div className="space-y-3">
-                    <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">Apply Special Discount Override</div>
-                    <div className="flex gap-2 p-1 bg-muted rounded-xl border border-border/40 text-sm">
-                      <button
-                        onClick={() => setTempDiscountType('FIXED')}
-                        className={clsx(
-                          'flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer',
-                          tempDiscountType === 'FIXED' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                        )}
-                      >
-                        Fixed Amount (₹)
-                      </button>
-                      <button
-                        onClick={() => setTempDiscountType('PERCENTAGE')}
-                        className={clsx(
-                          'flex-1 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer',
-                          tempDiscountType === 'PERCENTAGE' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                        )}
-                      >
-                        Percentage (%)
-                      </button>
-                    </div>
-                    <Input
-                      type="number"
-                      min="0"
-                      max={tempDiscountType === 'PERCENTAGE' ? '100' : undefined}
-                      value={tempDiscountValue || ''}
-                      onChange={e => setTempDiscountValue(Number(e.target.value))}
-                      placeholder={tempDiscountType === 'PERCENTAGE' ? 'Enter discount %' : 'Enter discount amount'}
-                      className="bg-background rounded-xl border border-border/80 py-2 text-sm font-bold focus:ring-primary/20"
-                    />
-                  </div>
-
-                  <div className="flex gap-3 pt-1">
-                    {!editMode ? (
-                      <>
-                        <Button variant="outline" onClick={() => setEditMode(true)} className="flex-1 rounded-xl py-2.5 text-sm font-bold border-border/80">
-                          <Tag className="w-3.5 h-3.5 mr-1 text-primary" /> Modify Items
-                        </Button>
-                        <Button onClick={handleApplyPastDiscount} disabled={isSavingPastBill} className="flex-1 rounded-xl py-2.5 text-sm font-black shadow-md">
-                          {isSavingPastBill ? 'Applying...' : 'Apply Discount'}
-                        </Button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => { setEditMode(false); setEditedItems(pastInvoiceItems.map((i: any) => ({ ...i }))); }}
-                          className="flex-1 px-4 py-2.5 text-sm font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200 active:scale-95"
-                        >
-                          Cancel Editing
-                        </button>
-                        <Button onClick={handleSavePastBill} disabled={isSavingPastBill} className="flex-1 rounded-xl py-2.5 text-sm font-black shadow-md">
-                          {isSavingPastBill ? 'Saving...' : 'Save Changes'}
-                        </Button>
-                      </>
-                    )}
-                  </div>
-
-                  {pastBillSuccess && (
-                    <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-xl text-center text-xs font-bold animate-in fade-in">
-                      <CheckCircle2 className="w-4 h-4 inline mr-1.5 text-emerald-500" />
-                      {pastBillSuccess}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              <div className="flex justify-end pt-2 border-t border-border/40">
-                <button
-                  onClick={() => { setShowPastBill(false); setPastBillSuccess(null); setPastBillView('search'); }}
-                  className="px-4 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 border border-destructive/20 rounded-xl transition-all duration-200"
-                >
-                  Close Archive
-                </button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-2.5">
-                <Input
-                  placeholder="Enter invoice ID, number, or customer name..."
-                  value={pastBillSearch}
-                  onChange={e => setPastBillSearch(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSearchPast(); } }}
-                  className="rounded-xl bg-background border border-border/80 text-sm font-medium focus:ring-primary/20"
-                />
-                <Button onClick={handleSearchPast} className="rounded-xl px-5 text-sm font-bold tracking-wide">Search</Button>
-              </div>
-              {foundInvoices.length > 0 && (
-                <div className="space-y-2 max-h-[320px] overflow-y-auto pt-2.5">
-                  {foundInvoices.map(inv => (
-                    <div
-                      key={inv.invoice_id}
-                      onClick={() => handleSelectPastInvoice(inv)}
-                      className={clsx(
-                        'p-3.5 border rounded-2xl cursor-pointer flex justify-between items-center transition-all duration-200 text-sm hover:-translate-y-px hover:shadow-md',
-                        selectedPastInvoiceId === inv.invoice_id
-                          ? 'border-primary bg-primary/5 shadow-sm shadow-primary/5'
-                          : 'border-border/80 hover:bg-muted/40'
-                      )}
-                    >
-                      <div className="space-y-1">
-                        <div className="font-bold text-foreground/90">{inv.invoice_number}</div>
-                        <div className="text-xs text-muted-foreground font-mono">{new Date(inv.created_at).toLocaleString()}</div>
-                        {inv.discount_total > 0 && (
-                          <div className="text-xs text-destructive font-black bg-destructive/5 border border-destructive/10 px-1.5 py-0.5 rounded inline-block">
-                            Discounted (-{formatCurrency(inv.discount_total)})
-                          </div>
-                        )}
-                      </div>
-                      <div className="text-right space-y-1">
-                        <div className="font-black text-primary text-sm">{formatCurrency(inv.grand_total)}</div>
-                        {inv.biller_name && (
-                          <div className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded inline-block font-semibold">
-                            {inv.biller_name}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {foundInvoices.length === 0 && pastBillSearch && (
-                <div                className="text-center text-muted-foreground/60 text-sm py-8 bg-muted/20 border border-border/50 border-dashed rounded-2xl">
-                  No match found in active invoice records
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </Modal>
 
     </div>
   );

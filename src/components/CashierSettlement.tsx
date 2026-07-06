@@ -290,13 +290,13 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
             </div>
             <div className="flex items-center gap-1.5">
               <button
-                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_IN'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId); if (Array.isArray(p)) setParties(p); } }}
+                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_IN'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId!); if (Array.isArray(p)) setParties(p); } }}
                 className="px-3 py-2 rounded-xl text-xs font-bold text-emerald-500 hover:bg-emerald-500/10 border border-emerald-500/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
                 <Plus className="w-3.5 h-3.5" /> Cash In
               </button>
               <button
-                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_OUT'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId); if (Array.isArray(p)) setParties(p); } }}
+                onClick={async () => { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setTxnType('CASH_OUT'); setShowTxnModal(true); if (!parties.length) { const p = await window.electronAPI!.dbGetParties(tenantId!); if (Array.isArray(p)) setParties(p); } }}
                 className="px-3 py-2 rounded-xl text-xs font-bold text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center gap-1.5"
               >
                 <Minus className="w-3.5 h-3.5" /> Expense

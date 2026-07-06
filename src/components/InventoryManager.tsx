@@ -926,7 +926,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       {/* Action Header inside page */}
       {view === 'list' && (
         <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
-          <div className="flex-1 max-w-lg">
+          <div className="flex-1 w-full">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input

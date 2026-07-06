@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 export interface CartItem {
+  item_id?: string;
   product_id: string;
   name: string;
   base_price: number;
@@ -41,6 +42,9 @@ interface CartState {
   isQuotationMode: boolean;
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
+  editingInvoiceId: string | null;
+  editingInvoiceNumber: string | null;
+  editingInvoiceRole: 'OWNER' | 'BILLER' | null;
 
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'>) => void;
@@ -58,6 +62,7 @@ interface CartState {
   clearScrapDeduction: () => void;
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
+  setEditingInvoice: (id: string | null, number: string | null, role: 'OWNER' | 'BILLER' | null) => void;
   clearCart: () => void;
 }
 
@@ -78,6 +83,9 @@ export const useCartStore = create<CartState>()(
       isQuotationMode: false,
       editingQuotationId: null,
       editingQuotationNumber: null,
+      editingInvoiceId: null,
+      editingInvoiceNumber: null,
+      editingInvoiceRole: null,
 
       addItem: (newItem) =>
         set((state) => {
@@ -120,7 +128,8 @@ export const useCartStore = create<CartState>()(
       clearScrapDeduction: () => set({ scrapDeduction: 0, scrapInvoiceNumber: '' }),
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null }),
+      setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null }),
     }),
     {
       name: 'vendora-cart-storage',

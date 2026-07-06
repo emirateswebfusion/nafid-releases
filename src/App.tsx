@@ -378,7 +378,7 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground select-none">
+    <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
       {currentUserRole === 'OWNER' && <DomainWizard />}
       {showStaffManager && <StaffManager onClose={() => setShowStaffManager(false)} />}
       {showPartyManager && <PartyManager onClose={() => setShowPartyManager(false)} />}
