@@ -1630,7 +1630,8 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
         SUM(st.total_amount) as total_amount,
         MAX(st.payment_status) as payment_status,
         MIN(st.created_at) as created_at,
-        MAX(st.created_at) as updated_at
+        MAX(st.created_at) as updated_at,
+        MAX(st.party_name) as party_name
       FROM scrap_transactions st
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
       WHERE st.tenant_id = ? AND st.scrap_invoice_number IS NOT NULL AND st.type = 'PURCHASE'

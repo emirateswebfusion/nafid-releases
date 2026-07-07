@@ -760,9 +760,10 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
           <div className="space-y-4">
             <div className="border border-border rounded-xl overflow-hidden">
               <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
-                <div className="col-span-3">Invoice Number</div>
+                <div className="col-span-2">Invoice No.</div>
+                <div className="col-span-2">Customer</div>
                 <div className="col-span-2 text-center">Date</div>
-                <div className="col-span-2 text-center">Items</div>
+                <div className="col-span-1 text-center">Items</div>
                 <div className="col-span-2 text-right">Qty</div>
                 <div className="col-span-2 text-right">Total Amount</div>
                 <div className="col-span-1 text-center">Action</div>
@@ -776,18 +777,21 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : invoices.map((inv: any) => (
                   <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
-                    <div className="col-span-3">
+                    <div className="col-span-2">
                       <div className="flex items-center gap-2">
                         <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
                           <Recycle className="w-3.5 h-3.5" />
                         </div>
-                        <span className="font-bold text-sm text-foreground">{inv.invoice_number}</span>
+                        <span className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</span>
                       </div>
+                    </div>
+                    <div className="col-span-2 text-xs text-muted-foreground font-semibold truncate">
+                      {inv.party_name || '-'}
                     </div>
                     <div className="col-span-2 text-center text-xs text-muted-foreground font-semibold">
                       {new Date(inv.created_at).toLocaleDateString('en-IN')}
                     </div>
-                    <div className="col-span-2 text-center font-bold text-sm text-foreground">
+                    <div className="col-span-1 text-center font-bold text-sm text-foreground">
                       {inv.item_count}
                     </div>
                     <div className="col-span-2 text-right font-bold text-sm text-foreground">
@@ -826,6 +830,9 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                   <div className="text-right">
                     <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
                     <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
+                    {invoiceDetailTxs[0]?.party_name && (
+                      <p className="text-xs font-semibold text-foreground/70 mt-0.5">{invoiceDetailTxs[0].party_name}</p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-0.5">{invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(3)} {invoiceDetailTxs[0]?.unit || 'Kgs'} &middot; {invoiceDetailTxs.length} item(s)</p>
                   </div>
                   <button
