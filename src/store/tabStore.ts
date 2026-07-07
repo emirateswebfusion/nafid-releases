@@ -25,6 +25,7 @@ export interface Tab {
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
   reservedQuotationNumber: string;
+  scrapPaymentStatus: 'CASH' | 'PENDING';
 }
 
 interface TabState {
@@ -59,6 +60,7 @@ function createDefaultTab(): Tab {
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',
     reservedQuotationNumber: '',
+    scrapPaymentStatus: 'PENDING',
   };
 }
 

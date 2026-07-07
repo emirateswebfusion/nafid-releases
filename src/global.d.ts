@@ -88,6 +88,7 @@ export interface IElectronAPI {
   dbPeekNextScrapInvoiceNumber: (args: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<any>;
   dbGetScrapInvoiceList: (args: { tenant_id: string }) => Promise<any[]>;
+  dbUpdateScrapInvoicePaymentStatus: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string }) => Promise<{ success: boolean; error?: string }>;
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;

@@ -711,6 +711,17 @@ export function initDb() {
     console.warn('[DB Migration] Failed to recreate scrap_transactions table:', e.message);
   }
 
+  // Migration: Add payment_status column to scrap_transactions
+  try {
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    if (!scrapTxCols.includes('payment_status')) {
+      console.log('[DB Migration] Adding payment_status to scrap_transactions...');
+      db.exec("ALTER TABLE scrap_transactions ADD COLUMN payment_status TEXT DEFAULT 'CASH'");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add payment_status column:', e.message);
+  }
+
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
   db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");
 

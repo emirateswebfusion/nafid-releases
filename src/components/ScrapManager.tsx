@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck } from 'lucide-react';
+import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 
@@ -493,12 +494,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground mb-1">Unit</label>
-                  <select value={formData.unit} onChange={e => setFormData(p => ({ ...p, unit: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all appearance-none text-sm">
-                    <option value="Kgs">Kgs</option>
-                    <option value="Pcs">Pcs</option>
-                    <option value="Grams">Grams</option>
-                    <option value="Ltrs">Ltrs</option>
-                  </select>
+                  <Select value={formData.unit} onChange={v => setFormData(p => ({ ...p, unit: v }))} options={[{value:'Kgs',label:'Kgs'},{value:'Pcs',label:'Pcs'},{value:'Grams',label:'Grams'},{value:'Ltrs',label:'Ltrs'}]} />
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-border/60">

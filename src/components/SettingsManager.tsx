@@ -11,6 +11,7 @@ import { useThemeStore } from '../store/themeStore';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 import { SettingsGrades } from './SettingsGrades';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
@@ -144,7 +145,6 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const { shopDomain } = useCartStore();
   const { role, updateDomain } = useAuthStore();
   const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
-  const [checkingUpdate, setCheckingUpdate] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
   const [updateReady, setUpdateReady] = useState(false);
@@ -204,9 +204,17 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     }
     if (window.electronAPI.onUpdateInfo) {
       window.electronAPI.onUpdateInfo((info: any) => {
-        if (info) setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
+        if (info) {
+          setUpdateInfo({ version: info.version, releaseDate: info.releaseDate, releaseNotes: info.releaseNotes });
+          setIsDownloading(true);
+          setUpdateStatus('Downloading...');
+          window.electronAPI!.appDownloadUpdate().then((res: any) => {
+            if (!res.success) { setIsDownloading(false); setUpdateStatus('Download failed'); }
+          });
+        }
       });
     }
+    window.electronAPI.appCheckForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -329,26 +337,6 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     setSaving(false);
   };
 
-  const handleCheckUpdate = async () => {
-    if (!window.electronAPI) return;
-    setCheckingUpdate(true); setUpdateStatus('Checking for updates...'); setUpdateInfo(null); setUpdateReady(false); setIsDownloading(false); setDownloadProgress(null); setMessage(null);
-    try {
-      const res = await window.electronAPI.appCheckForUpdates();
-      setLastChecked(new Date());
-      if (res && res.success === false) { setUpdateStatus(null); setMessage({ type: 'error', text: res.error }); setTimeout(() => setMessage(null), 3000); }
-      else if (res.updateInfo && !updateInfo) { setUpdateInfo({ version: res.updateInfo.version, releaseDate: res.updateInfo.releaseDate, releaseNotes: res.updateInfo.releaseNotes }); setUpdateStatus('Update available'); }
-      else if (!res.updateInfo && !updateInfo) { setUpdateStatus('Up to date'); }
-    } catch (err: any) { setUpdateStatus(null); setMessage({ type: 'error', text: `Update check failed: ${err.message || 'Unknown error'}` }); setTimeout(() => setMessage(null), 3000); }
-    finally { setCheckingUpdate(false); }
-  };
-
-  const handleDownloadUpdate = async () => {
-    if (!window.electronAPI) return;
-    setIsDownloading(true); setDownloadProgress(null); setUpdateStatus('Downloading...');
-    const res = await window.electronAPI.appDownloadUpdate();
-    if (!res.success) { setIsDownloading(false); setUpdateStatus('Download failed'); setMessage({ type: 'error', text: res.error || 'Download failed' }); setTimeout(() => setMessage(null), 3000); }
-  };
-
   const handleInstallUpdate = () => { setUpdateStatus('Restarting to install update...'); window.electronAPI?.appInstallUpdate(); };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -434,9 +422,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
-              <select className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none cursor-pointer text-sm font-medium" value={shopState} onChange={(e) => setShopState(e.target.value)}>
-                {INDIAN_STATES.map((state) => (<option key={state.code} value={state.code}>{state.name} ({state.code})</option>))}
-              </select>
+              <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
             </div>
           </div>
         );
@@ -1302,10 +1288,7 @@ Discount          ₹-50.00
             ) : (
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
-                <select className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer" value={barcodePrinter.deviceName || ''} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, deviceName: e.target.value })}>
-                  <option value="">-- Select a printer --</option>
-                  {osPrinters.map(p => (<option key={p.name} value={p.name}>{p.name}</option>))}
-                </select>
+                <Select value={barcodePrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
               </div>
             )}
             {barcodePrinter.type === 'usb' && (
@@ -1354,10 +1337,7 @@ Discount          ₹-50.00
             ) : (
               <div className="col-span-2 space-y-2">
                 <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
-                <select className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer" value={receiptPrinter.deviceName || ''} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, deviceName: e.target.value })}>
-                  <option value="">-- Select a printer --</option>
-                  {osPrinters.map(p => (<option key={p.name} value={p.name}>{p.name}</option>))}
-                </select>
+                <Select value={receiptPrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
               </div>
             )}
             <div className="col-span-2 space-y-2">
@@ -1372,10 +1352,7 @@ Discount          ₹-50.00
           <div className="space-y-5">
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select A4 Printer</label>
-              <select className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer" value={a4Printer.deviceName || ''} onChange={(e) => setA4Printer({ ...a4Printer, deviceName: e.target.value })}>
-                <option value="">-- Use default system printer --</option>
-                {osPrinters.map(p => (<option key={p.name} value={p.name}>{p.name}</option>))}
-              </select>
+              <Select value={a4Printer.deviceName} placeholder="-- Use default system printer --" onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
               <p className="text-[10px] text-muted-foreground mt-1">Choose a printer for A4 documents (quotations, invoices, reports). Leave as default to use system printer dialog.</p>
             </div>
           </div>
@@ -1389,14 +1366,7 @@ Discount          ₹-50.00
             </div>
             <div className="space-y-2">
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Baud Rate</label>
-              <select className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all appearance-none text-sm font-medium cursor-pointer" value={scale.baudRate} onChange={(e) => setScale({ ...scale, baudRate: parseInt(e.target.value) })}>
-                <option value="2400">2400</option>
-                <option value="4800">4800</option>
-                <option value="9600">9600</option>
-                <option value="19200">19200</option>
-                <option value="38400">38400</option>
-                <option value="115200">115200</option>
-              </select>
+              <Select value={String(scale.baudRate)} onChange={v => setScale({ ...scale, baudRate: parseInt(v) })} options={['2400','4800','9600','19200','38400','115200'].map(b => ({value:b,label:b}))} />
             </div>
           </div>
         );
@@ -1417,7 +1387,7 @@ Discount          ₹-50.00
                   </div>
                   {updateStatus && (
                     <div className={clsx("flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border shrink-0", updateStatus === 'Up to date' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : updateStatus === 'Update available' || updateStatus === 'Update ready to install' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" : updateStatus === 'Downloading...' || isDownloading ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 border-border text-muted-foreground")}>
-                      {checkingUpdate ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                      {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
                       {updateStatus}
                     </div>
                   )}
@@ -1463,13 +1433,6 @@ Discount          ₹-50.00
                     <div className="flex items-center justify-between mt-2"><p className="text-[11px] text-muted-foreground">{Math.round(downloadProgress.percent)}%</p><p className="text-[11px] text-muted-foreground">{formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}</p></div>
                   </div>
                 )}
-                {!updateReady && !isDownloading && (
-                  <div className="px-5 pb-4">
-                    <button onClick={handleDownloadUpdate} className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer">
-                      <Download className="w-4 h-4" /> Download Update
-                    </button>
-                  </div>
-                )}
                 {updateReady && (
                   <div className="px-5 pb-4">
                     <button onClick={handleInstallUpdate} className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer">
@@ -1479,11 +1442,6 @@ Discount          ₹-50.00
                 )}
               </div>
             )}
-            <button onClick={handleCheckUpdate} disabled={checkingUpdate}
-              className="flex items-center justify-center gap-2.5 w-full h-11 rounded-xl font-bold text-sm border border-border/80 bg-card hover:bg-primary/5 hover:border-primary/30 hover:text-primary transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed">
-              {checkingUpdate ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              {checkingUpdate ? 'Checking for Updates...' : 'Check for Updates'}
-            </button>
           </div>
         );
       case 'appearance':

@@ -4,6 +4,7 @@ import { Plus, X, Search, Printer, Shield, Trash2, Clock, AlertTriangle, CheckCi
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
+import { Select } from './ui/Select';
 
 interface Warranty {
   warranty_id: string;
@@ -358,15 +359,7 @@ export function WarrantyManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Warranty Period</label>
-                  <select value={form.warranty_period_days} onChange={e => setForm(p => ({ ...p, warranty_period_days: Number(e.target.value) }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm">
-                    <option value={30}>30 Days</option>
-                    <option value={90}>90 Days</option>
-                    <option value={180}>6 Months</option>
-                    <option value={365}>1 Year</option>
-                    <option value={730}>2 Years</option>
-                    <option value={1095}>3 Years</option>
-                    <option value={1825}>5 Years</option>
-                  </select>
+                  <Select value={String(form.warranty_period_days)} onChange={v => setForm(p => ({ ...p, warranty_period_days: Number(v) }))} options={[{value:'30',label:'30 Days'},{value:'90',label:'90 Days'},{value:'180',label:'6 Months'},{value:'365',label:'1 Year'},{value:'730',label:'2 Years'},{value:'1095',label:'3 Years'},{value:'1825',label:'5 Years'}]} />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Auto-calculated Expiry Date</label>

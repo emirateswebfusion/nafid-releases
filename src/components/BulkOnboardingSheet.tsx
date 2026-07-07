@@ -5,6 +5,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
 
 interface RowData {
@@ -585,10 +586,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                       )}
                     </td>
                     <td className="p-1">
-                      <select value={row.grade_id} onChange={(e) => updateRow(index, 'grade_id', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md disabled:opacity-50" disabled={!row.category || availableGrades.length === 0}>
-                        <option value="">- Grade -</option>
-                        {availableGrades.map(g => <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (₹{g.rate})</option>)}
-                      </select>
+                      <Select value={row.grade_id} onChange={v => updateRow(index, 'grade_id', v)} placeholder="- Grade -" disabled={!row.category || availableGrades.length === 0} options={availableGrades.map(g => ({value:g.grade_id,label:g.grade_name+' (₹'+g.rate+')'}))} />
                     </td>
                     <td className="p-1"><input type="text" value={row.purchase_price} onChange={(e) => updateRow(index, 'purchase_price', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" placeholder="0" /></td>
                     <td className="p-1"><input type="text" value={row.mrp} onChange={(e) => updateRow(index, 'mrp', e.target.value.replace(/[^0-9.]/g, ''))} className={`w-full bg-transparent px-2 py-1.5 outline-none border ${row.error && row.name && !row.mrp ? 'border-destructive' : 'border-transparent focus:border-primary'} rounded-md font-bold`} placeholder="0" /></td>
@@ -600,9 +598,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                     <td className="p-1 text-center"><input type="checkbox" checked={row.is_gst_applicable} onChange={(e) => updateRow(index, 'is_gst_applicable', e.target.checked)} className="w-4 h-4 accent-primary" /></td>
                     <td className="p-1"><input type="text" value={row.tax_rate_percent} onChange={(e) => updateRow(index, 'tax_rate_percent', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" disabled={!row.is_gst_applicable} /></td>
                     <td className="p-1">
-                      <select value={row.uom} onChange={(e) => updateRow(index, 'uom', e.target.value)} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md">
-                        {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
-                      </select>
+                      <Select value={row.uom} onChange={v => updateRow(index, 'uom', v)} options={['Pcs','Kgs','Grams','Mtrs','Ltrs','Box','Dozen'].map(u => ({value:u,label:u}))} />
                     </td>
                     <td className="p-1 text-center sticky right-0 bg-card z-10">
                       <button onClick={() => removeRow(index)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>

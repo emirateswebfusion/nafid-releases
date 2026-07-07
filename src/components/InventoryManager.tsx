@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { Select } from './ui/Select';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -956,15 +957,17 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
               }}
             />
             <div className="h-5 w-px bg-border" />
-            <select
+            <Select
               value={sortBy}
-              onChange={e => setSortBy(e.target.value as any)}
-              className="bg-background border border-border rounded-xl py-2.5 px-4 pr-8 text-sm font-medium text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all"
-            >
-              <option value="name">Sort by Name</option>
-              <option value="created_at">Sort by Date Added</option>
-              <option value="updated_at">Sort by Date Updated</option>
-            </select>
+              onChange={v => setSortBy(v as any)}
+              options={[
+                { value: 'name', label: 'Sort by Name' },
+                { value: 'created_at', label: 'Sort by Date Added' },
+                { value: 'updated_at', label: 'Sort by Date Updated' },
+              ]}
+              className="min-w-[180px]"
+              triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
+            />
             <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border/80 rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
@@ -1240,37 +1243,38 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                              )}
                           </div>
                         ) : (
-                          <select 
-                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')} 
-                            onChange={e => {
-                              if (e.target.value === 'CUSTOM') {
+                          <Select
+                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')}
+                            onChange={v => {
+                              if (v === 'CUSTOM') {
                                 setIsCustomCategory(true);
                                 handleInputChange('category', '');
                               } else {
-                                handleInputChange('category', e.target.value);
+                                handleInputChange('category', v);
                               }
-                            }} 
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
-                          >
-                            <option value="">-- Select Category --</option>
-                            {configuredCategories.map(c => <option key={String(c)} value={String(c)}>{c}</option>)}
-                            <option value="CUSTOM">Custom...</option>
-                          </select>
+                            }}
+                            placeholder="-- Select Category --"
+                            options={[
+                              ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
+                              { value: 'CUSTOM', label: 'Custom...' }
+                            ]}
+                            triggerClassName="rounded-xl h-[46px]"
+                          />
                         )}
                       </div>
                       {grades.filter(g => g.category === formData.category).length > 0 && (
                         <div className="p-4 bg-muted/10 border border-border/80 rounded-xl">
                           <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Select Grade</label>
-                          <select 
-                            value={formData.grade_id} 
-                            onChange={e => handleInputChange('grade_id', e.target.value)} 
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm"
-                          >
-                            <option value="">-- No Grade Selected --</option>
-                            {grades.filter(g => g.category === formData.category).map(g => (
-                              <option key={g.grade_id} value={g.grade_id}>{g.grade_name} (+₹{g.rate})</option>
-                            ))}
-                          </select>
+                          <Select
+                            value={formData.grade_id}
+                            onChange={v => handleInputChange('grade_id', v)}
+                            placeholder="-- No Grade Selected --"
+                            options={grades.filter(g => g.category === formData.category).map(g => ({
+                              value: g.grade_id,
+                              label: g.grade_name + ' (+₹' + g.rate + ')'
+                            }))}
+                            triggerClassName="rounded-xl h-[46px]"
+                          />
                         </div>
                       )}
                     </div>
@@ -1339,9 +1343,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 ))}
                 <div className="flex-1 min-w-0">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">UOM</label>
-                  <select value={formData.uom} onChange={e => handleInputChange('uom', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm appearance-none text-sm">
-                    {['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => <option key={u} value={u}>{u}</option>)}
-                  </select>
+                  <Select
+                    value={formData.uom}
+                    onChange={v => handleInputChange('uom', v)}
+                    options={['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => ({ value: u, label: u }))}
+                    triggerClassName="rounded-xl h-[46px]"
+                  />
                 </div>
                 <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
                   <div className="flex items-center gap-1 mb-1.5">
@@ -1467,9 +1474,13 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
-                  <select value={formData.tax_rate_percent} onChange={e => handleInputChange('tax_rate_percent', parseFloat(e.target.value))} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm appearance-none text-sm">
-                    {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
-                  </select>
+                  <Select
+                    value={String(formData.tax_rate_percent)}
+                    onChange={v => handleInputChange('tax_rate_percent', parseFloat(v))}
+                    disabled={!formData.is_gst_applicable}
+                    options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                    triggerClassName="rounded-xl h-[46px]"
+                  />
                 </div>
               </div>
             </section>

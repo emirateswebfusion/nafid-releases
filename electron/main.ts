@@ -1489,11 +1489,12 @@ ipcMain.handle('db:addScrapTransaction', (event, t) => {
   try {
     const db = getDb();
     const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
+    const paymentStatus = t.payment_status || 'CASH';
     const result = db.transaction(() => {
       db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null, t.scrap_invoice_number || null);
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
       db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
       return { success: true };
     })();
@@ -1627,6 +1628,7 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
         SUM(st.quantity) as total_qty,
         GROUP_CONCAT(DISTINCT sc.unit) as units,
         SUM(st.total_amount) as total_amount,
+        MAX(st.payment_status) as payment_status,
         MIN(st.created_at) as created_at,
         MAX(st.created_at) as updated_at
       FROM scrap_transactions st
@@ -1639,6 +1641,19 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
     return rows;
   } catch (error: any) {
     return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:updateScrapInvoicePaymentStatus', (event, { tenant_id, scrap_invoice_number, payment_status }: { tenant_id: string; scrap_invoice_number: string; payment_status: string }) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE scrap_transactions SET payment_status = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ? AND scrap_invoice_number = ?
+    `).run(payment_status, tenant_id, scrap_invoice_number);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 });
 

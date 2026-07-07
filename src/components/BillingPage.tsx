@@ -11,6 +11,7 @@ import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
+import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
@@ -171,6 +172,8 @@ export function BillingPage() {
   const customerName = activeTab?.customerName ?? '';
   const customerPhone = activeTab?.customerPhone ?? '';
   const customerGstin = activeTab?.customerGstin ?? '';
+
+  const scrapPaymentStatus = activeTab?.scrapPaymentStatus ?? 'PENDING';
 
   const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
   const nextScrapInvoiceNumber = activeTab?.reservedScrapInvoiceNumber ?? '';
@@ -353,7 +356,10 @@ export function BillingPage() {
       const list = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tid });
       if (Array.isArray(list)) {
         const q = scrapDeductionSearchQuery.toUpperCase();
-        const filtered = list.filter(inv => String(inv.invoice_number).toUpperCase().includes(q));
+        const filtered = list.filter(inv =>
+          String(inv.invoice_number).toUpperCase().includes(q) &&
+          inv.payment_status === 'PENDING'
+        );
         setScrapDeductionResults(filtered.slice(0, 8));
         if (filtered.length > 0 && scrapDeductionInputRef.current) {
           const rect = scrapDeductionInputRef.current.getBoundingClientRect();
@@ -858,6 +864,7 @@ export function BillingPage() {
             party_name: customerName || null,
             notes: '',
             scrap_invoice_number: scrapInvoiceNum,
+            payment_status: scrapPaymentStatus,
           });
           if (!result.success) {
             setHardwareError(`Failed to save scrap item: ${result.error}`);
@@ -912,6 +919,19 @@ export function BillingPage() {
 
         const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
         await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
+
+        // Cash drawer: record CASH_OUT for scrap cash payments
+        if (scrapPaymentStatus === 'CASH' && window.electronAPI) {
+          await window.electronAPI.dbCashierAddTransaction({
+            tenant_id: tenantId || 'unset',
+            type: 'CASH_OUT',
+            amount: scrapTotal,
+            category: 'Scrap Purchase',
+            notes: `Scrap purchase ${scrapInvoiceNum}`,
+            user_id: userId || 'unset',
+            user_name: userName || undefined,
+          }).catch(() => {});
+        }
 
         setCheckoutSuccess(true);
         setIsCheckingOut(false);
@@ -1588,21 +1608,8 @@ export function BillingPage() {
               </div>
               {invoiceType === 'GST' && (
                 <div className="flex items-center gap-2 flex-1">
-                  <div className="relative flex-1 max-w-[120px]">
-                    <select
-                      value={customerState}
-                      onChange={e => setCustomerState(e.target.value)}
-                      className="w-full py-1.5 pl-2 pr-5 bg-background border border-border rounded-lg text-xs font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 appearance-none cursor-pointer"
-                    >
-                      {INDIAN_STATES.map(state => (
-                        <option key={state.code} value={state.code}>{state.name} ({state.code})</option>
-                      ))}
-                    </select>
-                    <div className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none text-muted-foreground/60">
-                      <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
+                  <div className="flex-1 max-w-[120px]">
+                    <Select value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="[&_button]:py-1.5 [&_button]:px-2 [&_button]:text-xs [&_button]:rounded-lg [&_button]:font-bold [&_button]:border-border [&_button]:shadow-none" />
                   </div>
                   <div className="relative flex-1 max-w-[140px]">
                     <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
@@ -1840,7 +1847,36 @@ export function BillingPage() {
                 ? 'max-h-0 opacity-0 scale-95 py-0'
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
-              {!isScrapMode && (
+              {isScrapMode ? (
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { value: 'PENDING' as const, label: 'Pending', icon: Clock, color: 'text-gray-500', activeBg: 'bg-gray-500/10', activeText: 'text-gray-600 dark:text-gray-400', activeBorder: 'border-gray-500', activeIconBg: 'bg-gray-500/15' },
+                  { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
+                ].map(opt => {
+                  const isActive = scrapPaymentStatus === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => updateActiveTab({ scrapPaymentStatus: opt.value })}
+                      className={clsx(
+                        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer col-span-1',
+                        isActive
+                          ? `${opt.activeBg} ${opt.activeBorder} ${opt.activeText} shadow-sm`
+                          : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                      )}
+                    >
+                      <div className={clsx(
+                        'p-2 rounded-xl transition-colors',
+                        isActive ? opt.activeIconBg : 'bg-muted'
+                      )}>
+                        <opt.icon className="w-4.5 h-4.5" />
+                      </div>
+                      <span className="text-xs font-extrabold">{opt.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              ) : (
               <div className="grid grid-cols-6 gap-2">
                 {PAYMENT_OPTIONS.map((opt, idx) => {
                   const isActive = paymentMethod === opt.value;
@@ -1917,7 +1953,6 @@ export function BillingPage() {
                 </div>
               </div>
             </div>
-
 
           </div>
 
@@ -2014,7 +2049,17 @@ export function BillingPage() {
                         <span className="text-sm font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
                       </div>
                       <button
-                        onClick={() => clearScrapDeduction()}
+                        onClick={() => {
+                          const invNum = storeScrapInvoiceNumber;
+                          clearScrapDeduction();
+                          if (invNum && window.electronAPI) {
+                            window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
+                              tenant_id: tenantId || '',
+                              scrap_invoice_number: invNum,
+                              payment_status: 'PENDING',
+                            });
+                          }
+                        }}
                         className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer"
                       >
                         <X className="w-3.5 h-3.5" />
@@ -2327,6 +2372,9 @@ export function BillingPage() {
       {scrapDeductionResults.length > 0 && scrapDeductionDropdownStyle && (
         <div id="scrap-deduction-dropdown" style={scrapDeductionDropdownStyle} className="bg-card border border-border rounded-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="max-h-[260px] overflow-y-auto">
+            <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/40">
+              Pending Scrap Invoices
+            </div>
             {scrapDeductionResults.map((inv, i) => (
               <button
                 key={inv.invoice_number}
@@ -2338,6 +2386,13 @@ export function BillingPage() {
                       setScrapDeductionSearchQuery('');
                       setScrapDeductionResults([]);
                       setScrapDeductionDropdownStyle(null);
+                      if (window.electronAPI) {
+                        await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
+                          tenant_id: tenantId || '',
+                          scrap_invoice_number: inv.invoice_number,
+                          payment_status: 'SETTLED',
+                        });
+                      }
                     } else {
                       setHardwareError('Scrap invoice not found');
                     }
@@ -2350,7 +2405,7 @@ export function BillingPage() {
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    {Number(inv.total_qty || 0).toFixed(1)} qty · {new Date(inv.created_at).toLocaleDateString('en-IN')}
+                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {new Date(inv.created_at).toLocaleDateString('en-IN')}
                   </div>
                 </div>
                 <div className="text-xs font-black text-orange-600">{formatCurrency(inv.total_amount)}</div>
