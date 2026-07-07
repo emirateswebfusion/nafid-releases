@@ -1,3 +1,8 @@
+# Vendora v1.4.2 Release Notes
+
+## What's Changed
+- Full commit log: https://github.com/your-repo/vendora-pos/compare/v1.4.1...v1.4.2
+
 # Vendora v1.3.1 Release Notes
 
 ## New Features & Enhancements
