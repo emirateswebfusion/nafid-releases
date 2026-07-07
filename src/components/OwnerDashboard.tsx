@@ -128,8 +128,8 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             title: 'Cash Settlement',
             desc: 'Settle pending bills, manage cash drawer, and day-end closing',
             icon: Banknote,
-            color: 'text-emerald-500',
-            bgColor: 'bg-emerald-500/10',
+            color: 'text-yellow-500',
+            bgColor: 'bg-yellow-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-cashier-settlement')),
         },
         {

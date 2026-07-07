@@ -32,9 +32,9 @@ interface ScrapTransaction {
   created_at: string;
 }
 
-export function ScrapManager({ onClose }: { onClose: () => void }) {
+export function ScrapManager({ onClose, initialView }: { onClose: () => void; initialView?: View }) {
   const { tenantId } = useAuthStore();
-  const [view, setView] = useState<View>('list');
+  const [view, setView] = useState<View>(initialView || 'list');
   const [categories, setCategories] = useState<ScrapCategory[]>([]);
   const [transactions, setTransactions] = useState<ScrapTransaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -66,7 +66,10 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => {
+    loadData();
+    if (initialView === 'invoices') loadInvoices();
+  }, []);
 
   const loadData = async () => {
     setLoading(true);

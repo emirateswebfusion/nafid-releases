@@ -1266,7 +1266,13 @@ export function BillingPage() {
             </button>
           )}
           <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-sales-history'))}
+            onClick={() => {
+              if (isScrapMode) {
+                window.dispatchEvent(new CustomEvent('open-scrap-manager', { detail: { initialView: 'invoices' } }));
+              } else {
+                window.dispatchEvent(new CustomEvent('open-sales-history'));
+              }
+            }}
             className="flex items-center gap-1.5 px-3.5 py-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer"
             title="Sales History"
           >

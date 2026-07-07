@@ -85,6 +85,7 @@ function App() {
   const [showSettingsManager, setShowSettingsManager] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
   const [showScrapManager, setShowScrapManager] = useState(false);
+  const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
   enableScrapRef.current = enableScrap;
@@ -264,7 +265,7 @@ function App() {
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
     const handleOpenParties = () => setShowPartyManager(true);
-    const handleOpenScrapManager = () => { if (enableScrapRef.current) setShowScrapManager(true); };
+    const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
     const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
@@ -386,7 +387,7 @@ function App() {
       {showCashierSettlement ? (
         <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
       ) : showScrapManager ? (
-        <ScrapManager onClose={() => setShowScrapManager(false)} />
+        <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
       ) : showQuotationManager ? (
         <QuotationManager onClose={() => setShowQuotationManager(false)} />
       ) : showWarrantyManager ? (
