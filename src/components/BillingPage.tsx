@@ -1674,7 +1674,7 @@ export function BillingPage() {
                           min="0"
                           ref={(el) => { qtyRefs.current[item.product_id] = el; }}
                           className="w-16 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={item.quantity || ''}
+                          value={item.quantity === 0 ? 0 : item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
                           placeholder="Kg"
                         />

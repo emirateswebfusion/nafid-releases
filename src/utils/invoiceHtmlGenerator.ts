@@ -45,12 +45,12 @@ export interface InvoiceData {
 
 function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean): string {
   if (isReprint) return 'INVOICE (REPRINT)';
-  if (estimateMode) return 'ESTIMATE';
+  if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return 'TAX INVOICE';
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
-    case 'ESTIMATE': return 'ESTIMATE';
+    case 'ESTIMATE': return 'BILL OF SUPPLY';
     default: return 'INVOICE';
   }
 }

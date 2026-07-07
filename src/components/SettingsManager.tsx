@@ -1180,8 +1180,8 @@ Discount          ₹-50.00
                           {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
                         </button>
                         <div>
-                          <span className="text-xs text-foreground select-none font-bold">Force "ESTIMATE" title</span>
-                          <p className="text-[10px] text-muted-foreground">Overrides document title to ESTIMATE. Automatically enables Document Title.</p>
+                          <span className="text-xs text-foreground select-none font-bold">Force "BILL OF SUPPLY" title</span>
+                          <p className="text-[10px] text-muted-foreground">Overrides document title to BILL OF SUPPLY. Automatically enables Document Title.</p>
                         </div>
                       </label>
                     </div>

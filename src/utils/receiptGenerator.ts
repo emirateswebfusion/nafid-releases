@@ -115,12 +115,12 @@ function numberToIndianWords(amount: number): string {
 
 function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean): string {
   if (isReprint) return '( R E P R I N T )';
-  if (estimateMode) return 'ESTIMATE';
+  if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return 'TAX INVOICE';
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
-    case 'ESTIMATE': return 'ESTIMATE';
+    case 'ESTIMATE': return 'BILL OF SUPPLY';
     default: return 'INVOICE';
   }
 }
@@ -167,7 +167,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
         if (data.isReprint) text += centerText('( R E P R I N T )', charsPerLine) + '\n';
-        else if (bs?.estimateMode) text += centerText('-- ESTIMATE --', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('-- BILL OF SUPPLY --', charsPerLine) + '\n';
         else if (data.invoiceType === 'GST') text += centerText('-- TAX INVOICE --', charsPerLine) + '\n';
         else if (data.invoiceType === 'SCRAP') text += centerText('-- SCRAP BILL --', charsPerLine) + '\n';
         else text += centerText('-- BILL OF SUPPLY --', charsPerLine) + '\n';
@@ -393,7 +393,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
         if (data.isReprint) text += centerText('[ REPRINT ]', charsPerLine) + '\n';
-        else if (bs?.estimateMode) text += centerText('[ ESTIMATE ]', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('[ BILL OF SUPPLY ]', charsPerLine) + '\n';
         else if (data.invoiceType === 'GST') text += centerText('[ TAX INVOICE ]', charsPerLine) + '\n';
         else if (data.invoiceType === 'SCRAP') text += centerText('[ SCRAP BILL ]', charsPerLine) + '\n';
         else text += centerText('[ BILL OF SUPPLY ]', charsPerLine) + '\n';
@@ -642,7 +642,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
         if (data.isReprint) text += centerText('--- INVOICE (REPRINT) ---', charsPerLine) + '\n';
-        else if (bs?.estimateMode) text += centerText('--- ESTIMATE ---', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('--- BILL OF SUPPLY ---', charsPerLine) + '\n';
         else if (data.invoiceType === 'GST') text += centerText('--- TAX INVOICE ---', charsPerLine) + '\n';
         else if (data.invoiceType === 'SCRAP') text += centerText('--- SCRAP BILL ---', charsPerLine) + '\n';
         else text += centerText('--- BILL OF SUPPLY ---', charsPerLine) + '\n';
@@ -763,7 +763,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
       if (bs?.showTitle || showScrap) {
         if (data.isReprint) text += centerText('REPRINT', charsPerLine) + '\n';
-        else if (bs?.estimateMode) text += centerText('ESTIMATE', charsPerLine) + '\n';
+        else if (bs?.estimateMode) text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';
         else if (data.invoiceType === 'GST') text += centerText('TAX INVOICE', charsPerLine) + '\n';
         else if (data.invoiceType === 'SCRAP') text += centerText('SCRAP BILL', charsPerLine) + '\n';
         else text += centerText('BILL OF SUPPLY', charsPerLine) + '\n';

@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
-  CheckCircle2, Plus, Minus, History, ShieldAlert, X, Receipt, DollarSign,
-  TrendingUp, TrendingDown, ArrowRight, Clock, AlertTriangle,
+  CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
+  TrendingUp, TrendingDown, ArrowRight, ArrowLeft, Clock, AlertTriangle,
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { useAuthStore } from '../store/authStore';
@@ -68,8 +68,6 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [closeResult, setCloseResult] = useState<any>(null);
   const [closeSubmitting, setCloseSubmitting] = useState(false);
 
-  const [showAudit, setShowAudit] = useState(false);
-  const [auditLog, setAuditLog] = useState<any[]>([]);
   const [showHist, setShowHist] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
 
@@ -134,16 +132,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
     if (r.success) { setCloseResult(r); await load(); }
   };
 
-  const openAudit = async () => {
-    if (!tenantId) return;
-    const r = await window.electronAPI!.dbCashierGetAuditLog({ tenant_id: tenantId, limit: 100 });
-    if (Array.isArray(r)) { setAuditLog(r); setShowAudit(true); }
-  };
-
   const openHistory = async () => {
     if (!tenantId) return;
     const r = await window.electronAPI!.dbCashierGetHistory({ tenant_id: tenantId, limit: 50 });
-    if (Array.isArray(r)) { setHistory(r); setShowHist(true); }
+    if (Array.isArray(r)) { setHistory(r); }
+    setShowHist(true);
   };
 
   const drawerOpen   = drawer?.status === 'OPEN';
@@ -225,12 +218,6 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
             >
               <History className="w-3.5 h-3.5" /> History
             </button>
-            <button
-              onClick={openAudit}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 transition-all duration-200 active:scale-95 cursor-pointer"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" /> Audit
-            </button>
             {!drawerClosed && (
               <button
                 onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setShowOpeningBal(true); }}
@@ -250,19 +237,99 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
             <span className="w-px h-6 bg-border/40 mx-1" />
             <button
               onClick={onClose}
-              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl border border-transparent hover:border-destructive/20 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
               title="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 text-destructive" />
             </button>
           </div>
         </div>
       </header>
 
       {/* ══════════════════════════════════════════════════════════════════════
-          MAIN CONTENT — left panel + right sidebar
+          MAIN CONTENT
       ══════════════════════════════════════════════════════════════════════ */}
-      <div className="flex-1 flex min-h-0">
+      {showHist ? (
+        <div className="flex-1 flex flex-col min-h-0 bg-background">
+          <div className="relative shrink-0 border-b border-border/70">
+            <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, hsl(217,91%,60%) 0%, transparent 60%)' }} />
+            <div className="flex items-center px-6 py-3 bg-card gap-3">
+              <button onClick={() => setShowHist(false)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 transition-all duration-200 active:scale-95 cursor-pointer">
+                <ArrowLeft className="w-3.5 h-3.5" /> Back
+              </button>
+              <span className="w-px h-5 bg-border/50" />
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
+                <div>
+                  <h2 className="text-sm font-extrabold text-foreground tracking-tight">Settlement History</h2>
+                  <p className="text-[10px] text-muted-foreground font-semibold">{history.length} session{history.length !== 1 ? 's' : ''} recorded</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {history.length > 0 && (() => {
+            const totalSales   = history.reduce((s: number, d: any) => s + Number(d.cash_sales    || 0), 0);
+            const totalClosing = history.reduce((s: number, d: any) => s + Number(d.expected_closing || 0), 0);
+            return (
+              <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-border/50 bg-muted/5 shrink-0">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Sessions</p><p className="text-xl font-black text-foreground tabular-nums">{history.length}</p></div>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-500" /></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Sales</p><p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalSales)}</p></div>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-amber-500/10"><DollarSign className="w-4 h-4 text-amber-500" /></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Closing</p><p className="text-xl font-black text-amber-600 dark:text-amber-400 tabular-nums">{formatCurrency(totalClosing)}</p></div>
+                </div>
+              </div>
+            );
+          })()}
+          <div className="flex-1 overflow-y-auto">
+            {history.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 p-12">
+                <div className="w-16 h-16 rounded-full bg-muted/40 flex items-center justify-center"><History className="w-7 h-7 text-muted-foreground/40" /></div>
+                <div className="text-center"><p className="text-sm font-bold text-foreground">No history yet</p><p className="text-xs text-muted-foreground/60 mt-1">Completed sessions will appear here</p></div>
+              </div>
+            ) : (
+              <div>
+                <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.8fr] gap-x-4 px-6 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 sticky top-0">
+                  <span>Date</span><span className="text-right">Opening</span><span className="text-right">Sales</span><span className="text-right">Cash In</span><span className="text-right">Closing</span><span className="text-center">Status</span>
+                </div>
+                <div className="divide-y divide-border/30">
+                  {history.map((d: any, idx: number) => {
+                    const isClosed  = d.status === 'CLOSED';
+                    const variance  = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
+                    const hasVar    = isClosed && d.actual_cash !== null && d.actual_cash !== undefined;
+                    return (
+                      <div key={d.drawer_id} className={clsx('grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.8fr] gap-x-4 px-6 py-3.5 items-center transition-colors hover:bg-primary/5', idx % 2 === 0 ? 'bg-card' : 'bg-muted/20')}>
+                        <div className="flex flex-col gap-0.5">
+                          <span className="text-sm font-bold text-foreground">{d.business_date}</span>
+                          {hasVar && <span className={clsx('text-[10px] font-black', variance > 0 ? 'text-emerald-500' : variance < 0 ? 'text-rose-500' : 'text-muted-foreground')}>{variance > 0 ? `+${formatCurrency(variance)} excess` : variance < 0 ? `${formatCurrency(variance)} short` : '✓ matched'}</span>}
+                        </div>
+                        <span className="text-xs text-right tabular-nums text-muted-foreground font-medium">{formatCurrency(d.opening_balance)}</span>
+                        <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.cash_sales)}</span>
+                        <span className="text-xs text-right tabular-nums text-blue-500 font-bold">{formatCurrency(d.cash_in || 0)}</span>
+                        <span className="text-xs text-right tabular-nums text-foreground font-black">{formatCurrency(d.expected_closing)}</span>
+                        <div className="flex justify-center">
+                          <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border', isClosed ? 'bg-muted text-muted-foreground border-border' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25')}>
+                            <span className={clsx('w-1.5 h-1.5 rounded-full', isClosed ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse')} />
+                            {isClosed ? 'Closed' : 'Open'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ─── NORMAL TWO-COLUMN SPLIT ───────────────────────────── */
+        <div className="flex-1 flex min-h-0">
 
         {/* ═══ LEFT: Pending Invoices ═══════════════════════════════════════ */}
         <div className="flex-1 min-w-0 flex flex-col border-r border-border/70">
@@ -296,12 +363,12 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[2fr_1.6fr_0.9fr_0.7fr_0.85fr_1.5fr_1fr] gap-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
-            <span>Invoice</span>
-            <span>Customer</span>
-            <span className="text-right">Amount</span>
-            <span className="text-right">Disc</span>
-            <span className="text-right text-primary">Net</span>
+          <div className="grid grid-cols-[1.4fr_1.4fr_1fr_0.8fr_1fr_1.4fr_0.9fr] gap-x-3 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
+            <span className="text-center">Invoice</span>
+            <span className="text-center">Customer</span>
+            <span className="text-center">Amount</span>
+            <span className="text-center">Disc</span>
+            <span className="text-center">Net</span>
             <span className="text-center">Payment</span>
             <span className="text-center">Action</span>
           </div>
@@ -320,7 +387,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               </div>
             ) : (
               <div className="divide-y divide-border/30">
-                {pendingInvoices.map((inv) => {
+                {pendingInvoices.map((inv, idx) => {
                   const rd  = rowDiscs[inv.invoice_id] ?? 0;
                   const rm  = rowMethods[inv.invoice_id] ?? 'CASH';
                   const net = Math.max(0, inv.grand_total - rd);
@@ -328,20 +395,22 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   return (
                     <div
                       key={inv.invoice_id}
-                      className="grid grid-cols-[2fr_1.6fr_0.9fr_0.7fr_0.85fr_1.5fr_1fr] gap-2 px-4 py-2.5 bg-card hover:bg-muted/30 transition-all duration-150 items-center group"
+                      className={clsx(
+                        'grid grid-cols-[1.4fr_1.4fr_1fr_0.8fr_1fr_1.4fr_0.9fr] gap-x-3 px-4 py-2.5 transition-all duration-150 items-center group hover:bg-primary/5',
+                        idx % 2 === 0 ? 'bg-card' : 'bg-muted/25'
+                      )}
                     >
                       {/* Invoice number */}
-                      <span className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</span>
+                      <span className="text-xs font-bold text-foreground truncate text-center block">{inv.invoice_number}</span>
 
                       {/* Customer */}
-                      <span className="text-xs text-muted-foreground truncate">{inv.customer_name || '—'}</span>
+                      <span className="text-xs text-muted-foreground truncate text-center block">{inv.customer_name || '—'}</span>
 
                       {/* Amount */}
-                      <span className="text-xs font-black text-foreground text-right tabular-nums">{formatCurrency(inv.grand_total)}</span>
+                      <span className="text-xs font-black text-foreground text-center tabular-nums block">{formatCurrency(inv.grand_total)}</span>
 
                       {/* Discount input */}
-                      <div className="relative">
-                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none">₹</span>
+                      <div className="flex justify-center">
                         <input
                           type="number"
                           value={rd || ''}
@@ -349,21 +418,23 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                             setRowDiscs((p) => ({ ...p, [inv.invoice_id]: Math.max(0, Number(e.target.value)) }))
                           }
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-full pl-4 pr-1 py-1.5 text-[10px] font-bold bg-card border border-amber-500/20 rounded-lg outline-none focus:border-amber-500/60 text-foreground tabular-nums text-right transition-all"
+                          className="w-full py-1.5 text-[10px] font-bold bg-card border border-amber-500/20 rounded-lg outline-none focus:border-amber-500/60 text-foreground tabular-nums text-center transition-all"
                           step="1" min="0" placeholder="0"
                         />
                       </div>
 
                       {/* Net */}
-                      <span className="text-xs font-black text-primary text-right tabular-nums">{formatCurrency(net)}</span>
+                      <span className="text-xs font-black text-primary text-center tabular-nums block">{formatCurrency(net)}</span>
 
                       {/* Payment method dropdown */}
-                      <Select
-                        value={rm}
-                        onChange={(v) => setRowMethods((p) => ({ ...p, [inv.invoice_id]: v as PaymentMethod }))}
-                        options={PAYMENT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                        size="sm"
-                      />
+                      <div className="flex justify-center">
+                        <Select
+                          value={rm}
+                          onChange={(v) => setRowMethods((p) => ({ ...p, [inv.invoice_id]: v as PaymentMethod }))}
+                          options={PAYMENT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                          size="sm"
+                        />
+                      </div>
 
                       {/* Pay button */}
                       <div className="flex justify-center">
@@ -513,7 +584,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
             )}
           </div>
         </div>
-      </div>
+        {/* end right panel */}
+        </div>
+      )}
+      {/* end main content */}
+
 
       {/* ══════════════════════════════════════════════════════════════════════
           BOTTOM: Cash Summary Bar
@@ -763,123 +838,6 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          MODAL: Audit Log
-      ══════════════════════════════════════════════════════════════════════ */}
-      {showAudit && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowAudit(false)}
-        >
-          <div
-            className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[600px] max-w-[92vw] max-h-[78vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/60 shrink-0"
-              style={{ background: 'linear-gradient(135deg, hsl(217,91%,60%,0.06) 0%, transparent 100%)' }}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-500/10">
-                  <ShieldAlert className="w-4 h-4 text-blue-500" />
-                </div>
-                <h2 className="text-base font-extrabold text-foreground">Audit Log</h2>
-              </div>
-              <button onClick={() => setShowAudit(false)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {auditLog.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-14">No audit entries</p>
-              ) : (
-                <div className="divide-y divide-border/40">
-                  {auditLog.map((e: any) => (
-                    <div key={e.audit_id} className="px-6 py-3 hover:bg-muted/20 transition-colors">
-                      <div className="flex items-center justify-between gap-4">
-                        <span className="text-sm font-bold text-foreground">{e.action}</span>
-                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{new Date(e.performed_at).toLocaleString()}</span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        by <span className="font-semibold text-foreground">{e.performed_by_name || e.performed_by || 'System'}</span>
-                      </p>
-                      {e.details && (
-                        <pre className="mt-2 text-[10px] text-muted-foreground/70 bg-muted/30 p-2 rounded-xl overflow-x-auto border border-border/40">
-                          {JSON.stringify(JSON.parse(e.details), null, 2)}
-                        </pre>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
-          MODAL: History
-      ══════════════════════════════════════════════════════════════════════ */}
-      {showHist && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowHist(false)}
-        >
-          <div
-            className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[560px] max-w-[92vw] max-h-[78vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-border/60 shrink-0"
-              style={{ background: 'linear-gradient(135deg, hsl(217,91%,60%,0.06) 0%, transparent 100%)' }}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-500/10">
-                  <History className="w-4 h-4 text-blue-500" />
-                </div>
-                <h2 className="text-base font-extrabold text-foreground">Settlement History</h2>
-              </div>
-              <button onClick={() => setShowHist(false)} className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="overflow-y-auto flex-1">
-              {history.length === 0 ? (
-                <p className="text-sm text-muted-foreground text-center py-14">No history available</p>
-              ) : (
-                <div>
-                  <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.6fr] gap-2 px-6 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20">
-                    <span>Date</span>
-                    <span className="text-right">Opening</span>
-                    <span className="text-right">Sales</span>
-                    <span className="text-right">Closing</span>
-                    <span className="text-center">Status</span>
-                  </div>
-                  <div className="divide-y divide-border/30">
-                    {history.map((d: any) => (
-                      <div key={d.drawer_id} className="grid grid-cols-[1fr_0.8fr_0.8fr_0.8fr_0.6fr] gap-2 px-6 py-3 bg-card hover:bg-muted/20 transition-colors items-center">
-                        <span className="text-sm font-bold text-foreground">{d.business_date}</span>
-                        <span className="text-xs text-right tabular-nums text-muted-foreground">{formatCurrency(d.opening_balance)}</span>
-                        <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.cash_sales)}</span>
-                        <span className="text-xs text-right tabular-nums text-foreground font-black">{formatCurrency(d.expected_closing)}</span>
-                        <span className="flex justify-center">
-                          <span className={clsx(
-                            'text-[9px] font-black px-2 py-1 rounded-md',
-                            d.status === 'CLOSED' ? 'text-muted-foreground bg-muted' : 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10'
-                          )}>
-                            {d.status}
-                          </span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════════════════════════════
           MODAL: Add Transaction
       ══════════════════════════════════════════════════════════════════════ */}
       {showTxnModal && (
@@ -999,7 +957,6 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 </label>
                 {txnPartyId ? (
                   <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border/70 rounded-2xl shadow-sm">
-                    <Initials name={txnPartyName} />
                     <span className="text-sm font-bold text-foreground flex-1 truncate">{txnPartyName}</span>
                     <button
                       onClick={() => { setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); }}
