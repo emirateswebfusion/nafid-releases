@@ -19,12 +19,23 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Bankn
   { value: 'SPLIT',         label: 'Split', icon: SplitSquareHorizontal},
 ];
 
-function formatCurrency(amount: number): string {
-  return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function formatCurrency(amount: number | null | undefined): string {
+  if (amount == null || Number.isNaN(amount)) return '\u20B90.00';
+  const isNegative = amount < 0;
+  const absAmount = Math.abs(amount);
+  const formatted = absAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return isNegative ? `-\u20B9${formatted}` : `\u20B9${formatted}`;
 }
 
 function formatTime(d: string): string {
-  return new Date(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  if (!d) return '';
+  let utcStr = d;
+  if (d.includes(' ') && !d.includes('Z') && !d.includes('+')) {
+    utcStr = d.replace(' ', 'T') + 'Z';
+  } else if (!d.includes('Z') && !d.includes('+') && d.includes('T')) {
+    utcStr = d + 'Z';
+  }
+  return new Date(utcStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 }
 
 function todayStr(): string {
@@ -215,6 +226,19 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
                   {drawer?.business_date || todayStr()}
                 </span>
+                {drawerClosed && drawer?.actual_cash !== null && drawer?.actual_cash !== undefined && (
+                  <span className={clsx(
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border',
+                    drawer.cash_short > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
+                    drawer.cash_excess > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
+                    'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                  )}>
+                    Actual: {formatCurrency(drawer.actual_cash)}
+                    {drawer.cash_short > 0 && ` (Short −${formatCurrency(drawer.cash_short)})`}
+                    {drawer.cash_excess > 0 && ` (Excess +${formatCurrency(drawer.cash_excess)})`}
+                    {drawer.cash_short === 0 && drawer.cash_excess === 0 && ' (Matched)'}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -223,9 +247,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           {drawer && (
             <div className="hidden md:flex flex-col items-center">
               <span className="text-xl font-black text-foreground tabular-nums tracking-tight">
-                {formatCurrency(drawer.current_cash || 0)}
+                {formatCurrency(drawerClosed ? drawer.expected_closing : (drawer.current_cash || 0))}
               </span>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Current Balance</span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
+                {drawerClosed ? 'Expected Closing' : 'Current Balance'}
+              </span>
             </div>
           )}
 
@@ -365,7 +391,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                         <div
                           onClick={() => loadDaySettlements(d.business_date)}
                           className={clsx(
-                            'grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-3 items-center transition-all duration-150 cursor-pointer',
+                            'grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-3 items-center transition-all duration-150 cursor-pointer border-l-3',
+                            !isClosed ? 'border-l-blue-500/80' :
+                            variance < 0 ? 'border-l-rose-500/80' :
+                            variance > 0 ? 'border-l-amber-500/80' :
+                            'border-l-emerald-500/80',
                             idx % 2 === 0 ? 'bg-card' : 'bg-muted/20',
                             isExpanded ? 'bg-primary/5 shadow-inner' : 'hover:bg-primary/5'
                           )}
@@ -542,9 +572,20 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 {pendingInvoices.length}
               </span>
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">
-                {pendingInvoices.length === 1 ? 'Pending' : 'Pending'}
+                Pending
               </span>
             </div>
+            {/* Sales badge */}
+            {drawer && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 shrink-0">
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
+                  {formatCurrency(drawer.cash_sales || 0)}
+                </span>
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">
+                  Sales
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Column headers */}
@@ -673,7 +714,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 </div>
                 <div>
                   <h2 className="text-sm font-extrabold text-foreground tracking-tight">Cash Register</h2>
-                  <p className="text-[10px] font-semibold text-muted-foreground">Manual entries</p>
+
                 </div>
               </div>
               <button
@@ -726,7 +767,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
 
           {/* Transaction feed */}
           <div className="flex-1 overflow-y-auto">
-            {transactions.length === 0 ? (
+            {transactions.length === 0 && (!drawer || !drawer.opening_balance) ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
                 <div className="w-14 h-14 rounded-full bg-muted/40 flex items-center justify-center">
                   <Banknote className="w-6 h-6 text-muted-foreground/40" />
@@ -738,6 +779,22 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               </div>
             ) : (
               <div className="divide-y divide-border/30">
+                {/* Prepend Opening Balance Row */}
+                {drawer && drawer.opening_balance >= 0 && (
+                  <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2 border-l-primary/50">
+                    <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
+                      <Clock className="w-2.5 h-2.5 shrink-0" /> {drawer.opened_at ? formatTime(drawer.opened_at) : '—'}
+                    </span>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-center w-fit text-primary bg-primary/10">
+                      OPEN
+                    </span>
+                    <span className="text-xs text-foreground truncate font-bold">Opening Balance</span>
+                    <span className="text-xs font-black text-right tabular-nums text-foreground">
+                      {formatCurrency(drawer.opening_balance)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground truncate text-right">—</span>
+                  </div>
+                )}
                 {transactions.map((tx: any) => {
                   const isIn = tx.type === 'CASH_IN';
                   return (
@@ -775,71 +832,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       {/* end main content */}
 
 
-      {/* ══════════════════════════════════════════════════════════════════════
-          BOTTOM: Cash Summary Bar
-      ══════════════════════════════════════════════════════════════════════ */}
-      {drawer && !showHist && (
-        <div className="shrink-0 border-t border-border/70 bg-card">
-          {/* Main stat row */}
-          <div className="flex items-stretch divide-x divide-border/50">
-            {[
-              { label: 'Opening',  value: formatCurrency(drawer.opening_balance || 0), color: 'text-foreground'  },
-              { label: 'Sales',    value: `+${formatCurrency(drawer.cash_sales || 0)}`, color: 'text-emerald-600 dark:text-emerald-400' },
-              { label: 'Cash In',  value: `+${formatCurrency(drawer.cash_in || 0)}`,   color: 'text-blue-500'   },
-              { label: 'Cash Out', value: `−${formatCurrency(drawer.cash_out || 0)}`,  color: 'text-rose-500'   },
-            ].map((stat) => (
-              <div key={stat.label} className="flex-1 flex flex-col items-center justify-center py-2.5 px-2 gap-0.5 min-w-0">
-                <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">{stat.label}</span>
-                <span className={clsx('text-xs font-black tabular-nums truncate', stat.color)}>{stat.value}</span>
-              </div>
-            ))}
 
-            {/* Divider arrow */}
-            <div className="flex items-center px-2 text-muted-foreground/30">
-              <ArrowRight className="w-3.5 h-3.5" />
-            </div>
-
-            {/* Current — hero */}
-            <div className="flex flex-col items-center justify-center py-2.5 px-4 bg-primary/5 min-w-0">
-              <span className="text-[9px] font-black text-primary uppercase tracking-widest">Current</span>
-              <span className="text-base font-black text-foreground tabular-nums leading-tight">{formatCurrency(drawer.current_cash || 0)}</span>
-            </div>
-
-            {/* Expected */}
-            <div className="flex flex-col items-center justify-center py-2.5 px-3 min-w-0">
-              <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Expected</span>
-              <span className="text-xs font-black text-amber-600 dark:text-amber-400 tabular-nums">{formatCurrency(drawer.expected_closing || 0)}</span>
-            </div>
-
-            {/* Actual (only when closed) */}
-            {drawerClosed && drawer.actual_cash !== null && (
-              <>
-                <div className="flex flex-col items-center justify-center py-2.5 px-3 min-w-0">
-                  <span className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Actual</span>
-                  <span className="text-xs font-black text-foreground tabular-nums">{formatCurrency(drawer.actual_cash)}</span>
-                </div>
-                <div className="flex items-center px-3">
-                  {drawer.cash_short > 0 && (
-                    <span className="px-2 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-[10px] font-black text-rose-500 whitespace-nowrap">
-                      Short −{formatCurrency(drawer.cash_short)}
-                    </span>
-                  )}
-                  {drawer.cash_excess > 0 && (
-                    <span className="px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-500 whitespace-nowrap">
-                      Excess +{formatCurrency(drawer.cash_excess)}
-                    </span>
-                  )}
-                  {drawer.cash_short === 0 && drawer.cash_excess === 0 && (
-                    <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-black text-emerald-500">
-                      <CheckCircle2 className="w-3 h-3" /> Matched
-                    </span>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           MODAL: Day Closing
