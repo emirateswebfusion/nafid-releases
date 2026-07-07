@@ -335,6 +335,7 @@ export function ScrapManager({ onClose }: { onClose: () => void }) {
         discount: 0,
         grandTotal: totalAmount,
         isReprint: true,
+        customerName: scrapBillSettings.showCustomerName ? (invoiceDetailTxs[0]?.party_name || undefined) : undefined,
         billSettings: scrapBillSettings,
       };
 

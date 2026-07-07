@@ -1137,6 +1137,7 @@ Discount          ₹-50.00
                         { key: 'showShopGstin', label: 'Shop GSTIN' },
                         { key: 'showShopState', label: 'Shop State' },
                         { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showCustomerName', label: 'Customer Name' },
                         { key: 'showCustomerGstin', label: 'Customer GSTIN' },
                         { key: 'showTaxBreakup', label: 'Tax Breakup (CGST/SGST/IGST)' },
                       ].map(({ key, label }) => {
@@ -1198,6 +1199,7 @@ Discount          ₹-50.00
                         { key: 'showPhone', label: 'Phone Number' },
                         { key: 'showShopGstin', label: 'Shop GSTIN' },
                         { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showCustomerName', label: 'Customer Name' },
                       ].map(({ key, label }) => (
                         <label key={key} className="flex items-center gap-2.5 py-1.5 cursor-pointer group">
                           <button

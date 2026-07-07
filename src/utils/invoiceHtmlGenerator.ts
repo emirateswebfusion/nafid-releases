@@ -116,7 +116,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       ${data.billerName ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
     </div>
     <div class="info-block" style="text-align:right">
-      ${data.customerName ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
+      ${data.customerName && data.billSettings?.showCustomerName ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
       ${data.customerPhone ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
       ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
       ${data.customerState && data.billSettings?.showCustomerGstin ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
@@ -204,7 +204,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
         ${data.billerName ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
       </div>
       <div class="block" style="text-align:right">
-        ${data.customerName ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
+        ${data.customerName && data.billSettings?.showCustomerName ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
         ${data.customerPhone ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
         ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
       </div>
@@ -301,7 +301,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
           ${data.billerName ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
         </td>
         <td style="width:50%;text-align:right">
-          ${data.customerName ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
+          ${data.customerName && data.billSettings?.showCustomerName ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
           ${data.customerPhone ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
           ${data.customerGstin && data.billSettings?.showCustomerGstin ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
           ${data.customerState && data.billSettings?.showCustomerGstin ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}

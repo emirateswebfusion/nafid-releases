@@ -347,6 +347,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         grandTotal: selectedInvoice.grand_total,
         isReprint: true,
         invoiceType,
+        customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
         customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
         billSettings,
       };

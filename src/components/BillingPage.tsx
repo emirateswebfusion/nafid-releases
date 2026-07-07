@@ -914,6 +914,7 @@ export function BillingPage() {
           tax: 0,
           discount: 0,
           grandTotal: scrapTotal,
+          customerName: scrapBillSettings.showCustomerName ? (customerName || undefined) : undefined,
           billSettings: scrapBillSettings,
         };
 

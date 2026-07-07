@@ -16,6 +16,7 @@ export interface BillSettings {
   showShopGstin: boolean;
   showShopState: boolean;
   showTitle: boolean;
+  showCustomerName: boolean;
   showCustomerGstin: boolean;
   estimateMode: boolean;
   showScrapHeading: boolean;
@@ -29,6 +30,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showShopGstin: true,
   showShopState: true,
   showTitle: true,
+  showCustomerName: true,
   showCustomerGstin: true,
   estimateMode: false,
   showScrapHeading: true,
@@ -181,10 +183,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
       text += LIGHT + '\n';
       text += centerText('CUSTOMER', charsPerLine) + '\n';
-      if (data.customerName) text += `  ${data.customerName}\n`;
+      if (showCustName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
     }
@@ -298,8 +301,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.billerName) text += `${data.billerName}\n`;
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
-      if (data.customerName) text += `${data.customerName}`;
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+      if (showCustName) text += `${data.customerName}`;
       if (data.customerPhone) text += `  ${data.customerPhone}`;
       text += '\n';
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
@@ -405,10 +409,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.billerName) text += `  Staff: ${data.billerName}\n`;
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
       text += THIN + '\n';
       text += centerText('[ CUSTOMER ]', charsPerLine) + '\n';
-      if (data.customerName) text += `  ${data.customerName}\n`;
+      if (showCustName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
     }
@@ -516,11 +521,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
-      if (data.customerName) text += `${data.customerName}\n`;
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+      if (showCustName) text += `${data.customerName}\n`;
       if (data.customerPhone) text += `${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GSTIN: ${data.customerGstin}\n`;
     }
+    text += '\n';
 
     // ── Items table: No | ITEM | QTY | RATE | AMOUNT ──
     const colGap = 1;
@@ -656,10 +663,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.billerName) text += `  Biller:      ${data.billerName}\n`;
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
       text += LIGHT + '\n';
       text += centerText('CUSTOMER DETAILS', charsPerLine) + '\n';
-      if (data.customerName) text += `  Name:   ${data.customerName}\n`;
+      if (showCustName) text += `  Name:   ${data.customerName}\n`;
       if (data.customerPhone) text += `  Phone:  ${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN:  ${data.customerGstin}\n`;
     }
@@ -775,8 +783,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
-      if (data.customerName) text += `${data.customerName}  ${data.customerPhone || ''}\n`;
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+      if (showCustName && data.customerPhone) text += `${data.customerName}  ${data.customerPhone}\n`;
+      else if (showCustName) text += `${data.customerName}\n`;
+      else if (data.customerPhone) text += `${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
     }
 
@@ -867,7 +878,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Customer ──
-    if (data.customerName) text += `${data.customerName}\n`;
+    if (data.customerName && data.billSettings?.showCustomerName) text += `${data.customerName}\n`;
     if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
 
     // ── Items (name + total right-aligned, no qty/rate unless offer) ──
@@ -950,10 +961,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Customer ──
-    if (data.customerName || data.customerPhone || data.customerGstin) {
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
       text += THIN + '\n';
       text += centerText('CUSTOMER', charsPerLine) + '\n';
-      if (data.customerName) text += `  ${data.customerName}\n`;
+      if (showCustName) text += `  ${data.customerName}\n`;
       if (data.customerPhone) text += `  ${data.customerPhone}\n`;
       if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
       text += '\n';
