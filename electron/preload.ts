@@ -136,6 +136,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => ipcRenderer.invoke('db:cashier:dayClosing', params),
   dbCashierGetTransactions: (params: { tenant_id: string }) => ipcRenderer.invoke('db:cashier:getTransactions', params),
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getHistory', params),
+  dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDaySettlements', params),
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getAuditLog', params),
 
   // Purchase Bills

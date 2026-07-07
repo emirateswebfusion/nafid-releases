@@ -3,6 +3,7 @@ import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
   TrendingUp, TrendingDown, ArrowRight, ArrowLeft, Clock, AlertTriangle,
+  ChevronRight, ChevronDown,
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { useAuthStore } from '../store/authStore';
@@ -70,6 +71,9 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
 
   const [showHist, setShowHist] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
+  const [expandedDay, setExpandedDay] = useState<string | null>(null);
+  const [daySettlements, setDaySettlements] = useState<any[]>([]);
+  const [loadingSettlements, setLoadingSettlements] = useState(false);
 
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
@@ -139,6 +143,20 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
     setShowHist(true);
   };
 
+  const loadDaySettlements = async (businessDate: string) => {
+    if (!tenantId) return;
+    if (expandedDay === businessDate) {
+      setExpandedDay(null);
+      return;
+    }
+    setLoadingSettlements(true);
+    setExpandedDay(businessDate);
+    const r = await window.electronAPI!.dbCashierGetDaySettlements({ tenant_id: tenantId, business_date: businessDate });
+    if (Array.isArray(r)) setDaySettlements(r);
+    else setDaySettlements([]);
+    setLoadingSettlements(false);
+  };
+
   const drawerOpen   = drawer?.status === 'OPEN';
   const drawerClosed = drawer?.status === 'CLOSED';
 
@@ -165,6 +183,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════════════════════════════════ */}
+      {!showHist && (
       <header className="relative shrink-0 z-30 border-b border-border/70">
         {/* Top gradient accent strip */}
         <div
@@ -245,19 +264,17 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
         </div>
       </header>
+      )}
 
       {/* ══════════════════════════════════════════════════════════════════════
           MAIN CONTENT
       ══════════════════════════════════════════════════════════════════════ */}
       {showHist ? (
         <div className="flex-1 flex flex-col min-h-0 bg-background">
+          {/* ── Header ── */}
           <div className="relative shrink-0 border-b border-border/70">
             <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, hsl(217,91%,60%) 0%, transparent 60%)' }} />
-            <div className="flex items-center px-6 py-3 bg-card gap-3">
-              <button onClick={() => setShowHist(false)} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 transition-all duration-200 active:scale-95 cursor-pointer">
-                <ArrowLeft className="w-3.5 h-3.5" /> Back
-              </button>
-              <span className="w-px h-5 bg-border/50" />
+            <div className="flex items-center justify-between px-6 py-3 bg-card">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
                 <div>
@@ -265,28 +282,52 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   <p className="text-[10px] text-muted-foreground font-semibold">{history.length} session{history.length !== 1 ? 's' : ''} recorded</p>
                 </div>
               </div>
+              <button onClick={() => setShowHist(false)} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+                <X className="w-4 h-4 text-destructive" />
+              </button>
             </div>
           </div>
+
+          {/* ── Summary cards ── */}
           {history.length > 0 && (() => {
-            const totalSales   = history.reduce((s: number, d: any) => s + Number(d.cash_sales    || 0), 0);
-            const totalClosing = history.reduce((s: number, d: any) => s + Number(d.expected_closing || 0), 0);
+            const totalSales     = history.reduce((s: number, d: any) => s + Number(d.cash_sales       || 0), 0);
+            const totalCollected = history.reduce((s: number, d: any) => s + Number(d.total_collected  || 0), 0);
+            let totalShort = 0, totalExcess = 0;
+            history.filter((d: any) => d.status === 'CLOSED').forEach((d: any) => {
+              const v = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
+              if (v < 0) totalShort += Math.abs(v);
+              else totalExcess += v;
+            });
             return (
-              <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-border/50 bg-muted/5 shrink-0">
+              <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-border/50 bg-muted/5 shrink-0">
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
                   <div className="p-2.5 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
-                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Sessions</p><p className="text-xl font-black text-foreground tabular-nums">{history.length}</p></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Sessions</p><p className="text-xl font-black text-foreground tabular-nums">{history.length}</p></div>
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
                   <div className="p-2.5 rounded-xl bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-500" /></div>
-                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Sales</p><p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalSales)}</p></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Cash Sales</p><p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalSales)}</p></div>
                 </div>
                 <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
-                  <div className="p-2.5 rounded-xl bg-amber-500/10"><DollarSign className="w-4 h-4 text-amber-500" /></div>
-                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Closing</p><p className="text-xl font-black text-amber-600 dark:text-amber-400 tabular-nums">{formatCurrency(totalClosing)}</p></div>
+                  <div className="p-2.5 rounded-xl bg-violet-500/10"><DollarSign className="w-4 h-4 text-violet-500" /></div>
+                  <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Collected</p><p className="text-xl font-black text-violet-600 dark:text-violet-400 tabular-nums">{formatCurrency(totalCollected)}</p></div>
+                </div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                  <div className={clsx('p-2.5 rounded-xl', totalShort > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10')}>
+                    {totalShort > 0 ? <TrendingDown className="w-4 h-4 text-rose-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Short / Excess</p>
+                    <p className={clsx('text-xl font-black tabular-nums', totalShort > 0 ? 'text-rose-500' : totalExcess > 0 ? 'text-emerald-500' : 'text-muted-foreground')}>
+                      {totalShort > 0 ? `−${formatCurrency(totalShort)}` : totalExcess > 0 ? `+${formatCurrency(totalExcess)}` : '✓ Clean'}
+                    </p>
+                  </div>
                 </div>
               </div>
             );
           })()}
+
+          {/* ── Table ── */}
           <div className="flex-1 overflow-y-auto">
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 p-12">
@@ -295,30 +336,174 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               </div>
             ) : (
               <div>
-                <div className="grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.8fr] gap-x-4 px-6 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 sticky top-0">
-                  <span>Date</span><span className="text-right">Opening</span><span className="text-right">Sales</span><span className="text-right">Cash In</span><span className="text-right">Closing</span><span className="text-center">Status</span>
+                {/* Column headers */}
+                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-2.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 sticky top-0 z-10">
+                  <span className="flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => setExpandedDay(null)}>Date <ChevronDown className="w-2.5 h-2.5 opacity-40" /></span>
+                  <span>Cashier</span>
+                  <span className="text-right">Opening</span>
+                  <span className="text-right">Sales</span>
+                  <span className="text-right">In</span>
+                  <span className="text-right">Out</span>
+                  <span className="text-right">Closing</span>
+                  <span className="text-right">Actual</span>
+                  <span className="text-center">Var</span>
+                  <span className="text-center">Settled</span>
+                  <span className="text-center">Status</span>
                 </div>
+
                 <div className="divide-y divide-border/30">
                   {history.map((d: any, idx: number) => {
                     const isClosed  = d.status === 'CLOSED';
                     const variance  = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
                     const hasVar    = isClosed && d.actual_cash !== null && d.actual_cash !== undefined;
+                    const isExpanded = expandedDay === d.business_date;
+                    const cashierName = d.opened_by_name || d.closed_by_name || '—';
+
                     return (
-                      <div key={d.drawer_id} className={clsx('grid grid-cols-[1.4fr_1fr_1fr_1fr_1fr_0.8fr] gap-x-4 px-6 py-3.5 items-center transition-colors hover:bg-primary/5', idx % 2 === 0 ? 'bg-card' : 'bg-muted/20')}>
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-bold text-foreground">{d.business_date}</span>
-                          {hasVar && <span className={clsx('text-[10px] font-black', variance > 0 ? 'text-emerald-500' : variance < 0 ? 'text-rose-500' : 'text-muted-foreground')}>{variance > 0 ? `+${formatCurrency(variance)} excess` : variance < 0 ? `${formatCurrency(variance)} short` : '✓ matched'}</span>}
-                        </div>
-                        <span className="text-xs text-right tabular-nums text-muted-foreground font-medium">{formatCurrency(d.opening_balance)}</span>
-                        <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.cash_sales)}</span>
-                        <span className="text-xs text-right tabular-nums text-blue-500 font-bold">{formatCurrency(d.cash_in || 0)}</span>
-                        <span className="text-xs text-right tabular-nums text-foreground font-black">{formatCurrency(d.expected_closing)}</span>
-                        <div className="flex justify-center">
-                          <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border', isClosed ? 'bg-muted text-muted-foreground border-border' : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25')}>
-                            <span className={clsx('w-1.5 h-1.5 rounded-full', isClosed ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse')} />
-                            {isClosed ? 'Closed' : 'Open'}
+                      <div key={d.drawer_id}>
+                        {/* Main row — clickable to expand */}
+                        <div
+                          onClick={() => loadDaySettlements(d.business_date)}
+                          className={clsx(
+                            'grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-3 items-center transition-all duration-150 cursor-pointer',
+                            idx % 2 === 0 ? 'bg-card' : 'bg-muted/20',
+                            isExpanded ? 'bg-primary/5 shadow-inner' : 'hover:bg-primary/5'
+                          )}
+                        >
+                          {/* Date */}
+                          <div className="flex items-center gap-1.5">
+                            <ChevronRight className={clsx('w-3 h-3 text-muted-foreground/50 transition-transform duration-200', isExpanded && 'rotate-90')} />
+                            <div className="flex flex-col gap-0">
+                              <span className="text-xs font-bold text-foreground leading-tight">{d.business_date}</span>
+                              {d.settled_count > 0 && <span className="text-[9px] text-muted-foreground font-medium">{d.settled_count} invoice{d.settled_count !== 1 ? 's' : ''}</span>}
+                            </div>
+                          </div>
+
+                          {/* Cashier */}
+                          <span className="text-[10px] text-muted-foreground truncate font-medium">{cashierName}</span>
+
+                          {/* Opening */}
+                          <span className="text-xs text-right tabular-nums text-muted-foreground font-medium">{formatCurrency(d.opening_balance)}</span>
+
+                          {/* Sales */}
+                          <span className="text-xs text-right tabular-nums text-emerald-600 dark:text-emerald-400 font-bold">{formatCurrency(d.cash_sales)}</span>
+
+                          {/* Cash In */}
+                          <span className="text-xs text-right tabular-nums text-blue-500 font-bold">{formatCurrency(d.cash_in || 0)}</span>
+
+                          {/* Cash Out */}
+                          <span className="text-xs text-right tabular-nums text-rose-500 font-bold">{formatCurrency(d.cash_out || 0)}</span>
+
+                          {/* Expected closing */}
+                          <span className="text-xs text-right tabular-nums text-foreground font-black">{formatCurrency(d.expected_closing)}</span>
+
+                          {/* Actual (if closed) */}
+                          <span className={clsx('text-xs text-right tabular-nums font-bold', isClosed ? 'text-foreground' : 'text-muted-foreground/40')}>
+                            {isClosed && d.actual_cash !== null ? formatCurrency(d.actual_cash) : '—'}
                           </span>
+
+                          {/* Variance */}
+                          <div className="flex justify-center">
+                            {hasVar ? (
+                              <span className={clsx(
+                                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-black',
+                                variance > 0 ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' :
+                                variance < 0 ? 'text-rose-600 dark:text-rose-400 bg-rose-500/10' :
+                                'text-muted-foreground bg-muted/40'
+                              )}>
+                                {variance > 0 ? `+${formatCurrency(variance)}` : variance < 0 ? formatCurrency(variance) : '✓'}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] text-muted-foreground/40">—</span>
+                            )}
+                          </div>
+
+                          {/* Settled (total collected) */}
+                          <div className="flex justify-center">
+                            <span className="text-xs font-black text-violet-600 dark:text-violet-400 tabular-nums">{d.total_collected ? formatCurrency(d.total_collected) : '—'}</span>
+                          </div>
+
+                          {/* Status */}
+                          <div className="flex justify-center">
+                            <span className={clsx(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[8px] font-black border',
+                              isClosed
+                                ? 'bg-muted text-muted-foreground border-border'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
+                            )}>
+                              <span className={clsx('w-1.5 h-1.5 rounded-full', isClosed ? 'bg-muted-foreground' : 'bg-emerald-500 animate-pulse')} />
+                              {isClosed ? 'Closed' : 'Open'}
+                            </span>
+                          </div>
                         </div>
+
+                        {/* ── Expanded detail row: individual settlements ── */}
+                        {isExpanded && (
+                          <div className="bg-muted/10 border-t border-b border-border/30">
+                            {loadingSettlements ? (
+                              <div className="flex items-center justify-center py-6 gap-2">
+                                <span className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                                <span className="text-xs text-muted-foreground font-medium">Loading settlements…</span>
+                              </div>
+                            ) : daySettlements.length === 0 ? (
+                              <div className="flex items-center justify-center py-6">
+                                <p className="text-xs text-muted-foreground/60 font-medium">No settlements found for this date</p>
+                              </div>
+                            ) : (
+                              <div className="py-2 px-8">
+                                {/* Sub-header */}
+                                <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/40">
+                                  <span>Invoice</span>
+                                  <span>Customer</span>
+                                  <span className="text-right">Amount</span>
+                                  <span className="text-right">Disc</span>
+                                  <span className="text-center">Payment</span>
+                                  <span className="text-right">Cashier</span>
+                                </div>
+                                <div className="divide-y divide-border/20">
+                                  {daySettlements.map((inv: any) => (
+                                    <div key={inv.invoice_id} className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 items-center hover:bg-card/50">
+                                      <span className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</span>
+                                      <span className="text-[10px] text-muted-foreground truncate">{inv.customer_name || '—'}</span>
+                                      <span className="text-xs text-right tabular-nums text-foreground font-semibold">{formatCurrency(inv.grand_total)}</span>
+                                      <span className="text-xs text-right tabular-nums text-amber-500 font-bold">{inv.discount_total ? formatCurrency(inv.discount_total) : '—'}</span>
+                                      <div className="flex justify-center">
+                                        <span className={clsx(
+                                          'text-[9px] font-black px-1.5 py-0.5 rounded-md text-center',
+                                          inv.payment_method === 'CASH' ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' :
+                                          inv.payment_method === 'CARD' ? 'text-blue-600 dark:text-blue-400 bg-blue-500/10' :
+                                          inv.payment_method === 'UPI' ? 'text-violet-600 dark:text-violet-400 bg-violet-500/10' :
+                                          'text-muted-foreground bg-muted/40'
+                                        )}>
+                                          {inv.payment_method}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-muted-foreground text-right truncate">{inv.biller_name || '—'}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                                {/* Settlement totals */}
+                                {(() => {
+                                  const totalAmt = daySettlements.reduce((s: number, i: any) => s + Number(i.grand_total || 0), 0);
+                                  const totalDisc = daySettlements.reduce((s: number, i: any) => s + Number(i.discount_total || 0), 0);
+                                  const totalRecv = daySettlements.reduce((s: number, i: any) => s + Number(i.received_amount || 0), 0);
+                                  return (
+                                    <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 mt-1 border-t border-border/40 bg-card/50 rounded-b-lg">
+                                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Totals</span>
+                                      <span />
+                                      <span className="text-xs text-right font-black text-foreground tabular-nums">{formatCurrency(totalAmt)}</span>
+                                      <span className="text-xs text-right font-black text-amber-500 tabular-nums">{formatCurrency(totalDisc)}</span>
+                                      <div className="flex justify-center">
+                                        <span className="text-[9px] font-black text-violet-600 dark:text-violet-400 tabular-nums">{formatCurrency(totalRecv)} received</span>
+                                      </div>
+                                      <span />
+                                    </div>
+                                  );
+                                })()}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -593,7 +778,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       {/* ══════════════════════════════════════════════════════════════════════
           BOTTOM: Cash Summary Bar
       ══════════════════════════════════════════════════════════════════════ */}
-      {drawer && (
+      {drawer && !showHist && (
         <div className="shrink-0 border-t border-border/70 bg-card">
           {/* Main stat row */}
           <div className="flex items-stretch divide-x divide-border/50">

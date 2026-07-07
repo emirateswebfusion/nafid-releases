@@ -2303,7 +2303,34 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
 ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) => {
   try {
     const db = getDb();
-    return db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? ORDER BY business_date DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
+    return db.prepare(`
+      SELECT cd.*,
+        u1.name as opened_by_name,
+        u2.name as closed_by_name,
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date) as total_collected
+      FROM cash_drawer cd
+      LEFT JOIN users u1 ON cd.opened_by = u1.user_id
+      LEFT JOIN users u2 ON cd.closed_by = u2.user_id
+      WHERE cd.tenant_id = ?
+      ORDER BY cd.business_date DESC
+      LIMIT ? OFFSET ?
+    `).all(tenant_id, limit, offset);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
+  try {
+    const db = getDb();
+    return db.prepare(`
+      SELECT i.*, u.name as biller_name
+      FROM invoices i
+      LEFT JOIN users u ON i.user_id = u.user_id
+      WHERE i.tenant_id = ? AND i.payment_method != 'PENDING' AND date(i.updated_at) = ?
+      ORDER BY i.updated_at DESC
+    `).all(tenant_id, business_date);
   } catch (error: any) {
     return { error: error.message };
   }

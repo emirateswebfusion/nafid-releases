@@ -117,6 +117,7 @@ export interface IElectronAPI {
   dbCashierDayClosing: (params: { tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string }) => Promise<{ success: boolean; error?: string }>;
   dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
+  dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
 
   // Purchase Bills
