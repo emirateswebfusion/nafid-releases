@@ -20,6 +20,7 @@ export interface Tab {
   customerName: string;
   customerPhone: string;
   customerGstin: string;
+  customerAddress: string;
   paymentMethod: PaymentMethod;
   receivedAmount: number;
   reservedInvoiceNumber: string;
@@ -55,6 +56,7 @@ function createDefaultTab(): Tab {
     customerName: '',
     customerPhone: '',
     customerGstin: '',
+    customerAddress: '',
     paymentMethod: 'PENDING',
     receivedAmount: 0,
     reservedInvoiceNumber: '',

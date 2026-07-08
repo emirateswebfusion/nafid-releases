@@ -84,6 +84,7 @@ export function initDb() {
         customer_phone TEXT,
         customer_gstin TEXT,
         customer_state TEXT,
+        customer_address TEXT,
         subtotal REAL NOT NULL DEFAULT 0,
         tax_total REAL NOT NULL DEFAULT 0,
         discount_total REAL DEFAULT 0,
@@ -351,7 +352,7 @@ export function initDb() {
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
-        'customer_gstin', 'customer_state', 'received_amount', 'balance_amount', 'updated_at',
+        'customer_gstin', 'customer_state', 'customer_address', 'received_amount', 'balance_amount', 'updated_at',
         'scrap_deduction', 'scrap_invoice_number'
     ],
     invoice_items: [

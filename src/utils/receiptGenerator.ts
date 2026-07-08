@@ -66,6 +66,7 @@ export interface ReceiptData {
   customerPhone?: string;
   customerGstin?: string;
   customerState?: string;
+  customerAddress?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
   showProductOffers?: boolean;

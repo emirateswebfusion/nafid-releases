@@ -186,7 +186,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
     return current !== initialSnapshot.current;
   }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
 
@@ -222,7 +222,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
     }
   }, [loading]);
 
@@ -339,7 +339,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {

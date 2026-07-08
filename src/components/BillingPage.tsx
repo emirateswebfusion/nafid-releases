@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -176,6 +176,7 @@ export function BillingPage() {
   const customerName = activeTab?.customerName ?? '';
   const customerPhone = activeTab?.customerPhone ?? '';
   const customerGstin = activeTab?.customerGstin ?? '';
+  const customerAddress = activeTab?.customerAddress ?? '';
 
   const scrapPaymentStatus = activeTab?.scrapPaymentStatus ?? 'PENDING';
 
@@ -493,6 +494,7 @@ export function BillingPage() {
           customerName: invoice.customer_name || '',
           customerPhone: invoice.customer_phone || '',
           customerGstin: invoice.customer_gstin || '',
+          customerAddress: invoice.customer_address || '',
           paymentMethod: invoice.payment_method || 'PENDING',
           receivedAmount: Number(invoice.received_amount) || 0,
         });
@@ -812,7 +814,7 @@ export function BillingPage() {
       setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}`);
       if (!editingQuotationId) {
         clearCart();
-        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0 });
+        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0 });
         syncActiveSnapshot();
         setQuotationAddress('');
         setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
@@ -945,7 +947,7 @@ export function BillingPage() {
         setIsCheckingOut(false);
         setTimeout(async () => {
           clearCart();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
           syncActiveSnapshot();
           setCheckoutSuccess(false);
           await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
@@ -1117,6 +1119,7 @@ export function BillingPage() {
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
           customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          customer_address: customerAddress || null,
           items: checkoutItems,
         });
       } else {
@@ -1129,6 +1132,7 @@ export function BillingPage() {
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
           customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           items: checkoutItems,
           scrap_items: [],
@@ -1161,7 +1165,7 @@ export function BillingPage() {
     setTimeout(async () => {
       clearCart();
       clearScrapDeduction();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
       syncActiveSnapshot();
       setCheckoutSuccess(false);
       await reserveInvoiceNumberForTab();
@@ -1178,7 +1182,7 @@ export function BillingPage() {
     const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
     stored.push(bill);
     localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
-    clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '' }); syncActiveSnapshot();
+    clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' }); syncActiveSnapshot();
   };
 
   useKeyboardShortcuts({
@@ -1263,7 +1267,7 @@ export function BillingPage() {
                 const tab = getActiveTab();
                 const fallbackTitle = tab?.reservedInvoiceNumber || tab?.reservedScrapInvoiceNumber || '';
                 clearCart();
-                updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', paymentMethod: 'PENDING', receivedAmount: 0, title: fallbackTitle });
+                updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, title: fallbackTitle });
                 syncActiveSnapshot();
               }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -1552,17 +1556,7 @@ export function BillingPage() {
             </div>
           </div>
 
-          {/* Cart Header info */}
-          <div className="flex items-center justify-between px-6 py-2.5 bg-muted/40 border-b border-border/60 shrink-0">
-            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">
-              Items in Cart {items.length > 0 && `(${items.length})`}
-            </span>
-            {items.length > 0 && totalItemSavings > 0 && (
-              <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-1 rounded-full">
-                Total Savings: {formatCurrency(totalItemSavings)}
-              </span>
-            )}
-          </div>
+
 
           {/* Customer details — moved to top of cart */}
           <div className="px-4 py-2.5 border-b border-border/50 bg-card/40 shrink-0">
@@ -1596,6 +1590,15 @@ export function BillingPage() {
                 />
               </div>
             </div>
+            <div className="relative mb-2">
+              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+              <input
+                placeholder="Customer Address"
+                value={customerAddress}
+                onChange={e => updateActiveTab({ customerAddress: e.target.value })}
+                className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
+              />
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/40">
                 <button
@@ -1622,19 +1625,21 @@ export function BillingPage() {
                 </button>
               </div>
               {invoiceType === 'GST' && (
-                <div className="flex items-center gap-2 flex-1">
-                  <div className="flex-1 max-w-[120px]">
-                    <Select value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="[&_button]:py-1.5 [&_button]:px-2 [&_button]:text-xs [&_button]:rounded-lg [&_button]:font-bold [&_button]:border-border [&_button]:shadow-none" />
-                  </div>
-                  <div className="relative flex-1 max-w-[140px]">
-                    <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
-                    <input
-                      placeholder="GSTIN"
-                      value={customerGstin}
-                      onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
-                      maxLength={15}
-                      className="w-full pl-7 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
-                    />
+                <div className="flex flex-col gap-2 flex-1">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 max-w-[120px]">
+                      <Select value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="[&_button]:py-1.5 [&_button]:px-2 [&_button]:text-xs [&_button]:rounded-lg [&_button]:font-bold [&_button]:border-border [&_button]:shadow-none" />
+                    </div>
+                    <div className="relative flex-1 max-w-[140px]">
+                      <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+                      <input
+                        placeholder="GSTIN"
+                        value={customerGstin}
+                        onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                        maxLength={15}
+                        className="w-full pl-7 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
+                      />
+                    </div>
                   </div>
                 </div>
               )}

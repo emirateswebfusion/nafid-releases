@@ -917,10 +917,10 @@ ipcMain.handle('db:checkout', (event, payload) => {
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
-        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, sync_status,
+        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -941,6 +941,7 @@ ipcMain.handle('db:checkout', (event, payload) => {
       invoice.customer_phone || null,
       invoice.customer_gstin || null,
       invoice.customer_state || null,
+      invoice.customer_address || null,
       invoice.scrap_deduction ?? 0,
       invoice.scrap_invoice_number || null
     );
@@ -1136,6 +1137,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   customer_phone?: string;
   customer_gstin?: string;
   customer_state?: string;
+  customer_address?: string;
   items: Array<{
     item_id?: string;
     product_id: string;
@@ -1161,7 +1163,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       UPDATE invoices SET
         subtotal = ?, tax_total = ?, discount_total = ?, discount_type = ?,
         discount_value = ?, grand_total = ?, payment_method = ?,
-        customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?,
+        customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         sync_status = 'PENDING'
       WHERE invoice_id = ?
     `).run(
@@ -1170,6 +1172,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.grand_total, invoice.payment_method || 'PENDING',
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
+      invoice.customer_address || null,
       payload.invoice_id
     );
 

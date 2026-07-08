@@ -655,16 +655,21 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
     const upsertInv = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, invoice_number, invoice_type,
-        customer_name, customer_phone, subtotal, tax_total,
+        customer_name, customer_phone, customer_gstin, customer_state, customer_address,
+        subtotal, tax_total,
         discount_total, discount_type, discount_value, grand_total, payment_method,
         received_amount, balance_amount, user_id, sync_status, created_at
       ) VALUES (
         @invoice_id, @tenant_id, @invoice_number, @invoice_type,
-        @customer_name, @customer_phone, @subtotal, @tax_total,
+        @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
+        @subtotal, @tax_total,
         @discount_total, @discount_type, @discount_value, @grand_total, @payment_method,
         @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at
       )
       ON CONFLICT(invoice_id) DO UPDATE SET
+        customer_gstin = EXCLUDED.customer_gstin,
+        customer_state = EXCLUDED.customer_state,
+        customer_address = EXCLUDED.customer_address,
         payment_method = EXCLUDED.payment_method,
         received_amount = EXCLUDED.received_amount,
         balance_amount = EXCLUDED.balance_amount,
