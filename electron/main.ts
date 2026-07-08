@@ -2062,26 +2062,10 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
   try {
     const db = getDb();
     const date = business_date || new Date().toISOString().split('T')[0];
-    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
-    
-    if (!drawer) {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-      const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
-      const prevClosing = prevDrawer ? (prevDrawer.expected_closing || 0) : 0;
-      const drawer_id = crypto.randomUUID();
-      
-      db.prepare(`
-        INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, 'OPEN', 'PENDING')
-      `).run(drawer_id, tenant_id, date, prevClosing, prevClosing, prevClosing);
-      
-      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date);
-    }
-    
-    return drawer;
+    const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    return drawer || null;
   } catch (error: any) {
+    console.error(`[Cashier] getDrawer error:`, error.message);
     return { error: error.message };
   }
 });
@@ -2090,11 +2074,35 @@ ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_bala
   try {
     const db = getDb();
     const date = new Date().toISOString().split('T')[0];
+
+    // Block setting opening balance if yesterday is still open
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
+    if (prevDrawer && prevDrawer.status === 'OPEN') {
+      console.log(`[Cashier] setOpeningBalance BLOCKED: yesterday ${yesterdayStr} is still OPEN`);
+      return { success: false, error: 'Yesterday\'s cash drawer is not closed. Close it first before setting today\'s opening balance.' };
+    }
+
     const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
     
-    if (existing) {
-      db.prepare(`
-        UPDATE cash_drawer SET opening_balance = ?, current_cash = ?, expected_closing = ?, opened_by = ?, opened_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    if (existing) {      db.prepare(`
+        UPDATE cash_drawer SET 
+          opening_balance = ?, 
+          current_cash = ?, 
+          expected_closing = ?, 
+          status = 'OPEN', 
+          opened_by = ?, 
+          opened_at = CURRENT_TIMESTAMP, 
+          actual_cash = NULL, 
+          cash_short = 0, 
+          cash_excess = 0, 
+          closing_remarks = NULL, 
+          closed_by = NULL, 
+          closed_at = NULL, 
+          sync_status = 'PENDING', 
+          updated_at = CURRENT_TIMESTAMP
         WHERE drawer_id = ?
       `).run(opening_balance, opening_balance, opening_balance, user_id, existing.drawer_id);
     } else {
@@ -2250,15 +2258,15 @@ ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, c
   }
 });
 
-ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closing_remarks, user_id, user_name }: {
-  tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string
+ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closing_remarks, user_id, user_name, business_date }: {
+  tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string; business_date?: string
 }) => {
   const db = getDb();
   try {
     const tx = db.transaction(() => {
-      const date = new Date().toISOString().split('T')[0];
+      const date = business_date || new Date().toISOString().split('T')[0];
       const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
-      if (!drawer) throw new Error('No open cash drawer found for today');
+      if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
       const expected = Number(drawer.expected_closing);
       const actual = Number(actual_cash);

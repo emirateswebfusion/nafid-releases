@@ -86,6 +86,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [daySettlements, setDaySettlements] = useState<any[]>([]);
   const [loadingSettlements, setLoadingSettlements] = useState(false);
 
+  const [yesterdayNotClosed, setYesterdayNotClosed] = useState(false);
+  const [yesterdayDrawer, setYesterdayDrawer] = useState<any>(null);
+  const [closingDate, setClosingDate] = useState<string | null>(null);
+  const [openingBalError, setOpeningBalError] = useState('');
+
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
     const [d, invs, txs] = await Promise.all([
@@ -93,20 +98,48 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: searchQuery || undefined }),
       window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
     ]);
-    if (d && !d.error) setDrawer(d);
+    // Ignore any closed drawer for today — user must set a fresh opening balance
+    if (d && !d.error && d.status === 'CLOSED') {
+      setDrawer(null);
+    } else if (d && !d.error) {
+      setDrawer(d);
+    } else {
+      setDrawer(null);
+    }
     if (Array.isArray(invs)) setPendingInvoices(invs);
     if (Array.isArray(txs)) setTransactions(txs);
   }, [tenantId, searchQuery]);
 
   useEffect(() => { Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
 
+  // When drawer is null (no auto-open), check if yesterday was not closed
+  useEffect(() => {
+    if (!drawer && tenantId && !loading) {
+      window.electronAPI?.dbCashierGetHistory({ tenant_id: tenantId, limit: 2 }).then(history => {
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const entry = Array.isArray(history) ? history.find(h => h.business_date === yesterdayStr) : null;
+        if (entry && entry.status === 'OPEN') {
+          setYesterdayNotClosed(true);
+          setYesterdayDrawer(entry);
+        }
+      });
+    } else {
+      setYesterdayNotClosed(false);
+      setYesterdayDrawer(null);
+    }
+  }, [drawer, tenantId, loading]);
+
   const handleSetOpening = async () => {
     if (!tenantId || !userId) return;
+    setOpeningBalError('');
     const r = await window.electronAPI!.dbCashierSetOpeningBalance({
       tenant_id: tenantId, opening_balance: openingBalInput,
       user_id: userId, user_name: userName || undefined,
     });
     if (r.success) { setShowOpeningBal(false); await load(); }
+    else if (r.error) { setOpeningBalError(r.error); }
   };
 
   const handleAddTransaction = async () => {
@@ -142,6 +175,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
       tenant_id: tenantId, actual_cash: actualCash,
       closing_remarks: closeRemarks || undefined,
       user_id: userId, user_name: userName || undefined,
+      business_date: closingDate || undefined,
     });
     setCloseSubmitting(false);
     if (r.success) { setCloseResult(r); await load(); }
@@ -214,18 +248,25 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 <span className={clsx(
                   'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border',
                   drawerOpen   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
-                  drawerClosed ? 'bg-muted text-muted-foreground border-border'  :
+                  drawerClosed ? 'bg-muted text-muted-foreground border-border' :
+                  yesterdayNotClosed ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
                                  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
                 )}>
                   <span className={clsx(
                     'w-1.5 h-1.5 rounded-full',
-                    drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : 'bg-amber-500'
+                    drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500'
                   )} />
-                  {drawerOpen ? 'Open' : drawerClosed ? 'Closed' : 'Not Started'}
+                  {drawerOpen ? 'Open' : drawerClosed ? 'Closed' : yesterdayNotClosed ? 'Blocked' : 'Not Started'}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
                   {drawer?.business_date || todayStr()}
                 </span>
+                {yesterdayNotClosed && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25">
+                    <AlertTriangle className="w-2.5 h-2.5" />
+                    Close yesterday first
+                  </span>
+                )}
                 {drawerClosed && drawer?.actual_cash !== null && drawer?.actual_cash !== undefined && (
                   <span className={clsx(
                     'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border',
@@ -265,7 +306,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
             </button>
             {!drawerClosed && (
               <button
-                onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setShowOpeningBal(true); }}
+                onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setOpeningBalError(''); setShowOpeningBal(true); }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
               >
                 <DollarSign className="w-3.5 h-3.5" /> Opening Bal
@@ -290,6 +331,47 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
         </div>
       </header>
+      )}
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          WARNING: Yesterday not closed
+      ══════════════════════════════════════════════════════════════════════ */}
+      {yesterdayNotClosed && !showHist && (
+        <div className="shrink-0 bg-amber-500/10 border-b border-amber-500/25 px-6 py-3 flex items-center gap-3 flex-wrap">
+          <div className="p-2 rounded-full bg-amber-500/20 shrink-0">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-extrabold text-amber-700 dark:text-amber-300">
+              Yesterday's cash drawer was not closed
+            </p>
+            <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 font-medium mt-0.5">
+              {yesterdayDrawer?.business_date} &middot; Expected closing: {formatCurrency(yesterdayDrawer?.expected_closing || 0)}
+              &nbsp;&middot; Close it first or manually set today's opening balance to continue.
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setClosingDate(yesterdayDrawer?.business_date);
+              setActualCash(yesterdayDrawer?.expected_closing || 0);
+              setCloseResult(null);
+              setShowDayClose(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" /> Close Yesterday
+          </button>
+          <button
+            onClick={() => {
+              setOpeningBalInput(0);
+              setOpeningBalError('');
+              setShowOpeningBal(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+          >
+            <DollarSign className="w-3.5 h-3.5" /> Set Opening Balance
+          </button>
+        </div>
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
@@ -841,7 +923,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-          onClick={() => { if (!closeSubmitting) setShowDayClose(false); }}
+          onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setClosingDate(null); } }}
         >
           <div
             className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[480px] overflow-hidden"
@@ -856,10 +938,17 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   <div className="p-2 rounded-xl bg-destructive/10">
                     <AlertTriangle className="w-4 h-4 text-destructive" />
                   </div>
-                  <h2 className="text-base font-extrabold text-foreground">End of Day Closing</h2>
+                  <div>
+                    <h2 className="text-base font-extrabold text-foreground">End of Day Closing</h2>
+                    {closingDate && (
+                      <p className="text-[10px] font-bold text-muted-foreground/70 mt-0.5">
+                        Closing session for {closingDate}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <button
-                  onClick={() => { if (!closeSubmitting) setShowDayClose(false); }}
+                  onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setClosingDate(null); } }}
                   className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
                 >
                   <X className="w-4 h-4" />
@@ -875,7 +964,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                       <CheckCircle2 className="w-9 h-9 text-emerald-500" />
                     </div>
                     <p className="text-xl font-black text-foreground">Day Closed</p>
-                    <p className="text-xs text-muted-foreground font-semibold mt-1">{drawer?.business_date}</p>
+                    <p className="text-xs text-muted-foreground font-semibold mt-1">{closingDate || drawer?.business_date}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-4 bg-muted/30 rounded-xl text-center border border-border/40">
@@ -900,7 +989,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                     )}
                   </div>
                   <button
-                    onClick={() => { setShowDayClose(false); setCloseResult(null); }}
+                    onClick={() => { setShowDayClose(false); setCloseResult(null); setClosingDate(null); setYesterdayNotClosed(false); setYesterdayDrawer(null); }}
                     className="w-full py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer"
                   >
                     Done
@@ -911,11 +1000,11 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-4 bg-muted/20 rounded-xl text-center border border-border/40">
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Expected Cash</p>
-                      <p className="text-lg font-black text-foreground">{formatCurrency(drawer?.expected_closing || 0)}</p>
+                      <p className="text-lg font-black text-foreground">{formatCurrency(closingDate ? yesterdayDrawer?.expected_closing : drawer?.expected_closing || 0)}</p>
                     </div>
                     <div className="p-4 bg-primary/5 rounded-xl text-center border-2 border-primary/20">
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Current Balance</p>
-                      <p className="text-lg font-black text-primary">{formatCurrency(drawer?.current_cash || 0)}</p>
+                      <p className="text-lg font-black text-primary">{formatCurrency(closingDate ? yesterdayDrawer?.current_cash : drawer?.current_cash || 0)}</p>
                     </div>
                   </div>
                   <div>
@@ -941,7 +1030,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   />
                   <div className="flex gap-3">
                     <button
-                      onClick={() => setShowDayClose(false)}
+                      onClick={() => { setShowDayClose(false); setClosingDate(null); }}
                       className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                     >
                       Cancel
@@ -968,7 +1057,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4"
           style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
-          onClick={() => setShowOpeningBal(false)}
+          onClick={() => { setShowOpeningBal(false); setOpeningBalError(''); }}
         >
           <div
             className="bg-card border border-border/80 rounded-2xl shadow-2xl w-80 overflow-hidden"
@@ -996,9 +1085,15 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                   step="0.01" min="0" placeholder="Enter opening balance" autoFocus
                 />
               </div>
+              {openingBalError && (
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-500/10 border border-rose-500/25">
+                  <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                  <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{openingBalError}</p>
+                </div>
+              )}
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowOpeningBal(false)}
+                  onClick={() => { setShowOpeningBal(false); setOpeningBalError(''); }}
                   className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
                   Cancel
