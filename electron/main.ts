@@ -1324,7 +1324,7 @@ function getOrInitTerminalCode(db: any): string {
   return code;
 }
 
-ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
@@ -1336,7 +1336,8 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { t
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
     const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
-    const response = await fetch(`${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}`, {
+    const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}`;
+    const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(5000),
     });
@@ -1349,11 +1350,11 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id }: { t
   }
 });
 
-ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
-    const configKey = 'invoice_counter_config';
+    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
 
     const result = db.transaction(() => {
       const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
@@ -1390,12 +1391,13 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id }: { tenant_id: st
   }
 });
 
-ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id }: { tenant_id: string }) => {
+ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
+    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
 
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'invoice_counter_config');
+    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
     if (row) {
       const config = JSON.parse(row.value);
       return { success: true, invoiceNumber: `${terminalCode}-${String(config.counter || 1).padStart(3, '0')}` };

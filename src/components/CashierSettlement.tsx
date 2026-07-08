@@ -57,6 +57,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [loading, setLoading] = useState(true);
 
   const [rowDiscs, setRowDiscs] = useState<Record<string, number>>({});
+  const [rowDiscPercents, setRowDiscPercents] = useState<Record<string, number>>({});
   const [rowMethods, setRowMethods] = useState<Record<string, PaymentMethod>>({});
   const [payingRow, setPayingRow] = useState<string | null>(null);
 
@@ -73,6 +74,34 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [txnPartyId, setTxnPartyId] = useState('');
   const [txnPartyName, setTxnPartyName] = useState('');
   const [partySearch, setPartySearch] = useState('');
+
+  const handleDiscPercentChange = (invoiceId: string, val: string) => {
+    if (val === '') {
+      setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
+      return;
+    }
+    const percent = parseFloat(val);
+    const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
+    const base = inv ? Number(inv.grand_total) : 0;
+    const flat = base && !isNaN(percent) ? (base * percent) / 100 : 0;
+    setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
+    setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+  };
+
+  const handleDiscFlatChange = (invoiceId: string, val: string) => {
+    if (val === '') {
+      setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
+      return;
+    }
+    const flat = parseFloat(val);
+    const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
+    const base = inv ? Number(inv.grand_total) : 0;
+    const percent = base && !isNaN(flat) ? (flat / base) * 100 : 0;
+    setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+    setRowDiscs((p) => ({ ...p, [invoiceId]: Math.max(0, flat) }));
+  };
 
   const [showDayClose, setShowDayClose] = useState(false);
   const [actualCash, setActualCash] = useState<number>(0);
@@ -671,7 +700,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[1.4fr_1.4fr_1fr_0.8fr_1fr_1.4fr_0.9fr] gap-x-3 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
+          <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
             <span className="text-center">Invoice</span>
             <span className="text-center">Customer</span>
             <span className="text-center">Amount</span>
@@ -704,7 +733,7 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                     <div
                       key={inv.invoice_id}
                       className={clsx(
-                        'grid grid-cols-[1.4fr_1.4fr_1fr_0.8fr_1fr_1.4fr_0.9fr] gap-x-3 px-4 py-2.5 transition-all duration-150 items-center group hover:bg-primary/5',
+                        'grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2.5 transition-all duration-150 items-center group hover:bg-primary/5',
                         idx % 2 === 0 ? 'bg-card' : 'bg-muted/25'
                       )}
                     >
@@ -717,17 +746,24 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                       {/* Amount */}
                       <span className="text-xs font-black text-foreground text-center tabular-nums block">{formatCurrency(inv.grand_total)}</span>
 
-                      {/* Discount input */}
-                      <div className="flex justify-center">
+                      {/* Discount inputs grouped */}
+                      <div className="flex items-center border border-amber-500/20 rounded-lg overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
+                        <input
+                          type="number"
+                          value={rowDiscPercents[inv.invoice_id] || ''}
+                          onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-full py-1.5 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                          step="0.01" min="0" placeholder="%"
+                        />
+                        <span className="w-px h-5 bg-amber-500/20 shrink-0" />
                         <input
                           type="number"
                           value={rd || ''}
-                          onChange={(e) =>
-                            setRowDiscs((p) => ({ ...p, [inv.invoice_id]: Math.max(0, Number(e.target.value)) }))
-                          }
+                          onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-full py-1.5 text-[10px] font-bold bg-card border border-amber-500/20 rounded-lg outline-none focus:border-amber-500/60 text-foreground tabular-nums text-center transition-all"
-                          step="1" min="0" placeholder="0"
+                          className="w-full py-1.5 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                          step="1" min="0" placeholder="₹"
                         />
                       </div>
 

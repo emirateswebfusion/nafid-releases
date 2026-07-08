@@ -77,9 +77,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:token-expired', () => callback());
   },
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
-  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
-  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
-  dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
+  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
+  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
+  dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),
 
   // Scrap (categories ARE items with price/stock/unit)
   dbDeduplicateScrapCategories: () => ipcRenderer.invoke('db:deduplicateScrapCategories'),

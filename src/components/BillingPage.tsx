@@ -100,6 +100,10 @@ export function BillingPage() {
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
+  // Dual invoice series
+  const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
+  const gstSeries = invoiceType === 'GST' && enableDualInvoiceSeries;
+
   // Scrap mode (moved before displayGrandTotal which depends on it)
   const [isScrapMode, setIsScrapMode] = useState(false);
   const [enableScrap, setEnableScrap] = useState(false);
@@ -259,6 +263,9 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+    });
+    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' }).then((v: any) => {
+      if (v !== null && v !== undefined) setEnableDualInvoiceSeries(Boolean(v.enabled));
     });
   }, [tenantId]);
 
@@ -972,15 +979,16 @@ export function BillingPage() {
     const effectiveBalanceAmount = isPaymentPending ? 0 : balanceAmount;
 
     const invoice_id = isEditing ? editingInvoiceId : uuidv4();
+    const series = enableDualInvoiceSeries ? (invoiceType === 'GST' ? 'gst' : 'normal') : undefined;
     let invoice_number: string;
     if (isEditing && editingInvoiceNumber) {
       invoice_number = editingInvoiceNumber;
     } else {
-      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
+      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (serverResult.success && serverResult.invoiceNumber) {
         invoice_number = serverResult.invoiceNumber;
       } else {
-        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
         invoice_number = localResult.success && localResult.invoiceNumber
           ? localResult.invoiceNumber
           : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;

@@ -179,13 +179,16 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [enableScrap, setEnableScrap] = useState(false);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
+  const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
+  const [gstTerminalCode, setGstTerminalCode] = useState('');
+  const [gstInvoiceStartNumber, setGstInvoiceStartNumber] = useState<number | string>(1);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -219,7 +222,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
     }
   }, [loading]);
 
@@ -281,6 +284,13 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
     if (invCfg) { setInvoiceStartNumber(invCfg.counter || 1); }
 
+    const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
+    if (dualSeries) {
+      setEnableDualInvoiceSeries(Boolean(dualSeries.enabled));
+      if (dualSeries.gstTerminalCode) setGstTerminalCode(dualSeries.gstTerminalCode);
+      if (dualSeries.gstStartNumber) setGstInvoiceStartNumber(dualSeries.gstStartNumber);
+    }
+
     try { const pr = await window.electronAPI.getPrinters(); setOsPrinters(pr || []); } catch (err) { console.error('Failed to get printers', err); }
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
 
@@ -318,6 +328,8 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'dual_invoice_series', value: { enabled: enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstStartNumber: enableDualInvoiceSeries ? Number(gstInvoiceStartNumber) || 1 : 1 } }), name: 'dual_invoice_series' },
+        ...(enableDualInvoiceSeries ? [{ promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_invoice_counter_config', value: { prefix: `${gstTerminalCode}-`, counter: Number(gstInvoiceStartNumber) || 1 } }), name: 'gst_invoice' }] : []),
       ];
 
       for (const { promise, name } of checks) {
@@ -327,7 +339,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -386,22 +398,77 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     switch (sectionId) {
       case 'invoice':
         return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                Terminal Code
-                <span className="ml-2 text-[10px] font-normal text-muted-foreground bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full">Unique per computer</span>
-              </label>
-              <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated on first run" className="font-mono font-bold uppercase" maxLength={6} />
-              <p className="text-[10px] text-muted-foreground">Used as prefix: <span className="font-mono font-bold text-foreground">{terminalCode || 'POS1'}-XXX</span></p>
+          <div className="space-y-6">
+            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                  <Receipt className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">Invoice Series</span>
+                <div className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/50">
+                  <span className="text-[10px] font-mono font-bold text-foreground">{terminalCode || 'POS1'}-{String(Number(invoiceStartNumber) || 1).padStart(3, '0')}</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">NEXT</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                    Terminal Code
+                    <span className="text-[9px] font-normal text-muted-foreground bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full ml-auto">Per computer</span>
+                  </label>
+                  <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider" maxLength={6} />
+                  <p className="text-[10px] text-muted-foreground/70">Format: <span className="font-mono text-foreground/80">{terminalCode || 'POS1'}-XXX</span></p>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Starting Number
+                  </label>
+                  <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                </div>
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Starting Number</label>
-              <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" />
+
+            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
+                    <Receipt className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-purple-500 uppercase tracking-wider">Dual Series</span>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Separate counter for GST invoices</p>
+                  </div>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={enableDualInvoiceSeries} onChange={(e) => setEnableDualInvoiceSeries(e.target.checked)} className="sr-only peer" />
+                  <div className="w-10 h-6 bg-muted rounded-full peer peer-checked:bg-purple-500 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4 shadow-inner" />
+                </label>
+              </div>
+
+              {enableDualInvoiceSeries && (
+                <div className="mt-4 rounded-xl border border-blue-500/25 bg-blue-500/[0.03] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      GST Invoice Series
+                    </h5>
+                    <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{gstTerminalCode || 'GST'}-{String(Number(gstInvoiceStartNumber) || 1).padStart(3, '0')}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
+                      <Input type="text" value={gstTerminalCode} onChange={(e) => setGstTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. GST" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
+                      <Input type="number" min="1" value={gstInvoiceStartNumber} onChange={(e) => setGstInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-            <p className="col-span-2 -mt-2 text-xs text-muted-foreground">
-              Next invoice: <span className="font-mono font-bold text-foreground bg-muted px-2 py-0.5 rounded">{terminalCode || 'POS1'}-{String(Number(invoiceStartNumber) || 1).padStart(3, '0')}</span>
-            </p>
           </div>
         );
       case 'bulk':
@@ -1675,7 +1742,7 @@ Discount          ₹-50.00
         </div>
 
         {/* ── Main Content Area ── */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/20">
+        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/20" style={{ scrollbarGutter: 'stable' }}>
           <div className="max-w-3xl mx-auto p-6 lg:p-8">
 
             {/* Section Header */}
