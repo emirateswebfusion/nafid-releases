@@ -21,9 +21,9 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
     shopName: bs.showShopName ? 'Vendora Mart' : '',
-    shopGstin: bs.showShopGstin ? '27AAAAA1111A1Z1' : undefined,
-    shopState: bs.showShopState ? 'MH' : undefined,
-    shopAddress: bs.showShopAddress ? '123, Main Street, Mumbai - 400001' : undefined,
+    shopGstin: bs.showShopGstin ? '32AAAAA1111A1Z1' : undefined,
+    shopState: bs.showShopState ? 'KL' : undefined,
+    shopAddress: bs.showShopAddress ? '123, Main Street, Kochi, Kerala - 682001' : undefined,
     shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
     upiId: 'vendora@upi',
     showUpiQr: false,
@@ -52,9 +52,9 @@ function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSe
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
     shopName: bs.showShopName ? 'Vendora Mart' : '',
-    shopGstin: bs.showShopGstin ? '27AAAAA1111A1Z1' : undefined,
-    shopState: bs.showShopState ? 'MH' : undefined,
-    shopAddress: bs.showShopAddress ? '123, Main Street, Mumbai - 400001' : undefined,
+    shopGstin: bs.showShopGstin ? '32AAAAA1111A1Z1' : undefined,
+    shopState: bs.showShopState ? 'KL' : undefined,
+    shopAddress: bs.showShopAddress ? '123, Main Street, Kochi, Kerala - 682001' : undefined,
     shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
     upiId: 'vendora@upi',
     invoiceNumber: 'INV-001',
@@ -75,8 +75,8 @@ function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSe
     invoiceType: 'GST',
     customerName: 'Rajesh Sharma',
     customerPhone: '+91 98765 12345',
-    customerGstin: bs.showCustomerGstin ? '27AAAAA2222A1Z1' : undefined,
-    customerState: bs.showCustomerGstin ? 'MH' : undefined,
+    customerGstin: bs.showCustomerGstin ? '32AAAAA2222A1Z1' : undefined,
+    customerState: bs.showCustomerGstin ? 'KL' : undefined,
     showProductOffers,
     billSettings: bs,
   };

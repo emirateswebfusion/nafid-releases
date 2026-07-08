@@ -487,7 +487,7 @@ export function BillingPage() {
         });
 
         // Restore customer state for correct tax type (CGST/SGST vs IGST)
-        setCustomerState(invoice.customer_state || 'MH');
+        setCustomerState(invoice.customer_state || 'KL');
 
         // Set customer info
         updateActiveTab({
@@ -1625,22 +1625,20 @@ export function BillingPage() {
                 </button>
               </div>
               {invoiceType === 'GST' && (
-                <div className="flex flex-col gap-2 flex-1">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 max-w-[120px]">
-                      <Select value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="[&_button]:py-1.5 [&_button]:px-2 [&_button]:text-xs [&_button]:rounded-lg [&_button]:font-bold [&_button]:border-border [&_button]:shadow-none" />
+                <div className="flex items-center gap-2 flex-1">
+                    <div className="flex-1">
+                      <Select size="sm" triggerClassName="h-auto" value={customerState} onChange={setCustomerState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} className="w-full" />
                     </div>
-                    <div className="relative flex-1 max-w-[140px]">
-                      <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/50" />
+                    <div className="relative flex-1">
+                      <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                       <input
                         placeholder="GSTIN"
                         value={customerGstin}
                         onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
                         maxLength={15}
-                        className="w-full pl-7 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
+                        className="w-full pl-7 pr-2 py-1 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
                       />
                     </div>
-                  </div>
                 </div>
               )}
             </div>

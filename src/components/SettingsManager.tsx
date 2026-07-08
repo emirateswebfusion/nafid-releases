@@ -159,7 +159,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
   });
   const [shopGstin, setShopGstin] = useState('');
-  const [shopState, setShopState] = useState('MH');
+  const [shopState, setShopState] = useState('KL');
   const [shopNameLocal, setShopNameLocal] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');

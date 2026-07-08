@@ -51,7 +51,7 @@ function createDefaultTab(): Tab {
       invoiceType: 'BILL_OF_SUPPLY',
       discountType: 'FIXED',
       discountValue: 0,
-      customerState: 'MH',
+      customerState: 'KL',
     },
     customerName: '',
     customerPhone: '',
@@ -89,7 +89,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     if (initialSnapshot) {
       tab.snapshot = initialSnapshot;
     } else {
-      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'MH' });
+      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'KL' });
     }
 
     set({ tabs: [...currentTabs, tab], activeTabId: tab.id });
@@ -107,7 +107,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const newTabs = savedTabs.filter(t => t.id !== id);
     if (newTabs.length === 0) {
       const tab = createDefaultTab();
-      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'MH' });
+      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'KL' });
       set({ tabs: [tab], activeTabId: tab.id });
       return;
     }

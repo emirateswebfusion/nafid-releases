@@ -73,8 +73,8 @@ export const useCartStore = create<CartState>()(
       invoiceType: 'BILL_OF_SUPPLY',
       discountType: 'FIXED',
       discountValue: 0,
-      customerState: 'MH', // Default to same state (Maharashtra)
-      shopState: 'MH', // Shop is in MH
+      customerState: 'KL', // Default to same state (Kerala)
+      shopState: 'KL', // Shop is in KL
       currentUserRole: 'OWNER',
       shopDomain: null,
       shopDomainConfirmed: false,
@@ -129,7 +129,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'MH', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null }),
+      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null }),
     }),
     {
       name: 'vendora-cart-storage',
