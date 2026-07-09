@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash2, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -1274,27 +1274,40 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                           />
                         )}
                       </div>
-                      {grades.filter(g => g.category === formData.category).length > 0 && (
-                        <div className="p-4 bg-muted/10 border border-border/80 rounded-xl">
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Select Grade</label>
-                          <Select
-                            value={formData.grade_id}
-                            onChange={v => handleInputChange('grade_id', v)}
-                            placeholder="-- No Grade Selected --"
-                            options={grades.filter(g => g.category === formData.category).map(g => ({
-                              value: g.grade_id,
-                              label: g.grade_name + ' (₹' + g.rate + ')'
-                            }))}
-                            triggerClassName="rounded-xl h-[46px]"
-                          />
-                        </div>
-                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
                       <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     </div>
                   </div>
+                  {grades.filter(g => g.category === formData.category).length > 0 && (
+                    <div className="mt-4">
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Grade</label>
+                      <Select
+                        value={formData.grade_id}
+                        onChange={v => handleInputChange('grade_id', v)}
+                        placeholder="Select grade..."
+                        searchable
+                        options={grades.filter(g => g.category === formData.category).map(g => ({
+                          value: g.grade_id,
+                          label: g.grade_name + ' (₹' + g.rate + ')'
+                        }))}
+                        renderOption={(option, isSelected) => {
+                          const grade = grades.find(g => g.grade_id === option.value);
+                          return (
+                            <>
+                              <div className="flex-1 min-w-0">
+                                <div className={clsx('text-sm truncate', isSelected && 'font-medium')}>{grade?.grade_name || option.label}</div>
+                                <div className="text-xs text-muted-foreground">₹{Number(grade?.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                              </div>
+                              {isSelected && <Check className="w-4 h-4 shrink-0 text-primary" />}
+                            </>
+                          );
+                        }}
+                        triggerClassName="rounded-xl h-[46px]"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">

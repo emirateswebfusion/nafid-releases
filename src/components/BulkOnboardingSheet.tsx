@@ -586,7 +586,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                       )}
                     </td>
                     <td className="p-1">
-                      <Select value={row.grade_id} onChange={v => updateRow(index, 'grade_id', v)} placeholder="- Grade -" disabled={!row.category || availableGrades.length === 0} options={availableGrades.map(g => ({value:g.grade_id,label:g.grade_name+' (₹'+g.rate+')'}))} />
+                      <Select value={row.grade_id} onChange={v => updateRow(index, 'grade_id', v)} placeholder="- Grade -" size="sm" searchable disabled={!row.category || availableGrades.length === 0} options={availableGrades.map(g => ({value:g.grade_id,label:g.grade_name+' (₹'+g.rate+')'}))} />
                     </td>
                     <td className="p-1"><input type="text" value={row.purchase_price} onChange={(e) => updateRow(index, 'purchase_price', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" placeholder="0" /></td>
                     <td className="p-1"><input type="text" value={row.mrp} onChange={(e) => updateRow(index, 'mrp', e.target.value.replace(/[^0-9.]/g, ''))} className={`w-full bg-transparent px-2 py-1.5 outline-none border ${row.error && row.name && !row.mrp ? 'border-destructive' : 'border-transparent focus:border-primary'} rounded-md font-bold`} placeholder="0" /></td>

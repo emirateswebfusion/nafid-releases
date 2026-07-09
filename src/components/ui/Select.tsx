@@ -1,7 +1,7 @@
 import * as React from 'react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Check } from 'lucide-react';
 
 export interface SelectOption {
   value: string;
@@ -18,14 +18,17 @@ export interface SelectProps {
   searchable?: boolean;
   size?: 'default' | 'sm' | 'xs';
   triggerClassName?: string;
+  renderOption?: (option: SelectOption, isSelected: boolean) => React.ReactNode;
 }
 
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-  ({ value, onChange, options, placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName }, ref) => {
+  ({ value, onChange, options, placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, ref) => {
     const [open, setOpen] = React.useState(false);
     const [search, setSearch] = React.useState('');
+    const [focusedIndex, setFocusedIndex] = React.useState(-1);
     const containerRef = React.useRef<HTMLDivElement>(null);
     const searchInputRef = React.useRef<HTMLInputElement>(null);
+    const listRef = React.useRef<HTMLDivElement>(null);
 
     const selectedOption = options.find(o => o.value === value);
 
@@ -44,7 +47,20 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       if (open && searchable) {
         searchInputRef.current?.focus();
       }
+      if (open) {
+        const idx = filtered.findIndex(o => o.value === value);
+        setFocusedIndex(idx >= 0 ? idx : 0);
+      } else {
+        setFocusedIndex(-1);
+      }
     }, [open, searchable]);
+
+    React.useEffect(() => {
+      if (open && listRef.current) {
+        const items = listRef.current.querySelectorAll<HTMLElement>('[data-option-index]');
+        items[focusedIndex]?.scrollIntoView({ block: 'nearest' });
+      }
+    }, [focusedIndex, open]);
 
     const filtered = searchable && search.trim()
       ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
@@ -60,6 +76,18 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       if (e.key === 'Escape') {
         setOpen(false);
         setSearch('');
+        return;
+      }
+      if (!open) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex(prev => Math.min(prev + 1, filtered.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex(prev => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < filtered.length) {
+        e.preventDefault();
+        handleSelect(filtered[focusedIndex]);
       }
     };
 
@@ -89,43 +117,56 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <ChevronDown className={clsx(
-            'shrink-0 text-muted-foreground transition-transform',
+            'shrink-0 text-muted-foreground transition-transform duration-200',
             size === 'default' ? 'w-4 h-4' : 'w-3.5 h-3.5',
             open && 'rotate-180'
           )} />
         </button>
 
         {open && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             {searchable && (
               <div className="p-1.5 border-b border-border">
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={e => { setSearch(e.target.value); setFocusedIndex(0); }}
                   placeholder="Search..."
                   className="w-full bg-background border border-input rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />
               </div>
             )}
-            <div className="max-h-60 overflow-y-auto">
+            <div ref={listRef} className="max-h-60 overflow-y-auto">
               {filtered.length === 0 ? (
-                <div className="px-2 py-1.5 text-sm text-muted-foreground text-center">No results found</div>
+                <div className="px-3 py-2 text-sm text-muted-foreground text-center">No results found</div>
               ) : (
-                filtered.map((option) => (
+                filtered.map((option, index) => (
                   <button
                     key={option.value}
+                    data-option-index={index}
                     type="button"
                     onClick={() => handleSelect(option)}
+                    onMouseEnter={() => setFocusedIndex(index)}
                     className={clsx(
-                      'w-full text-left px-2 py-1.5 text-sm transition-colors cursor-pointer',
-                      option.value === value
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-foreground hover:bg-muted'
+                      'w-full text-left px-3 py-2 text-sm transition-colors cursor-pointer flex items-center gap-2',
+                      focusedIndex === index && 'bg-muted',
+                      option.value === value && !renderOption && 'bg-primary/5 text-primary font-medium',
+                      option.value !== value && 'text-foreground'
                     )}
                   >
-                    {option.label}
+                    {renderOption ? (
+                      renderOption(option, option.value === value)
+                    ) : (
+                      <>
+                        <span className={clsx('flex-1 truncate', option.value === value && 'font-medium')}>
+                          {option.label}
+                        </span>
+                        {option.value === value && (
+                          <Check className="w-4 h-4 shrink-0 text-primary" />
+                        )}
+                      </>
+                    )}
                   </button>
                 ))
               )}
