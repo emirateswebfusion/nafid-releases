@@ -171,9 +171,10 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
           </div>
           <button
             onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
+            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+            title="Close"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 text-destructive" />
           </button>
         </div>
       </div>

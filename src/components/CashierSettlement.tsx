@@ -1070,9 +1070,10 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                 </div>
                 <button
                   onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setClosingDate(null); } }}
-                  className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+                  title="Close"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 text-destructive" />
                 </button>
               </div>
             </div>

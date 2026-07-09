@@ -30,8 +30,8 @@ export function Modal({ isOpen, onClose, title, children, className, fullScreen 
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div className="text-lg font-semibold">{title}</div>
           {closeButton !== undefined ? closeButton : (
-            <button onClick={onClose} className="p-2 -mr-2 text-muted-foreground hover:bg-muted hover:text-foreground rounded-full transition-colors">
-              <X className="w-5 h-5" />
+            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Close">
+              <X className="w-4 h-4 text-destructive" />
             </button>
           )}
         </div>
