@@ -938,6 +938,8 @@ export function BillingPage() {
             rate: item.base_price,
             total_amount: item.base_price * (Number(item.quantity) || 0),
             party_name: customerName || null,
+            customer_phone: customerPhone || null,
+            customer_address: customerAddress || null,
             notes: '',
             scrap_invoice_number: scrapInvoiceNum,
             payment_status: scrapPaymentStatus,

@@ -185,6 +185,8 @@ export function initDb() {
         rate REAL NOT NULL,
         total_amount REAL NOT NULL,
         party_name TEXT,
+        customer_phone TEXT,
+        customer_address TEXT,
         notes TEXT,
         transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         sync_status TEXT DEFAULT 'SYNCED',
@@ -409,7 +411,7 @@ export function initDb() {
         'scrap_category_id', 'tenant_id', 'name', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_transactions: [
-        'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'notes', 'transaction_date', 'sync_status', 'created_at', 'updated_at', 'scrap_invoice_number'
+        'transaction_id', 'tenant_id', 'type', 'scrap_category_id', 'quantity', 'rate', 'total_amount', 'party_name', 'customer_phone', 'customer_address', 'notes', 'transaction_date', 'sync_status', 'created_at', 'updated_at', 'scrap_invoice_number'
     ],
     quotations: [
         'quotation_id', 'tenant_id', 'quotation_number', 'customer_name', 'customer_phone', 'customer_address', 'terms_conditions', 'subtotal', 'tax_total', 'grand_total', 'status', 'converted_to_invoice', 'invoice_id', 'sync_status', 'created_at', 'updated_at'
@@ -732,6 +734,8 @@ export function initDb() {
             rate REAL NOT NULL,
             total_amount REAL NOT NULL,
             party_name TEXT,
+            customer_phone TEXT,
+            customer_address TEXT,
             notes TEXT,
             transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
             sync_status TEXT DEFAULT 'SYNCED',
@@ -763,8 +767,16 @@ export function initDb() {
       console.log('[DB Migration] Adding payment_status to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN payment_status TEXT DEFAULT 'CASH'");
     }
+    if (!scrapTxCols.includes('customer_phone')) {
+      console.log('[DB Migration] Adding customer_phone to scrap_transactions...');
+      db.exec("ALTER TABLE scrap_transactions ADD COLUMN customer_phone TEXT");
+    }
+    if (!scrapTxCols.includes('customer_address')) {
+      console.log('[DB Migration] Adding customer_address to scrap_transactions...');
+      db.exec("ALTER TABLE scrap_transactions ADD COLUMN customer_address TEXT");
+    }
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add payment_status column:', e.message);
+    console.warn('[DB Migration] Failed to add scrap_transactions columns:', e.message);
   }
 
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'

@@ -915,6 +915,9 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                 {selectedInvoice.customer_phone && (
                   <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_phone}</div>
                 )}
+                {selectedInvoice.customer_address && (
+                  <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_address}</div>
+                )}
                 {selectedInvoice.customer_gstin && (
                   <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
                 )}

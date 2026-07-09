@@ -1261,10 +1261,10 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
 
     const upsert = db.prepare(`
       INSERT INTO scrap_transactions (
-        transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, transaction_date, created_at,
+        transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, transaction_date, created_at,
         sync_status
       ) VALUES (
-        @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @notes, @scrap_invoice_number, @transaction_date, @created_at,
+        @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @transaction_date, @created_at,
         'SYNCED'
       )
       ON CONFLICT(transaction_id) DO UPDATE SET
@@ -1273,6 +1273,8 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
         rate = excluded.rate,
         total_amount = excluded.total_amount,
         party_name = excluded.party_name,
+        customer_phone = excluded.customer_phone,
+        customer_address = excluded.customer_address,
         notes = excluded.notes,
         scrap_invoice_number = excluded.scrap_invoice_number,
         sync_status = 'SYNCED'
@@ -1291,6 +1293,8 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
             rate: t.rate,
             total_amount: t.total_amount ?? 0,
             party_name: t.party_name || null,
+            customer_phone: t.customer_phone || null,
+            customer_address: t.customer_address || null,
             notes: t.notes || null,
             scrap_invoice_number: t.scrap_invoice_number || null,
             transaction_date: toSqliteDate(t.transaction_date),

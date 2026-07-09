@@ -971,8 +971,8 @@ ipcMain.handle('db:checkout', (event, payload) => {
     // 3. Handle scrap items — create scrap transactions and update scrap stock
     if (scrap_items && scrap_items.length > 0) {
       const scrapTxStmt = db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, sync_status, updated_at)
-        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, sync_status, updated_at)
+        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
       `);
       const scrapStockStmt = db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`);
 
@@ -985,6 +985,8 @@ ipcMain.handle('db:checkout', (event, payload) => {
           scrap.rate,
           scrap.total_amount,
           invoice.customer_name || null,
+          invoice.customer_phone || null,
+          invoice.customer_address || null,
           `From invoice ${invoice.invoice_number}`,
           invoice.scrap_invoice_number || null
         );
@@ -1716,9 +1718,9 @@ ipcMain.handle('db:addScrapTransaction', (event, t) => {
     const paymentStatus = t.payment_status || 'CASH';
     const result = db.transaction(() => {
       db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+      `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.customer_phone || null, t.customer_address || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
       db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
       return { success: true };
     })();
@@ -1855,7 +1857,9 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
         MAX(st.payment_status) as payment_status,
         MIN(st.created_at) as created_at,
         MAX(st.created_at) as updated_at,
-        MAX(st.party_name) as party_name
+        MAX(st.party_name) as party_name,
+        MAX(st.customer_phone) as customer_phone,
+        MAX(st.customer_address) as customer_address
       FROM scrap_transactions st
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
       WHERE st.tenant_id = ? AND st.scrap_invoice_number IS NOT NULL AND st.type = 'PURCHASE'

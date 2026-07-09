@@ -788,8 +788,15 @@ export function ScrapManager({ onClose, initialView }: { onClose: () => void; in
                         <span className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</span>
                       </div>
                     </div>
-                    <div className="col-span-2 text-xs text-muted-foreground font-semibold truncate">
-                      {inv.party_name || '-'}
+                    <div className="col-span-2">
+                      <div className="text-xs text-muted-foreground font-semibold truncate">
+                        {inv.party_name || '-'}
+                      </div>
+                      {(inv.customer_phone || inv.customer_address) && (
+                        <div className="text-[9px] text-muted-foreground/60 truncate mt-0.5">
+                          {[inv.customer_phone, inv.customer_address].filter(Boolean).join(', ')}
+                        </div>
+                      )}
                     </div>
                     <div className="col-span-2 text-center text-xs text-muted-foreground font-semibold">
                       {new Date(inv.created_at).toLocaleDateString('en-IN')}
@@ -835,6 +842,11 @@ export function ScrapManager({ onClose, initialView }: { onClose: () => void; in
                     <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
                     {invoiceDetailTxs[0]?.party_name && (
                       <p className="text-xs font-semibold text-foreground/70 mt-0.5">{invoiceDetailTxs[0].party_name}</p>
+                    )}
+                    {(invoiceDetailTxs[0]?.customer_phone || invoiceDetailTxs[0]?.customer_address) && (
+                      <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+                        {[invoiceDetailTxs[0].customer_phone, invoiceDetailTxs[0].customer_address].filter(Boolean).join(', ')}
+                      </p>
                     )}
                     <p className="text-xs text-muted-foreground mt-0.5">{invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(3)} {invoiceDetailTxs[0]?.unit || 'Kgs'} &middot; {invoiceDetailTxs.length} item(s)</p>
                   </div>
