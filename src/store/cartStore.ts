@@ -153,7 +153,7 @@ export const useCartTotals = () => {
     }
 
     const rawRate = item.pricing_mode === 'GRADE_RATE' 
-      ? item.base_price + (item.grade_rate || 0) 
+      ? (item.grade_rate || 0) 
       : item.base_price;
 
     let effectiveRate = rawRate;

@@ -87,7 +87,7 @@ export function StockReport({ onClose }: { onClose: () => void }) {
   const calcMrp = (p: Product) => {
     const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
     const grRate = gr ? Number(gr.rate) : null;
-    return grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
+    return grRate !== null && p.pricing_mode === 'GRADE_RATE' ? grRate : Number(p.base_price);
   };
 
   const calcSellingPrice = (p: Product) => {

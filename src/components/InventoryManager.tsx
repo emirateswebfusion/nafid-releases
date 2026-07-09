@@ -350,6 +350,8 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
   const openEdit = (product: Product) => {
     setEditingProduct(product);
     const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
+    const appliedGrade = validGradeId ? grades.find(g => g.grade_id === validGradeId) : null;
+    const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
     setFormData({
       item_code: product.item_code || '',
       sku_barcode: product.sku_barcode || '',
@@ -358,7 +360,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       brand_manufacturer: product.brand_manufacturer || '',
       uom: product.uom || 'Pcs',
       purchase_price: product.purchase_price || '',
-      base_price: product.base_price || '',
+      base_price: gradeRate !== null && product.pricing_mode === 'GRADE_RATE' ? gradeRate : (product.base_price || ''),
       current_stock: product.current_stock ?? '',
       reorder_level: product.reorder_level ?? '',
       is_gst_applicable: product.is_gst_applicable === 1,
@@ -448,6 +450,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
       if (field === 'grade_id') {
         next.pricing_mode = value ? 'GRADE_RATE' : 'FIXED_PRICE';
+        if (value) {
+          const selectedGrade = grades.find(g => g.grade_id === value);
+          if (selectedGrade) {
+            next.base_price = Number(selectedGrade.rate);
+          }
+        }
       }
 
       if (field === 'uom') {
@@ -521,7 +529,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
     const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
     return gradeRate !== null && data.pricing_mode === 'GRADE_RATE' 
-      ? Number(data.base_price) + gradeRate 
+      ? gradeRate 
       : Number(data.base_price) || 0;
   };
 
@@ -589,7 +597,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const appliedGrade = formData.grade_id ? grades.find(g => g.grade_id === formData.grade_id) : null;
       const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
       const effectiveMrp = gradeRate !== null && formData.pricing_mode === 'GRADE_RATE' 
-        ? Number(formData.base_price) + gradeRate 
+        ? gradeRate 
         : Number(formData.base_price);
 
       let sp: number | undefined;
@@ -655,7 +663,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
       const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
       const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-        ? Number(p.base_price) + gradeRate 
+        ? gradeRate 
         : Number(p.base_price);
 
       let sp: number | undefined;
@@ -984,11 +992,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           {/* Table Header */}
           <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 shrink-0 bg-muted/40">
             <div className="col-span-3">Product</div>
-            <div className="col-span-1 text-center">Unit</div>
             <div className="col-span-1 text-right">Purchase</div>
             <div className="col-span-2 text-right">MRP</div>
             <div className="col-span-1 text-right text-emerald-500">Final</div>
-            <div className="col-span-3 text-center">Stock</div>
+            <div className="col-span-4 text-center">Stock</div>
             <div className="col-span-1 text-center">Actions</div>
           </div>
 
@@ -996,7 +1003,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
           <div className="flex-1 overflow-y-auto divide-y divide-border relative">
             {isFetching && offset === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={`skel-${i}`} className="grid grid-cols-12 gap-2 px-6 py-4 items-center">
+                <div key={`skel-${i}`} className="grid grid-cols-12 gap-1 px-6 py-4 items-center">
                   <div className="col-span-3">
                     <div className="flex items-center gap-2">
                       <div className="space-y-2 w-full">
@@ -1009,13 +1016,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       </div>
                     </div>
                   </div>
-                  <div className="col-span-1 flex justify-center"><Skeleton className="h-4 w-8" /></div>
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                   <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                  <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                  <div className="col-span-2 flex justify-center gap-2">
+                  <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-12" /></div>
+                  <div className="col-span-4 flex justify-center gap-2">
                     <Skeleton className="h-6 w-6 rounded-full" />
-                    <Skeleton className="h-5 w-10" />
+                    <Skeleton className="h-5 w-16" />
                     <Skeleton className="h-6 w-6 rounded-full" />
                   </div>
                   <div className="col-span-1 flex justify-center gap-2">
@@ -1043,7 +1049,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
                   const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
                   const displayMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-                    ? Number(p.base_price) + gradeRate 
+                    ? gradeRate 
                     : Number(p.base_price);
 
                   if (p.offer_price) {
@@ -1057,29 +1063,32 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
 
                   const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
                   const piecesPerKg = Number(da.pcs) || 0;
-                  const estPieces = piecesPerKg > 0 ? Math.round(Number(p.current_stock) * piecesPerKg) : 0;
+                  const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom);
+                  const formattedStock = isWeightUom 
+                    ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
+                    : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
+                  const estPieces = isWeightUom && piecesPerKg > 0 ? Math.round(Number(p.current_stock) * piecesPerKg) : 0;
 
                   return (
-                    <div key={p.product_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
+                    <div key={p.product_id} className="grid grid-cols-12 gap-1 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
                       <div className="col-span-3">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
                             <Package className="w-3.5 h-3.5" />
                           </div>
-                          <div>
-                            <p className="text-foreground font-bold text-sm">{p.name}</p>
-                            <p className="text-muted-foreground text-xs font-mono mt-0.5">
+                          <div className="min-w-0">
+                            <p className="text-foreground font-bold text-sm truncate">{p.name}</p>
+                            <p className="text-muted-foreground text-xs font-mono mt-0.5 truncate">
                               {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
                               {p.sku_barcode}
                             </p>
-                            <div className="flex gap-1.5 mt-1">
+                            <div className="flex gap-1.5 mt-1 flex-wrap">
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div className="col-span-1 text-center text-muted-foreground text-sm font-semibold">{p.uom}</div>
                       <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold">₹{Number(p.purchase_price).toFixed(2)}</div>
                       <div className="col-span-2 flex flex-col items-end justify-center">
                         <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
@@ -1087,7 +1096,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         </span>
                         {gradeRate !== null && p.pricing_mode === 'GRADE_RATE' && (
                           <span className="text-[10px] text-indigo-500 font-semibold leading-tight mt-0.5 text-right">
-                            +₹{gradeRate} Grade
+                            Grade Rate: ₹{gradeRate}
                           </span>
                         )}
                       </div>
@@ -1096,7 +1105,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       </div>
 
                       {/* Stock with +/- */}
-                      <div className="col-span-3 flex items-center justify-center gap-1.5">
+                      <div className="col-span-4 flex items-center justify-center gap-1">
                         <button 
                           onClick={() => handleAdjustStock(p, -1)} 
                           disabled={adjustingStockId === p.product_id}
@@ -1104,14 +1113,18 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         >
                           <Minus className="w-3 h-3" />
                         </button>
-                        <span className={clsx('text-sm font-black w-14 text-center flex flex-col items-center justify-center leading-tight', isLowStock ? 'text-amber-500' : 'text-foreground')}>
+                        <span className={clsx('text-sm font-black flex flex-col items-center justify-center leading-tight min-w-[72px]', isLowStock ? 'text-amber-500' : 'text-foreground')}>
                           {adjustingStockId === p.product_id ? (
                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
                           ) : (
                              <>
-                               <span>{Number(p.current_stock).toFixed(3).replace(/\.?0+$/, '')}</span>
-                               {estPieces > 0 && <span className="text-[9px] text-muted-foreground/60 font-medium">(~{estPieces} pcs)</span>}
-                               {isLowStock && <AlertTriangle className="w-3 h-3 ml-0.5 shrink-0 text-amber-500" />}
+                               <span>{formattedStock}</span>
+                               {estPieces > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">≈ {estPieces} pcs</span>}
+                               {isLowStock && (
+                                 <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
+                                   <AlertTriangle className="w-2.5 h-2.5" /> Low
+                                 </span>
+                               )}
                              </>
                           )}
                         </span>
@@ -1271,7 +1284,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                             placeholder="-- No Grade Selected --"
                             options={grades.filter(g => g.category === formData.category).map(g => ({
                               value: g.grade_id,
-                              label: g.grade_name + ' (+₹' + g.rate + ')'
+                              label: g.grade_name + ' (₹' + g.rate + ')'
                             }))}
                             triggerClassName="rounded-xl h-[46px]"
                           />
@@ -1324,7 +1337,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   { label: 'Low Stock Alert', field: 'reorder_level' },
                 ].map(({ label, field, prefix }) => (
                   <div key={field} className="flex-1 min-w-0">
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</label>
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                      {label}
+                      {field === 'base_price' && formData.grade_id && (
+                        <span className="text-indigo-500 ml-1.5 font-normal normal-case">(from grade)</span>
+                      )}
+                    </label>
                     <div className="relative">
                       {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
                       <input
@@ -1332,10 +1350,12 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={(formData as any)[field]}
                         onChange={e => handleInputChange(field, e.target.value)}
+                        disabled={field === 'base_price' && !!formData.grade_id}
                         className={clsx(
                           'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
                           prefix && 'pl-8', 
-                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
+                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold',
+                          field === 'base_price' && formData.grade_id && 'opacity-70 cursor-not-allowed'
                         )}
                       />
                     </div>
@@ -1843,7 +1863,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                       ₹{(() => {
                         const g = printModalProduct.grade_id ? grades.find(gr => gr.grade_id === printModalProduct.grade_id) : null;
                         const gr = g ? Number(g.rate) : null;
-                        return (gr !== null && printModalProduct.pricing_mode === 'GRADE_RATE' ? Number(printModalProduct.base_price) + gr : Number(printModalProduct.base_price)).toFixed(2);
+                        return (gr !== null && printModalProduct.pricing_mode === 'GRADE_RATE' ? gr : Number(printModalProduct.base_price)).toFixed(2);
                       })()}
                     </span>
                   </div>

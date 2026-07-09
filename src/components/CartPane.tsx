@@ -170,7 +170,7 @@ export function CartPane() {
                     </div>
                     <div className="text-right">
                       <div className="font-black">
-                        ₹{(p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price).toFixed(2)}
+                        ₹{(p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price).toFixed(2)}
                       </div>
                       <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                         Stock: {(() => {
@@ -222,7 +222,7 @@ export function CartPane() {
           <div className="divide-y divide-border">
             {items.map((item) => {
               const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
-                ? item.base_price + (item.grade_rate || 0) 
+                ? (item.grade_rate || 0) 
                 : item.base_price;
 
               const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
@@ -242,7 +242,7 @@ export function CartPane() {
                     <div className="flex gap-3 text-xs mt-1">
                       <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
                       {item.pricing_mode === 'GRADE_RATE' && (
-                        <span className="text-indigo-500 font-medium">Grade Pricing (+₹{item.grade_rate})</span>
+                        <span className="text-indigo-500 font-medium">Grade Rate: ₹{item.grade_rate}</span>
                       )}
                       {currentUserRole === 'OWNER' && item.purchase_price > 0 && (
                         <span className="text-primary font-mono bg-primary/10 px-1.5 rounded">

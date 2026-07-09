@@ -72,7 +72,7 @@ export function BillingPage() {
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const totalItemSavings = items.reduce((sum, item) => {
-    const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+    const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
     const qty = Number(item.quantity) || 0;
     const rawTotal = rate * qty;
     let effectivePrice = rate;
@@ -678,7 +678,7 @@ export function BillingPage() {
       }
 
       const qItems = items.map(item => {
-        const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
         const qty = Number(item.quantity) || 0;
         const amount = rate * qty;
         return {
@@ -1021,7 +1021,7 @@ export function BillingPage() {
     // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
     const regularCartItems = items.filter(item => !item.isScrap);
     const checkoutItems = regularCartItems.map(item => {
-      const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
 
       // Apply per-item discount to get effective rate
@@ -1042,7 +1042,7 @@ export function BillingPage() {
 
     // Build receipt display items
     const receiptItems = regularCartItems.map(item => {
-      const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
       let effectiveRate = rate;
       if (item.offer_price) {
@@ -1505,7 +1505,7 @@ export function BillingPage() {
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[320px] overflow-y-auto">
                     {!isScrapMode && results.map((p, i) => {
-                      const mrp = p.pricing_mode === 'GRADE_RATE' ? p.base_price + (p.grade_rate || 0) : p.base_price;
+                      const mrp = p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price;
                       const showOffer = p.offer_price && Number(p.offer_price) > 0;
                       const displayPrice = showOffer ? Number(p.offer_price) : mrp;
                       const isSelected = i === selectedIndex;
@@ -1759,7 +1759,7 @@ export function BillingPage() {
                   );
                 }
 
-                const rate = item.pricing_mode === 'GRADE_RATE' ? item.base_price + (item.grade_rate || 0) : item.base_price;
+                const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
                 const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
                 const weightKg = Number(item.quantity) || 0;
                 const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;

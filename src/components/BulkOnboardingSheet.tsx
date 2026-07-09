@@ -448,7 +448,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
         const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
         const effectiveMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
-          ? Number(p.base_price) + gradeRate 
+          ? gradeRate 
           : Number(p.base_price);
 
         let sp: number | undefined;
