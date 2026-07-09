@@ -1040,10 +1040,10 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; filterDate?: string; filterDateEnd?: string }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string }) => {
   try {
     const db = getDb();
-    const { user_id, tenant_id, role, limit, offset, search, payment_method, filterDate, filterDateEnd } = filters || {};
+    const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd } = filters || {};
 
     if (!tenant_id) return []; // Safety: always require tenant_id
 
@@ -1069,6 +1069,14 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     if (payment_method) {
       query += ' AND i.payment_method = ?';
       params.push(payment_method);
+    }
+
+    if (invoice_type === 'GST_B2B') {
+      query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
+    } else if (invoice_type === 'GST_B2C') {
+      query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
+    } else if (invoice_type === 'BILL_OF_SUPPLY') {
+      query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
     }
 
     if (filterDate) {

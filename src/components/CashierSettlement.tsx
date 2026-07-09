@@ -3,11 +3,15 @@ import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
   TrendingUp, TrendingDown, ArrowRight, ArrowLeft, Clock, AlertTriangle,
-  ChevronRight, ChevronDown,
+  ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
+  CheckCheck, Calendar, BookOpen, RefreshCw
 } from 'lucide-react';
 import { Select } from './ui/Select';
+import { Modal } from './ui/Modal';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
 
@@ -42,7 +46,60 @@ function todayStr(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+const PAYMENT_LABELS: Record<string, string> = {
+  PENDING: 'Pending',
+  CASH: 'Cash',
+  CARD: 'Card',
+  UPI: 'UPI',
+  CREDIT: 'Credit',
+};
 
+const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
+  PENDING:{ bg: 'bg-gray-500/10',   text: 'text-gray-500',    dot: '#6b7280' },
+  CASH:   { bg: 'bg-emerald-500/10', text: 'text-emerald-500', dot: '#10b981' },
+  CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
+  UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
+  CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
+};
+
+function PaymentBadge({ method }: { method: string }) {
+  const c = PAYMENT_COLORS[method] || { bg: 'bg-muted', text: 'text-muted-foreground', dot: '#888' };
+  return (
+    <span className={clsx('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider', c.bg, c.text)}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.dot }} />
+      {PAYMENT_LABELS[method] || method}
+    </span>
+  );
+}
+
+function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; text: string; border: string } {
+  if (inv.invoice_type === 'GST' && inv.customer_gstin) {
+    return { label: 'B2B', icon: Building, bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20' };
+  }
+  if (inv.invoice_type === 'GST') {
+    return { label: 'B2C', icon: User, bg: 'bg-violet-500/10', text: 'text-violet-500', border: 'border-violet-500/20' };
+  }
+  return { label: 'Bill of Supply', icon: FileText, bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20' };
+}
+
+function InvoiceTypeBadge({ inv }: { inv: any }) {
+  const info = getInvoiceTypeInfo(inv);
+  const Icon = info.icon;
+  return (
+    <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border', info.bg, info.text, info.border)}>
+      <Icon className="w-3 h-3" />
+      {info.label}
+    </span>
+  );
+}
+
+function formatDate(dateStr: string) {
+  const d = new Date(dateStr);
+  return {
+    date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+  };
+}
 
 interface CashierSettlementProps {
   onClose: () => void;
@@ -74,6 +131,29 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
   const [txnPartyId, setTxnPartyId] = useState('');
   const [txnPartyName, setTxnPartyName] = useState('');
   const [partySearch, setPartySearch] = useState('');
+
+  // Invoice details preview modal states
+  const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [loadingItems, setLoadingItems] = useState(false);
+  const [reprintSuccess, setReprintSuccess] = useState(false);
+
+  const handleViewInvoice = async (inv: any) => {
+    setSelectedInvoice(inv);
+    setShowInvoiceModal(true);
+    setLoadingItems(true);
+    try {
+      if (window.electronAPI) {
+        const data = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+        setInvoiceItems(Array.isArray(data) ? data : []);
+      }
+    } catch (err) {
+      console.error('Failed to load invoice items', err);
+    } finally {
+      setLoadingItems(false);
+    }
+  };
 
   const handleDiscPercentChange = (invoiceId: string, val: string) => {
     if (val === '') {
@@ -738,7 +818,12 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
                       )}
                     >
                       {/* Invoice number */}
-                      <span className="text-xs font-bold text-foreground truncate text-center block">{inv.invoice_number}</span>
+                      <span 
+                        onClick={() => handleViewInvoice(inv)}
+                        className="text-xs font-bold text-foreground truncate text-center block cursor-pointer hover:text-primary hover:underline"
+                      >
+                        {inv.invoice_number}
+                      </span>
 
                       {/* Customer */}
                       <span className="text-xs text-muted-foreground truncate text-center block">{inv.customer_name || '—'}</span>
@@ -1348,6 +1433,241 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
           </div>
         </div>
       )}
+
+      {/* ─── Centered Invoice Detail Modal ─── */}
+      <Modal
+        isOpen={showInvoiceModal}
+        onClose={() => { setShowInvoiceModal(false); setSelectedInvoice(null); setInvoiceItems([]); }}
+        title={
+          selectedInvoice && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-base font-black text-foreground">{selectedInvoice.invoice_number}</span>
+              <span className={clsx(
+                'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0',
+                selectedInvoice.sync_status === 'SYNCED'
+                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+              )}>
+                {selectedInvoice.sync_status}
+              </span>
+              <InvoiceTypeBadge inv={selectedInvoice} />
+            </div>
+          )
+        }
+      >
+        {selectedInvoice && (
+          <div className="space-y-4 text-foreground">
+            {/* Toast notification inside modal */}
+            {reprintSuccess && (
+              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm">
+                <CheckCheck className="w-4 h-4 shrink-0" />
+                Invoice reprinted successfully!
+              </div>
+            )}
+
+            {/* Action Buttons & Time */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border/50 rounded-2xl">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {formatDate(selectedInvoice.created_at).date}
+                  <span className="opacity-60">at</span>
+                  {formatDate(selectedInvoice.created_at).time}
+                </span>
+                {selectedInvoice.biller_name && (
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    {selectedInvoice.biller_name}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button onClick={async () => {
+                  if (!selectedInvoice || !window.electronAPI) return;
+                  try {
+                    const { tenantId } = useAuthStore.getState();
+                    const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+                    ]);
+                    const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+                    const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+                    const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+                    const invoiceType = selectedInvoice.invoice_type;
+                    const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
+                    const useA4 = isB2B || printFmt?.format === 'a4';
+                    const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+                    const receiptData: ReceiptData = {
+                      shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
+                      shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+                      shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+                      shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+                      upiId: upi || undefined,
+                      showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+                      showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+                      invoiceNumber: selectedInvoice.invoice_number,
+                      date: new Date(selectedInvoice.created_at).toLocaleString(),
+                      billerName: selectedInvoice.biller_name,
+                      items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total })),
+                      subtotal: selectedInvoice.subtotal,
+                      tax: selectedInvoice.tax_total,
+                      discount: selectedInvoice.discount_total,
+                      discountType: selectedInvoice.discount_type,
+                      discountValue: selectedInvoice.discount_value,
+                      grandTotal: selectedInvoice.grand_total,
+                      isReprint: true,
+                      invoiceType,
+                      customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
+                      customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
+                      billSettings,
+                      isB2B,
+                    };
+                    if (useA4) {
+                      const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+                      const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+                      if (!printResult.success && printResult.useDefaultDialog) {
+                        const pw = window.open('', '_blank');
+                        if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+                      }
+                    } else {
+                      const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+                      const thermalStyle = printFmt?.style || 'standard';
+                      const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+                      await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+                    }
+                    setReprintSuccess(true);
+                    setTimeout(() => setReprintSuccess(false), 2500);
+                  } catch (err) {
+                    console.error('Failed to reprint', err);
+                  }
+                }}
+                  className="flex items-center justify-center gap-1.5 px-4 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"
+                >
+                  <Printer className="w-3.5 h-3.5" />Print Bill
+                </button>
+              </div>
+            </div>
+
+            {/* Customer + Payment Split */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</div>
+                <div className="font-bold text-sm text-foreground truncate">
+                  {selectedInvoice.customer_name || 'Walk-in Customer'}
+                </div>
+                {selectedInvoice.customer_phone && (
+                  <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_phone}</div>
+                )}
+                {selectedInvoice.customer_gstin && (
+                  <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
+                )}
+              </div>
+              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
+                <div className="flex items-center gap-2">
+                  <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
+                  {selectedInvoice.payment_method === 'PENDING' ? (
+                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                  ) : selectedInvoice.payment_method !== 'CREDIT' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                  )}
+                </div>
+                {(() => {
+                  const received = Number(selectedInvoice.received_amount) || 0;
+                  const balance = Number(selectedInvoice.balance_amount) || 0;
+                  const isCredit = selectedInvoice.payment_method === 'CREDIT';
+                  const isPending = selectedInvoice.payment_method === 'PENDING';
+                  if (isPending) {
+                    return <div className="text-[10px] text-gray-500 font-semibold">Awaiting payment at counter</div>;
+                  }
+                  if (!isCredit && received <= 0) return null;
+                  return (
+                    <div className="text-[10px] text-muted-foreground space-y-0.5">
+                      <div>Received: <span className="font-bold text-foreground">{formatCurrency(received)}</span></div>
+                      {isCredit && balance < 0 && <div className="text-amber-500 font-semibold">Due: {formatCurrency(Math.abs(balance))}</div>}
+                      {!isCredit && balance > 0 && <div className="text-emerald-500 font-semibold">Change: {formatCurrency(balance)}</div>}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Items */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Order Items
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">{invoiceItems.length} item{invoiceItems.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card">
+                {/* Table header */}
+                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  <div className="col-span-5">Item</div>
+                  <div className="col-span-2 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Rate</div>
+                  <div className="col-span-3 text-right">Total</div>
+                </div>
+                <div className="divide-y divide-border/30">
+                  {loadingItems ? (
+                    <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span className="text-xs font-medium">Loading items…</span>
+                    </div>
+                  ) : invoiceItems.length === 0 ? (
+                    <div className="py-6 flex items-center justify-center text-muted-foreground text-xs font-semibold">
+                      No items found
+                    </div>
+                  ) : invoiceItems.map((item, i) => (
+                    <div key={item.item_id} className={clsx('grid grid-cols-12 px-4 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
+                      <div className="col-span-5 flex items-center gap-2 min-w-0">
+                        <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
+                          <Package className="w-3 h-3" />
+                        </div>
+                        <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
+                      </div>
+                      <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
+                      <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
+                      <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Totals */}
+            <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
+              <div className="px-4 py-3 space-y-2 bg-card/50">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground font-semibold">Subtotal</span>
+                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground font-semibold">Tax (GST)</span>
+                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.tax_total))}</span>
+                </div>
+                {Number(selectedInvoice.discount_total) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-rose-500 font-semibold">
+                      Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
+                    </span>
+                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
+                <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

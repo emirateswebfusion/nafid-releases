@@ -4,13 +4,14 @@ import {
   BookOpen, IndianRupee, Percent, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert
+  ArrowDownRight, ShieldAlert, Building, FileText
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import clsx from 'clsx';
 import { Input } from './ui/Input';
+import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
@@ -84,6 +85,16 @@ function StatCard({
   );
 }
 
+function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; text: string; border: string } {
+  if (inv.invoice_type === 'GST' && inv.customer_gstin) {
+    return { label: 'B2B', icon: Building, bg: 'bg-blue-500/10', text: 'text-blue-500', border: 'border-blue-500/20' };
+  }
+  if (inv.invoice_type === 'GST') {
+    return { label: 'B2C', icon: User, bg: 'bg-violet-500/10', text: 'text-violet-500', border: 'border-violet-500/20' };
+  }
+  return { label: 'Bill of Supply', icon: FileText, bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20' };
+}
+
 /* ─── Payment Badge ─── */
 function PaymentBadge({ method }: { method: string }) {
   const c = PAYMENT_COLORS[method] || { bg: 'bg-muted', text: 'text-muted-foreground', dot: '#888' };
@@ -91,6 +102,18 @@ function PaymentBadge({ method }: { method: string }) {
     <span className={clsx('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider', c.bg, c.text)}>
       <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: c.dot }} />
       {PAYMENT_LABELS[method] || method}
+    </span>
+  );
+}
+
+/* ─── Invoice Type Badge ─── */
+function InvoiceTypeBadge({ inv }: { inv: any }) {
+  const info = getInvoiceTypeInfo(inv);
+  const Icon = info.icon;
+  return (
+    <span className={clsx('inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border', info.bg, info.text, info.border)}>
+      <Icon className="w-3 h-3" />
+      {info.label}
     </span>
   );
 }
@@ -134,6 +157,10 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
             </div>
           </div>
         </div>
+      </td>
+      {/* Type */}
+      <td className="px-4 py-3.5 whitespace-nowrap">
+        <InvoiceTypeBadge inv={inv} />
       </td>
       {/* Date / Time */}
       <td className="px-4 py-3.5 whitespace-nowrap">
@@ -195,6 +222,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [hasMore, setHasMore] = useState(true);
   const [isFetching, setIsFetching] = useState(false);
   const [paymentFilter, setPaymentFilter] = useState('');
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const [reprintSuccess, setReprintSuccess] = useState(false);
@@ -231,7 +259,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       loadInvoices(true);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [search, paymentFilter, filterDate, filterDateEnd]);
+  }, [search, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd]);
 
   useEffect(() => {
     if (window.electronAPI) {
@@ -274,6 +302,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         user_id: userId, tenant_id: tenantId, role,
         limit: LIMIT, offset: currentOffset,
         search, payment_method: paymentFilter || undefined,
+        invoice_type: invoiceTypeFilter || undefined,
         filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
       });
       if (Array.isArray(data)) {
@@ -505,17 +534,14 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       <div className="flex-1 flex overflow-hidden">
 
         {/* ══ LEFT: Stats + Table (full or narrowed) ══ */}
-        <div className={clsx('flex flex-col flex-1 overflow-hidden transition-all duration-300 ease-in-out', drawerOpen ? 'w-[55%]' : 'w-full')}>
+        <div className="flex flex-col flex-1 overflow-hidden w-full">
 
           {/* Stats & Graph Side-by-Side Container */}
           <div className="px-3 py-2.5 border-b border-border/60 bg-background shrink-0">
             <div className="flex gap-3 items-stretch">
               
               {/* Left Side: Stats cards (2x2 grid) */}
-              <div className={clsx(
-                'grid grid-cols-2 gap-2 shrink-0 transition-all duration-300',
-                drawerOpen ? 'w-full' : 'w-[45%]'
-              )}>
+              <div className="grid grid-cols-2 gap-2 shrink-0 w-[45%]">
                 {loading ? (
                   Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/60 bg-card">
@@ -539,8 +565,8 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                 )}
               </div>
 
-              {/* Right Side: Graph / Chart (hides when drawer is open) */}
-              {!drawerOpen && !loading && invoices.length > 1 && (
+              {/* Right Side: Graph / Chart */}
+              {!loading && invoices.length > 1 && (
                 <div className="flex-1 bg-card rounded-xl border border-border/60 p-2 flex flex-col justify-between overflow-hidden">
                   {/* Chart header inside block */}
                   <div className="flex items-center justify-between px-2 pb-1 shrink-0">
@@ -632,7 +658,6 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                 { value: 'UPI', label: 'UPI' },
                 { value: 'CREDIT', label: 'Credit' },
               ].map(opt => {
-                const c = opt.value ? PAYMENT_COLORS[opt.value] : null;
                 return (
                   <button
                     key={opt.value}
@@ -640,7 +665,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                     className={clsx(
                       'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
                       paymentFilter === opt.value
-                        ? (c ? `${c.bg} ${c.text} border-current/30` : 'bg-primary text-primary-foreground border-primary/30')
+                        ? 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15'
                         : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground'
                     )}
                   >
@@ -648,6 +673,42 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                   </button>
                 );
               })}
+              <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
+              {(() => {
+                const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {
+                  '': { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                  GST_B2B: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                  GST_B2C: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                  BILL_OF_SUPPLY: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                };
+                const colors = typeChipColors[invoiceTypeFilter] || typeChipColors[''];
+                return (
+                  <Select
+                    value={invoiceTypeFilter}
+                    onChange={setInvoiceTypeFilter}
+                    options={[
+                      { value: '', label: 'All Types' },
+                      { value: 'GST_B2B', label: 'B2B' },
+                      { value: 'GST_B2C', label: 'B2C' },
+                      { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
+                    ]}
+                    size="xs"
+                    className="w-40"
+                    triggerClassName={clsx('rounded-full h-7 border px-3 transition-all', colors.bg, colors.text, colors.border)}
+                    renderOption={(opt) => {
+                      const typeIcon: Record<string, any> = { '': Receipt, GST_B2B: Building, GST_B2C: User, BILL_OF_SUPPLY: FileText };
+                      const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', BILL_OF_SUPPLY: 'text-amber-500' };
+                      const Icon = typeIcon[opt.value];
+                      return (
+                        <span className={clsx('flex items-center gap-2 text-xs font-bold', typeColor[opt.value])}>
+                          <Icon className="w-3.5 h-3.5" />
+                          {opt.label}
+                        </span>
+                      );
+                    }}
+                  />
+                );
+              })()}
             </div>
             <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
               {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
@@ -739,6 +800,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
                 <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-sm border-b border-border/60">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Type</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date &amp; Time</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</th>
@@ -781,191 +843,181 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
 
         </div>
 
-        {/* ══ RIGHT: Invoice Detail Drawer ══ */}
-        <div className={clsx(
-          'flex flex-col bg-card border-l border-border/70 overflow-hidden transition-all duration-300 ease-in-out shrink-0',
-          drawerOpen ? 'w-[45%] opacity-100' : 'w-0 opacity-0 pointer-events-none'
-        )}>
-          {selectedInvoice && (
-            <div className="flex flex-col h-full overflow-hidden">
-              {/* Drawer Header */}
-              <div className="px-5 py-4 border-b border-border/60 shrink-0 bg-gradient-to-r from-card to-muted/20">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h2 className="text-base font-black text-foreground">{selectedInvoice.invoice_number}</h2>
-                      <span className={clsx(
-                        'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border',
-                        selectedInvoice.sync_status === 'SYNCED'
-                          ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
-                          : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
-                      )}>
-                        {selectedInvoice.sync_status}
-                      </span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                        {selectedInvoice.invoice_type === 'GST' ? 'GST' : 'Bill of Supply'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {formatDate(selectedInvoice.created_at).date}
-                        <span className="opacity-60">at</span>
-                        {formatDate(selectedInvoice.created_at).time}
-                      </span>
-                      {selectedInvoice.biller_name && (
-                        <span className="flex items-center gap-1">
-                          <User className="w-3 h-3" />
-                          {selectedInvoice.biller_name}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button onClick={closeDrawer} className="p-1.5 rounded-lg hover:bg-muted transition-colors shrink-0 text-muted-foreground hover:text-foreground cursor-pointer">
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                {/* Action Buttons */}
-                <div className="flex gap-2 flex-wrap">
-                  {selectedInvoice.payment_method === 'PENDING' && (
-                    <button onClick={openCollectPayment}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
-                    >
-                      <CreditCard className="w-3.5 h-3.5" />Collect Payment
-                    </button>
-                  )}
-                  {useAuthStore.getState().role === 'OWNER' && (
-                    <button onClick={handleEditBill}
-                      className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
-                    >
-                       <Edit3 className="w-3.5 h-3.5" />Edit Bill
-                    </button>
-                  )}
-                  <button onClick={handleReprint}
-                    className="flex-1 flex items-center justify-center gap-1.5 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"
-                  >
-                    <Printer className="w-3.5 h-3.5" />Reprint
-                  </button>
-                </div>
+      {/* ─── Centered Invoice Detail Modal ─── */}
+      <Modal
+        isOpen={drawerOpen}
+        onClose={closeDrawer}
+        title={
+          selectedInvoice && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-base font-black text-foreground">{selectedInvoice.invoice_number}</span>
+              <span className={clsx(
+                'px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shrink-0',
+                selectedInvoice.sync_status === 'SYNCED'
+                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20'
+                  : 'bg-amber-500/10 text-amber-500 border-amber-500/20'
+              )}>
+                {selectedInvoice.sync_status}
+              </span>
+              <InvoiceTypeBadge inv={selectedInvoice} />
+            </div>
+          )
+        }
+      >
+        {selectedInvoice && (
+          <div className="space-y-4 text-foreground">
+            {/* Action Buttons & Time */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border/50 rounded-2xl">
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1">
+                  <Calendar className="w-3.5 h-3.5" />
+                  {formatDate(selectedInvoice.created_at).date}
+                  <span className="opacity-60">at</span>
+                  {formatDate(selectedInvoice.created_at).time}
+                </span>
+                {selectedInvoice.biller_name && (
+                  <span className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    {selectedInvoice.biller_name}
+                  </span>
+                )}
               </div>
+              <div className="flex gap-2">
+                {selectedInvoice.payment_method === 'PENDING' && (
+                  <button onClick={openCollectPayment}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />Collect Payment
+                  </button>
+                )}
+                {useAuthStore.getState().role === 'OWNER' && (
+                  <button onClick={handleEditBill}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
+                  >
+                     <Edit3 className="w-3.5 h-3.5" />Edit Bill
+                  </button>
+                )}
+                <button onClick={handleReprint}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"
+                >
+                  <Printer className="w-3.5 h-3.5" />Reprint
+                </button>
+              </div>
+            </div>
 
-              {/* Drawer Body */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-4">
-
-                {/* Customer + Payment */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="p-3.5 rounded-xl border border-border/60 bg-background space-y-1.5">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</div>
-                    <div className="font-bold text-sm text-foreground truncate">
-                      {selectedInvoice.customer_name || 'Walk-in Customer'}
-                    </div>
-                    {selectedInvoice.customer_phone && (
-                      <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_phone}</div>
-                    )}
-                    {selectedInvoice.customer_gstin && (
-                      <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
-                    )}
-                  </div>
-                  <div className="p-3.5 rounded-xl border border-border/60 bg-background space-y-1.5">
-                    <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
-                    <div className="flex items-center gap-2">
-                      <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
-                      {selectedInvoice.payment_method === 'PENDING' ? (
-                        <Clock className="w-3.5 h-3.5 text-gray-500" />
-                      ) : selectedInvoice.payment_method !== 'CREDIT' ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                      ) : (
-                        <BookOpen className="w-3.5 h-3.5 text-amber-500" />
-                      )}
-                    </div>
-                    {(() => {
-                      const received = Number(selectedInvoice.received_amount) || 0;
-                      const balance = Number(selectedInvoice.balance_amount) || 0;
-                      const isCredit = selectedInvoice.payment_method === 'CREDIT';
-                      const isPending = selectedInvoice.payment_method === 'PENDING';
-                      if (isPending) {
-                        return <div className="text-[10px] text-gray-500 font-semibold">Awaiting payment at counter</div>;
-                      }
-                      if (!isCredit && received <= 0) return null;
-                      return (
-                        <div className="text-[10px] text-muted-foreground space-y-0.5">
-                          <div>Received: <span className="font-bold text-foreground">{formatCurrency(received)}</span></div>
-                          {isCredit && balance < 0 && <div className="text-amber-500 font-semibold">Due: {formatCurrency(Math.abs(balance))}</div>}
-                          {!isCredit && balance > 0 && <div className="text-emerald-500 font-semibold">Change: {formatCurrency(balance)}</div>}
-                        </div>
-                      );
-                    })()}
-                  </div>
+            {/* Customer + Payment Split */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</div>
+                <div className="font-bold text-sm text-foreground truncate">
+                  {selectedInvoice.customer_name || 'Walk-in Customer'}
                 </div>
-
-                {/* Items */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                      Order Items
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
-                  </div>
-                  <div className="border border-border/60 rounded-xl overflow-hidden">
-                    {/* Table header */}
-                    <div className="grid grid-cols-12 px-3 py-2 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
-                      <div className="col-span-5">Item</div>
-                      <div className="col-span-2 text-center">Qty</div>
-                      <div className="col-span-2 text-right">Rate</div>
-                      <div className="col-span-3 text-right">Total</div>
-                    </div>
-                    <div className="divide-y divide-border/30">
-                      {items.length === 0 ? (
-                        <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
-                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span className="text-xs font-medium">Loading items…</span>
-                        </div>
-                      ) : items.map((item, i) => (
-                        <div key={item.item_id} className={clsx('grid grid-cols-12 px-3 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
-                          <div className="col-span-5 flex items-center gap-2 min-w-0">
-                            <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
-                              <Package className="w-3 h-3" />
-                            </div>
-                            <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
-                          </div>
-                          <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
-                          <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
-                          <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {selectedInvoice.customer_phone && (
+                  <div className="text-[10px] text-muted-foreground">{selectedInvoice.customer_phone}</div>
+                )}
+                {selectedInvoice.customer_gstin && (
+                  <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
+                )}
+              </div>
+              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+                <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
+                <div className="flex items-center gap-2">
+                  <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
+                  {selectedInvoice.payment_method === 'PENDING' ? (
+                    <Clock className="w-3.5 h-3.5 text-gray-500" />
+                  ) : selectedInvoice.payment_method !== 'CREDIT' ? (
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  ) : (
+                    <BookOpen className="w-3.5 h-3.5 text-amber-500" />
+                  )}
                 </div>
+                {(() => {
+                  const received = Number(selectedInvoice.received_amount) || 0;
+                  const balance = Number(selectedInvoice.balance_amount) || 0;
+                  const isCredit = selectedInvoice.payment_method === 'CREDIT';
+                  const isPending = selectedInvoice.payment_method === 'PENDING';
+                  if (isPending) {
+                    return <div className="text-[10px] text-gray-500 font-semibold">Awaiting payment at counter</div>;
+                  }
+                  if (!isCredit && received <= 0) return null;
+                  return (
+                    <div className="text-[10px] text-muted-foreground space-y-0.5">
+                      <div>Received: <span className="font-bold text-foreground">{formatCurrency(received)}</span></div>
+                      {isCredit && balance < 0 && <div className="text-amber-500 font-semibold">Due: {formatCurrency(Math.abs(balance))}</div>}
+                      {!isCredit && balance > 0 && <div className="text-emerald-500 font-semibold">Change: {formatCurrency(balance)}</div>}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
 
-                {/* Totals */}
-                <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
-                  <div className="px-4 py-3 space-y-2">
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground font-semibold">Subtotal</span>
-                      <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
+            {/* Items */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Order Items
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+              </div>
+              <div className="border border-border/60 rounded-xl overflow-hidden bg-card">
+                {/* Table header */}
+                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  <div className="col-span-5">Item</div>
+                  <div className="col-span-2 text-center">Qty</div>
+                  <div className="col-span-2 text-right">Rate</div>
+                  <div className="col-span-3 text-right">Total</div>
+                </div>
+                <div className="divide-y divide-border/30">
+                  {items.length === 0 ? (
+                    <div className="py-6 flex items-center justify-center gap-2 text-muted-foreground">
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span className="text-xs font-medium">Loading items…</span>
                     </div>
-                    <div className="flex justify-between text-xs">
-                      <span className="text-muted-foreground font-semibold">Tax (GST)</span>
-                      <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.tax_total))}</span>
-                    </div>
-                    {Number(selectedInvoice.discount_total) > 0 && (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-rose-500 font-semibold">
-                          Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
-                        </span>
-                        <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
+                  ) : items.map((item, i) => (
+                    <div key={item.item_id} className={clsx('grid grid-cols-12 px-4 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
+                      <div className="col-span-5 flex items-center gap-2 min-w-0">
+                        <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
+                          <Package className="w-3 h-3" />
+                        </div>
+                        <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
-                    <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
-                    <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
-                  </div>
+                      <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
+                      <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
+                      <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
-          )}
-        </div>
+
+            {/* Totals */}
+            <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
+              <div className="px-4 py-3 space-y-2 bg-card/50">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground font-semibold">Subtotal</span>
+                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground font-semibold">Tax (GST)</span>
+                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.tax_total))}</span>
+                </div>
+                {Number(selectedInvoice.discount_total) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-rose-500 font-semibold">
+                      Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
+                    </span>
+                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
+                <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
       </div>
 
       {/* ─── Collect Payment Modal ─── */}
@@ -1111,6 +1163,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       <Modal
         isOpen={conversionOpen}
         onClose={() => { if (!converting) { setConversionOpen(false); } }}
+        closeButton={null}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <ArrowDownRight className="w-5 h-5 text-amber-500" />
