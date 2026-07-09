@@ -62,9 +62,10 @@ export interface IElectronAPI {
   onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
   onTokenExpired: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;
-  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
-  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
-  dbPeekNextInvoiceNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
+  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => Promise<{ success: boolean; results?: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[]; error?: string }>;
+  dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
+  dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
+  dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
   dbGetParties: (tenant_id: string) => Promise<any[]>;
   dbAddParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;

@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('auth:token-expired', () => callback());
   },
   dbDebugDumpInvoices: () => ipcRenderer.invoke('db:debug:dumpInvoices'),
+  dbConvertBosToGst: (payload: { invoice_ids: string[]; tenant_id: string; user_id: string }) => ipcRenderer.invoke('db:convertBosToGst', payload),
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:getNextServerInvoiceNumber', payload),
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => ipcRenderer.invoke('db:getNextInvoiceNumber', payload),
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => ipcRenderer.invoke('db:peekNextInvoiceNumber', payload),

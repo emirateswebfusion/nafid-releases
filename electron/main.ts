@@ -1249,6 +1249,217 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
   }
 });
 
+ipcMain.handle('db:convertBosToGst', (event, payload: {
+  invoice_ids: string[];
+  tenant_id: string;
+  user_id: string;
+}) => {
+  try {
+    console.log('[convertBosToGst] Starting conversion for', payload.invoice_ids.length, 'invoices');
+    const db = getDb();
+
+    // Get shop state
+    const shopStateRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'shop_state');
+    const shopState: string = shopStateRow ? JSON.parse(shopStateRow.value) : 'KL';
+
+    // Get profit percentage
+    const profitPctRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'gst_profit_percentage');
+    const profitPercentage = profitPctRow ? Number(JSON.parse(profitPctRow.value)) : 30;
+    const multiplier = 1 + (profitPercentage / 100);
+
+    const results: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string }[] = [];
+
+    for (const invoice_id of payload.invoice_ids) {
+      // Look up invoice number first so it's available even if the transaction fails
+      let invoiceNumber = '';
+      const invLookup: any = db.prepare('SELECT invoice_number, invoice_type FROM invoices WHERE invoice_id = ? AND tenant_id = ?').get(invoice_id, payload.tenant_id);
+      if (invLookup) {
+        invoiceNumber = invLookup.invoice_number;
+      }
+
+      try {
+        const invoice = db.transaction(() => {
+          // Get the invoice
+          const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?').get(invoice_id, payload.tenant_id);
+          if (!inv) throw new Error('Invoice not found');
+          if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
+
+          const oldInvoiceNumber = inv.invoice_number;
+
+          // Get the next GST invoice number
+          const terminalCode: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
+          const tc = terminalCode ? JSON.parse(terminalCode.value) : 'POS1';
+
+          // Check if dual series is enabled
+          const dualSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
+          const dualSeries = dualSeriesRow ? JSON.parse(dualSeriesRow.value) : null;
+          const useGstSeries = dualSeries && dualSeries.enabled;
+
+          const configKey = useGstSeries ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+
+          const counterRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+          let counter = 1;
+          let config: { prefix: string; counter: number } = {
+            prefix: useGstSeries ? `${dualSeries.gstTerminalCode || 'GST'}-` : `${tc}-`,
+            counter: 1
+          };
+
+          if (counterRow) {
+            try {
+              config = JSON.parse(counterRow.value);
+              counter = typeof config.counter === 'number' ? config.counter : 1;
+            } catch {
+              counter = 1;
+            }
+          }
+
+          // If dual series is on but gst_invoice_counter_config doesn't exist, the prefix from dual_invoice_series takes precedence
+          if (useGstSeries && (!counterRow || !config.prefix)) {
+            config.prefix = `${dualSeries.gstTerminalCode || 'GST'}-`;
+          }
+
+          const newInvoiceNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
+
+          // Increment the counter
+          config.counter = counter + 1;
+          db.prepare(`
+            INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+            VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+            ON CONFLICT(tenant_id, key) DO UPDATE SET
+              value = EXCLUDED.value,
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+          `).run('global', configKey, JSON.stringify(config));
+          // Get invoice items
+          const items: any[] = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
+
+          let newSubtotal = 0;
+          let newTotalTax = 0;
+          const updatedItems: { item_id: string; newUnitPrice: number; newTotal: number; newTaxAmount: number }[] = [];
+          const skippedItems: string[] = [];
+
+          for (const item of items) {
+            const gstPriceRow: any = db.prepare(`
+              SELECT AVG(pbi.purchase_price) as avg_price
+              FROM purchase_bill_items pbi
+              WHERE pbi.product_id = ?
+            `).get(item.product_id);
+
+            if (!gstPriceRow || !gstPriceRow.avg_price) {
+              skippedItems.push(item.name || item.product_id);
+              continue;
+            }
+
+            const basePrice = Number(gstPriceRow.avg_price);
+            const newUnitPrice = Math.round(basePrice * multiplier * 100) / 100;
+            const qty = Number(item.quantity) || 0;
+            const newTotal = Math.round(newUnitPrice * qty * 100) / 100;
+            newSubtotal += newTotal;
+
+            let taxRate = 0;
+            const prod: any = db.prepare('SELECT tax_rate_percent FROM products WHERE product_id = ?').get(item.product_id);
+            if (prod) taxRate = Number(prod.tax_rate_percent) || 0;
+
+            const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
+
+            newTotalTax += itemTax;
+            updatedItems.push({ item_id: item.item_id, newUnitPrice, newTotal, newTaxAmount: itemTax });
+          }
+
+          if (updatedItems.length === 0) {
+            throw new Error('No items have GST purchase records. Conversion requires at least one item with a GST purchase bill entry.');
+          }
+
+          // Delete skipped items from invoice_items
+          if (skippedItems.length > 0) {
+            const skippedIds = items
+              .filter(item => skippedItems.includes(item.name || item.product_id))
+              .map(item => item.item_id);
+            const deleteStmt = db.prepare('DELETE FROM invoice_items WHERE item_id = ?');
+            for (const sid of skippedIds) {
+              deleteStmt.run(sid);
+            }
+          }
+
+          newSubtotal = Math.round(newSubtotal * 100) / 100;
+          newTotalTax = Math.round(newTotalTax * 100) / 100;
+
+          // Recalculate discount on new subtotal
+          let newDiscountTotal = 0;
+          if (inv.discount_type === 'PERCENTAGE' && Number(inv.discount_value) > 0) {
+            newDiscountTotal = Math.round(newSubtotal * (Number(inv.discount_value) / 100) * 100) / 100;
+          } else if (inv.discount_type === 'FIXED' && Number(inv.discount_value) > 0) {
+            newDiscountTotal = Math.min(Number(inv.discount_value), newSubtotal);
+          }
+
+          const taxableAmount = newSubtotal - newDiscountTotal;
+          const effectiveTaxRate = newSubtotal > 0 ? newTotalTax / newSubtotal : 0;
+          const adjustedTax = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
+          const newGrandTotal = Math.round((taxableAmount + adjustedTax) * 100) / 100;
+
+          // Update invoice
+          db.prepare(`
+            UPDATE invoices SET
+              invoice_type = 'GST',
+              invoice_number = ?,
+              subtotal = ?,
+              tax_total = ?,
+              discount_total = ?,
+              grand_total = ?,
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE invoice_id = ?
+          `).run(
+            newInvoiceNumber,
+            newSubtotal,
+            adjustedTax,
+            newDiscountTotal,
+            newGrandTotal,
+            invoice_id
+          );
+
+          // Update invoice items
+          const updateItemStmt = db.prepare(`
+            UPDATE invoice_items SET
+              unit_price = ?,
+              tax_amount = ?,
+              total = ?
+            WHERE item_id = ?
+          `);
+
+          for (const ui of updatedItems) {
+            updateItemStmt.run(ui.newUnitPrice, ui.newTaxAmount, ui.newTotal, ui.item_id);
+          }
+
+          return {
+            old_number: oldInvoiceNumber,
+            new_number: newInvoiceNumber,
+            skipped: skippedItems.length > 0 ? skippedItems : undefined
+          };
+        })();
+
+        results.push({
+          invoice_id,
+          old_number: invoice.old_number,
+          new_number: invoice.new_number,
+          success: true,
+          ...(invoice.skipped ? { skipped_items: invoice.skipped } : {})
+        });
+        console.log('[convertBosToGst] Converted', invoice_id, '→', invoice.new_number);
+      } catch (err: any) {
+        console.error('[convertBosToGst] Failed', invoice_id, err.message);
+        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: err.message });
+      }
+    }
+
+    console.log('[convertBosToGst] Completed', results.filter(r => r.success).length, '/', results.length);
+    return { success: true, results };
+  } catch (error: any) {
+    console.error('[convertBosToGst] Fatal error', error.message);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; key: string }) => {
   try {
     const db = getDb();

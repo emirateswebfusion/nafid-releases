@@ -186,11 +186,12 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
   const [gstTerminalCode, setGstTerminalCode] = useState('');
   const [gstInvoiceStartNumber, setGstInvoiceStartNumber] = useState<number | string>(1);
+  const [gstProfitPercentage, setGstProfitPercentage] = useState<number>(30);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings, gstProfitPercentage });
     return current !== initialSnapshot.current;
   }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
 
@@ -226,7 +227,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
     }
   }, [loading]);
 
@@ -295,6 +296,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
     if (invCfg) { setInvoiceStartNumber(invCfg.counter || 1); }
 
+    const gstProfitPct = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage' });
+    if (gstProfitPct !== null && gstProfitPct !== undefined) setGstProfitPercentage(Number(gstProfitPct));
+
     const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
     if (dualSeries) {
       setEnableDualInvoiceSeries(Boolean(dualSeries.enabled));
@@ -335,6 +339,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
@@ -351,7 +356,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -494,14 +499,39 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         );
       case 'gst':
         return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop GSTIN</label>
-              <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder="e.g. 27AAAAA1111A1Z1" className="uppercase font-semibold font-mono" />
+          <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop GSTIN</label>
+                <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder="e.g. 27AAAAA1111A1Z1" className="uppercase font-semibold font-mono" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
+                <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
-              <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
+            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-black text-amber-500 uppercase tracking-wider">Bill of Supply → GST Conversion</span>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    Profit Percentage
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input type="number" min="0" max="999" value={gstProfitPercentage}
+                      onChange={e => setGstProfitPercentage(e.target.value === '' ? 0 : Number(e.target.value))}
+                      className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
+                    <span className="text-xs font-bold text-muted-foreground">%</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">GST sale price = GST purchase price + this % margin. Used when converting Bill of Supply invoices to GST Invoices.</p>
+                </div>
+              </div>
             </div>
           </div>
         );
