@@ -1062,12 +1062,11 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                   if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
 
                   const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
-                  const piecesPerKg = Number(da.pcs) || 0;
+                  const totalPcs = Number(da.pcs) || 0;
                   const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom);
                   const formattedStock = isWeightUom 
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
-                  const estPieces = isWeightUom && piecesPerKg > 0 ? Math.round(Number(p.current_stock) * piecesPerKg) : 0;
 
                   return (
                     <div key={p.product_id} className="grid grid-cols-12 gap-1 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
@@ -1119,7 +1118,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
                           ) : (
                              <>
                                <span>{formattedStock}</span>
-                               {estPieces > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">≈ {estPieces} pcs</span>}
+                               {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
                                {isLowStock && (
                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
                                    <AlertTriangle className="w-2.5 h-2.5" /> Low

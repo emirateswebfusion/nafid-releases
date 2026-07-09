@@ -337,7 +337,12 @@ async function syncProducts(token: string, tenantId: string) {
     const products = batch.map((p: any) => ({
       ...p,
       is_deleted: !!p.is_deleted,
-      domain_attributes: (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })(),
+      domain_attributes: (() => { 
+          try { 
+            const parsed = JSON.parse(p.domain_attributes || '{}');
+            return typeof parsed === 'string' ? JSON.parse(parsed) : parsed;
+          } catch { return {}; }
+        })(),
     }));
 
     const synced = await pushBatch(
@@ -592,7 +597,9 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
               current_stock: currentP.current_stock ?? 0,
               reorder_level: currentP.reorder_level ?? 0,
               is_deleted: currentP.is_deleted ? 1 : 0,
-              domain_attributes: currentP.domain_attributes ? JSON.stringify(currentP.domain_attributes) : '{}',
+              domain_attributes: currentP.domain_attributes 
+                ? (typeof currentP.domain_attributes === 'string' ? currentP.domain_attributes : JSON.stringify(currentP.domain_attributes)) 
+                : '{}',
               discount_percent: currentP.discount_percent ?? null,
               discount_flat: currentP.discount_flat ?? null,
               offer_price: currentP.offer_price ?? null,
@@ -722,6 +729,9 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
               balance_amount: currentInv.balance_amount ?? 0,
               user_id: currentInv.user_id || null,
               created_at: toSqliteDate(currentInv.created_at),
+              customer_gstin: currentInv.customer_gstin || null,
+              customer_state: currentInv.customer_state || null,
+              customer_address: currentInv.customer_address || null,
             });
             success = true;
           } catch (e: any) {
