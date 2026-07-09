@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, LayoutDashboard, Users, Store, BookOpen } from 'lucide-react';
+import { LogOut, LayoutDashboard, Users, Store, BookOpen, Gift, Settings2 } from 'lucide-react';
 import clsx from 'clsx';
 
 export default function Layout() {
@@ -11,6 +11,8 @@ export default function Layout() {
     { to: '/dashboard', label: 'Sales', icon: LayoutDashboard },
     { to: '/parties', label: 'Parties', icon: BookOpen },
     { to: '/staff', label: 'Staff', icon: Users },
+    { to: '/customers', label: 'Customers', icon: Gift },
+    { to: '/loyalty', label: 'Loyalty', icon: Settings2 },
   ];
 
   return (

@@ -4,6 +4,8 @@ import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Staff from './pages/Staff';
 import Parties from './pages/Parties';
+import Customers from './pages/Customers';
+import LoyaltySettings from './pages/LoyaltySettings';
 import Layout from './components/Layout';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -22,6 +24,8 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="staff" element={<Staff />} />
             <Route path="parties" element={<Parties />} />
+            <Route path="customers" element={<Customers />} />
+            <Route path="loyalty" element={<LoyaltySettings />} />
           </Route>
         </Routes>
       </Router>

@@ -137,6 +137,18 @@ export const useCartStore = create<CartState>()(
   )
 );
 
+export interface LoyaltyInfo {
+  customerId: string | null;
+  customerName: string;
+  customerPhone: string;
+  customerAddress: string;
+  previousPointsBalance: number;
+  pointsEarned: number;
+  pointsRedeemed: number;
+  pointsRedeemedDiscount: number;
+  remainingPointsBalance: number;
+}
+
 // Derived Selectors
 export const useCartTotals = () => {
   const { items, invoiceType, discountType, discountValue, shopState, customerState } = useCartStore();

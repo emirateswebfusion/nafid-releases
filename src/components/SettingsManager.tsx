@@ -4,7 +4,7 @@ import {
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
   Smartphone, X, RotateCcw, Maximize2,
-  Store, Package, Monitor, ChevronRight, Shield, FileText, Recycle
+  Store, Package, Monitor, ChevronRight, Shield, FileText, Recycle, TrendingUp
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -71,6 +71,7 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
       { id: 'shop', label: 'Shop Details', icon: Building, ownerOnly: true },
       { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
       { id: 'scrap', label: 'Scrap Settings', icon: Recycle, ownerOnly: true },
+      { id: 'loyalty', label: 'Loyalty Points', icon: TrendingUp, ownerOnly: true },
     ],
   },
   {
@@ -177,6 +178,9 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
   const [enableScrap, setEnableScrap] = useState(false);
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
+  const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
   const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
@@ -222,7 +226,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings });
     }
   }, [loading]);
 
@@ -261,6 +265,13 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
     const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
     if (scrapEnabled !== null && scrapEnabled !== undefined) setEnableScrap(Boolean(scrapEnabled));
+
+    const loyaltyCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' });
+    if (loyaltyCfg) {
+      setLoyaltyEnabled(Boolean(loyaltyCfg.enabled));
+      if (loyaltyCfg.earningRate) setLoyaltyEarningRate(Number(loyaltyCfg.earningRate));
+      if (loyaltyCfg.redemptionRate) setLoyaltyRedemptionRate(Number(loyaltyCfg.redemptionRate));
+    }
     if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType])     setLabelCodeType(labelType as CodeType);
     if (printFmt) {
       if (printFmt.format === 'a4') {
@@ -324,6 +335,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
@@ -339,7 +351,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -539,9 +551,59 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
               </button>
               <div className="flex-1">
                 <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, scrap manager, and scrap dashboard card. Use this for shops that do not deal with scrap (e.g. fruit shops).</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, scrap manager, and scrapers card. Use this for shops that do not deal with scrap (e.g. fruit shops).</p>
               </div>
             </div>
+          </div>
+        );
+      case 'loyalty':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
+              <button onClick={() => setLoyaltyEnabled(!loyaltyEnabled)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary' : 'bg-muted-foreground/30')}>
+                <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', loyaltyEnabled ? 'translate-x-6' : 'translate-x-0')} />
+              </button>
+              <div className="flex-1">
+                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}>Enable Loyalty Points System</label>
+                <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for discounts on future purchases.</p>
+              </div>
+            </div>
+
+            {loyaltyEnabled && (
+              <div className="space-y-4">
+                <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
+                  <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                      <TrendingUp className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">Points Earning Rules</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground tracking-wide">Earning Rate</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground">₹</span>
+                        <input type="number" min="1" value={loyaltyEarningRate}
+                          onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
+                        <span className="text-xs font-bold text-muted-foreground">= 1 Point</span>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">e.g. ₹100 = 1 Point means customer earns 1 point per ₹100 spent.</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-muted-foreground tracking-wide">Redemption Value</label>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-muted-foreground">1 Point = ₹</span>
+                        <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
+                          onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
+                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
+                      </div>
+                      <p className="text-[10px] text-muted-foreground">e.g. 1 Point = ₹1 means each point gives ₹1 discount.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
       case 'print-format':
@@ -1771,6 +1833,7 @@ Discount          ₹-50.00
                        {activeItem.id === 'print-format' && 'Choose between thermal receipt or A4 invoice as the default print format and select what details appear on the bill.'}
                       {activeItem.id === 'label-settings' && 'Choose the default code format (Barcode or QR Code) for product labels.'}
                       {activeItem.id === 'scrap' && 'Enable or disable scrap management for shops that do not deal with scrap.'}
+                      {activeItem.id === 'loyalty' && 'Configure loyalty points: enable/disable, set earning rate (e.g. ₹100 = 1 point), and set redemption value (e.g. 1 point = ₹1 discount).'}
                     </p>
                   </div>
                   {activeItem.ownerOnly && (

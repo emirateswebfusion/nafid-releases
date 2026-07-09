@@ -21,6 +21,7 @@ import { WarrantyManager } from './components/WarrantyManager';
 import { PrintA4View } from './components/PrintA4View';
 import { StockReport } from './components/StockReport';
 import { PurchaseBillManager } from './components/PurchaseBillManager';
+import { CustomersPage } from './components/CustomersPage';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 
 function App() {
@@ -93,6 +94,7 @@ function App() {
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
+  const [showCustomersPage, setShowCustomersPage] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
@@ -270,6 +272,7 @@ function App() {
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
     const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
+    const handleOpenCustomersPage = () => setShowCustomersPage(true);
     const handleOpenQuotationEdit = () => {
       setShowQuotationManager(false);
       setShowInventoryManager(false);
@@ -292,6 +295,7 @@ function App() {
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
     window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
+    window.addEventListener('open-customers-page', handleOpenCustomersPage);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
 
@@ -342,6 +346,7 @@ function App() {
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
+      window.removeEventListener('open-customers-page', handleOpenCustomersPage);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
     };
@@ -394,6 +399,8 @@ function App() {
         <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
       ) : showPurchaseBillManager ? (
         <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
+      ) : showCustomersPage ? (
+        <CustomersPage onClose={() => setShowCustomersPage(false)} />
       ) : showSettingsManager ? (
         <SettingsManager onClose={() => setShowSettingsManager(false)} />
       ) : showSalesHistory ? (

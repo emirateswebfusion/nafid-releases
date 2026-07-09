@@ -2359,3 +2359,69 @@ ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset
   }
 });
 
+// ── Customer / Loyalty Points IPC Handlers ──
+
+ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    return db.prepare(`SELECT * FROM customers WHERE tenant_id = ? ORDER BY name COLLATE NOCASE ASC`).all(tenant_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:findCustomers', (event, { tenant_id, name, phone }: { tenant_id: string; name?: string; phone?: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = `SELECT * FROM customers WHERE tenant_id = ?`;
+    const params: any[] = [tenant_id];
+    if (name) {
+      query += ` AND name LIKE ?`;
+      params.push(`%${name}%`);
+    }
+    if (phone) {
+      query += ` AND phone LIKE ?`;
+      params.push(`%${phone}%`);
+    }
+    query += ` ORDER BY name COLLATE NOCASE ASC LIMIT 20`;
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!customer_id || !tenant_id) return [];
+    return db.prepare(`
+      SELECT invoice_id, invoice_number, invoice_type, grand_total, points_earned, points_redeemed,
+             points_redeemed_discount, previous_points_balance, remaining_points_balance,
+             created_at
+      FROM invoices
+      WHERE customer_id = ? AND tenant_id = ?
+      ORDER BY created_at DESC
+    `).all(customer_id, tenant_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:getCustomerLoyaltyTransactions', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!customer_id || !tenant_id) return [];
+    return db.prepare(`
+      SELECT lt.*, i.invoice_number
+      FROM loyalty_transactions lt
+      LEFT JOIN invoices i ON lt.invoice_id = i.invoice_id
+      WHERE lt.customer_id = ? AND lt.tenant_id = ?
+      ORDER BY lt.created_at DESC
+    `).all(customer_id, tenant_id);
+  } catch (error: any) {
+    return { error: error.message };
+  }
+});
+

@@ -72,6 +72,12 @@ export interface ReceiptData {
   showProductOffers?: boolean;
   billSettings?: BillSettings;
   isB2B?: boolean;
+  // Loyalty points fields
+  pointsEarned?: number;
+  previousPointsBalance?: number;
+  pointsRedeemed?: number;
+  pointsRedeemedDiscount?: number;
+  remainingPointsBalance?: number;
 }
 
 /**
@@ -148,10 +154,37 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     return text.length > width ? text.substring(0, width) : text.padStart(width, ' ');
   };
 
+  const appendLoyaltyBlock = (t: string): string => {
+    const points = data.pointsEarned || data.previousPointsBalance || data.pointsRedeemed || data.remainingPointsBalance;
+    if (!points) return t;
+    const dash = '-'.repeat(charsPerLine);
+    const lw = charsPerLine - 12 - 2;
+    const tw = 12;
+    let out = t + '\n';
+    out += centerText('LOYALTY POINTS', charsPerLine) + '\n';
+    if (data.previousPointsBalance != null && data.previousPointsBalance > 0) {
+      out += `${padRight('Previous Balance', lw)}  ${padLeft(data.previousPointsBalance.toFixed(0), tw)}\n`;
+    }
+    if (data.pointsEarned && data.pointsEarned > 0) {
+      out += `${padRight('Earned This Bill', lw)}  ${padLeft(`+${data.pointsEarned.toFixed(0)}`, tw)}\n`;
+    }
+    if (data.pointsRedeemed && data.pointsRedeemed > 0) {
+      out += `${padRight('Redeemed', lw)}  ${padLeft(`-${data.pointsRedeemed.toFixed(0)}`, tw)}\n`;
+      if (data.pointsRedeemedDiscount && data.pointsRedeemedDiscount > 0) {
+        out += `${padRight('Discount Value', lw)}  ${padLeft(`-${data.pointsRedeemedDiscount.toFixed(2)}`, tw)}\n`;
+      }
+    }
+    if (data.remainingPointsBalance != null) {
+      out += `${padRight('Balance', lw)}  ${padLeft(data.remainingPointsBalance.toFixed(0), tw)}\n`;
+    }
+    out += dash + '\n';
+    return out;
+  };
+
   let text = '';
 
   // ══════════════════════════════════════════════════════════════════════════════
-  //  STANDARD — Clean framed design, table items, centered grand total
+  //  STANDARD — Clean framed design, borders items, centered grand total
   // ══════════════════════════════════════════════════════════════════════════════
   if (style === 'standard') {
     const FRAME = '='.repeat(charsPerLine);
@@ -356,8 +389,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     text += DASH + '\n';
 
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
+
     // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
+    const perProductSavings: number = data.items.reduce((sum, item) => {
       if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
       return sum;
     }, 0);
@@ -495,13 +531,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += THIN + '\n';
     }
 
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
+
     // ── Footer ──
     text += centerText('✦ Thank You! ✦', charsPerLine) + '\n';
     text += centerText('Visit Again', charsPerLine) + '\n';
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  //  CLEAN — No lines, table with RATE col, Amount in Words, traditional invoice
+  //  CLEAN — Follows lines, table with RATE col, Amount in Words, traditional invoice
   // ══════════════════════════════════════════════════════════════════════════════
   else if (style === 'clean') {
     const totalW = 10;
@@ -622,6 +661,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         } catch {}
       }
     }
+
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
 
     // ── Footer ──
     text += centerText('Thank You, Visit Again!', charsPerLine) + '\n';
@@ -749,6 +791,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += LIGHT + '\n';
     }
 
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
+
     // ── Footer ──
     text += centerText('* Thank you, visit again! *', charsPerLine) + '\n';
     text += FRAME + '\n';
@@ -857,6 +902,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += DASH + '\n';
     }
 
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
+
     // ── Footer ──
     text += centerText('Thank you, visit again!', charsPerLine) + '\n';
   }
@@ -930,6 +978,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.upiId) {
       text += `\nUPI: ${data.upiId}\n`;
     }
+
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
 
     // ── Footer ──
     text += `\nThank You\n`;
@@ -1049,6 +1100,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
       text += THIN + '\n';
     }
+
+    // ── Loyalty Points ──
+    text = appendLoyaltyBlock(text);
 
     // ── Footer ──
     text += centerText('Thank You, Visit Again!', charsPerLine) + '\n';

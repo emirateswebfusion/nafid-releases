@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash2, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -95,6 +95,18 @@ export function BillingPage() {
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
+
+  // Loyalty points state
+  const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
+  const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
+  const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
+  const [loyaltyCustomerData, setLoyaltyCustomerData] = useState<{
+    customerId: string | null;
+    pointsBalance: number;
+  }>({ customerId: null, pointsBalance: 0 });
+  const [showLoyaltyRedemption, setShowLoyaltyRedemption] = useState(false);
+  const [pointsToRedeem, setPointsToRedeem] = useState(0);
+  const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
@@ -289,6 +301,13 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableDualInvoiceSeries(Boolean(v.enabled));
     });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
+      if (v) {
+        setLoyaltyEnabled(Boolean(v.enabled));
+        if (v.earningRate) setLoyaltyEarningRate(Number(v.earningRate));
+        if (v.redemptionRate) setLoyaltyRedemptionRate(Number(v.redemptionRate));
+      }
+    });
   }, [tenantId]);
 
 
@@ -410,6 +429,33 @@ export function BillingPage() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const scrapDeductionInputRef = useRef<HTMLInputElement>(null);
   const [scrapDeductionDropdownStyle, setScrapDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
+
+  // Customer autofill search by name or phone
+  useEffect(() => {
+    const nameQuery = customerName.trim();
+    const phoneQuery = customerPhone.trim();
+    if ((!nameQuery && !phoneQuery) || nameQuery.length < 2 || !window.electronAPI || !loyaltyEnabled) {
+      setCustomerSearchResults([]);
+      return;
+    }
+    const t = setTimeout(async () => {
+      try {
+        const results = await window.electronAPI.dbFindCustomers({
+          tenant_id: tenantId || 'global',
+          name: nameQuery || undefined,
+          phone: phoneQuery || undefined,
+        });
+        if (Array.isArray(results)) {
+          setCustomerSearchResults(results.filter((c: any) => {
+            if (nameQuery && c.name) return c.name.toLowerCase().includes(nameQuery.toLowerCase());
+            if (phoneQuery && c.phone) return c.phone.includes(phoneQuery);
+            return false;
+          }));
+        }
+      } catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [customerName, customerPhone, tenantId, loyaltyEnabled]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -985,11 +1031,6 @@ export function BillingPage() {
     }
 
     // ── Normal Mode Checkout ──
-    if (paymentMethod === 'CREDIT' && (!customerName.trim() || !customerPhone.trim())) {
-      setHardwareError('Customer name and phone are required for Credit');
-      setIsCheckingOut(false);
-      return;
-    }
 
     const cartStore = useCartStore.getState();
     const editingInvoiceId = cartStore.editingInvoiceId;
@@ -1081,6 +1122,19 @@ export function BillingPage() {
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
       const state = useCartStore.getState();
+      // Calculate loyalty points
+      const previousPointsBalance = loyaltyCustomerData.customerId ? loyaltyCustomerData.pointsBalance : 0;
+      const pointsEarned = loyaltyEnabled && loyaltyCustomerData.customerId && (paymentMethod !== 'PENDING')
+        ? Math.floor(displayGrandTotal / loyaltyEarningRate)
+        : 0;
+      const pointsRedeemed = showLoyaltyRedemption && loyaltyCustomerData.customerId
+        ? Math.min(pointsToRedeem, loyaltyCustomerData.pointsBalance)
+        : 0;
+      const pointsRedeemedDiscount = pointsRedeemed * loyaltyRedemptionRate;
+      const remainingPointsBalance = previousPointsBalance + pointsEarned - pointsRedeemed;
+      // Adjust grand total for points redemption discount
+      const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscount);
+
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -1098,8 +1152,13 @@ export function BillingPage() {
         sgst: billSettings.showTaxBreakup ? sgst : undefined,
         igst: billSettings.showTaxBreakup ? igst : undefined,
         discount, discountType: state.discountType,
-        discountValue: state.discountValue, grandTotal,
-        scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
+        discountValue: state.discountValue, grandTotal: effectiveGrandTotal,
+        pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
+        previousPointsBalance: previousPointsBalance > 0 ? previousPointsBalance : undefined,
+        pointsRedeemed: pointsRedeemed > 0 ? pointsRedeemed : undefined,
+        pointsRedeemedDiscount: pointsRedeemedDiscount > 0 ? pointsRedeemedDiscount : undefined,
+        remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
+        scrapedDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
         ...(isPaymentPending ? {} : { receivedAmount: effectiveReceivedAmount, balanceAmount: effectiveBalanceAmount }),
         invoiceType,
         customerName: customerName || undefined,
@@ -1133,6 +1192,7 @@ export function BillingPage() {
       }
 
       let result: any;
+      const wantsLoyalty = loyaltyEnabled && !!customerName.trim() && (!!customerPhone.trim() || !!customerAddress.trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
         result = await window.electronAPI.dbUpdateInvoice({
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
@@ -1150,7 +1210,7 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: displayGrandTotal, payment_method: paymentMethod,
+          grand_total: adjustedGrandTotal, payment_method: paymentMethod,
           received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
@@ -1159,6 +1219,13 @@ export function BillingPage() {
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           items: checkoutItems,
           scrap_items: [],
+          loyalty_enabled: wantsLoyalty,
+          loyalty_customer_id: loyaltyCustomerData.customerId,
+          points_earned: pointsEarned,
+          points_redeemed: pointsRedeemed,
+          points_redeemed_discount: pointsRedeemedDiscount,
+          previous_points_balance: previousPointsBalance,
+          remaining_points_balance: remainingPointsBalance,
         });
       }
       if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
@@ -1609,9 +1676,16 @@ export function BillingPage() {
               <div className="relative flex-1">
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
-                  placeholder={paymentMethod === 'CREDIT' ? 'Name *' : 'Customer Name'}
+                  placeholder={'Customer Name (optional)'}
                   value={customerName}
-                  onChange={e => updateActiveTab({ customerName: e.target.value })}
+                  onChange={e => {
+                    updateActiveTab({ customerName: e.target.value });
+                    if (loyaltyEnabled && e.target.value.length >= 2) {
+                      window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', name: e.target.value }).then((res: any) => {
+                        if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.name?.toLowerCase().includes(e.target.value.toLowerCase())));
+                      });
+                    }
+                  }}
                   className={clsx(
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
@@ -1619,13 +1693,42 @@ export function BillingPage() {
                       : 'border-border focus:ring-primary/20 focus:border-primary'
                   )}
                 />
+                {customerSearchResults.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
+                    {customerSearchResults.map((c: any) => (
+                      <button key={c.customer_id}
+                        onClick={() => {
+                          updateActiveTab({ customerName: c.name, customerPhone: c.phone || '', customerAddress: c.address || '' });
+                          setLoyaltyCustomerData({ customerId: c.customer_id, pointsBalance: Number(c.current_points_balance) || 0 });
+                          setCustomerSearchResults([]);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border/40 last:border-0 cursor-pointer">
+                        <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
+                          <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No details'}</div>
+                        </div>
+                        {Number(c.current_points_balance) > 0 && (
+                          <span className="text-[10px] font-bold text-emerald-600 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="relative flex-1">
                 <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
-                  placeholder={paymentMethod === 'CREDIT' ? 'Phone *' : 'Phone Number'}
+                  placeholder={'Phone Number (optional)'}
                   value={customerPhone}
-                  onChange={e => updateActiveTab({ customerPhone: e.target.value })}
+                  onChange={e => {
+                    updateActiveTab({ customerPhone: e.target.value });
+                    if (loyaltyEnabled && e.target.value.length >= 5) {
+                      window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', phone: e.target.value }).then((res: any) => {
+                        if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.phone?.includes(e.target.value)));
+                      });
+                    }}
+                  }
                   className={clsx(
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
@@ -1638,7 +1741,7 @@ export function BillingPage() {
             <div className="relative mb-2">
               <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
               <input
-                placeholder="Customer Address"
+                placeholder="Customer Address (optional)"
                 value={customerAddress}
                 onChange={e => updateActiveTab({ customerAddress: e.target.value })}
                 className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
@@ -1686,7 +1789,50 @@ export function BillingPage() {
                     </div>
                 </div>
               )}
+              {/* Loyalty Points Display & Redemption */}
+              {loyaltyEnabled && !isScrapMode && !isQuotationMode && loyaltyCustomerData.customerId && (
+                <div className="flex items-center gap-2 ml-auto">
+                  <div className="flex items-center gap-1 px-2.5 py-1 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <Star className="w-3 h-3 text-emerald-500" />
+                    <span className="text-xs font-bold text-emerald-600">{loyaltyCustomerData.pointsBalance.toFixed(0)} pts</span>
+                  </div>
+                  {loyaltyCustomerData.pointsBalance > 0 && !showLoyaltyRedemption && (
+                    <button onClick={() => { setShowLoyaltyRedemption(true); setPointsToRedeem(0); }}
+                      className="px-2 py-1 text-[10px] font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded-lg hover:bg-amber-500/20 transition-all cursor-pointer">
+                      Redeem
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
+            {/* Points Redemption Input */}
+            {showLoyaltyRedemption && loyaltyCustomerData.customerId && (
+              <div className="mt-2 p-2.5 bg-amber-500/5 border border-amber-500/20 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-amber-500 shrink-0" />
+                  <span className="text-xs font-bold text-amber-600 shrink-0">Redeem Points</span>
+                  <input type="number" min="0" max={loyaltyCustomerData.pointsBalance}
+                    value={pointsToRedeem || ''}
+                    onChange={e => setPointsToRedeem(e.target.value === '' ? 0 : Math.min(Number(e.target.value), loyaltyCustomerData.pointsBalance))}
+                    className="w-20 text-center py-1 bg-background border border-amber-500/30 rounded-lg text-sm font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                    placeholder="0" />
+                  <span className="text-xs text-muted-foreground">pts</span>
+                  <span className="text-xs font-bold text-amber-600">
+                    = -{formatCurrency(pointsToRedeem * loyaltyRedemptionRate)}
+                  </span>
+                  <button
+                    onClick={() => { setShowLoyaltyRedemption(false); setPointsToRedeem(0); }}
+                    className="ml-auto p-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                {pointsToRedeem > 0 && (
+                  <p className="text-[10px] text-amber-600 mt-1 font-semibold">
+                    Discount: {formatCurrency(pointsToRedeem * loyaltyRedemptionRate)} will be applied
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Cart List */}

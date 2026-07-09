@@ -335,6 +335,40 @@ export function initDb() {
         FOREIGN KEY (purchase_bill_id) REFERENCES purchase_bills(purchase_bill_id),
         FOREIGN KEY (product_id) REFERENCES products(product_id)
     );
+
+    CREATE TABLE IF NOT EXISTS customers (
+        customer_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        phone TEXT,
+        address TEXT,
+        total_points_earned REAL NOT NULL DEFAULT 0,
+        total_points_redeemed REAL NOT NULL DEFAULT 0,
+        current_points_balance REAL NOT NULL DEFAULT 0,
+        last_purchase_date DATETIME,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, phone)
+    );
+
+    CREATE TABLE IF NOT EXISTS loyalty_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        invoice_id TEXT,
+        transaction_type TEXT NOT NULL,
+        points REAL NOT NULL,
+        points_balance_before REAL NOT NULL,
+        points_balance_after REAL NOT NULL,
+        reference_number TEXT,
+        description TEXT,
+        created_by TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
+    );
   `);
 
   // Migration: Add missing columns if they don't exist (Idempotent)
@@ -353,7 +387,8 @@ export function initDb() {
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
         'customer_gstin', 'customer_state', 'customer_address', 'received_amount', 'balance_amount', 'updated_at',
-        'scrap_deduction', 'scrap_invoice_number'
+        'scrap_deduction', 'scrap_invoice_number',
+        'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
@@ -403,6 +438,15 @@ export function initDb() {
     cashier_audit_log: [
         'audit_id', 'tenant_id', 'drawer_id', 'action', 'details', 'performed_by', 'performed_by_name',
         'performed_at', 'sync_status', 'created_at'
+    ],
+    customers: [
+        'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
+        'current_points_balance', 'last_purchase_date', 'sync_status', 'created_at', 'updated_at'
+    ],
+    loyalty_transactions: [
+        'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',
+        'points_balance_before', 'points_balance_after', 'reference_number', 'description', 'created_by',
+        'sync_status', 'created_at'
     ]
   };
 

@@ -200,6 +200,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
         notifyProgress(4, sender, undefined, totalRecords); await syncSettings(jwt_token, tenant_id);
         notifyProgress(5, sender, undefined, totalRecords); await syncParties(jwt_token, tenant_id);
+        notifyProgress(5.1, sender, undefined, totalRecords); await pushCustomers(jwt_token, tenant_id);
+        notifyProgress(5.2, sender, undefined, totalRecords); await pushLoyaltyTransactions(jwt_token, tenant_id);
         notifyProgress(6, sender, undefined, totalRecords); await syncPartyLedger(jwt_token, tenant_id);
         notifyProgress(7, sender, undefined, totalRecords); await syncScrapCategories(jwt_token, tenant_id);
         notifyProgress(8, sender, undefined, totalRecords); await syncScrapTransactions(jwt_token, tenant_id);
@@ -214,6 +216,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(16, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(17, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(18, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(18.1, sender, undefined, totalRecords); if (await pullCustomers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(18.2, sender, undefined, totalRecords); if (await pullLoyaltyTransactions(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(19, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(20, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(21, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
@@ -854,6 +858,37 @@ async function syncParties(token: string, tenantId: string) {
   }
 }
 
+async function pushCustomers(token: string, tenantId: string): Promise<boolean> {
+  try {
+    const pending = getDb().prepare(
+      `SELECT * FROM customers WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`
+    ).all(tenantId);
+    if (!Array.isArray(pending) || pending.length === 0) return true;
+    const response = await fetch(`${getCloudApiBase()}/api/sync/customers`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customers: pending }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    if (Array.isArray(result.synced) && result.synced.length > 0) {
+      const markSynced = getDb().prepare(`UPDATE customers SET sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`);
+      const tx = getDb().transaction((ids: string[]) => { for (const id of ids) markSynced.run(id); });
+      tx(result.synced);
+    }
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      const markFailed = getDb().prepare(`UPDATE customers SET sync_status = 'FAILED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`);
+      const tx = getDb().transaction((items: any[]) => { for (const f of items) markFailed.run(f.customer_id); });
+      tx(result.failed);
+    }
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Push customers failed:', err.message);
+    return false;
+  }
+}
+
 // ── Pull Parties (Cloud → Edge) ─────────────────────────────────────────────
 async function pullParties(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
@@ -954,6 +989,38 @@ async function syncPartyLedger(token: string, tenantId: string) {
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
       tx(synced);
     }
+  }
+}
+
+async function pushLoyaltyTransactions(token: string, tenantId: string): Promise<boolean> {
+  try {
+    const db = getDb();
+    const pending = db.prepare(
+      `SELECT * FROM loyalty_transactions WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`
+    ).all(tenantId);
+    if (!Array.isArray(pending) || pending.length === 0) return true;
+    const response = await fetch(`${getCloudApiBase()}/api/sync/loyalty-transactions`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ loyalty_transactions: pending }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const result = await response.json();
+    if (Array.isArray(result.synced) && result.synced.length > 0) {
+      const markSynced = db.prepare("UPDATE loyalty_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?");
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) markSynced.run(id); });
+      tx(result.synced);
+    }
+    if (Array.isArray(result.failed) && result.failed.length > 0) {
+      const markFailed = db.prepare("UPDATE loyalty_transactions SET sync_status = 'FAILED' WHERE transaction_id = ?");
+      const tx = db.transaction((items: any[]) => { for (const item of items) markFailed.run(item.transaction_id); });
+      tx(result.failed);
+    }
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Push loyalty transactions failed:', err.message);
+    return false;
   }
 }
 
@@ -1599,6 +1666,105 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull cash drawer failed:', err.message);
+    return false;
+  }
+}
+
+async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/customers`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const cloudRows: any[] = await response.json();
+    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO customers (customer_id, tenant_id, name, phone, address,
+        total_points_earned, total_points_redeemed, current_points_balance,
+        last_purchase_date, sync_status, created_at, updated_at)
+      VALUES (@customer_id, @tenant_id, @name, @phone, @address,
+        @total_points_earned, @total_points_redeemed, @current_points_balance,
+        @last_purchase_date, 'SYNCED', @created_at, @updated_at)
+      ON CONFLICT(customer_id) DO UPDATE SET
+        name = excluded.name, phone = excluded.phone, address = excluded.address,
+        total_points_earned = excluded.total_points_earned,
+        total_points_redeemed = excluded.total_points_redeemed,
+        current_points_balance = excluded.current_points_balance,
+        last_purchase_date = excluded.last_purchase_date,
+        sync_status = 'SYNCED', updated_at = excluded.updated_at
+    `);
+    const tx = db.transaction((rows: any[]) => {
+      for (const r of rows) {
+        upsert.run({
+          customer_id: r.customer_id, tenant_id: r.tenant_id || tenantId,
+          name: r.name, phone: r.phone || null, address: r.address || null,
+          total_points_earned: r.total_points_earned ?? 0,
+          total_points_redeemed: r.total_points_redeemed ?? 0,
+          current_points_balance: r.current_points_balance ?? 0,
+          last_purchase_date: toSqliteDate(r.last_purchase_date),
+          created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+        });
+      }
+    });
+    tx(cloudRows);
+    const reconciled = reconcilePending(db, 'customers', 'customer_id', cloudRows);
+    console.log(`[SyncWorker] Pulled ${cloudRows.length} customers.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull customers failed:', err.message);
+    return false;
+  }
+}
+
+async function pullLoyaltyTransactions(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/loyalty-transactions`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!response.ok) return false;
+    const cloudRows: any[] = await response.json();
+    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id,
+        transaction_type, points, points_balance_before, points_balance_after,
+        reference_number, description, created_by, sync_status, created_at)
+      VALUES (@transaction_id, @tenant_id, @customer_id, @invoice_id,
+        @transaction_type, @points, @points_balance_before, @points_balance_after,
+        @reference_number, @description, @created_by, 'SYNCED', @created_at)
+      ON CONFLICT(transaction_id) DO UPDATE SET
+        transaction_type = excluded.transaction_type, points = excluded.points,
+        points_balance_before = excluded.points_balance_before,
+        points_balance_after = excluded.points_balance_after,
+        reference_number = excluded.reference_number, description = excluded.description,
+        sync_status = 'SYNCED'
+    `);
+    const tx = db.transaction((rows: any[]) => {
+      for (const r of rows) {
+        upsert.run({
+          transaction_id: r.transaction_id, tenant_id: r.tenant_id || tenantId,
+          customer_id: r.customer_id, invoice_id: r.invoice_id || null,
+          transaction_type: r.transaction_type, points: r.points,
+          points_balance_before: r.points_balance_before ?? 0,
+          points_balance_after: r.points_balance_after ?? 0,
+          reference_number: r.reference_number || null, description: r.description || null,
+          created_by: r.created_by || null, created_at: toSqliteDate(r.created_at),
+        });
+      }
+    });
+    tx(cloudRows);
+    const reconciled = reconcilePending(db, 'loyalty_transactions', 'transaction_id', cloudRows);
+    console.log(`[SyncWorker] Pulled ${cloudRows.length} loyalty transactions.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull loyalty transactions failed:', err.message);
     return false;
   }
 }

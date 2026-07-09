@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt, Banknote } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt, Banknote } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -194,6 +194,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-rose-500',
             bgColor: 'bg-rose-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
+        },
+        {
+            id: 'customers',
+            title: 'Customers',
+            desc: 'Browse customer list, points balances, and purchase history',
+            icon: User,
+            color: 'text-purple-500',
+            bgColor: 'bg-purple-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-customers-page')),
         },
         {
             id: 'staff',
