@@ -222,14 +222,14 @@ app.whenReady().then(async () => {
   });
 
   // Check for updates every 1 hour
-  // setInterval(() => {
-  //   autoUpdater.checkForUpdatesAndNotify();
-  // }, 60 * 60 * 1000);
+  setInterval(() => {
+    autoUpdater.checkForUpdatesAndNotify();
+  }, 60 * 60 * 1000);
 
-  // Initial check (Temporarily disabled as repo is private)
-  // autoUpdater.checkForUpdatesAndNotify().catch(err => {
-  //   console.error('[Updater] Initial check error:', err.message);
-  // });
+  // Initial check on startup
+  autoUpdater.checkForUpdatesAndNotify().catch(err => {
+    console.error('[Updater] Initial check error:', err.message);
+  });
 });
 
 app.on('window-all-closed', () => {
@@ -1373,7 +1373,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenan
         }
       }
 
-      const invoiceNumber = `${terminalCode}-${String(counter).padStart(3, '0')}`;
+      const invoiceNumber = `${config.prefix || `${terminalCode}-`}${String(counter).padStart(3, '0')}`;
       
       config.counter = counter + 1;
       db.prepare(`
@@ -1403,7 +1403,7 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
     if (row) {
       const config = JSON.parse(row.value);
-      return { success: true, invoiceNumber: `${terminalCode}-${String(config.counter || 1).padStart(3, '0')}` };
+      return { success: true, invoiceNumber: `${config.prefix || `${terminalCode}-`}${String(config.counter || 1).padStart(3, '0')}` };
     }
     return { success: true, invoiceNumber: `${terminalCode}-001` };
   } catch (error: any) {

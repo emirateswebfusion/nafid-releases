@@ -2,7 +2,7 @@ import { Plus, X } from 'lucide-react';
 import { useTabStore } from '../store/tabStore';
 import clsx from 'clsx';
 
-export function BillingTabBar({ onAddTab }: { onAddTab?: () => void }) {
+export function BillingTabBar({ onAddTab, enableDualInvoiceSeries }: { onAddTab?: () => void; enableDualInvoiceSeries?: boolean }) {
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const switchTab = useTabStore(s => s.switchTab);
@@ -19,6 +19,14 @@ export function BillingTabBar({ onAddTab }: { onAddTab?: () => void }) {
     }
   };
 
+  const formatTabTitle = (tab: typeof tabs[0]) => {
+    const isGst = tab.snapshot.invoiceType === 'GST';
+    if (enableDualInvoiceSeries) {
+      return tab.title;
+    }
+    return isGst && !tab.title.startsWith('GST-') ? `GST-${tab.title}` : tab.title;
+  };
+
   return (
     <div className="flex items-end bg-muted/30 border-b border-border overflow-x-auto shrink-0">
       <div className="flex items-end gap-0 px-1">
@@ -33,7 +41,7 @@ export function BillingTabBar({ onAddTab }: { onAddTab?: () => void }) {
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
             )}
           >
-            <span className="truncate max-w-[120px]">{tab.title}</span>
+            <span className="truncate max-w-[120px]">{formatTabTitle(tab)}</span>
             {tabs.length > 1 && (
               <button
                 onClick={(e) => handleClose(e, tab.id)}

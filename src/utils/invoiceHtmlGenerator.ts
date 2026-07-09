@@ -42,13 +42,14 @@ export interface InvoiceData {
   scrapInvoiceNumber?: string;
   showProductOffers?: boolean;
   billSettings?: BillSettings;
+  isB2B?: boolean;
 }
 
-function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean): string {
+function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
   if (isReprint) return 'INVOICE (REPRINT)';
   if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
-    case 'GST': return 'TAX INVOICE';
+    case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
     case 'ESTIMATE': return 'BILL OF SUPPLY';
@@ -58,7 +59,8 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
 
 export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' = 'standard'): string {
   const bs = data.billSettings;
-  const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode);
+  const isB2B = data.isB2B === true;
+  const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B);
 
   if (style === 'modern') return generateModernHtml(data, title);
   if (style === 'classic') return generateClassicHtml(data, title);

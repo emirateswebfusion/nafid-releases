@@ -324,9 +324,10 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const useA4 = printFmt?.format === 'a4';
-      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
       const invoiceType = selectedInvoice.invoice_type;
+      const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
+      const useA4 = isB2B || printFmt?.format === 'a4';
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -350,6 +351,7 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
         customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
         billSettings,
+        isB2B,
       };
       if (useA4) {
         const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');

@@ -189,14 +189,35 @@ export function BillingPage() {
     const tab = getActiveTab();
     if (!tab || tab.reservedInvoiceNumber) return;
     try {
-      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+      const series = enableDualInvoiceSeries ? (invoiceType === 'GST' ? 'gst' : 'normal') : undefined;
+      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber });
       }
     } catch (e) {
       console.error('Failed to peek invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableDualInvoiceSeries, invoiceType]);
+
+  const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
+    setInvoiceType(type);
+    setTimeout(() => {
+      syncActiveSnapshot();
+    }, 0);
+
+    try {
+      const series = enableDualInvoiceSeries ? (type === 'GST' ? 'gst' : 'normal') : undefined;
+      const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+      if (result.success && result.invoiceNumber) {
+        updateActiveTab({ 
+          reservedInvoiceNumber: result.invoiceNumber,
+          title: result.invoiceNumber
+        });
+      }
+    } catch (e) {
+      console.error('Failed to peek next invoice number on type change', e);
+    }
+  };
 
   const reserveScrapInvoiceNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
@@ -1055,7 +1076,8 @@ export function BillingPage() {
 
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
-      const useA4 = printFmt?.format === 'a4';
+      const isB2B = invoiceType === 'GST' && customerGstin.trim() !== '';
+      const useA4 = isB2B || printFmt?.format === 'a4';
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
       const state = useCartStore.getState();
@@ -1085,6 +1107,7 @@ export function BillingPage() {
         customerGstin: billSettings.showCustomerGstin ? (customerGstin || undefined) : undefined,
         customerState: billSettings.showCustomerGstin ? (customerState || undefined) : undefined,
         billSettings,
+        isB2B,
       };
 
       if (useA4) {
@@ -1171,7 +1194,8 @@ export function BillingPage() {
       await reserveInvoiceNumberForTab();
       const tab = getActiveTab();
       if (tab?.reservedInvoiceNumber) {
-        updateActiveTab({ title: tab.reservedInvoiceNumber });
+        const titlePrefix = (invoiceType === 'GST' && !enableDualInvoiceSeries) ? 'GST-' : '';
+        updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
       }
     }, 1800);
   };
@@ -1251,7 +1275,7 @@ export function BillingPage() {
                     ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
                     : 'text-primary bg-primary/10 border-primary/20'
               )}>
-                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : nextInvoiceNumber || '')}
+                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableDualInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
               </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
@@ -1263,11 +1287,32 @@ export function BillingPage() {
         <div className="flex items-center gap-2">
           {items.length > 0 && (
             <button
-              onClick={() => {
+              onClick={async () => {
                 const tab = getActiveTab();
-                const fallbackTitle = tab?.reservedInvoiceNumber || tab?.reservedScrapInvoiceNumber || '';
                 clearCart();
-                updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, title: fallbackTitle });
+                let normalInvoiceNumber = '';
+                if (window.electronAPI) {
+                  try {
+                    const series = enableDualInvoiceSeries ? 'normal' : undefined;
+                    const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+                    if (result.success && result.invoiceNumber) {
+                      normalInvoiceNumber = result.invoiceNumber;
+                    }
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }
+                const fallbackTitle = normalInvoiceNumber || tab?.reservedScrapInvoiceNumber || '';
+                updateActiveTab({ 
+                  customerName: '', 
+                  customerPhone: '', 
+                  customerGstin: '', 
+                  customerAddress: '', 
+                  paymentMethod: 'PENDING', 
+                  receivedAmount: 0, 
+                  reservedInvoiceNumber: normalInvoiceNumber,
+                  title: fallbackTitle 
+                });
                 syncActiveSnapshot();
               }}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -1359,7 +1404,7 @@ export function BillingPage() {
 
       {/* ─── TABS BAR ─── */}
       <div className="shrink-0 bg-muted/20 border-b border-border/40">
-        <BillingTabBar onAddTab={handleAddTab} />
+        <BillingTabBar onAddTab={handleAddTab} enableDualInvoiceSeries={enableDualInvoiceSeries} />
       </div>
 
       {/* ─── MAIN POS WORKSPACE ─── */}
@@ -1602,7 +1647,7 @@ export function BillingPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/40">
                 <button
-                  onClick={() => setInvoiceType('BILL_OF_SUPPLY')}
+                  onClick={() => handleInvoiceTypeChange('BILL_OF_SUPPLY')}
                   className={clsx(
                     'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
                     invoiceType === 'BILL_OF_SUPPLY'
@@ -1613,7 +1658,7 @@ export function BillingPage() {
                   Bill of Supply
                 </button>
                 <button
-                  onClick={() => setInvoiceType('GST')}
+                  onClick={() => handleInvoiceTypeChange('GST')}
                   className={clsx(
                     'px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap',
                     invoiceType === 'GST'

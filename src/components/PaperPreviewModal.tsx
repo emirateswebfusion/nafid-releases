@@ -44,6 +44,8 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
     receivedAmount: 950.00,
     balanceAmount: 950.00 - SAMPLE_GRAND_TOTAL,
     invoiceType: 'GST',
+    customerGstin: bs.showCustomerGstin ? '32AAAAA1111A1Z1' : undefined,
+    isB2B: true,
     billSettings: bs,
   };
 }
@@ -79,6 +81,7 @@ function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSe
     customerState: bs.showCustomerGstin ? 'KL' : undefined,
     showProductOffers,
     billSettings: bs,
+    isB2B: Boolean(bs.showCustomerGstin && '32AAAAA2222A1Z1'),
   };
 }
 
