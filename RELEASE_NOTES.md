@@ -1,7 +1,18 @@
+# Vendora v1.4.3 Release Notes
+
+## What's Changed
+- Added customer phone and address fields to scrap transactions
+- Enhanced button styles and accessibility across components
+- Added invoice type filtering and display in sales history
+- Implemented Bill of Supply → GST conversion with profit % configuration
+- Added loyalty program features with customer management
+- Enabled auto-update checks on startup and hourly
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.4.2...v1.4.3
+
 # Vendora v1.4.2 Release Notes
 
 ## What's Changed
-- Full commit log: https://github.com/your-repo/vendora-pos/compare/v1.4.1...v1.4.2
+- Full commit log: https://github.com/emirateswebfusion/vendora-pos/compare/v1.4.1...v1.4.2
 
 # Vendora v1.3.1 Release Notes
 
