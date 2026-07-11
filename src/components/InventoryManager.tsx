@@ -461,9 +461,10 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
       if (field === 'uom') {
         const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
         next.billing_type = weightUoms.includes(value) ? 'WEIGHT' : 'PIECE';
+        setPrintQuantity(1);
       }
 
-      if (field === 'current_stock' && view === 'add') {
+      if (field === 'current_stock' && view === 'add' && !['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(prev.uom)) {
         setPrintQuantity(value === '' ? '' : value);
       }
 
@@ -483,11 +484,15 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
     });
   };
 
-  const handleDomainAttrChange = (field: string, value: any) =>
+  const handleDomainAttrChange = (field: string, value: any) => {
     setFormData(prev => ({
       ...prev,
       domain_attributes: { ...prev.domain_attributes, [field]: value }
     }));
+    if (field === 'pcs') {
+      setPrintQuantity(value === '' || value === 0 ? '' : Number(value));
+    }
+  };
 
   const handleCreateSupplier = async () => {
     if (!newSupplierName.trim()) return;
@@ -1808,7 +1813,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-2 bg-muted/50 border border-border/60 rounded-xl p-0.5 px-2 shadow-sm">
-                  <span className="text-muted-foreground text-sm font-bold">Qty:</span>
+                  <span className="text-muted-foreground text-sm font-bold">Qty{['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) ? ` (${formData.domain_attributes?.pcs ? 'Pcs' : formData.uom})` : ''}:</span>
                   <input 
                     type="number" 
                     min="1" 
