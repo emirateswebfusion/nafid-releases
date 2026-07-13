@@ -2187,6 +2187,7 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
   bill_date?: string;
   notes?: string;
   total_amount: number;
+  bill_type?: string;
   items: Array<{
     item_id: string;
     product_id: string;
@@ -2201,19 +2202,21 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
 }) => {
   try {
     const db = getDb();
+    const billType = payload.bill_type || 'GST';
     const result = db.transaction(() => {
       const { items, ...bill } = payload;
       db.prepare(`
-        INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.notes || null, bill.total_amount);
+        INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount, bill_type, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.notes || null, bill.total_amount, billType);
 
       const stmt = db.prepare(`
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
       for (const item of items) {
-        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.is_gst_applicable ?? 1, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
       }
 
       return { success: true };

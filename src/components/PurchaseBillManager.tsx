@@ -18,6 +18,7 @@ interface PurchaseBill {
   bill_date: string;
   notes: string;
   total_amount: number;
+  bill_type: string;
   created_at: string;
   supplier_phone?: string;
 }
@@ -67,21 +68,11 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const [showAddForm, setShowAddForm] = useState(false);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productSearch, setProductSearch] = useState('');
-  const [newBillItems, setNewBillItems] = useState<Array<{
-    product_id: string;
-    name: string;
-    quantity: string;
-    purchase_price: string;
-  }>>([]);
-  const [newBillSupplierName, setNewBillSupplierName] = useState('');
-  const [newBillSupplierId, setNewBillSupplierId] = useState('');
-  const [newBillDate, setNewBillDate] = useState(new Date().toISOString().split('T')[0]);
-  const [newBillNumber, setNewBillNumber] = useState('');
+  const [supplierName, setSupplierName] = useState('');
+  const [supplierId, setSupplierId] = useState('');
+  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
-  const [isSaving, setIsSaving] = useState(false);
 
   const loadBills = async () => {
     if (!window.electronAPI || !tenantId) return;
@@ -101,10 +92,6 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (showAddForm && window.electronAPI && tenantId) {
-      window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
-        .then(res => { if (res.success && res.billNumber) setNewBillNumber(res.billNumber); })
-        .catch(console.error);
-
       window.electronAPI.dbGetParties(tenantId)
         .then(res => { if (Array.isArray(res)) setSuppliers(res); })
         .catch(console.error);
@@ -137,98 +124,6 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
       }
       setTimeout(() => setStatusMessage(null), 3000);
     }
-  };
-
-  const searchProducts = async (q: string) => {
-    setProductSearch(q);
-    if (!window.electronAPI || !tenantId || q.length < 2) {
-      if (q.length < 2) setProducts([]);
-      return;
-    }
-    const result = await window.electronAPI.dbGetPurchaseBillProducts({ tenant_id: tenantId, search: q });
-    if (Array.isArray(result)) {
-      setProducts(result);
-    }
-  };
-
-  const addProductToBill = (product: Product) => {
-    if (newBillItems.some(i => i.product_id === product.product_id)) return;
-    setNewBillItems(prev => [...prev, {
-      product_id: product.product_id,
-      name: product.name,
-      quantity: '1',
-      purchase_price: String(product.gst_purchase_price || product.purchase_price || 0),
-    }]);
-    setProductSearch('');
-    setProducts([]);
-  };
-
-  const removeBillItem = (productId: string) => {
-    setNewBillItems(prev => prev.filter(i => i.product_id !== productId));
-  };
-
-  const updateBillItem = (productId: string, field: 'quantity' | 'purchase_price', value: string) => {
-    setNewBillItems(prev => prev.map(i => i.product_id === productId ? { ...i, [field]: value } : i));
-  };
-
-  const getBillTotal = () => {
-    return newBillItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
-  };
-
-  const handleSavePurchaseBill = async () => {
-    if (newBillItems.length === 0) {
-      setStatusMessage({ text: 'Add at least one product to the bill.', type: 'error' });
-      setTimeout(() => setStatusMessage(null), 3000);
-      return;
-    }
-    if (!newBillSupplierName.trim()) {
-      setStatusMessage({ text: 'Supplier name is required.', type: 'error' });
-      setTimeout(() => setStatusMessage(null), 3000);
-      return;
-    }
-
-    setIsSaving(true);
-    const totalAmount = getBillTotal();
-    const billId = uuidv4();
-
-    if (window.electronAPI) {
-      const res = await window.electronAPI.dbAddPurchaseBill({
-        purchase_bill_id: billId,
-        tenant_id: tenantId,
-        bill_number: newBillNumber || `AUTO-${Date.now()}`,
-        supplier_id: newBillSupplierId || null,
-        supplier_name: newBillSupplierName.trim(),
-        bill_date: newBillDate,
-        notes: null,
-        total_amount: totalAmount,
-        items: newBillItems.map(item => ({
-          item_id: uuidv4(),
-          product_id: item.product_id,
-          name: item.name,
-          quantity: Number(item.quantity) || 0,
-          purchase_price: Number(item.purchase_price) || 0,
-          total_amount: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0),
-          is_gst_applicable: 1,
-          tax_rate_percent: 0,
-          hsn_sac_code: null,
-        })),
-      });
-
-      if (res.success) {
-        setStatusMessage({ text: 'Purchase bill saved successfully!', type: 'success' });
-        setShowAddForm(false);
-        setNewBillItems([]);
-        setNewBillSupplierName('');
-        setNewBillSupplierId('');
-        setProductSearch('');
-        setProducts([]);
-        loadBills();
-      } else {
-        setStatusMessage({ text: 'Save failed: ' + (res.error || ''), type: 'error' });
-      }
-    }
-    setIsSaving(false);
-    setTimeout(() => setStatusMessage(null), 3000);
   };
 
   const filteredSuppliers = suppliers.filter(s =>
@@ -346,7 +241,17 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
                             <FileText className="w-3.5 h-3.5" />
                           </div>
                           <div>
-                            <p className="text-foreground font-bold text-sm">{bill.bill_number}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="text-foreground font-bold text-sm">{bill.bill_number}</p>
+                              <span className={clsx(
+                                "text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider",
+                                bill.bill_type === 'ESTIMATE'
+                                  ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                                  : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                              )}>
+                                {bill.bill_type || 'GST'}
+                              </span>
+                            </div>
                             {bill.notes && <p className="text-xs text-muted-foreground truncate max-w-[200px]">{bill.notes}</p>}
                           </div>
                         </div>
@@ -404,9 +309,17 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
                                 <span className="text-right font-bold text-primary">₹{Number(item.total_amount).toFixed(2)}</span>
                               </div>
                             ))}
-                            {bill.notes && (
-                              <p className="text-xs text-muted-foreground mt-2 px-3 italic">{bill.notes}</p>
-                            )}
+                    <div className="flex items-center gap-2 px-3 mt-1">
+                      <span className={clsx(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wider",
+                        bill.bill_type === 'ESTIMATE'
+                          ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20"
+                      )}>
+                        {bill.bill_type || 'GST'} BILL
+                      </span>
+                      {bill.notes && <span className="text-xs text-muted-foreground italic">{bill.notes}</span>}
+                    </div>
                           </div>
                         ) : (
                           <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
@@ -433,173 +346,632 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
       {/* ── ADD FORM ── */}
       {showAddForm && (
         <div className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-            {/* Bill Details Section */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                  <FileText className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-primary uppercase tracking-wider">Bill Details</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bill Number</label>
-                  <input type="text" value={newBillNumber} onChange={e => setNewBillNumber(e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-wider text-sm" />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Bill Date</label>
-                  <input type="date" value={newBillDate} onChange={e => setNewBillDate(e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none text-sm" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Supplier</label>
-                  <div className="relative">
-                    <input
-                      type="text" placeholder="Search or type supplier name..."
-                      value={supplierSearch || newBillSupplierName}
-                      onChange={e => {
-                        setSupplierSearch(e.target.value);
-                        setNewBillSupplierName(e.target.value);
-                        setNewBillSupplierId('');
-                        const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
-                        if (match) { setNewBillSupplierName(match.name); setNewBillSupplierId(match.party_id); }
-                      }}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none text-sm"
-                    />
-                    {supplierSearch && filteredSuppliers.length > 0 && (
-                      <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-                        {filteredSuppliers.map(s => (
-                          <button
-                            key={s.party_id} type="button"
-                            onMouseDown={() => { setNewBillSupplierName(s.name); setNewBillSupplierId(s.party_id); setSupplierSearch(''); }}
-                            className="w-full text-left px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted border-b border-border/40 last:border-0 cursor-pointer"
-                          >
-                            {s.name} {s.phone && <span className="text-xs text-muted-foreground ml-2">{s.phone}</span>}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {/* Products Section */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                  <Package className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">Products</span>
-              </div>
-
-              <div className="relative mb-4">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search products to add to this bill..."
-                  value={productSearch}
-                  onChange={e => searchProducts(e.target.value)}
-                  className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm"
-                />
-                {products.length > 0 && (
-                  <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-56 overflow-y-auto">
-                    {products.map(p => (
-                      <button
-                        key={p.product_id} type="button"
-                        onMouseDown={() => addProductToBill(p)}
-                        className="w-full text-left px-4 py-3 flex items-center gap-3 border-b border-border/40 last:border-0 hover:bg-muted transition-colors cursor-pointer"
-                      >
-                        <Package className="w-4 h-4 shrink-0 text-muted-foreground" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold truncate">{p.name}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{p.sku_barcode}</p>
-                        </div>
-                        <div className="text-right text-xs shrink-0">
-                          <div className="font-semibold text-foreground">Stock: {Number(p.current_stock).toFixed(0)}</div>
-                          <div className="text-muted-foreground">₹{Number(p.base_price).toFixed(2)}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {newBillItems.length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm font-medium">No products added yet</p>
-                  <p className="text-xs mt-1">Search and select products above</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  <div className="grid grid-cols-[1fr_100px_120px_80px] gap-2 px-3 py-1.5 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    <span>Product</span>
-                    <span className="text-right">Quantity</span>
-                    <span className="text-right">Purchase Price</span>
-                    <span className="text-right"></span>
-                  </div>
-                  {newBillItems.map(item => (
-                    <div key={item.product_id} className="grid grid-cols-[1fr_100px_120px_80px] gap-2 px-3 py-2 bg-muted/20 border border-border/60 rounded-lg items-center">
-                      <span className="text-sm font-medium text-foreground truncate">{item.name}</span>
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={item.quantity}
-                        onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                        className="w-full bg-background border border-border/80 rounded-lg p-1.5 text-right text-sm font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
-                      />
-                      <input
-                        type="number" step="0.01" min="0"
-                        value={item.purchase_price}
-                        onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                        className="w-full bg-background border border-border/80 rounded-lg p-1.5 text-right text-sm font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
-                      />
-                      <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer">
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+          {/* ── Shared Info Bar ── */}
+          <div className="flex items-center gap-4 px-4 py-3 bg-card border-b border-border/80 shrink-0 shadow-sm">
+            <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Date</span>
+            </div>
+            <input
+              type="date" value={billDate}
+              onChange={e => setBillDate(e.target.value)}
+              className="bg-background border border-border/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+            />
+            <div className="w-px h-6 bg-border/60 mx-1" />
+            <div className="flex items-center gap-2 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+              <User className="w-3.5 h-3.5" />
+              <span>Supplier</span>
+            </div>
+            <div className="relative flex-1 max-w-xs">
+              <input
+                type="text" placeholder="Search or type supplier name..."
+                value={supplierSearch || supplierName}
+                onChange={e => {
+                  setSupplierSearch(e.target.value);
+                  setSupplierName(e.target.value);
+                  setSupplierId('');
+                  const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
+                  if (match) { setSupplierName(match.name); setSupplierId(match.party_id); }
+                }}
+                className="w-full bg-background border border-border/80 rounded-lg px-3 py-1.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+              />
+              {supplierSearch && filteredSuppliers.length > 0 && (
+                <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-40 overflow-y-auto">
+                  {filteredSuppliers.map(s => (
+                    <button
+                      key={s.party_id} type="button"
+                      onMouseDown={() => { setSupplierName(s.name); setSupplierId(s.party_id); setSupplierSearch(''); }}
+                      className="w-full text-left px-3 py-2 text-sm font-medium text-foreground hover:bg-muted border-b border-border/40 last:border-0 cursor-pointer"
+                    >
+                      {s.name} {s.phone && <span className="text-xs text-muted-foreground ml-2">{s.phone}</span>}
+                    </button>
                   ))}
                 </div>
               )}
-
-              {newBillItems.length > 0 && (
-                <div className="flex justify-end mt-4 pt-3 border-t border-border/60">
-                  <div className="text-right">
-                    <span className="text-xs text-muted-foreground font-bold uppercase tracking-wider">Bill Total</span>
-                    <p className="text-lg font-black text-primary">₹{getBillTotal().toFixed(2)}</p>
-                  </div>
-                </div>
-              )}
-            </section>
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="border-t border-border/50 bg-background px-4 py-3">
-            {statusMessage && (
-              <div className={clsx(
-                "mb-2 px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2",
-                statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                <span className="flex-1">{statusMessage.text}</span>
-              </div>
-            )}
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setShowAddForm(false)} className="px-4 py-2.5 text-sm font-semibold text-destructive hover:text-destructive/80 border border-destructive/30 rounded-xl transition-colors cursor-pointer">
-                Cancel
-              </button>
-              <button
-                onClick={handleSavePurchaseBill}
-                disabled={isSaving || newBillItems.length === 0}
-                className="flex items-center gap-1.5 px-4 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm"
-              >
-                <Save className="w-3.5 h-3.5" />
-                {isSaving ? 'Saving...' : 'Save Purchase Bill'}
-              </button>
-            </div>
+          {/* ── Two Sections ── */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            <PurchaseBillFormSection
+              type="GST"
+              tenantId={tenantId}
+              billDate={billDate}
+              supplierName={supplierName}
+              supplierId={supplierId}
+              onStatusMessage={setStatusMessage}
+              onSaved={() => { setShowAddForm(false); loadBills(); }}
+            />
+            <PurchaseBillFormSection
+              type="ESTIMATE"
+              tenantId={tenantId}
+              billDate={billDate}
+              supplierName={supplierName}
+              supplierId={supplierId}
+              onStatusMessage={setStatusMessage}
+              onSaved={() => { setShowAddForm(false); loadBills(); }}
+            />
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+function PurchaseBillFormSection({
+  type,
+  tenantId,
+  billDate,
+  supplierName,
+  supplierId,
+  onStatusMessage,
+  onSaved,
+}: {
+  type: 'GST' | 'ESTIMATE';
+  tenantId: string;
+  billDate: string;
+  supplierName: string;
+  supplierId: string;
+  onStatusMessage: (msg: { text: string; type: 'success' | 'error' } | null) => void;
+  onSaved: () => void;
+}) {
+  const [billNumber, setBillNumber] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [billItems, setBillItems] = useState<Array<{
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+  }>>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showProductCreateForm, setShowProductCreateForm] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductItemCode, setNewProductItemCode] = useState('');
+  const [newProductBarcode, setNewProductBarcode] = useState('');
+  const [newProductBrand, setNewProductBrand] = useState('');
+  const [newProductCategory, setNewProductCategory] = useState('');
+  const [newProductUom, setNewProductUom] = useState('Pcs');
+  const [newProductPurchasePrice, setNewProductPurchasePrice] = useState('');
+  const [newProductBasePrice, setNewProductBasePrice] = useState('');
+  const [newProductStock, setNewProductStock] = useState('');
+  const [newProductReorderLevel, setNewProductReorderLevel] = useState('');
+  const [newProductHsn, setNewProductHsn] = useState('');
+  const [newProductTaxRate, setNewProductTaxRate] = useState(0);
+  const [newProductDiscountPercent, setNewProductDiscountPercent] = useState('');
+  const [newProductDiscountFlat, setNewProductDiscountFlat] = useState('');
+  const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
+
+  useEffect(() => {
+    if (window.electronAPI && tenantId) {
+      window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
+        .then(res => { if (res.success && res.billNumber) setBillNumber(res.billNumber); })
+        .catch(console.error);
+    }
+  }, [tenantId]);
+
+  const searchProducts = async (q: string) => {
+    setProductSearch(q);
+    setShowProductCreateForm(false);
+    if (!window.electronAPI || !tenantId || q.length < 2) {
+      if (q.length < 2) setProducts([]);
+      return;
+    }
+    const result = await window.electronAPI.dbGetPurchaseBillProducts({ tenant_id: tenantId, search: q });
+    if (Array.isArray(result)) {
+      setProducts(result);
+    }
+  };
+
+  const addProductToBill = (product: Product) => {
+    if (billItems.some(i => i.product_id === product.product_id)) return;
+    setBillItems(prev => [...prev, {
+      product_id: product.product_id,
+      name: product.name,
+      quantity: '1',
+      purchase_price: String(product.gst_purchase_price || product.purchase_price || 0),
+    }]);
+    setProductSearch('');
+    setProducts([]);
+  };
+
+  const removeBillItem = (productId: string) => {
+    setBillItems(prev => prev.filter(i => i.product_id !== productId));
+  };
+
+  const updateBillItem = (productId: string, field: 'quantity' | 'purchase_price', value: string) => {
+    setBillItems(prev => prev.map(i => i.product_id === productId ? { ...i, [field]: value } : i));
+  };
+
+  const getBillTotal = () => {
+    return billItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
+  };
+
+  const autoGenerateBarcode = () => {
+    const prefix = newProductItemCode || '';
+    const remaining = 12 - prefix.length;
+    if (remaining > 0) {
+      const min = Math.pow(10, Math.max(0, remaining - 1));
+      const max = Math.pow(10, remaining) - 1;
+      const rand = Math.floor(min + Math.random() * (max - min + 1)).toString();
+      const barcode = prefix + rand;
+      setNewProductBarcode(barcode.substring(0, 12));
+    } else {
+      setNewProductBarcode(prefix.substring(0, 12));
+    }
+  };
+
+  const resetProductForm = () => {
+    setShowProductCreateForm(false);
+    setNewProductName('');
+    setNewProductItemCode('');
+    setNewProductBarcode('');
+    setNewProductBrand('');
+    setNewProductCategory('');
+    setNewProductUom('Pcs');
+    setNewProductPurchasePrice('');
+    setNewProductBasePrice('');
+    setNewProductStock('');
+    setNewProductReorderLevel('');
+    setNewProductHsn('');
+    setNewProductTaxRate(0);
+    setNewProductDiscountPercent('');
+    setNewProductDiscountFlat('');
+    setNewProductOfferPrice('');
+  };
+
+  const handleCreateAndAddProduct = async () => {
+    if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
+    const productId = uuidv4();
+    const finalBarcode = newProductBarcode || `${newProductItemCode || 'NEW'}${Math.floor(Math.random() * 100000)}`;
+    const purchasePrice = Number(newProductPurchasePrice) || 0;
+    const basePrice = Number(newProductBasePrice) || purchasePrice;
+    const res = await window.electronAPI.dbAddProduct({
+      product_id: productId,
+      tenant_id: tenantId,
+      name: newProductName.trim(),
+      sku_barcode: finalBarcode,
+      item_code: newProductItemCode.toUpperCase(),
+      category: newProductCategory,
+      brand_manufacturer: newProductBrand,
+      uom: newProductUom,
+      purchase_price: purchasePrice,
+      base_price: basePrice,
+      current_stock: Number(newProductStock) || 0,
+      reorder_level: Number(newProductReorderLevel) || 0,
+      is_gst_applicable: type === 'GST' ? 1 : 0,
+      tax_rate_percent: type === 'GST' ? newProductTaxRate : 0,
+      hsn_sac_code: type === 'GST' ? newProductHsn : null,
+      discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+      discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+      offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+      billing_type: 'PIECE',
+      pricing_mode: 'FIXED_PRICE',
+      is_deleted: 0,
+      sync_status: 'PENDING',
+    });
+    if (res.success) {
+      setBillItems(prev => [...prev, {
+        product_id: productId,
+        name: newProductName.trim(),
+        quantity: '1',
+        purchase_price: String(purchasePrice),
+      }]);
+      setProductSearch('');
+      setProducts([]);
+      resetProductForm();
+    } else {
+      onStatusMessage({ text: 'Failed to create product: ' + (res.error || ''), type: 'error' });
+      setTimeout(() => onStatusMessage(null), 3000);
+    }
+  };
+
+  const handleSave = async () => {
+    if (billItems.length === 0) {
+      onStatusMessage({ text: 'Add at least one product to the bill.', type: 'error' });
+      setTimeout(() => onStatusMessage(null), 3000);
+      return;
+    }
+    if (!supplierName.trim()) {
+      onStatusMessage({ text: 'Supplier name is required.', type: 'error' });
+      setTimeout(() => onStatusMessage(null), 3000);
+      return;
+    }
+
+    setIsSaving(true);
+    const totalAmount = getBillTotal();
+    const billId = uuidv4();
+
+    if (window.electronAPI) {
+      const res = await window.electronAPI.dbAddPurchaseBill({
+        purchase_bill_id: billId,
+        tenant_id: tenantId,
+        bill_number: billNumber || `AUTO-${Date.now()}`,
+        supplier_id: supplierId || null,
+        supplier_name: supplierName.trim(),
+        bill_date: billDate,
+        notes: null,
+        total_amount: totalAmount,
+        bill_type: type,
+        items: billItems.map(item => ({
+          item_id: uuidv4(),
+          product_id: item.product_id,
+          name: item.name,
+          quantity: Number(item.quantity) || 0,
+          purchase_price: Number(item.purchase_price) || 0,
+          total_amount: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0),
+          is_gst_applicable: type === 'GST' ? 1 : 0,
+          tax_rate_percent: 0,
+          hsn_sac_code: null,
+        })),
+      });
+
+      if (res.success) {
+        onStatusMessage({ text: `${type} purchase bill saved successfully!`, type: 'success' });
+        onSaved();
+      } else {
+        onStatusMessage({ text: 'Save failed: ' + (res.error || ''), type: 'error' });
+      }
+    }
+    setIsSaving(false);
+    setTimeout(() => onStatusMessage(null), 3000);
+  };
+
+  const isEstimate = type === 'ESTIMATE';
+
+  return (
+    <section className={clsx(
+      "border rounded-xl shadow-sm overflow-hidden",
+      isEstimate ? "border-amber-500/30 bg-amber-500/[0.02]" : "border-emerald-500/30 bg-emerald-500/[0.02]"
+    )}>
+      {/* Section Header */}
+      <div className={clsx(
+        "flex items-center justify-between px-4 py-2.5 border-b",
+        isEstimate ? "bg-amber-500/5 border-amber-500/20" : "bg-emerald-500/5 border-emerald-500/20"
+      )}>
+        <div className="flex items-center gap-2">
+          <div className={clsx(
+            "p-1.5 rounded-lg",
+            isEstimate ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"
+          )}>
+            <FileText className="w-4 h-4" />
+          </div>
+          <span className={clsx(
+            "text-xs font-black uppercase tracking-wider",
+            isEstimate ? "text-amber-500" : "text-emerald-500"
+          )}>
+            {isEstimate ? 'Estimate Purchase' : 'GST Purchase'}
+          </span>
+        </div>
+        <div className="flex items-center gap-3">
+          <div>
+            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Bill No</label>
+            <input
+              type="text" value={billNumber}
+              onChange={e => setBillNumber(e.target.value)}
+              className="w-40 bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+            />
+          </div>
+          <button
+            onClick={handleSave}
+            disabled={isSaving || billItems.length === 0}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 rounded-lg font-bold text-xs transition-all active:scale-95 cursor-pointer shadow-sm",
+              isEstimate
+                ? "bg-amber-500 hover:bg-amber-600 disabled:opacity-50 text-white"
+                : "bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white"
+            )}
+          >
+            <Save className="w-3 h-3" />
+            {isSaving ? 'Saving...' : `Save ${isEstimate ? 'Estimate' : 'GST'}`}
+          </button>
+        </div>
+      </div>
+
+      {/* Products Section */}
+      <div className="p-4">
+        <div className="relative mb-4">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={productSearch}
+            onChange={e => searchProducts(e.target.value)}
+            className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
+          />
+          {products.length > 0 && !showProductCreateForm && (
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+              {products.map(p => (
+                <button
+                  key={p.product_id} type="button"
+                  onMouseDown={() => addProductToBill(p)}
+                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 border-b border-border/40 last:border-0 hover:bg-muted transition-colors cursor-pointer"
+                >
+                  <Package className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold truncate">{p.name}</p>
+                    <p className="text-[11px] text-muted-foreground font-mono">{p.sku_barcode}</p>
+                  </div>
+                  <div className="text-right text-[11px] shrink-0">
+                    <div className="font-semibold text-foreground">Stock: {Number(p.current_stock).toFixed(0)}</div>
+                    <div className="text-muted-foreground">₹{Number(p.base_price).toFixed(2)}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+          {productSearch.length >= 2 && products.length === 0 && !showProductCreateForm && (
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden">
+              <button
+                type="button"
+                onMouseDown={() => { setShowProductCreateForm(true); setNewProductName(productSearch); }}
+                className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors cursor-pointer border-0"
+              >
+                <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-bold text-primary">Create "{productSearch}"</p>
+                  <p className="text-[11px] text-muted-foreground">Add as a new product</p>
+                </div>
+              </button>
+            </div>
+          )}
+          {showProductCreateForm && (
+            <>
+              {/* Backdrop */}
+              <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
+              {/* Dialog */}
+              <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+                <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                        <Package className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-black text-primary uppercase tracking-wider">New Product</span>
+                    </div>
+                    <button type="button" onMouseDown={resetProductForm}
+                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                      title="Close">
+                      <X className="w-4 h-4 text-destructive" />
+                    </button>
+                  </div>
+                  <div className="p-5 max-h-[70vh] overflow-y-auto space-y-4">
+                    {/* 1. Basic Details */}
+                    <section>
+                      <div className="flex items-center gap-1.5 mb-2.5 pb-1.5 border-b border-border/40">
+                        <div className="p-1 rounded-md bg-primary/10 text-primary">
+                          <Package className="w-3 h-3" />
+                        </div>
+                        <span className="text-[10px] font-black text-primary uppercase tracking-wider">Basic Details</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                        <div className="col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Product Name *</label>
+                          <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none" autoFocus />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Item Code</label>
+                          <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none font-mono" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Brand / Mfr</label>
+                          <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Category</label>
+                          <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Barcode</label>
+                          <div className="flex gap-2">
+                            <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
+                              className="flex-1 bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none font-mono" />
+                            <button type="button" onMouseDown={autoGenerateBarcode}
+                              className="px-3 py-2 text-xs font-bold bg-muted hover:bg-muted/80 text-muted-foreground rounded-lg border border-border/60 transition-colors cursor-pointer shrink-0">
+                              Auto
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* 2. Inventory & Pricing */}
+                    <section>
+                      <div className="flex items-center gap-1.5 mb-2.5 pb-1.5 border-b border-border/40">
+                        <div className="p-1 rounded-md bg-emerald-500/10 text-emerald-500">
+                          <FileText className="w-3 h-3" />
+                        </div>
+                        <span className="text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">Inventory & Pricing</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Purchase Price</label>
+                          <input type="number" step="0.01" min="0" value={newProductPurchasePrice}
+                            onChange={e => setNewProductPurchasePrice(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">MRP</label>
+                          <input type="number" step="0.01" min="0" value={newProductBasePrice}
+                            onChange={e => setNewProductBasePrice(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">UOM</label>
+                          <select value={newProductUom} onChange={e => setNewProductUom(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none">
+                            <option value="Pcs">Pcs</option>
+                            <option value="Kgs">Kgs</option>
+                            <option value="Grams">Grams</option>
+                            <option value="Mtrs">Mtrs</option>
+                            <option value="Ltrs">Ltrs</option>
+                            <option value="Box">Box</option>
+                            <option value="Dozen">Dozen</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Current Stock</label>
+                          <input type="number" step="0.01" min="0" value={newProductStock}
+                            onChange={e => setNewProductStock(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners" />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Low Stock Alert</label>
+                          <input type="number" step="0.01" min="0" value={newProductReorderLevel}
+                            onChange={e => setNewProductReorderLevel(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners" />
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* 3. Offer & Discount */}
+                    <section>
+                      <div className="flex items-center gap-1.5 mb-2.5 pb-1.5 border-b border-border/40">
+                        <div className="p-1 rounded-md bg-amber-500/10 text-amber-500">
+                          <FileText className="w-3 h-3" />
+                        </div>
+                        <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider">Offer & Discount</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-x-3 gap-y-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Discount %</label>
+                          <input type="number" step="0.01" min="0" max="100" value={newProductDiscountPercent}
+                            onChange={e => setNewProductDiscountPercent(e.target.value)}
+                            disabled={!!newProductOfferPrice}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners disabled:opacity-40" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Flat Amt (₹)</label>
+                          <input type="number" step="0.01" min="0" value={newProductDiscountFlat}
+                            onChange={e => setNewProductDiscountFlat(e.target.value)}
+                            disabled={!!newProductOfferPrice}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners disabled:opacity-40" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Offer Price (₹)</label>
+                          <input type="number" step="0.01" min="0" value={newProductOfferPrice}
+                            onChange={e => setNewProductOfferPrice(e.target.value)}
+                            disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
+                            className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners disabled:opacity-40" />
+                        </div>
+                      </div>
+                    </section>
+
+                    {/* 4. Taxes & Config (GST only) */}
+                    {type === 'GST' && (
+                      <section>
+                        <div className="flex items-center gap-1.5 mb-2.5 pb-1.5 border-b border-border/40">
+                          <div className="p-1 rounded-md bg-violet-500/10 text-violet-500">
+                            <FileText className="w-3 h-3" />
+                          </div>
+                          <span className="text-[10px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider">Taxes & Config</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+                          <div>
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">HSN / SAC Code</label>
+                            <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)}
+                              className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none font-mono" />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5 block">Tax Rate %</label>
+                            <select value={newProductTaxRate} onChange={e => setNewProductTaxRate(Number(e.target.value))}
+                              className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none">
+                              <option value={0}>0%</option>
+                              <option value={5}>5%</option>
+                              <option value={12}>12%</option>
+                              <option value={18}>18%</option>
+                              <option value={28}>28%</option>
+                            </select>
+                          </div>
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border/60 bg-muted/20">
+                    <button type="button" onMouseDown={handleCreateAndAddProduct} disabled={!newProductName.trim()}
+                      className="px-4 py-2 text-sm font-bold bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-lg transition-all cursor-pointer shadow-sm">
+                      Add Product
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        {billItems.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground">
+            <Package className="w-6 h-6 mx-auto mb-1.5 opacity-50" />
+            <p className="text-xs font-medium">No products added yet</p>
+            <p className="text-[11px] mt-0.5">Search and select products above</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <div className="grid grid-cols-[1fr_90px_110px_60px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              <span>Product</span>
+              <span className="text-right">Qty</span>
+              <span className="text-right">Price</span>
+              <span className="text-right"></span>
+            </div>
+            {billItems.map(item => (
+              <div key={item.product_id} className="grid grid-cols-[1fr_90px_110px_60px] gap-2 px-2.5 py-1.5 bg-card border border-border/60 rounded-lg items-center">
+                <span className="text-xs font-medium text-foreground truncate">{item.name}</span>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={item.quantity}
+                  onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
+                  className="w-full bg-background border border-border/80 rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                />
+                <input
+                  type="number" step="0.01" min="0"
+                  value={item.purchase_price}
+                  onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
+                  className="w-full bg-background border border-border/80 rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                />
+                <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {billItems.length > 0 && (
+          <div className="flex justify-end mt-3 pt-2.5 border-t border-border/60">
+            <div className="text-right">
+              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total</span>
+              <p className={clsx(
+                "text-base font-black",
+                isEstimate ? "text-amber-600" : "text-emerald-600"
+              )}>₹{getBillTotal().toFixed(2)}</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

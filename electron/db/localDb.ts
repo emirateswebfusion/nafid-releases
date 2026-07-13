@@ -256,6 +256,7 @@ export function initDb() {
         bill_date TEXT,
         notes TEXT,
         total_amount REAL DEFAULT 0,
+        bill_type TEXT DEFAULT 'GST',
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -777,6 +778,17 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add scrap_transactions columns:', e.message);
+  }
+
+  // Migration: Add bill_type column to purchase_bills
+  try {
+    const pbCols = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+    if (!pbCols.includes('bill_type')) {
+      console.log('[DB Migration] Adding bill_type to purchase_bills...');
+      db.exec("ALTER TABLE purchase_bills ADD COLUMN bill_type TEXT DEFAULT 'GST'");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add bill_type to purchase_bills:', e.message);
   }
 
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
