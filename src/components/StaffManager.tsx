@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Users, UserPlus, Mail, Shield, Key, Save, Loader2, Trash2 } from 'lucide-react';
+import { Users, UserPlus, Mail, Shield, Key, Save, Loader2, Trash } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Button } from './ui/Button';
@@ -178,7 +178,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                           className="p-2 text-destructive hover:bg-destructive/10 rounded-lg transition-all"
                           title="Remove staff member"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          <Trash className="w-4 h-4" />
                         </button>
                       )}
                       <span className={clsx(

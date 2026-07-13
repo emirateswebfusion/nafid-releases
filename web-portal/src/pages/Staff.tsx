@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { fetchApi } from '../lib/api';
-import { Trash2, UserPlus, Shield, User, Loader2 } from 'lucide-react';
+import { Trash, UserPlus, Shield, User, Loader2 } from 'lucide-react';
 
 export default function Staff() {
   const [staff, setStaff] = useState<any[]>([]);
@@ -93,7 +93,7 @@ export default function Staff() {
               </div>
               {s.role !== 'OWNER' && (
                 <button onClick={() => handleDelete(s.user_id)} className="p-2 text-destructive hover:bg-destructive/10 rounded-lg">
-                  <Trash2 className="w-5 h-5" />
+                  <Trash className="w-5 h-5" />
                 </button>
               )}
             </div>

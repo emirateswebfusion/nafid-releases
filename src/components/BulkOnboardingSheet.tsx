@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Save, Printer, AlertCircle, Trash2, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
+import { Save, Printer, AlertCircle, Trash, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
@@ -601,7 +601,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                       <Select value={row.uom} onChange={v => updateRow(index, 'uom', v)} options={['Pcs','Kgs','Grams','Mtrs','Ltrs','Box','Dozen'].map(u => ({value:u,label:u}))} />
                     </td>
                     <td className="p-1 text-center sticky right-0 bg-card z-10">
-                      <button onClick={() => removeRow(index)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => removeRow(index)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors opacity-0 group-hover:opacity-100"><Trash className="w-4 h-4" /></button>
                     </td>
                   </tr>
                 );

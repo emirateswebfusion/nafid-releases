@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle } from 'lucide-react';
 import clsx from 'clsx';
 
 interface Quotation {
@@ -283,7 +283,7 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
                             className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
                             title="Delete"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>

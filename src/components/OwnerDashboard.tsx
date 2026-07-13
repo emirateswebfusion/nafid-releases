@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash2, Printer, Shield, Receipt, Banknote } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -181,7 +181,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             id: 'scrap',
             title: 'Scrap Management',
             desc: 'Track scrap purchases, sales & profit',
-            icon: Trash2,
+            icon: Trash,
             color: 'text-orange-500',
             bgColor: 'bg-orange-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),

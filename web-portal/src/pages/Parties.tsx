@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { fetchApi } from '../lib/api';
 import {
   Plus, Search, Loader2, UserPlus, ArrowLeft,
-  Pencil, Trash2, Receipt, BookOpen, PlusCircle, MinusCircle,
+  Pencil, Trash, Receipt, BookOpen, PlusCircle, MinusCircle,
   Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText,
 } from 'lucide-react';
@@ -393,7 +393,7 @@ export default function Parties({ onClose }: { onClose?: () => void }) {
                         </button>
                         <button onClick={() => handleDeleteParty(party)}
                           className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete Party">
-                          <Trash2 className="w-4 h-4" />
+                          <Trash className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -607,7 +607,7 @@ export default function Parties({ onClose }: { onClose?: () => void }) {
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button onClick={() => handleDeleteTx(entry)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete">
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" />
                       </button>
                     </div>
                   </div>

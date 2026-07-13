@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect } from 'react';
 import { useCartStore } from '../store/cartStore';
-import { Search, Trash2, Scale, Ruler, Package, X } from 'lucide-react';
+import { Search, Trash, Scale, Ruler, Package, X } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
@@ -301,7 +301,7 @@ export function CartPane() {
                       onClick={() => removeItem(item.product_id)}
                       className="text-muted-foreground hover:text-destructive transition-colors p-1"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash className="w-4 h-4" />
                     </button>
                   </div>
                 </div>

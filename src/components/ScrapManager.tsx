@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
-import { Plus, Trash2, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck } from 'lucide-react';
+import { Plus, Trash, Pencil, X, Save, TrendingUp, TrendingDown, Search, RefreshCw, Recycle, AlertTriangle, CheckCircle2, AlertCircle, ShoppingCart, Minus, Package, IndianRupee, Printer, CheckCheck } from 'lucide-react';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -589,7 +589,7 @@ export function ScrapManager({ onClose, initialView }: { onClose: () => void; in
                         <Pencil className="w-4 h-4" />
                       </button>
                       <button onClick={() => handleDeleteCategory(cat.scrap_category_id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all active:scale-90 cursor-pointer" title="Delete">
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" />
                       </button>
                     </div>
                   </div>

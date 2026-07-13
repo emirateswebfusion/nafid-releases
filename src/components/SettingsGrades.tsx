@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Trash2, Edit2, Check, X, Loader2, Search,
+  Plus, Trash, Edit2, Check, X, Loader2, Search,
   Folder, Layers, TrendingUp, Tag, ChevronDown, ChevronRight,
   FolderOpen, PanelLeftClose, PanelLeft
 } from 'lucide-react';
@@ -406,7 +406,7 @@ export function SettingsGrades() {
                               className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors"
                               title="Delete category"
                             >
-                              <Trash2 className="w-3 h-3" />
+                              <Trash className="w-3 h-3" />
                             </button>
                           </div>
                         </div>
@@ -548,7 +548,7 @@ export function SettingsGrades() {
                             className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive opacity-0 group-hover/gh:opacity-100 transition-all"
                             title="Delete category"
                           >
-                            <Trash2 className="w-3.5 h-3.5" />
+                            <Trash className="w-3.5 h-3.5" />
                           </div>
                           <div className={`p-1.5 rounded-lg transition-colors ${
                             isExpanded ? 'bg-muted text-foreground' : 'text-muted-foreground'
@@ -678,7 +678,7 @@ export function SettingsGrades() {
                                           className="p-1.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-all"
                                           title="Delete"
                                         >
-                                          <Trash2 className="w-3.5 h-3.5" />
+                                          <Trash className="w-3.5 h-3.5" />
                                         </button>
                                       </div>
                                     </div>
@@ -728,7 +728,7 @@ export function SettingsGrades() {
                         className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
                         title="Delete category"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
@@ -861,7 +861,7 @@ export function SettingsGrades() {
                                   className="p-1.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-all"
                                   title="Delete"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash className="w-3.5 h-3.5" />
                                 </button>
                               </div>
                             </div>
@@ -998,7 +998,7 @@ export function SettingsGrades() {
         onClose={() => !operating && setConfirmDeleteCategory(null)}
         title={
           <div className="flex items-center gap-2 text-destructive">
-            <Trash2 className="w-5 h-5" />
+            <Trash className="w-5 h-5" />
             <span>Delete Category</span>
           </div>
         }
@@ -1036,7 +1036,7 @@ export function SettingsGrades() {
               {operating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
-                <Trash2 className="w-4 h-4" />
+                <Trash className="w-4 h-4" />
               )}
               Delete All {grades.filter(g => g.category === confirmDeleteCategory).length} Grades
             </Button>

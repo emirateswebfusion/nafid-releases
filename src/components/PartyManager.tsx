@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
-  Pencil, Trash2, BookOpen, PlusCircle, MinusCircle,
+  Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
   Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText, Phone, MapPin,
 } from 'lucide-react';
@@ -419,7 +419,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                             </button>
                             <button onClick={() => handleDeleteParty(party)}
                               className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete Party">
-                              <Trash2 className="w-4 h-4" />
+                              <Trash className="w-4 h-4" />
                             </button>
                           </>
                         )}
@@ -646,7 +646,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                           <Pencil className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleDeleteTx(entry)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete Transaction">
-                          <Trash2 className="w-4 h-4" />
+                          <Trash className="w-4 h-4" />
                         </button>
                       </div>
                     )}

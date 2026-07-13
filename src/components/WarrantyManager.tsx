@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Shield, Trash2, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
@@ -293,7 +293,7 @@ export function WarrantyManager({ onClose }: { onClose: () => void }) {
                           <Printer className="w-4 h-4" />
                         </button>
                         <button onClick={() => handleDelete(w.warranty_id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer" title="Delete">
-                          <Trash2 className="w-4 h-4" />
+                          <Trash className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
