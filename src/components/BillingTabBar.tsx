@@ -2,7 +2,7 @@ import { Plus, X } from 'lucide-react';
 import { useTabStore } from '../store/tabStore';
 import clsx from 'clsx';
 
-export function BillingTabBar({ onAddTab, enableDualInvoiceSeries }: { onAddTab?: () => void; enableDualInvoiceSeries?: boolean }) {
+export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab?: () => void; enableThreeInvoiceSeries?: boolean }) {
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const switchTab = useTabStore(s => s.switchTab);
@@ -21,7 +21,7 @@ export function BillingTabBar({ onAddTab, enableDualInvoiceSeries }: { onAddTab?
 
   const formatTabTitle = (tab: typeof tabs[0]) => {
     const isGst = tab.snapshot.invoiceType === 'GST';
-    if (enableDualInvoiceSeries) {
+    if (enableThreeInvoiceSeries) {
       return tab.title;
     }
     return isGst && !tab.title.startsWith('GST-') ? `GST-${tab.title}` : tab.title;

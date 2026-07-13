@@ -20,7 +20,9 @@ export interface BillSettings {
   showCustomerGstin: boolean;
   estimateMode: boolean;
   showScrapHeading: boolean;
-  showTaxBreakup: boolean;
+  showBosTaxBreakup: boolean;
+  bosTaxRatePercent: number;
+  bosTaxInclusive: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -34,7 +36,9 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showCustomerGstin: true,
   estimateMode: false,
   showScrapHeading: true,
-  showTaxBreakup: true,
+  showBosTaxBreakup: false,
+  bosTaxRatePercent: 0,
+  bosTaxInclusive: false,
 };
 
 export interface ReceiptData {

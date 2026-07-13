@@ -68,7 +68,7 @@ export function BillingPage() {
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
-  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals();
+  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const totalItemSavings = items.reduce((sum, item) => {
@@ -108,13 +108,16 @@ export function BillingPage() {
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
 
+  const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
+  const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
+
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState(false);
 
-  // Dual invoice series
-  const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
-  const gstSeries = invoiceType === 'GST' && enableDualInvoiceSeries;
+  // Three invoice series (Normal, GST B2B, GST B2C)
+  const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
+  const gstSeries = invoiceType === 'GST' && enableThreeInvoiceSeries;
 
   // Scrap mode (moved before displayGrandTotal which depends on it)
   const [isScrapMode, setIsScrapMode] = useState(false);
@@ -160,8 +163,9 @@ export function BillingPage() {
     let quotationNumber = '';
     if (window.electronAPI) {
       try {
+        const series = enableThreeInvoiceSeries ? 'normal' : undefined;
         const [r1, r2, r3] = await Promise.all([
-          window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' }),
+          window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }),
           window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' }),
           window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' }),
         ]);
@@ -201,7 +205,7 @@ export function BillingPage() {
     const tab = getActiveTab();
     if (!tab || tab.reservedInvoiceNumber) return;
     try {
-      const series = enableDualInvoiceSeries ? (invoiceType === 'GST' ? 'gst' : 'normal') : undefined;
+      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber });
@@ -209,7 +213,7 @@ export function BillingPage() {
     } catch (e) {
       console.error('Failed to peek invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab, enableDualInvoiceSeries, invoiceType]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
     setInvoiceType(type);
@@ -218,7 +222,7 @@ export function BillingPage() {
     }, 0);
 
     try {
-      const series = enableDualInvoiceSeries ? (type === 'GST' ? 'gst' : 'normal') : undefined;
+      const series = enableThreeInvoiceSeries ? (type === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
         updateActiveTab({ 
@@ -298,8 +302,8 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
-    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' }).then((v: any) => {
-      if (v !== null && v !== undefined) setEnableDualInvoiceSeries(Boolean(v.enabled));
+    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
+      if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' }).then((v: any) => {
       if (v) {
@@ -308,9 +312,31 @@ export function BillingPage() {
         if (v.redemptionRate) setLoyaltyRedemptionRate(Number(v.redemptionRate));
       }
     });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' }).then((v: any) => {
+      if (v?.billSettings?.bosTaxRatePercent != null) {
+        setBosTaxRatePercent(Number(v.billSettings.bosTaxRatePercent));
+      }
+      if (v?.billSettings?.bosTaxInclusive != null) {
+        setBosTaxInclusive(Boolean(v.billSettings.bosTaxInclusive));
+      }
+    });
   }, [tenantId]);
 
-
+  // Re-peek invoice number when customer GSTIN goes empty ↔ filled (B2C ↔ B2B switch)
+  const prevHasGstin = useRef(false);
+  useEffect(() => {
+    if (!enableThreeInvoiceSeries || invoiceType !== 'GST') return;
+    const hasGstin = !!(customerGstin?.trim());
+    if (prevHasGstin.current !== hasGstin) {
+      prevHasGstin.current = hasGstin;
+      const series = hasGstin ? 'gst_b2b' : 'gst_b2c';
+      window.electronAPI?.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }).then(result => {
+        if (result.success && result.invoiceNumber) {
+          updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
+        }
+      });
+    }
+  }, [customerGstin, enableThreeInvoiceSeries, invoiceType, tenantId, getActiveTab, updateActiveTab]);
 
   const [scrapSearchResults, setScrapSearchResults] = useState<any[]>([]);
 
@@ -1045,7 +1071,7 @@ export function BillingPage() {
     const effectiveBalanceAmount = isPaymentPending ? 0 : balanceAmount;
 
     const invoice_id = isEditing ? editingInvoiceId : uuidv4();
-    const series = enableDualInvoiceSeries ? (invoiceType === 'GST' ? 'gst' : 'normal') : undefined;
+    const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
     let invoice_number: string;
     if (isEditing && editingInvoiceNumber) {
       invoice_number = editingInvoiceNumber;
@@ -1080,7 +1106,11 @@ export function BillingPage() {
 
       const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
-      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: invoiceType === 'GST' ? total * (item.tax_rate_percent / 100) : 0, total };
+      const itemTax = invoiceType === 'GST' ? total * (item.tax_rate_percent / 100)
+        : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
+          ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
+          : 0);
+      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: itemTax, total };
     });
 
     // Build receipt display items
@@ -1150,9 +1180,9 @@ export function BillingPage() {
         billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
         subtotal, tax: totalTax,
-        cgst: billSettings.showTaxBreakup ? cgst : undefined,
-        sgst: billSettings.showTaxBreakup ? sgst : undefined,
-        igst: billSettings.showTaxBreakup ? igst : undefined,
+        cgst: invoiceType === 'GST' ? cgst : (billSettings.showBosTaxBreakup ? cgst : undefined),
+        sgst: invoiceType === 'GST' ? sgst : (billSettings.showBosTaxBreakup ? sgst : undefined),
+        igst: invoiceType === 'GST' ? igst : (billSettings.showBosTaxBreakup ? igst : undefined),
         discount, discountType: state.discountType,
         discountValue: state.discountValue, grandTotal: effectiveGrandTotal,
         pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
@@ -1263,7 +1293,7 @@ export function BillingPage() {
       await reserveInvoiceNumberForTab();
       const tab = getActiveTab();
       if (tab?.reservedInvoiceNumber) {
-        const titlePrefix = (invoiceType === 'GST' && !enableDualInvoiceSeries) ? 'GST-' : '';
+        const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
         updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
       }
     }, 1800);
@@ -1344,7 +1374,7 @@ export function BillingPage() {
                     ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
                     : 'text-primary bg-primary/10 border-primary/20'
               )}>
-                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableDualInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
+                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
               </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
@@ -1362,7 +1392,7 @@ export function BillingPage() {
                 let normalInvoiceNumber = '';
                 if (window.electronAPI) {
                   try {
-                    const series = enableDualInvoiceSeries ? 'normal' : undefined;
+                    const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? 'gst_b2c' : 'normal') : undefined;
                     const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
                     if (result.success && result.invoiceNumber) {
                       normalInvoiceNumber = result.invoiceNumber;
@@ -1473,7 +1503,7 @@ export function BillingPage() {
 
       {/* ─── TABS BAR ─── */}
       <div className="shrink-0 bg-muted/20 border-b border-border/40">
-        <BillingTabBar onAddTab={handleAddTab} enableDualInvoiceSeries={enableDualInvoiceSeries} />
+        <BillingTabBar onAddTab={handleAddTab} enableThreeInvoiceSeries={enableThreeInvoiceSeries} />
       </div>
 
       {/* ─── MAIN POS WORKSPACE ─── */}

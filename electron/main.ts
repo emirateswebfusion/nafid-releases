@@ -1300,17 +1300,31 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const terminalCode: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
           const tc = terminalCode ? JSON.parse(terminalCode.value) : 'POS1';
 
-          // Check if dual series is enabled
-          const dualSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
-          const dualSeries = dualSeriesRow ? JSON.parse(dualSeriesRow.value) : null;
-          const useGstSeries = dualSeries && dualSeries.enabled;
+          // Check if three invoice series is enabled
+          const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+          const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
 
-          const configKey = useGstSeries ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+          let configKey = 'invoice_counter_config';
+          let defaultPrefix = `${tc}-`;
+
+          if (tripleSeries && tripleSeries.enabled) {
+            const isB2B = inv.customer_gstin && inv.customer_gstin.trim() !== '';
+            configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
+            defaultPrefix = isB2B ? `${tripleSeries.b2bPrefix || 'B2B'}-` : `${tripleSeries.b2cPrefix || 'B2C'}-`;
+          } else {
+            // Fallback to old dual series check
+            const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
+            const dualSeries2 = dualSeriesRow2 ? JSON.parse(dualSeriesRow2.value) : null;
+            if (dualSeries2 && dualSeries2.enabled) {
+              configKey = 'gst_invoice_counter_config';
+              defaultPrefix = `${dualSeries2.gstTerminalCode || 'GST'}-`;
+            }
+          }
 
           const counterRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
           let counter = 1;
           let config: { prefix: string; counter: number } = {
-            prefix: useGstSeries ? `${dualSeries.gstTerminalCode || 'GST'}-` : `${tc}-`,
+            prefix: defaultPrefix,
             counter: 1
           };
 
@@ -1323,9 +1337,8 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             }
           }
 
-          // If dual series is on but gst_invoice_counter_config doesn't exist, the prefix from dual_invoice_series takes precedence
-          if (useGstSeries && (!counterRow || !config.prefix)) {
-            config.prefix = `${dualSeries.gstTerminalCode || 'GST'}-`;
+          if (!config.prefix) {
+            config.prefix = defaultPrefix;
           }
 
           const newInvoiceNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
@@ -1553,6 +1566,16 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
 
+    let prefix = `${terminalCode}-`;
+    if (series === 'gst_b2b' || series === 'gst_b2c') {
+      const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+      const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
+      if (tripleSeries && tripleSeries.enabled) {
+        const code = series === 'gst_b2b' ? tripleSeries.b2bPrefix : tripleSeries.b2cPrefix;
+        if (code) prefix = `${code}-`;
+      }
+    }
+
     const configPath = getConfigPath();
     if (!fs.existsSync(configPath)) return { success: false, error: 'Not authenticated', offline: true };
     const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
@@ -1560,7 +1583,7 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
     const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
-    const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}`;
+    const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(5000),
@@ -1578,7 +1601,7 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenan
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
-    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
 
     const result = db.transaction(() => {
       const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
@@ -1619,7 +1642,7 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
-    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
     if (row) {

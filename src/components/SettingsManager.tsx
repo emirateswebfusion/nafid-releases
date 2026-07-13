@@ -183,17 +183,19 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
   const [terminalCode, setTerminalCode] = useState('POS1');
   const [invoiceStartNumber, setInvoiceStartNumber] = useState<number | string>(1);
-  const [enableDualInvoiceSeries, setEnableDualInvoiceSeries] = useState(false);
-  const [gstTerminalCode, setGstTerminalCode] = useState('');
-  const [gstInvoiceStartNumber, setGstInvoiceStartNumber] = useState<number | string>(1);
+  const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
+  const [b2bPrefix, setB2bPrefix] = useState('');
+  const [b2bStartNumber, setB2bStartNumber] = useState<number | string>(1);
+  const [b2cPrefix, setB2cPrefix] = useState('');
+  const [b2cStartNumber, setB2cStartNumber] = useState<number | string>(1);
   const [gstProfitPercentage, setGstProfitPercentage] = useState<number>(30);
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings, gstProfitPercentage });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings, gstProfitPercentage });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode, gstInvoiceStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -227,7 +229,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
     }
   }, [loading]);
 
@@ -299,11 +301,23 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
     const gstProfitPct = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage' });
     if (gstProfitPct !== null && gstProfitPct !== undefined) setGstProfitPercentage(Number(gstProfitPct));
 
-    const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
-    if (dualSeries) {
-      setEnableDualInvoiceSeries(Boolean(dualSeries.enabled));
-      if (dualSeries.gstTerminalCode) setGstTerminalCode(dualSeries.gstTerminalCode);
-      if (dualSeries.gstStartNumber) setGstInvoiceStartNumber(dualSeries.gstStartNumber);
+    const tripleSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' });
+    if (tripleSeries) {
+      setEnableThreeInvoiceSeries(Boolean(tripleSeries.enabled));
+      if (tripleSeries.b2bPrefix) setB2bPrefix(tripleSeries.b2bPrefix);
+      if (tripleSeries.b2bStartNumber) setB2bStartNumber(tripleSeries.b2bStartNumber);
+      if (tripleSeries.b2cPrefix) setB2cPrefix(tripleSeries.b2cPrefix);
+      if (tripleSeries.b2cStartNumber) setB2cStartNumber(tripleSeries.b2cStartNumber);
+    } else {
+      // Migrate from old dual_invoice_series
+      const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
+      if (dualSeries && dualSeries.enabled) {
+        setEnableThreeInvoiceSeries(true);
+        setB2bPrefix(dualSeries.gstTerminalCode || 'B2B');
+        setB2bStartNumber(dualSeries.gstStartNumber || 1);
+        setB2cPrefix(dualSeries.gstTerminalCode || 'B2C');
+        setB2cStartNumber(dualSeries.gstStartNumber || 1);
+      }
     }
 
     try { const pr = await window.electronAPI.getPrinters(); setOsPrinters(pr || []); } catch (err) { console.error('Failed to get printers', err); }
@@ -345,8 +359,11 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'dual_invoice_series', value: { enabled: enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstStartNumber: enableDualInvoiceSeries ? Number(gstInvoiceStartNumber) || 1 : 1 } }), name: 'dual_invoice_series' },
-        ...(enableDualInvoiceSeries ? [{ promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_invoice_counter_config', value: { prefix: `${gstTerminalCode}-`, counter: Number(gstInvoiceStartNumber) || 1 } }), name: 'gst_invoice' }] : []),
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? Number(b2bStartNumber) || 1 : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? Number(b2cStartNumber) || 1 : 1 } }), name: 'three_invoice_series' },
+        ...(enableThreeInvoiceSeries ? [
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: Number(b2bStartNumber) || 1 } }), name: 'gst_b2b_invoice' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: Number(b2cStartNumber) || 1 } }), name: 'gst_b2c_invoice' },
+        ] : []),
       ];
 
       for (const { promise, name } of checks) {
@@ -356,7 +373,7 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableDualInvoiceSeries, gstTerminalCode: enableDualInvoiceSeries ? gstTerminalCode : '', gstInvoiceStartNumber: enableDualInvoiceSeries ? gstInvoiceStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -454,33 +471,54 @@ export function SettingsManager({ onClose }: { onClose: () => void }) {
                     <Receipt className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="text-xs font-black text-purple-500 uppercase tracking-wider">Dual Series</span>
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Separate counter for GST invoices</p>
+                    <span className="text-xs font-black text-purple-500 uppercase tracking-wider">3 Invoice Series</span>
+                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Separate counters for B2B &amp; B2C GST invoices</p>
                   </div>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={enableDualInvoiceSeries} onChange={(e) => setEnableDualInvoiceSeries(e.target.checked)} className="sr-only peer" />
+                  <input type="checkbox" checked={enableThreeInvoiceSeries} onChange={(e) => setEnableThreeInvoiceSeries(e.target.checked)} className="sr-only peer" />
                   <div className="w-10 h-6 bg-muted rounded-full peer peer-checked:bg-purple-500 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4 shadow-inner" />
                 </label>
               </div>
 
-              {enableDualInvoiceSeries && (
-                <div className="mt-4 rounded-xl border border-blue-500/25 bg-blue-500/[0.03] p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-blue-500" />
-                      GST Invoice Series
-                    </h5>
-                    <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{gstTerminalCode || 'GST'}-{String(Number(gstInvoiceStartNumber) || 1).padStart(3, '0')}</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
-                      <Input type="text" value={gstTerminalCode} onChange={(e) => setGstTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. GST" />
+              {enableThreeInvoiceSeries && (
+                <div className="mt-4 space-y-3">
+                  <div className="rounded-xl border border-blue-500/25 bg-blue-500/[0.03] p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-blue-500" />
+                        GST B2B Invoice Series
+                      </h5>
+                      <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
                     </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
-                      <Input type="number" min="1" value={gstInvoiceStartNumber} onChange={(e) => setGstInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
+                        <Input type="text" value={b2bPrefix} onChange={(e) => setB2bPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. B2B" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
+                        <Input type="number" min="1" value={b2bStartNumber} onChange={(e) => setB2bStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.03] p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h5 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                        GST B2C Invoice Series
+                      </h5>
+                      <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
+                        <Input type="text" value={b2cPrefix} onChange={(e) => setB2cPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. B2C" />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
+                        <Input type="number" min="1" value={b2cStartNumber} onChange={(e) => setB2cStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1298,7 +1336,7 @@ Discount          ₹-50.00
                         { key: 'showTitle', label: 'Document Title' },
                         { key: 'showCustomerName', label: 'Customer Name' },
                         { key: 'showCustomerGstin', label: 'Customer GSTIN' },
-                        { key: 'showTaxBreakup', label: 'Tax Breakup (CGST/SGST/IGST)' },
+                        { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
                       ].map(({ key, label }) => {
                         const forcedOn = key === 'showTitle' && billSettings.estimateMode;
                         return (
@@ -1322,6 +1360,47 @@ Discount          ₹-50.00
                           </label>
                         );
                       })}
+                      {billSettings.showBosTaxBreakup && (<>
+                        <div className="col-span-2 flex items-center gap-3 py-2 border-b border-border/40 mb-1">
+                          <label className="text-xs text-foreground shrink-0">CGST/SGST Rate %</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={billSettings.bosTaxRatePercent}
+                            onChange={e => {
+                              const v = parseFloat(e.target.value) || 0;
+                              setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
+                            }}
+                            className="w-20 px-2 py-1 text-xs border border-border/60 rounded bg-background text-foreground text-center"
+                          />
+                          <span className="text-[10px] text-muted-foreground">Total tax is split equally as CGST + SGST (or IGST for inter-state)</span>
+                        </div>
+                        <div className="col-span-2 flex items-center gap-3 pb-2">
+                          <label className="text-xs text-foreground shrink-0">Tax Type</label>
+                          <div className="flex rounded-lg border border-border/60 overflow-hidden">
+                            <button
+                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
+                              className={clsx(
+                                'px-3 py-1 text-xs font-medium transition-all cursor-pointer',
+                                !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'
+                              )}
+                            >
+                              Exclusive (tax extra)
+                            </button>
+                            <button
+                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
+                              className={clsx(
+                                'px-3 py-1 text-xs font-medium transition-all cursor-pointer',
+                                billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'
+                              )}
+                            >
+                              Inclusive (tax included)
+                            </button>
+                          </div>
+                        </div>
+                      </>)}
                       <div className="col-span-2 border-t border-border/60 my-1.5" />
                       <label className="flex items-center gap-2.5 py-1.5 cursor-pointer group col-span-2">
                         <button

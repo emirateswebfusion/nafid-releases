@@ -150,7 +150,7 @@ export interface LoyaltyInfo {
 }
 
 // Derived Selectors
-export const useCartTotals = () => {
+export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) => {
   const { items, invoiceType, discountType, discountValue, shopState, customerState } = useCartStore();
 
   let subtotal = 0;
@@ -185,6 +185,15 @@ export const useCartTotals = () => {
 
     if (invoiceType === 'GST') {
       totalTax += itemTotal * (item.tax_rate_percent / 100);
+    } else if (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0) {
+      if (bosTaxInclusive) {
+        const rate = bosTaxRatePercent / 100;
+        const tax = itemTotal * (rate / (1 + rate));
+        totalTax += tax;
+        subtotal -= tax;
+      } else {
+        totalTax += itemTotal * (bosTaxRatePercent / 100);
+      }
     }
   });
 
@@ -200,9 +209,11 @@ export const useCartTotals = () => {
 
   const isInterState = shopState !== customerState;
   
-  const cgst = invoiceType === 'GST' && !isInterState ? adjustedTax / 2 : 0;
-  const sgst = invoiceType === 'GST' && !isInterState ? adjustedTax / 2 : 0;
-  const igst = invoiceType === 'GST' && isInterState ? adjustedTax : 0;
+  const hasTax = invoiceType === 'GST' || (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0);
+
+  const cgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
+  const sgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
+  const igst = hasTax && isInterState ? adjustedTax : 0;
 
   const grandTotal = taxableAmount + adjustedTax;
 
