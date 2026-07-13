@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef } from 'react';
+import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
@@ -66,10 +66,26 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'ALL' | 'GST' | 'ESTIMATE'>('ALL');
+  const [filterInvoice, setFilterInvoice] = useState<'ALL' | 'WITH' | 'WITHOUT'>('ALL');
   const [viewingBill, setViewingBill] = useState<PurchaseBill | null>(null);
   const [viewingBillItems, setViewingBillItems] = useState<PurchaseBillItem[]>([]);
   const [loadingViewingItems, setLoadingViewingItems] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  // derived — apply type and invoice filters on top of the server-side search results
+  const filteredBills = useMemo(() => {
+    let res = bills;
+    if (filterType !== 'ALL') {
+      res = res.filter(b => b.bill_type === filterType);
+    }
+    if (filterInvoice === 'WITH') {
+      res = res.filter(b => !!b.invoice_number);
+    } else if (filterInvoice === 'WITHOUT') {
+      res = res.filter(b => !b.invoice_number);
+    }
+    return res;
+  }, [bills, filterType, filterInvoice]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [supplierName, setSupplierName] = useState('');
@@ -194,18 +210,64 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
       {!showAddForm && (
         <>
           <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
-            <div className="flex-1 max-w-lg">
+            {/* Search */}
+            <div className="flex-1 max-w-sm">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search by bill number or supplier..."
+                  placeholder="Search bill or supplier..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
                   className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
                 />
               </div>
             </div>
+
+            {/* Filter Pills */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Type Filter */}
+              <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 rounded-xl p-1">
+                {(['ALL', 'GST', 'ESTIMATE'] as const).map(type => {
+                  const count = type === 'ALL' ? bills.length : bills.filter(b => b.bill_type === type).length;
+                  const active = filterType === type;
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setFilterType(active ? 'ALL' : type)}
+                      className={clsx(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
+                        active
+                          ? type === 'ALL'
+                            ? "bg-background text-foreground shadow-sm border border-border/60"
+                            : type === 'GST'
+                              ? "bg-emerald-500 text-white shadow-sm"
+                              : "bg-amber-500 text-white shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : 'Estimate Only'}
+                      {!loading && (
+                        <span className={clsx(
+                          "text-[10px] px-1.5 py-0.5 rounded-md font-black min-w-[18px] text-center",
+                          active
+                            ? type === 'ALL'
+                              ? "bg-muted text-muted-foreground"
+                              : "bg-white/20 text-white"
+                            : "bg-muted/80 text-muted-foreground"
+                        )}>
+                          {count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+            </div>
+
+            {/* New Bill Button */}
             <button
               onClick={() => setShowAddForm(true)}
               className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer"
@@ -250,14 +312,18 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
                     </div>
                   </div>
                 ))
-              ) : bills.length === 0 ? (
+              ) : filteredBills.length === 0 ? (
                 <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
                   <Receipt className="w-16 h-16 mb-4 opacity-40" />
-                  <p className="font-semibold text-foreground text-lg">No purchase bills found</p>
-                  <p className="text-sm mt-1">Click "New Purchase Bill" to record a purchase entry</p>
+                  <p className="font-semibold text-foreground text-lg">
+                    {filterType === 'ALL' ? 'No purchase bills found' : `No ${filterType === 'GST' ? 'GST' : 'Estimate'} bills found`}
+                  </p>
+                  <p className="text-sm mt-1">
+                    {filterType !== 'ALL' ? `Try switching to "All" to see all bills` : 'Click "New Purchase Bill" to record a purchase entry'}
+                  </p>
                 </div>
               ) : (
-                bills.map(bill => (
+                filteredBills.map(bill => (
                   <Fragment key={bill.purchase_bill_id}>
                     <div
                       onClick={() => handleViewBill(bill)}

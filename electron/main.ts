@@ -2265,8 +2265,8 @@ ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset
     const params: any[] = [tenant_id];
 
     if (search) {
-      query += ' AND (pb.bill_number LIKE ? OR pb.supplier_name LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+      query += ' AND (pb.bill_number LIKE ? OR pb.supplier_name LIKE ? OR pb.invoice_number LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     query += ' ORDER BY pb.created_at DESC';
