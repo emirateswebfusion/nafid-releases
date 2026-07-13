@@ -1452,20 +1452,22 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
 
     const upsertBill = db.prepare(`
       INSERT INTO purchase_bills (
-        purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount,
-        bill_type, sync_status, created_at, updated_at
+        purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount,
+        bill_type, payment_type, sync_status, created_at, updated_at
       ) VALUES (
-        @purchase_bill_id, @tenant_id, @bill_number, @supplier_id, @supplier_name, @bill_date, @notes, @total_amount,
-        @bill_type, 'SYNCED', @created_at, @updated_at
+        @purchase_bill_id, @tenant_id, @bill_number, @supplier_id, @supplier_name, @bill_date, @invoice_number, @notes, @total_amount,
+        @bill_type, @payment_type, 'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(purchase_bill_id) DO UPDATE SET
         bill_number = excluded.bill_number,
         supplier_id = excluded.supplier_id,
         supplier_name = excluded.supplier_name,
         bill_date = excluded.bill_date,
+        invoice_number = excluded.invoice_number,
         notes = excluded.notes,
         total_amount = excluded.total_amount,
         bill_type = excluded.bill_type,
+        payment_type = excluded.payment_type,
         created_at = COALESCE(purchase_bills.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
         sync_status = 'SYNCED'
@@ -1505,8 +1507,11 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
             supplier_id: bill.supplier_id || null,
             supplier_name: bill.supplier_name,
             bill_date: bill.bill_date || null,
+            invoice_number: bill.invoice_number || null,
             notes: bill.notes || null,
             total_amount: bill.total_amount ?? 0,
+            bill_type: bill.bill_type || 'GST',
+            payment_type: bill.payment_type || 'CASH',
             created_at: toSqliteDate(bill.created_at),
             updated_at: toSqliteDate(bill.updated_at),
           });

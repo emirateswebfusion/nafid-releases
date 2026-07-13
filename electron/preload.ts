@@ -147,6 +147,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetPurchaseBillItems: (purchase_bill_id: string) => ipcRenderer.invoke('db:getPurchaseBillItems', purchase_bill_id),
   dbDeletePurchaseBill: (purchase_bill_id: string) => ipcRenderer.invoke('db:deletePurchaseBill', purchase_bill_id),
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPurchaseBillProducts', args),
+  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string }) => ipcRenderer.invoke('db:generateBarcode', args),
 
   // Customers / Loyalty
   dbGetCustomers: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getCustomers', args),

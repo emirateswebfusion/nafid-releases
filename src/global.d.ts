@@ -128,6 +128,7 @@ export interface IElectronAPI {
   dbGetPurchaseBillItems: (purchase_bill_id: string) => Promise<any[]>;
   dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
 }
 
 declare global {

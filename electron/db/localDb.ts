@@ -254,9 +254,11 @@ export function initDb() {
         supplier_id TEXT,
         supplier_name TEXT NOT NULL,
         bill_date TEXT,
+        invoice_number TEXT,
         notes TEXT,
         total_amount REAL DEFAULT 0,
         bill_type TEXT DEFAULT 'GST',
+        payment_type TEXT DEFAULT 'CASH',
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -424,7 +426,7 @@ export function initDb() {
         'warranty_id', 'tenant_id', 'invoice_id', 'invoice_item_id', 'customer_name', 'customer_phone', 'product_name', 'product_details', 'purchase_date', 'warranty_period_days', 'expiry_date', 'notes', 'sync_status', 'created_at', 'updated_at'
     ],
     purchase_bills: [
-        'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'notes', 'total_amount', 'sync_status', 'created_at', 'updated_at'
+        'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'invoice_number', 'notes', 'total_amount', 'bill_type', 'sync_status', 'created_at', 'updated_at'
     ],
     purchase_bill_items: [
         'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
@@ -790,6 +792,28 @@ export function initDb() {
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add bill_type to purchase_bills:', e.message);
   }
+
+  // Migration: Add invoice_number column to purchase_bills
+  try {
+    const pbCols3 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+    if (!pbCols3.includes('invoice_number')) {
+      console.log('[DB Migration] Adding invoice_number to purchase_bills...');
+      db.exec("ALTER TABLE purchase_bills ADD COLUMN invoice_number TEXT");
+    }
+    } catch (e: any) {
+      console.warn('[DB Migration] Failed to add invoice_number to purchase_bills:', e.message);
+    }
+
+    // Migration: Add payment_type column to purchase_bills
+    try {
+      const pbCols4 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);
+      if (!pbCols4.includes('payment_type')) {
+        console.log('[DB Migration] Adding payment_type to purchase_bills...');
+        db.exec("ALTER TABLE purchase_bills ADD COLUMN payment_type TEXT DEFAULT 'CASH'");
+      }
+    } catch (e: any) {
+      console.warn('[DB Migration] Failed to add payment_type to purchase_bills:', e.message);
+    }
 
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
   db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");

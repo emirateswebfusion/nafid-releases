@@ -840,6 +840,7 @@ export function InventoryManager({ onClose }: { onClose: () => void }) {
             supplier_id: formData.gst_supplier_id || null,
             supplier_name: supplierName,
             bill_date: formData.gst_bill_date || new Date().toISOString().split('T')[0],
+            invoice_number: null,
             notes: `Auto-created from product: ${formData.name}`,
             total_amount: gstTotal,
             items: [{

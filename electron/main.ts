@@ -2185,9 +2185,11 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
   supplier_id?: string;
   supplier_name: string;
   bill_date?: string;
+  invoice_number?: string;
   notes?: string;
   total_amount: number;
   bill_type?: string;
+  payment_type?: string;
   items: Array<{
     item_id: string;
     product_id: string;
@@ -2195,6 +2197,7 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
     quantity: number;
     purchase_price: number;
     total_amount: number;
+    selling_price?: number | null;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -2203,20 +2206,46 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
   try {
     const db = getDb();
     const billType = payload.bill_type || 'GST';
+    const paymentType = payload.payment_type || 'CASH';
     const result = db.transaction(() => {
       const { items, ...bill } = payload;
       db.prepare(`
-        INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, notes, total_amount, bill_type, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.notes || null, bill.total_amount, billType);
+        INSERT INTO purchase_bills (purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount, bill_type, payment_type, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType);
 
       const stmt = db.prepare(`
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
+      const updateStock = billType === 'ESTIMATE' ? db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ? WHERE product_id = ? AND tenant_id = ?`) : null;
+      const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
         stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        if (updateStock) {
+          updateStock.run(item.quantity, item.purchase_price, item.product_id, bill.tenant_id);
+        }
+        if (item.selling_price != null) {
+          updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+        }
+      }
+
+      // If CREDIT payment and supplier is a known party, create ledger entry
+      if (paymentType === 'CREDIT' && bill.supplier_id) {
+        const party = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
+        if (party) {
+          const currentBalance = parseFloat(party.balance) || 0;
+          const ledgerId = crypto.randomUUID();
+          const debitAmount = bill.total_amount;
+          const newBalance = currentBalance - debitAmount;
+          db.prepare(`
+            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || new Date().toISOString(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
+          db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+            .run(newBalance, bill.bill_date || new Date().toISOString(), bill.supplier_id);
+        }
       }
 
       return { success: true };
@@ -2286,8 +2315,8 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
 
     let query = `
       SELECT p.*, 
-        COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi WHERE pbi.product_id = p.product_id), 0) as gst_purchase_quantity,
-        COALESCE((SELECT AVG(pbi.purchase_price) FROM purchase_bill_items pbi WHERE pbi.product_id = p.product_id), 0) as gst_purchase_price
+        COALESCE((SELECT SUM(pbi.quantity) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND pb.bill_type = 'GST'), 0) as gst_purchase_quantity,
+        COALESCE((SELECT AVG(pbi.purchase_price) FROM purchase_bill_items pbi JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id WHERE pbi.product_id = p.product_id AND pb.bill_type = 'GST'), 0) as gst_purchase_price
       FROM products p 
       WHERE p.tenant_id = ? AND p.is_deleted = 0
     `;
@@ -2307,6 +2336,36 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
     return db.prepare(query).all(...params);
   } catch (error: any) {
     return { error: error.message };
+  }
+});
+
+ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_id: string; item_code?: string }) => {
+  try {
+    const db = getDb();
+    const prefix = (item_code || '').trim();
+    let nextNum = 1;
+    if (prefix) {
+      const maxRow = db.prepare(
+        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode LIKE ? ORDER BY LENGTH(sku_barcode) DESC, sku_barcode DESC LIMIT 1`
+      ).get(tenant_id, `${prefix}%`) as any;
+      if (maxRow?.sku_barcode) {
+        const numPart = maxRow.sku_barcode.slice(prefix.length).replace(/\D/g, '');
+        if (numPart) nextNum = parseInt(numPart, 10) + 1;
+      }
+    } else {
+      const maxRow = db.prepare(
+        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode GLOB '[0-9]*' ORDER BY LENGTH(sku_barcode) DESC, sku_barcode DESC LIMIT 1`
+      ).get(tenant_id) as any;
+      if (maxRow?.sku_barcode) {
+        const numPart = maxRow.sku_barcode.replace(/\D/g, '');
+        if (numPart) nextNum = parseInt(numPart, 10) + 1;
+      }
+    }
+    const digits = Math.max(3, nextNum.toString().length);
+    const barcode = prefix + String(nextNum).padStart(digits, '0');
+    return { success: true, barcode };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
 });
 
