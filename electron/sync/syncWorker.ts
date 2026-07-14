@@ -797,12 +797,13 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
     if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
 
     const upsert = db.prepare(`
-      INSERT INTO users (user_id, tenant_id, name, email, role, created_at)
-      VALUES (@user_id, @tenant_id, @name, @email, @role, @created_at)
+      INSERT INTO users (user_id, tenant_id, name, email, role, restricted_page, created_at)
+      VALUES (@user_id, @tenant_id, @name, @email, @role, @restricted_page, @created_at)
       ON CONFLICT(user_id) DO UPDATE SET
         name = excluded.name,
         email = excluded.email,
-        role = excluded.role
+        role = excluded.role,
+        restricted_page = excluded.restricted_page
     `);
 
     const tx = db.transaction((users: any[]) => {
@@ -813,6 +814,7 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
           name: u.name,
           email: u.email,
           role: u.role,
+          restricted_page: u.restricted_page || null,
           created_at: toSqliteDate(u.created_at),
         });
       }

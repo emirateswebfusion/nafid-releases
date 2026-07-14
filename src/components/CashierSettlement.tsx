@@ -4,7 +4,7 @@ import {
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
   TrendingUp, TrendingDown, ArrowRight, ArrowLeft, Clock, AlertTriangle,
   ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
-  CheckCheck, Calendar, BookOpen, RefreshCw
+  CheckCheck, Calendar, BookOpen, RefreshCw, LogOut
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
@@ -103,9 +103,10 @@ function formatDate(dateStr: string) {
 
 interface CashierSettlementProps {
   onClose: () => void;
+  isRestricted?: boolean;
 }
 
-export function CashierSettlement({ onClose }: CashierSettlementProps) {
+export function CashierSettlement({ onClose, isRestricted }: CashierSettlementProps) {
   const { tenantId, userId, userName } = useAuthStore();
   const [drawer, setDrawer] = useState<any>(null);
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
@@ -430,13 +431,23 @@ export function CashierSettlement({ onClose }: CashierSettlementProps) {
               </button>
             )}
             <span className="w-px h-6 bg-border/40 mx-1" />
-            <button
-              onClick={onClose}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-              title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            {isRestricted ? (
+              <button
+                onClick={() => useAuthStore.getState().logout()}
+                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-destructive" />
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                title="Close"
+              >
+                <X className="w-4 h-4 text-destructive" />
+              </button>
+            )}
           </div>
         </div>
       </header>

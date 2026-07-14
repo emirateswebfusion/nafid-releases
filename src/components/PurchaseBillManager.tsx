@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save, ChevronDown, ChevronUp,
-  Receipt, Tag, RefreshCw, Check, Eye
+  Receipt, Tag, RefreshCw, Check, Eye, Download
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
@@ -60,7 +60,7 @@ const formatDate = (d: string) => {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
+export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { tenantId } = useAuthStore();
 
   const [bills, setBills] = useState<PurchaseBill[]>([]);
@@ -72,6 +72,7 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
   const [viewingBillItems, setViewingBillItems] = useState<PurchaseBillItem[]>([]);
   const [loadingViewingItems, setLoadingViewingItems] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
 
   // derived — apply type and invoice filters on top of the server-side search results
   const filteredBills = useMemo(() => {
@@ -148,6 +149,54 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
         setStatusMessage({ text: 'Delete failed: ' + (res.error || ''), type: 'error' });
       }
       setTimeout(() => setStatusMessage(null), 3000);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (filteredBills.length === 0) return;
+    setIsExporting(true);
+    try {
+      const headers = [
+        'Bill No', 'Bill Date', 'Bill Type', 'Supplier Name', 'Supplier Phone',
+        'Invoice Number', 'Notes', 'Total Amount (₹)', 'Created At'
+      ];
+      const escape = (val: any) => {
+        const str = val == null ? '' : String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      };
+      const rows = filteredBills.map(b => [
+        escape(b.bill_number),
+        escape(b.bill_date),
+        escape(b.bill_type),
+        escape(b.supplier_name),
+        escape(b.supplier_phone || ''),
+        escape(b.invoice_number || ''),
+        escape(b.notes || ''),
+        escape(b.total_amount.toFixed(2)),
+        escape(new Date(b.created_at).toLocaleString('en-IN')),
+      ]);
+
+      const typeLabel = filterType === 'ALL' ? 'All' : filterType;
+      const searchLabel = searchQuery ? `_search-${searchQuery}` : '';
+      const dateStr = new Date().toISOString().split('T')[0];
+      const filename = `purchase-bills_${typeLabel}${searchLabel}_${dateStr}.csv`;
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setStatusMessage({ text: `Exported ${filteredBills.length} bills to CSV`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -266,6 +315,19 @@ export function PurchaseBillManager({ onClose }: { onClose: () => void }) {
               </div>
 
             </div>
+
+            {/* Export Button */}
+            {!showAddForm && filteredBills.length > 0 && (
+              <button
+                onClick={handleExportCSV}
+                disabled={isExporting}
+                title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
+                className="px-3.5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border border-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                <Download className="w-4 h-4" />
+                Export {filterType !== 'ALL' ? filterType : ''} CSV
+              </button>
+            )}
 
             {/* New Bill Button */}
             <button

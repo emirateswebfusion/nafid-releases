@@ -32,7 +32,7 @@ interface ScrapTransaction {
   created_at: string;
 }
 
-export function ScrapManager({ onClose, initialView }: { onClose: () => void; initialView?: View }) {
+export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
   const { tenantId } = useAuthStore();
   const [view, setView] = useState<View>(initialView || 'list');
   const [categories, setCategories] = useState<ScrapCategory[]>([]);

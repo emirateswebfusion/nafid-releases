@@ -25,6 +25,7 @@ export function initDb() {
         name TEXT NOT NULL,
         email TEXT UNIQUE NOT NULL,
         role TEXT DEFAULT 'BILLER',
+        restricted_page TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -817,6 +818,17 @@ export function initDb() {
 
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
   db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");
+
+  // Migration: Add restricted_page column to users
+  try {
+    const uCols = db.prepare(`PRAGMA table_info(users)`).all().map((c: any) => c.name);
+    if (!uCols.includes('restricted_page')) {
+      console.log('[DB Migration] Adding restricted_page to users...');
+      db.exec("ALTER TABLE users ADD COLUMN restricted_page TEXT");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add restricted_page to users:', e.message);
+  }
 
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();

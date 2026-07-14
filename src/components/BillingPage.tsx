@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -68,6 +68,8 @@ export function BillingPage() {
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
+  const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
+  const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
@@ -91,6 +93,25 @@ export function BillingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [showProductCreateForm, setShowProductCreateForm] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductItemCode, setNewProductItemCode] = useState('');
+  const [newProductBarcode, setNewProductBarcode] = useState('');
+  const [newProductBrand, setNewProductBrand] = useState('');
+  const [newProductCategory, setNewProductCategory] = useState('');
+  const [newProductUom, setNewProductUom] = useState('Pcs');
+  const [newProductPurchasePrice, setNewProductPurchasePrice] = useState('');
+  const [newProductBasePrice, setNewProductBasePrice] = useState('');
+  const [newProductStock, setNewProductStock] = useState('');
+  const [newProductReorderLevel, setNewProductReorderLevel] = useState('');
+  const [newProductHsn, setNewProductHsn] = useState('');
+  const [newProductTaxRate, setNewProductTaxRate] = useState(0);
+  const [newProductDiscountPercent, setNewProductDiscountPercent] = useState('');
+  const [newProductDiscountFlat, setNewProductDiscountFlat] = useState('');
+  const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
+  const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(true);
+  const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
+  const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
@@ -107,9 +128,6 @@ export function BillingPage() {
   const [showLoyaltyRedemption, setShowLoyaltyRedemption] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
-
-  const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
-  const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
@@ -388,6 +406,20 @@ export function BillingPage() {
     return () => clearTimeout(t);
   }, [searchQuery, isScrapMode]);
 
+  // Fetch categories when product create form opens
+  useEffect(() => {
+    if (window.electronAPI && tenantId && showProductCreateForm) {
+      window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 200 })
+        .then((res: any[]) => {
+          if (Array.isArray(res)) {
+            const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
+            setConfiguredCategories(cats);
+          }
+        })
+        .catch(console.error);
+    }
+  }, [showProductCreateForm, tenantId]);
+
   // Scrap category search (when scrap mode active - categories ARE items)
   useEffect(() => {
     if (!isScrapMode || searchQuery.length < 2) { setScrapSearchResults([]); return; }
@@ -488,6 +520,8 @@ export function BillingPage() {
       if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
         setResults([]);
         setPastBillResults([]);
+        setSearchQuery('');
+        setShowProductCreateForm(false);
       }
       const scrapDropdown = document.getElementById('scrap-deduction-dropdown');
       if (scrapDeductionInputRef.current && !scrapDeductionInputRef.current.parentElement?.contains(e.target as Node) && !scrapDropdown?.contains(e.target as Node)) {
@@ -641,6 +675,85 @@ export function BillingPage() {
       const input = qtyRefs.current[product.product_id];
       if (input) { input.focus(); input.select(); }
     }, 0);
+  };
+
+  const resetProductForm = () => {
+    setShowProductCreateForm(false);
+    setNewProductName('');
+    setNewProductItemCode('');
+    setNewProductBarcode('');
+    setNewProductBrand('');
+    setNewProductCategory('');
+    setNewProductUom('Pcs');
+    setNewProductPurchasePrice('');
+    setNewProductBasePrice('');
+    setNewProductStock('');
+    setNewProductReorderLevel('');
+    setNewProductHsn('');
+    setNewProductTaxRate(0);
+    setNewProductDiscountPercent('');
+    setNewProductDiscountFlat('');
+    setNewProductOfferPrice('');
+    setNewProductIsGstApplicable(true);
+    setNewProductIsCustomCategory(false);
+  };
+
+  const handleCreateAndAddProduct = async () => {
+    if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
+    const productId = uuidv4();
+    let finalBarcode = newProductBarcode;
+    if (!finalBarcode) {
+      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+      finalBarcode = (gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`;
+    }
+    const purchasePrice = Number(newProductPurchasePrice) || 0;
+    const basePrice = Number(newProductBasePrice) || purchasePrice;
+    const res = await window.electronAPI.dbAddProduct({
+      product_id: productId,
+      tenant_id: tenantId,
+      name: newProductName.trim(),
+      sku_barcode: finalBarcode,
+      item_code: newProductItemCode.toUpperCase(),
+      category: newProductCategory,
+      brand_manufacturer: newProductBrand,
+      uom: newProductUom,
+      purchase_price: purchasePrice,
+      base_price: basePrice,
+      current_stock: Number(newProductStock) || 0,
+      reorder_level: Number(newProductReorderLevel) || 0,
+      is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
+      tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
+      hsn_sac_code: newProductIsGstApplicable ? newProductHsn : null,
+      discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+      discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+      offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+      billing_type: 'PIECE',
+      pricing_mode: 'FIXED_PRICE',
+      is_deleted: 0,
+      sync_status: 'PENDING',
+    });
+    if (res.success) {
+      handleSelectProduct({
+        product_id: productId,
+        name: newProductName.trim(),
+        base_price: basePrice,
+        purchase_price: purchasePrice,
+        tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
+        billing_type: 'PIECE',
+        pricing_mode: 'FIXED_PRICE',
+        sku_barcode: finalBarcode,
+        brand_manufacturer: newProductBrand,
+        discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+        discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+        offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+        current_stock: Number(newProductStock) || 0,
+      });
+      setSearchQuery('');
+      setResults([]);
+      resetProductForm();
+    } else {
+      setHardwareError('Failed to create product: ' + (res.error || ''));
+    }
   };
 
   const handleSelectScrapItem = (cat: any) => {
@@ -929,8 +1042,11 @@ export function BillingPage() {
         if (scrapSearchResults[selectedIndex]) handleSelectScrapItem(scrapSearchResults[selectedIndex]);
       } else if (isPastBillMode) {
         if (pastBillResults[selectedIndex]) handleSelectPastBill(pastBillResults[selectedIndex]);
-      } else {
-        if (results[selectedIndex]) handleSelectProduct(results[selectedIndex]);
+      } else if (results[selectedIndex]) {
+        handleSelectProduct(results[selectedIndex]);
+      } else if (!showProductCreateForm && searchQuery.length >= 2 && !isQuotationMode) {
+        setShowProductCreateForm(true);
+        setNewProductName(searchQuery);
       }
     }
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
@@ -1695,6 +1811,21 @@ export function BillingPage() {
                       );
                     })}
                   </div>
+                </div>
+              )}
+              {!isPastBillMode && !isScrapMode && !isQuotationMode && searchQuery.length >= 2 && results.length === 0 && !showProductCreateForm && (
+                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <button
+                    type="button"
+                    onClick={() => { setShowProductCreateForm(true); setNewProductName(searchQuery); }}
+                    className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 hover:bg-muted transition-colors cursor-pointer border-0 rounded-xl"
+                  >
+                    <Plus className="w-3.5 h-3.5 shrink-0 text-primary" />
+                    <div>
+                      <p className="text-sm font-bold text-primary">Create "{searchQuery}"</p>
+                      <p className="text-[11px] text-muted-foreground">Add as a new product</p>
+                    </div>
+                  </button>
                 </div>
               )}
             </div>
@@ -2654,6 +2785,302 @@ export function BillingPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ─── Create Product Modal ─── */}
+      {showProductCreateForm && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
+          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
+            <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-black text-primary uppercase tracking-wider">New Product</span>
+                </div>
+                <button type="button" onClick={resetProductForm}
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                  title="Close">
+                  <X className="w-4 h-4 text-destructive" />
+                </button>
+              </div>
+              <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
+                {/* 1. Basic Details */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-4">
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
+                        <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
+                        <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
+                          {newProductIsCustomCategory ? (
+                            <div className="flex gap-2 items-center">
+                              <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
+                                className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                              <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
+                            </div>
+                          ) : (
+                            <Select
+                              value={configuredCategories.includes(newProductCategory) ? newProductCategory : (newProductCategory ? 'CUSTOM' : '')}
+                              onChange={v => {
+                                if (v === 'CUSTOM') {
+                                  setNewProductIsCustomCategory(true);
+                                  setNewProductCategory('');
+                                } else {
+                                  setNewProductCategory(v);
+                                }
+                              }}
+                              placeholder="-- Select Category --"
+                              options={[
+                                ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
+                                { value: 'CUSTOM', label: 'Custom...' }
+                              ]}
+                              triggerClassName="rounded-xl h-[46px]"
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
+                          <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                      <div>
+                        <div className="flex justify-between items-center mb-1.5">
+                          <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
+                          <button type="button" onClick={async () => {
+                            if (!window.electronAPI || !tenantId) return;
+                            const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+                            if (gen.success && gen.barcode) setNewProductBarcode(gen.barcode);
+                          }}
+                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all cursor-pointer">
+                            <RefreshCw className="w-3 h-3" /> Auto Generate
+                          </button>
+                        </div>
+                        <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 2. Inventory & Pricing */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Inventory & Pricing</span>
+                  </div>
+                  <div className="flex gap-4">
+                    {[
+                      { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
+                      { label: 'MRP *', field: 'basePrice', prefix: '₹' },
+                      { label: 'Current Stock', field: 'stock' },
+                      { label: 'Low Stock Alert', field: 'reorderLevel' },
+                    ].map(({ label, field, prefix }) => (
+                      <div key={field} className="flex-1 min-w-0">
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">{label}</label>
+                        <div className="relative">
+                          {prefix && <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">{prefix}</span>}
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={field === 'purchasePrice' ? newProductPurchasePrice : field === 'basePrice' ? newProductBasePrice : field === 'stock' ? newProductStock : newProductReorderLevel}
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (field === 'purchasePrice') setNewProductPurchasePrice(val);
+                              else if (field === 'basePrice') setNewProductBasePrice(val);
+                              else if (field === 'stock') setNewProductStock(val);
+                              else setNewProductReorderLevel(val);
+                            }}
+                            className={clsx(
+                              'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
+                              prefix && 'pl-8',
+                              field === 'basePrice' && 'text-emerald-600 dark:text-emerald-400 font-bold'
+                            )}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                    <div className="flex-1 min-w-0">
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">UOM</label>
+                      <Select
+                        value={newProductUom}
+                        onChange={v => setNewProductUom(v)}
+                        options={['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => ({ value: u, label: u }))}
+                        triggerClassName="rounded-xl h-[46px]"
+                      />
+                    </div>
+                  </div>
+                </section>
+
+                {/* 3. Discount & Offers */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Discount & Offers</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-foreground">Discount</h4>
+                        <span className="text-xs text-muted-foreground">Applies to MRP</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
+                          <input type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={newProductDiscountPercent}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNewProductDiscountPercent(val);
+                              if (val) {
+                                const mrp = Number(newProductBasePrice) || 0;
+                                const pct = parseFloat(val);
+                                const flat = mrp > 0 && !isNaN(pct) ? ((mrp * pct) / 100).toFixed(2) : '';
+                                setNewProductDiscountFlat(flat);
+                              } else {
+                                setNewProductDiscountFlat('');
+                              }
+                              setNewProductOfferPrice('');
+                            }}
+                            disabled={!!newProductOfferPrice}
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+                          <input type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={newProductDiscountFlat}
+                            onChange={e => {
+                              const val = e.target.value;
+                              setNewProductDiscountFlat(val);
+                              if (val) {
+                                const mrp = Number(newProductBasePrice) || 0;
+                                const flat = parseFloat(val);
+                                const pct = mrp > 0 && !isNaN(flat) ? ((flat / mrp) * 100).toFixed(2) : '';
+                                setNewProductDiscountPercent(pct);
+                              } else {
+                                setNewProductDiscountPercent('');
+                              }
+                              setNewProductOfferPrice('');
+                            }}
+                            disabled={!!newProductOfferPrice}
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-bold text-foreground">Offer</h4>
+                        <span className="text-xs text-muted-foreground">Overrides MRP</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                        <input type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={newProductOfferPrice}
+                          onChange={e => {
+                            setNewProductOfferPrice(e.target.value);
+                            setNewProductDiscountPercent('');
+                            setNewProductDiscountFlat('');
+                          }}
+                          disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                {/* 4. Taxes & Config */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
+                      <Package className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-orange-500 uppercase tracking-wider">4. Taxes & Config</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                      <div
+                        onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                        className={clsx(
+                          'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                          newProductIsGstApplicable
+                            ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                            : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
+                        )}
+                      >
+                        <input
+                          type="checkbox"
+                          id="gst"
+                          checked={newProductIsGstApplicable}
+                          onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                          className={clsx(
+                            'w-3.5 h-3.5 rounded pointer-events-none',
+                            newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground'
+                          )}
+                        />
+                        <label htmlFor="gst" className={clsx(
+                          'font-bold text-xs cursor-pointer select-none',
+                          newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground'
+                        )}>
+                          {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
+                        </label>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
+                      <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
+                      <Select
+                        value={String(newProductTaxRate)}
+                        onChange={v => setNewProductTaxRate(parseFloat(v))}
+                        disabled={!newProductIsGstApplicable}
+                        options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                        triggerClassName="rounded-xl h-[46px]"
+                      />
+                    </div>
+                  </div>
+                </section>
+              </div>
+              <div className="flex items-center justify-end px-5 py-3 border-t border-border/50 bg-background">
+                <button type="button" onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                  <Save className="w-3.5 h-3.5" />
+                  Add to Inventory
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
     </div>

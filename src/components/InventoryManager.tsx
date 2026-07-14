@@ -73,7 +73,7 @@ const DEFAULT_FORM = {
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-export function InventoryManager({ onClose }: { onClose: () => void }) {
+export function InventoryManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { shopDomain } = useCartStore();
   const { tenantId } = useAuthStore();
 

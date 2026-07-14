@@ -1,4 +1,23 @@
 import { useEffect, useState, useRef } from 'react';
+import { 
+  ShoppingCart, Banknote, Package, TrendingUp, User, 
+  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store 
+} from 'lucide-react';
+import clsx from 'clsx';
+
+const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
+  BILLING: { label: 'Billing', icon: ShoppingCart },
+  CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
+  INVENTORY: { label: 'Inventory', icon: Package },
+  SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
+  CUSTOMERS: { label: 'Customers', icon: User },
+  SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
+  QUOTATIONS: { label: 'Quotations', icon: FileText },
+  WARRANTIES: { label: 'Warranties', icon: Shield },
+  PURCHASE_BILLS: { label: 'Purchase Bills', icon: BookOpen },
+  STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
+  SETTINGS: { label: 'Settings', icon: Settings },
+};
 import { BillingPage } from './components/BillingPage';
 import { DomainWizard } from './components/DomainWizard';
 import { InventoryManager } from './components/InventoryManager';
@@ -78,7 +97,8 @@ function App() {
   }, []);
 
   const { currentUserRole, addItem } = useCartStore();
-  const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout } = useAuthStore();
+  const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showStockReport, setShowStockReport] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
@@ -383,10 +403,103 @@ function App() {
     return <LoginScreen />;
   }
 
+  if (restrictedPage) {
+    const allowedPages = restrictedPage.split(',').filter(Boolean);
+    const activePage = restrictedActivePage || allowedPages[0] || '';
+
+    const renderRestrictedPage = () => {
+      switch (activePage) {
+        case 'BILLING':
+          return <BillingPage />;
+        case 'CASHIER_SETTLEMENT':
+          return <CashierSettlement onClose={() => {}} isRestricted={true} />;
+        case 'INVENTORY':
+          return <InventoryManager onClose={() => {}} isRestricted={true} />;
+        case 'SALES_HISTORY':
+          return <SalesHistory onClose={() => {}} isRestricted={true} />;
+        case 'CUSTOMERS':
+          return <CustomersPage onClose={() => {}} isRestricted={true} />;
+        case 'SCRAP_MANAGER':
+          return <ScrapManager onClose={() => {}} isRestricted={true} />;
+        case 'QUOTATIONS':
+          return <QuotationManager onClose={() => {}} isRestricted={true} />;
+        case 'WARRANTIES':
+          return <WarrantyManager onClose={() => {}} isRestricted={true} />;
+        case 'PURCHASE_BILLS':
+          return <PurchaseBillManager onClose={() => {}} isRestricted={true} />;
+        case 'STOCK_REPORT':
+          return <StockReport onClose={() => {}} isRestricted={true} />;
+        case 'SETTINGS':
+          return <SettingsManager onClose={() => {}} isRestricted={true} />;
+        default:
+          return <BillingPage />;
+      }
+    };
+
+    return (
+      <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden font-sans">
+        {/* Left Sidebar */}
+        <aside className="w-64 bg-card border-r border-border flex flex-col shrink-0 shadow-sm">
+          {/* Logo / Header */}
+          <div className="p-6 border-b border-border flex items-center gap-3">
+            <div className="p-2 bg-primary/10 text-primary rounded-xl">
+              <Store className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-bold text-sm tracking-wide">{shopName || 'Vendora'}</h2>
+              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Staff Access</p>
+            </div>
+          </div>
+          
+          {/* Navigation Items */}
+          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+            {allowedPages.map((pageKey) => {
+              const meta = PAGE_METADATA[pageKey];
+              if (!meta) return null;
+              const Icon = meta.icon;
+              const isActive = activePage === pageKey;
+              
+              return (
+                <button
+                  key={pageKey}
+                  onClick={() => setRestrictedActivePage(pageKey)}
+                  className={clsx(
+                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer",
+                    isActive 
+                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  )}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span>{meta.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+          
+          {/* Footer with Logout */}
+          <div className="p-4 border-t border-border shrink-0">
+            <button
+              onClick={() => logout()}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer"
+            >
+              <LogOut className="w-4 h-4 shrink-0" />
+              <span>Sign Out</span>
+            </button>
+          </div>
+        </aside>
+        
+        {/* Main Content Area */}
+        <main className="flex-1 min-w-0 h-full relative overflow-hidden bg-background">
+          {renderRestrictedPage()}
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
       {currentUserRole === 'OWNER' && <DomainWizard />}
-      {showStaffManager && <StaffManager onClose={() => setShowStaffManager(false)} />}
       {showPartyManager && <PartyManager onClose={() => setShowPartyManager(false)} />}
 
       {showCashierSettlement ? (
@@ -401,6 +514,8 @@ function App() {
         <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
       ) : showCustomersPage ? (
         <CustomersPage onClose={() => setShowCustomersPage(false)} />
+      ) : showStaffManager ? (
+        <StaffManager onClose={() => setShowStaffManager(false)} />
       ) : showSettingsManager ? (
         <SettingsManager onClose={() => setShowSettingsManager(false)} />
       ) : showSalesHistory ? (

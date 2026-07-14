@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, User, X, CheckCircle2, AlertCircle,
-  Phone, MapPin, Receipt, TrendingUp, Star, Clock, BookOpen, FileText, IndianRupee, Calendar, ArrowLeft, Gift
+  Phone, MapPin, Receipt, TrendingUp, Star, Clock, BookOpen, FileText, IndianRupee, Calendar, ArrowLeft, Gift, LogOut
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
@@ -60,7 +60,7 @@ function formatDateTime(d: string) {
 
 type View = 'list' | 'detail';
 
-export function CustomersPage({ onClose }: { onClose: () => void }) {
+export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { tenantId, userId, userName } = useAuthStore();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -164,11 +164,19 @@ export function CustomersPage({ onClose }: { onClose: () => void }) {
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
-          <button onClick={onClose}
-            className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
-            title="Close">
-            <X className="w-4 h-4 text-destructive" />
-          </button>
+          {isRestricted ? (
+            <button onClick={() => useAuthStore.getState().logout()}
+              className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+              title="Logout">
+              <LogOut className="w-4 h-4 text-destructive" />
+            </button>
+          ) : (
+            <button onClick={onClose}
+              className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+              title="Close">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          )}
         </div>
       </header>
 

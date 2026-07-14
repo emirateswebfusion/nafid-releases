@@ -11,6 +11,7 @@ export interface AuthState {
   shopName: string | null;
   isLoading: boolean;
   lastSyncTime: number | null;
+  restrictedPage: string | null;
 
   // Actions
   login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
@@ -53,6 +54,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   shopName: null,
   isLoading: true,
   lastSyncTime: null,
+  restrictedPage: null,
 
   setLastSyncTime: (time) => set({ lastSyncTime: time }),
 
@@ -78,6 +80,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
             role: stored.role as 'OWNER' | 'BILLER',
             userName: stored.user_name || null,
             shopName: stored.shop_name,
+            restrictedPage: stored.restricted_page || null,
           });
           useCartStore.getState().setRole(stored.role as 'OWNER' | 'BILLER');
           if (stored.domain_type) {
@@ -128,6 +131,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
           user_name: data.user_name,
           shop_name: data.shop_name || email,
           domain_type: data.domain_type,
+          restricted_page: data.restricted_page,
         });
       }
       
@@ -139,6 +143,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         role: data.role,
         userName: data.user_name || null,
         shopName: data.shop_name || email,
+        restrictedPage: data.restricted_page || null,
       });
       useCartStore.getState().setRole(data.role);
       if (data.domain_type) {
@@ -193,6 +198,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         role: json.role,
         userName: json.user_name || data.owner_name || null,
         shopName: data.shop_name,
+        restrictedPage: null,
       });
       useCartStore.getState().setRole(json.role);
       return { success: true };
@@ -205,7 +211,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   logout: async () => {
     if (window.electronAPI) await window.electronAPI.authClearToken();
     useCartStore.getState().clearCart();
-    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, userName: null, shopName: null });
+    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, userName: null, shopName: null, restrictedPage: null });
   },
 
   updateDomain: async (domain: string) => {

@@ -35,7 +35,7 @@ interface Product {
 const CACHE_TTL = 5 * 60 * 1000;
 const reportCache = new Map<string, { products: Product[]; grades: any[]; timestamp: number }>();
 
-export function StockReport({ onClose }: { onClose: () => void }) {
+export function StockReport({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { shopName, tenantId } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
@@ -382,9 +382,15 @@ export function StockReport({ onClose }: { onClose: () => void }) {
           <button onClick={handlePrint} className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
             <Printer className="w-3.5 h-3.5" /> Print Report
           </button>
-          <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
-            <X className="w-4 h-4 text-destructive" />
-          </button>
+          {isRestricted ? (
+            <button onClick={() => useAuthStore.getState().logout()} className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Logout">
+              <LogOut className="w-4 h-4 text-destructive" />
+            </button>
+          ) : (
+            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          )}
         </div>
       </header>
 

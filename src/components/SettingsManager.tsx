@@ -130,7 +130,7 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-export function SettingsManager({ onClose }: { onClose: () => void }) {
+export function SettingsManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);

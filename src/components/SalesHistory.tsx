@@ -4,7 +4,7 @@ import {
   BookOpen, IndianRupee, Percent, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -212,7 +212,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
 /* ════════════════════════════════════════════
    MAIN COMPONENT
 ═══════════════════════════════════════════ */
-export function SalesHistory({ onClose }: { onClose: () => void }) {
+export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -239,6 +239,8 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
   const [conversionOpen, setConversionOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
 
   const selectedBosInvoices = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && selectedInvoiceIds.has(i.invoice_id)),
@@ -484,6 +486,99 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleExportCSV = async () => {
+    if (!window.electronAPI) return;
+    setIsExporting(true);
+    setExportStatusMsg('Fetching all matching records…');
+    try {
+      const { userId, role, tenantId } = useAuthStore.getState();
+      // Fetch ALL records matching current filters (no pagination limit)
+      const data = await window.electronAPI.dbGetInvoices({
+        user_id: userId, tenant_id: tenantId, role,
+        limit: 99999, offset: 0,
+        search: search || undefined,
+        payment_method: paymentFilter || undefined,
+        invoice_type: invoiceTypeFilter || undefined,
+        filterDate: filterDate || undefined,
+        filterDateEnd: filterDateEnd || undefined,
+      });
+
+      if (!Array.isArray(data) || data.length === 0) {
+        setExportStatusMsg('No records to export');
+        setTimeout(() => setExportStatusMsg(null), 2500);
+        return;
+      }
+
+      const getTypeLabel = (inv: any) => {
+        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
+        if (inv.invoice_type === 'GST') return 'B2C';
+        return 'Bill of Supply';
+      };
+
+      const headers = [
+        'Invoice No', 'Date', 'Time', 'Type', 'Customer Name', 'Customer Phone',
+        'Customer GSTIN', 'Payment Method', 'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)',
+        'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller'
+      ];
+
+      const escape = (val: any) => {
+        const str = val == null ? '' : String(val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+          ? `"${str.replace(/"/g, '""')}"`
+          : str;
+      };
+
+      const rows = data.map((inv: any) => {
+        const { date, time } = formatDate(inv.created_at);
+        return [
+          escape(inv.invoice_number),
+          escape(date),
+          escape(time),
+          escape(getTypeLabel(inv)),
+          escape(inv.customer_name || ''),
+          escape(inv.customer_phone || ''),
+          escape(inv.customer_gstin || ''),
+          escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || ''),
+          escape((inv.subtotal || 0).toFixed(2)),
+          escape((inv.tax_total || 0).toFixed(2)),
+          escape((inv.discount_total || 0).toFixed(2)),
+          escape((inv.grand_total || 0).toFixed(2)),
+          escape((inv.received_amount || 0).toFixed(2)),
+          escape((inv.balance_amount || 0).toFixed(2)),
+          escape(inv.biller_name || ''),
+        ];
+      });
+
+      // Build filename from active filters
+      const parts: string[] = ['sales'];
+      if (invoiceTypeFilter) parts.push(invoiceTypeFilter.replace('_', '-').toLowerCase());
+      if (paymentFilter) parts.push(paymentFilter.toLowerCase());
+      if (filterDate) parts.push(filterDate);
+      if (filterDateEnd && filterDateEnd !== filterDate) parts.push(`to-${filterDateEnd}`);
+      parts.push(new Date().toISOString().split('T')[0]);
+      const filename = parts.join('_') + '.csv';
+
+      const csvContent = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setExportStatusMsg(`✓ Exported ${data.length} invoice${data.length !== 1 ? 's' : ''}`);
+      setTimeout(() => setExportStatusMsg(null), 3000);
+    } catch (err) {
+      console.error('Export failed', err);
+      setExportStatusMsg('Export failed');
+      setTimeout(() => setExportStatusMsg(null), 3000);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   /* ════════════════════════════════════════
      RENDER
   ═══════════════════════════════════════ */
@@ -495,6 +590,19 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/25 rounded-2xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
           <CheckCheck className="w-4 h-4 shrink-0" />
           Invoice reprinted successfully!
+        </div>
+      )}
+
+      {/* ─── EXPORT TOAST ─── */}
+      {exportStatusMsg && (
+        <div className="fixed top-4 right-4 z-[60] px-5 py-3 bg-card/90 backdrop-blur-sm border border-border/60 rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
+          {isExporting
+            ? <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin shrink-0" />
+            : <Download className="w-4 h-4 text-emerald-500 shrink-0" />
+          }
+          <span className={exportStatusMsg.startsWith('Export failed') ? 'text-destructive' : 'text-foreground'}>
+            {exportStatusMsg}
+          </span>
         </div>
       )}
 
@@ -520,13 +628,38 @@ export function SalesHistory({ onClose }: { onClose: () => void }) {
             endDate={filterDateEnd}
             onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
           />
-           <button
-            onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-            title="Close"
+
+          {/* Export Button */}
+          <button
+            onClick={handleExportCSV}
+            disabled={isExporting}
+            title="Export filtered invoices to CSV"
+            className="h-8 px-3 rounded-xl text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 shrink-0"
           >
-            <X className="w-4 h-4 text-destructive" />
+            {isExporting
+              ? <RefreshCw className="w-3 h-3 animate-spin" />
+              : <Download className="w-3 h-3" />
+            }
+            {isExporting ? 'Exporting…' : 'Export CSV'}
           </button>
+
+           {isRestricted ? (
+              <button
+                onClick={() => useAuthStore.getState().logout()}
+                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
+                title="Logout"
+              >
+                <LogOut className="w-4 h-4 text-destructive" />
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                title="Close"
+              >
+                <X className="w-4 h-4 text-destructive" />
+              </button>
+            )}
         </div>
       </header>
 

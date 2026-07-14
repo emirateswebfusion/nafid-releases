@@ -5,6 +5,8 @@ import {
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
   Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText, Phone, MapPin,
+  TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
+  CreditCard, Building2, Smartphone, MoreHorizontal,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -52,7 +54,28 @@ const formatDate = (d: string) => {
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleString('en-IN');
+  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+// Generate a consistent hue from a party name
+const nameToHue = (name: string) => {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return Math.abs(hash) % 360;
+};
+
+const getInitials = (name: string) =>
+  name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+const PaymentMethodIcon = ({ method }: { method: string }) => {
+  const map: Record<string, JSX.Element> = {
+    CASH: <Wallet className="w-3.5 h-3.5" />,
+    BANK_TRANSFER: <Building2 className="w-3.5 h-3.5" />,
+    UPI: <Smartphone className="w-3.5 h-3.5" />,
+    CARD: <CreditCard className="w-3.5 h-3.5" />,
+    OTHER: <MoreHorizontal className="w-3.5 h-3.5" />,
+  };
+  return map[method] ?? <MoreHorizontal className="w-3.5 h-3.5" />;
 };
 
 export function PartyManager({ onClose }: { onClose: () => void }) {
@@ -87,7 +110,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
   const showStatus = (text: string, type: 'success' | 'error') => {
     setStatusMessage({ text, type });
-    setTimeout(() => setStatusMessage(null), 3000);
+    setTimeout(() => setStatusMessage(null), 3500);
   };
 
   const loadParties = useCallback(async () => {
@@ -114,7 +137,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       } else {
         setLedger(Array.isArray(data) ? data : []);
       }
-    } catch (err: any) {
+    } catch {
       showStatus('Failed to load ledger', 'error');
     } finally {
       setLedgerLoading(false);
@@ -140,7 +163,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           gstin: partyForm.gstin.trim() || null,
           notes: partyForm.notes.trim() || null,
         });
-        showStatus('Party updated', 'success');
+        showStatus('Party updated successfully', 'success');
       } else {
         await window.electronAPI.dbAddParty({
           party_id: uuidv4(),
@@ -155,7 +178,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           created_by: userId,
           created_by_name: userName || undefined,
         });
-        showStatus('Party created', 'success');
+        showStatus('Party created successfully', 'success');
       }
       await loadParties();
       setView('list');
@@ -260,494 +283,827 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   const totalReceivable = parties.reduce((s, p) => s + (p.balance > 0 ? p.balance : 0), 0);
   const totalPayable = parties.reduce((s, p) => s + (p.balance < 0 ? Math.abs(p.balance) : 0), 0);
 
+  // ── Shared field style ──
+  const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
+
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      {/* ── Unified Header ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            {view === 'list' ? <BookOpen className="w-5 h-5" /> : view === 'party_form' ? <UserPlus className="w-5 h-5" /> : view === 'ledger' ? <BookOpen className="w-5 h-5" /> : <PlusCircle className="w-5 h-5" />}
-          </div>
-          <div className="min-w-0 leading-tight">
+
+      {/* ══════════════════════════════════════════
+          HEADER
+      ══════════════════════════════════════════ */}
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+
+          {/* Icon (list view only) */}
+          {view === 'list' && (
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <BookOpen className="w-4 h-4" />
+            </div>
+          )}
+
+          {/* Title */}
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {view === 'list' ? 'Parties / Ledger' : view === 'party_form' ? (editingParty ? 'Edit Party' : 'Add New Party') : view === 'ledger' && selectedParty ? selectedParty.name : editingTx ? 'Edit Transaction' : 'Add Transaction'}
+                {view === 'list'
+                  ? 'Parties & Ledger'
+                  : view === 'party_form'
+                  ? (editingParty ? 'Edit Party' : 'New Party')
+                  : view === 'ledger' && selectedParty
+                  ? selectedParty.name
+                  : editingTx
+                  ? 'Edit Transaction'
+                  : 'New Transaction'}
               </h1>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
-            {view === 'list' && <p className="text-xs text-muted-foreground font-semibold mt-0.5">{parties.length} {parties.length === 1 ? 'party' : 'parties'}</p>}
-            {view === 'ledger' && selectedParty && (
-              <p className="text-xs text-muted-foreground font-semibold mt-0.5">
-                Balance: <span className={clsx(selectedParty.balance > 0 ? 'text-destructive' : selectedParty.balance < 0 ? 'text-green-600' : '')}>
-                  ₹{formatBalance(selectedParty.balance)}
-                </span> — {selectedParty.balance > 0 ? 'Receivable' : selectedParty.balance < 0 ? 'Payable' : 'Settled'}
-              </p>
-            )}
+            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+              {view === 'list'
+                ? `${parties.length} ${parties.length === 1 ? 'party' : 'parties'} · Track balances & payments`
+                : view === 'ledger' && selectedParty
+                ? selectedParty.phone
+                  ? `📞 ${selectedParty.phone}  ·  ${ledger.length} entries`
+                  : `${ledger.length} ledger entries`
+                : view === 'party_form'
+                ? 'Fill in the details below'
+                : `Recording for ${selectedParty?.name}`}
+            </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {statusMessage && (
-            <span className={clsx('text-sm font-medium', statusMessage.type === 'success' ? 'text-green-600' : 'text-destructive')}>
-              {statusMessage.text}
-            </span>
-          )}
-          {view === 'list' && (
-            <>
-              {isOwner && (
-                <button onClick={() => { resetPartyForm(); setView('party_form'); }}
-                  className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
-                  <UserPlus className="w-4 h-4" /> Add Party
-                </button>
-              )}
-              <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Close">
-                <X className="w-4 h-4 text-destructive" />
+
+          {/* Right actions */}
+          <div className="flex items-center gap-2 shrink-0">
+            {statusMessage && (
+              <span className={clsx(
+                'hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-destructive/10 text-destructive'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                {statusMessage.text}
+              </span>
+            )}
+
+            {view === 'list' && isOwner && (
+              <button
+                onClick={() => { resetPartyForm(); setView('party_form'); }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Add Party
               </button>
-            </>
-          )}
-          {view === 'ledger' && (
-            <>
-              {isOwner && (
-                <button onClick={() => {
+            )}
+
+            {view === 'ledger' && isOwner && (
+              <button
+                onClick={() => {
                   setEditingTx(null);
                   setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '', payment_method: 'CASH' });
                   setView('tx_form');
-                }} className="h-10 px-3.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
-                  <PlusCircle className="w-3.5 h-3.5" /> Add Tx
-                </button>
-              )}
-              <button onClick={() => setView('list')} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Back to list">
-                <X className="w-4 h-4 text-destructive" />
+                }}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
+              >
+                <PlusCircle className="w-3.5 h-3.5" /> Add Tx
               </button>
-            </>
-          )}
-          {(view === 'party_form' || view === 'tx_form') && (
-            <button onClick={() => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); }} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Back">
+            )}
+
+            <button
+              onClick={view === 'list' ? onClose : view === 'ledger' ? () => setView('list') : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); }}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
               <X className="w-4 h-4 text-destructive" />
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* ── LIST VIEW ── */}
+      {/* ══════════════════════════════════════════
+          LIST VIEW
+      ══════════════════════════════════════════ */}
       {view === 'list' && (
-        <>
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b border-border bg-card/50 shrink-0 shadow-sm">
-            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Receivable</p>
-              <p className="text-2xl font-black text-destructive mt-1">₹{totalReceivable.toFixed(2)}</p>
-            </div>
-            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Payable</p>
-              <p className="text-2xl font-black text-green-600 mt-1">₹{totalPayable.toFixed(2)}</p>
+        <div className="flex flex-col flex-1 min-h-0">
+
+          {/* Summary strip */}
+          <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
+            <div className="grid grid-cols-3 gap-3">
+
+              {/* Receivable */}
+              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)'}}>
+                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
+                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
+                  <TrendingUp className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Receivable</p>
+                <p className="text-xl font-black text-white leading-none">₹{totalReceivable.toFixed(2)}</p>
+                <p className="text-[11px] text-white/60 mt-1.5 font-medium">Owed to you</p>
+              </div>
+
+              {/* Payable */}
+              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#10b981 0%,#059669 100%)'}}>
+                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
+                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
+                  <TrendingDown className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Payable</p>
+                <p className="text-xl font-black text-white leading-none">₹{totalPayable.toFixed(2)}</p>
+                <p className="text-[11px] text-white/60 mt-1.5 font-medium">You owe</p>
+              </div>
+
+              {/* Total parties */}
+              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)'}}>
+                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
+                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
+                  <Activity className="w-4 h-4 text-white" />
+                </div>
+                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Parties</p>
+                <p className="text-xl font-black text-white leading-none">{parties.length}</p>
+                <p className="text-[11px] text-white/60 mt-1.5 font-medium">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
+              </div>
             </div>
           </div>
 
           {/* Search */}
-          <div className="px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
             <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input type="text" placeholder="Search parties..."
-                value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-background border border-border/80 rounded-xl py-2.5 pl-10 pr-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-            </div>
-          </div>
-
-          {/* Party List */}
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              {loading ? (
-                <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}</div>
-              ) : filteredParties.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="text-lg font-black mb-1">{searchQuery ? 'No parties match your search' : 'No parties yet'}</p>
-                  <p className="text-sm">Create your first party to start tracking balances</p>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredParties.map(party => (
-                    <div key={party.party_id}
-                      className="flex items-center justify-between p-4 rounded-xl border border-border/80 bg-card hover:border-primary/30 transition-all duration-200 shadow-sm">
-                      <div onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
-                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
-                          <User className="w-5 h-5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-foreground truncate text-sm">{party.name}</p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground font-semibold mt-0.5">
-                            {party.phone && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="w-3 h-3" /> {party.phone}
-                              </span>
-                            )}
-                            {party.gstin && (
-                              <span className="flex items-center gap-1 text-amber-500">
-                                <FileText className="w-3 h-3" /> {party.gstin}
-                              </span>
-                            )}
-                            {party.last_transaction_date && (
-                              <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" /> {formatDate(party.last_transaction_date)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <div className="text-right mr-1">
-                          <p className={clsx('text-lg font-black', party.balance > 0 ? 'text-destructive' : party.balance < 0 ? 'text-green-600' : 'text-muted-foreground')}>
-                            ₹{formatBalance(party.balance)}
-                          </p>
-                          <p className={clsx('text-[10px] uppercase font-black tracking-wider', party.balance > 0 ? 'text-destructive' : party.balance < 0 ? 'text-green-600' : 'text-muted-foreground')}>
-                            {party.balance > 0 ? 'Receivable' : party.balance < 0 ? 'Payable' : 'Settled'}
-                          </p>
-                        </div>
-                        <button onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
-                          className="p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-xl transition-all active:scale-95" title="View Ledger">
-                          <BookOpen className="w-4 h-4" />
-                        </button>
-                        {isOwner && (
-                          <>
-                            <button onClick={() => { setEditingParty(party); setPartyForm({
-                              name: party.name, phone: party.phone || '', address: party.address || '',
-                              gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
-                            }); setView('party_form'); }}
-                              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95" title="Edit Party">
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleDeleteParty(party)}
-                              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete Party">
-                              <Trash className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name or phone..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className={clsx(fieldCls, 'pl-10')}
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               )}
             </div>
           </div>
-        </>
+
+          {/* Party list */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
+              </div>
+            ) : filteredParties.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                  <BookOpen className="w-8 h-8 text-muted-foreground/50" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-foreground">
+                    {searchQuery ? 'No results found' : 'No parties yet'}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-0.5">
+                    {searchQuery ? `No parties match "${searchQuery}"` : 'Add your first party to start tracking'}
+                  </p>
+                </div>
+                {!searchQuery && isOwner && (
+                  <button
+                    onClick={() => { resetPartyForm(); setView('party_form'); }}
+                    className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <UserPlus className="w-4 h-4" /> Add First Party
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredParties.map(party => {
+                  const hue = nameToHue(party.name);
+                  const isReceivable = party.balance > 0;
+                  const isPayable = party.balance < 0;
+                  const isSettled = party.balance === 0;
+                  return (
+                    <div
+                      key={party.party_id}
+                      className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-border/60 bg-card hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all duration-200 cursor-pointer"
+                      onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
+                    >
+                      {/* Avatar */}
+                      <div
+                        className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm shadow-inner select-none"
+                        style={{ background: `hsl(${hue}, 65%, 52%)` }}
+                      >
+                        {getInitials(party.name)}
+                      </div>
+
+                      {/* Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-sm text-foreground truncate">{party.name}</p>
+                          {party.gstin && (
+                            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md shrink-0">
+                              GST
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground font-medium">
+                          {party.phone && (
+                            <span className="flex items-center gap-1">
+                              <Phone className="w-3 h-3" />{party.phone}
+                            </span>
+                          )}
+                          {party.last_transaction_date && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />{formatDate(party.last_transaction_date)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Balance */}
+                      <div className="text-right shrink-0">
+                        <p className={clsx(
+                          'text-base font-black leading-none',
+                          isReceivable ? 'text-red-500 dark:text-red-400' :
+                          isPayable ? 'text-emerald-600 dark:text-emerald-400' :
+                          'text-muted-foreground'
+                        )}>
+                          ₹{Math.abs(party.balance).toFixed(2)}
+                        </p>
+                        <span className={clsx(
+                          'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md',
+                          isReceivable ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400' :
+                          isPayable ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
+                          'bg-muted text-muted-foreground'
+                        )}>
+                          {isReceivable ? 'To Receive' : isPayable ? 'To Pay' : 'Settled'}
+                        </span>
+                      </div>
+
+                      {/* Actions (show on hover) */}
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
+                        {isOwner && (
+                          <button
+                            onClick={() => {
+                              setEditingParty(party);
+                              setPartyForm({
+                                name: party.name, phone: party.phone || '', address: party.address || '',
+                                gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
+                              });
+                              setView('party_form');
+                            }}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
+                            title="Edit"
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {isOwner && (
+                          <button
+                            onClick={() => handleDeleteParty(party)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
+                            title="Delete"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-0.5" />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* ── PARTY FORM VIEW ── */}
-      {(view === 'party_form') && (
+      {/* ══════════════════════════════════════════
+          PARTY FORM VIEW
+      ══════════════════════════════════════════ */}
+      {view === 'party_form' && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
-            {/* Section 1: Basic Details */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+            {/* Section: Identity */}
+            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <UserCircle className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary">Party Identity</span>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div className="col-span-2 space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
-                    <input type="text" placeholder="Enter party name"
-                      value={partyForm.name} onChange={e => setPartyForm(f => ({ ...f, name: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Rajan Traders"
+                      value={partyForm.name}
+                      onChange={e => setPartyForm(f => ({ ...f, name: e.target.value }))}
+                      className={fieldCls}
+                      autoFocus
+                    />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Contact Number</label>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input type="text" placeholder="Phone number"
-                          value={partyForm.phone} onChange={e => setPartyForm(f => ({ ...f, phone: e.target.value }))}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="Phone number"
+                          value={partyForm.phone}
+                          onChange={e => setPartyForm(f => ({ ...f, phone: e.target.value }))}
+                          className={clsx(fieldCls, 'pl-9')}
+                        />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
+                      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
                       <div className="relative">
-                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <input type="text" placeholder="GSTIN (optional)"
-                          value={partyForm.gstin} onChange={e => setPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm font-mono tracking-wider uppercase" />
+                        <FileText className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                        <input
+                          type="text"
+                          placeholder="GSTIN (optional)"
+                          value={partyForm.gstin}
+                          onChange={e => setPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                          className={clsx(fieldCls, 'pl-9 font-mono tracking-wider')}
+                        />
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="col-span-1 flex flex-col">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Address</label>
-                  <div className="relative flex-1">
-                    <MapPin className="absolute left-3 top-3 w-4 h-4 text-muted-foreground" />
-                    <textarea placeholder="Optional address"
-                      value={partyForm.address} onChange={e => setPartyForm(f => ({ ...f, address: e.target.value }))}
-                      className="w-full h-full min-h-[130px] bg-background border border-border/80 rounded-xl p-3 pl-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Address</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <textarea
+                      placeholder="Optional address"
+                      value={partyForm.address}
+                      onChange={e => setPartyForm(f => ({ ...f, address: e.target.value }))}
+                      rows={4}
+                      className={clsx(fieldCls, 'pl-9 resize-none')}
+                    />
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Section 2: Opening Balance */}
+            {/* Section: Opening Balance (new party only) */}
             {!editingParty && (
-              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+                  <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
                     <Banknote className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. Opening Balance</span>
+                  <span className="text-xs font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Opening Balance</span>
                 </div>
                 <div className="grid grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Balance Type</label>
-                    <div className="grid grid-cols-2 gap-3 max-w-md">
-                      <button type="button"
-                        onClick={() => setPartyForm(f => ({ ...f, balance_type: 'RECEIVABLE' }))}
-                        className={clsx(
-                          'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer',
-                          partyForm.balance_type === 'RECEIVABLE'
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border'
-                        )}>
-                        Receivable (+)
-                      </button>
-                      <button type="button"
-                        onClick={() => setPartyForm(f => ({ ...f, balance_type: 'PAYABLE' }))}
-                        className={clsx(
-                          'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer',
-                          partyForm.balance_type === 'PAYABLE'
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border'
-                        )}>
-                        Payable (-)
-                      </button>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Balance Type</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['RECEIVABLE', 'PAYABLE'] as const).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setPartyForm(f => ({ ...f, balance_type: t }))}
+                          className={clsx(
+                            'py-3 px-3 rounded-xl border-2 text-xs font-black transition-all duration-200 active:scale-95 cursor-pointer text-center',
+                            partyForm.balance_type === t
+                              ? t === 'RECEIVABLE'
+                                ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                          )}
+                        >
+                          {t === 'RECEIVABLE' ? '↑ Receivable' : '↓ Payable'}
+                        </button>
+                      ))}
                     </div>
-                    <p className="text-xs text-muted-foreground font-semibold mt-2">
-                      {partyForm.balance_type === 'RECEIVABLE' ? 'Party owes you this amount' : 'You owe the party this amount'}
+                    <p className="text-[11px] text-muted-foreground font-medium mt-2 leading-snug">
+                      {partyForm.balance_type === 'RECEIVABLE'
+                        ? '🔴 Party owes you this amount'
+                        : '🟢 You owe the party this amount'}
                     </p>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Opening Amount (₹)</label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Opening Amount (₹)</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                      <input type="number" step="0.01" min="0" placeholder="0.00"
-                        value={partyForm.opening_balance} onChange={e => setPartyForm(f => ({ ...f, opening_balance: e.target.value }))}
+                      <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={partyForm.opening_balance}
+                        onChange={e => setPartyForm(f => ({ ...f, opening_balance: e.target.value }))}
                         onWheel={e => (e.target as HTMLInputElement).blur()}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm" />
+                        className={clsx(fieldCls, 'pl-8 no-spinners')}
+                      />
                     </div>
-                    <p className="text-xs text-muted-foreground font-semibold mt-2">
-                      {partyForm.balance_type === 'RECEIVABLE' ? 'Will be added as a credit (+)' : 'Will be added as a debit (-)'}
+                    <p className="text-[11px] text-muted-foreground font-medium mt-2">
+                      {partyForm.balance_type === 'RECEIVABLE'
+                        ? 'Will be recorded as a credit (+)'
+                        : 'Will be recorded as a debit (-)'}
                     </p>
                   </div>
                 </div>
               </section>
             )}
 
-            {/* Section 3: Notes */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            {/* Section: Notes */}
+            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <FileText className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">{editingParty ? '2' : '3'}. Notes</span>
+                <span className="text-xs font-black uppercase tracking-wider text-blue-500">{editingParty ? '2' : '3'}. Notes</span>
               </div>
-              <div>
-                <textarea placeholder="Optional notes about this party" rows={3}
-                  value={partyForm.notes} onChange={e => setPartyForm(f => ({ ...f, notes: e.target.value }))}
-                  className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
-              </div>
+              <textarea
+                placeholder="Internal notes about this party (optional)"
+                rows={3}
+                value={partyForm.notes}
+                onChange={e => setPartyForm(f => ({ ...f, notes: e.target.value }))}
+                className={clsx(fieldCls, 'resize-none')}
+              />
             </section>
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border/50 bg-background">
-            <div className="px-4 pt-2">
-              {statusMessage && (
-                <div className={clsx(
-                  "px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
-                  statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                  <span className="flex-1">{statusMessage.text}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-end px-4 py-3">
-              <button type="button" disabled={isSavingParty} onClick={handleSaveParty}
-                className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
-                {isSavingParty ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                {isSavingParty ? 'Saving...' : editingParty ? 'Update Party' : 'Add to Parties'}
+          <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+            {statusMessage && (
+              <div className={clsx(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                {statusMessage.text}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { setView('list'); resetPartyForm(); }}
+                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingParty}
+                onClick={handleSaveParty}
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+              >
+                {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSavingParty ? 'Saving…' : editingParty ? 'Update Party' : 'Create Party'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── LEDGER VIEW ── */}
+      {/* ══════════════════════════════════════════
+          LEDGER VIEW
+      ══════════════════════════════════════════ */}
       {view === 'ledger' && selectedParty && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto px-6 py-4">
-            {selectedParty.address && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold bg-muted/50 px-4 py-2.5 rounded-xl border border-border/80 mb-4">
-                <MapPin className="w-3.5 h-3.5 shrink-0" />
-                <span>{selectedParty.address}</span>
-              </div>
-            )}
 
+          {/* ── Party Banner ── */}
+          <div
+            className="shrink-0 px-5 py-4 border-b border-border/60"
+            style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},60%,96%) 0%, hsl(${nameToHue(selectedParty.name)},40%,98%) 100%)` }}
+          >
+            <div className="flex items-center gap-4">
+              {/* Avatar */}
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-md shrink-0 select-none"
+                style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},65%,50%), hsl(${nameToHue(selectedParty.name)},65%,40%))` }}
+              >
+                {getInitials(selectedParty.name)}
+              </div>
+
+              {/* Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {selectedParty.phone && (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border/40 px-2 py-0.5 rounded-lg">
+                      <Phone className="w-3 h-3" /> {selectedParty.phone}
+                    </span>
+                  )}
+                  {selectedParty.gstin && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                      <FileText className="w-3 h-3" /> {selectedParty.gstin}
+                    </span>
+                  )}
+                  {selectedParty.address && (
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-white/60 border border-border/40 px-2 py-0.5 rounded-lg truncate max-w-[200px]">
+                      <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
+                  {ledger.length} {ledger.length === 1 ? 'entry' : 'entries'} · Last updated {selectedParty.last_transaction_date ? formatDate(selectedParty.last_transaction_date) : '—'}
+                </p>
+              </div>
+
+              {/* Balance pill */}
+              <div className={clsx(
+                'shrink-0 text-right px-4 py-3 rounded-2xl shadow-sm',
+                selectedParty.balance > 0
+                  ? 'bg-red-500 text-white'
+                  : selectedParty.balance < 0
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-muted text-muted-foreground border border-border'
+              )}>
+                <p className="text-xl font-black leading-none">
+                  ₹{Math.abs(selectedParty.balance).toFixed(2)}
+                </p>
+                <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
+                  {selectedParty.balance > 0 ? 'To Receive' : selectedParty.balance < 0 ? 'To Pay' : 'Settled'}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Ledger entries ── */}
+          <div className="flex-1 overflow-y-auto px-5 py-4">
             {ledgerLoading ? (
-              <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
+              </div>
             ) : ledger.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <BookOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                <p className="text-lg font-black mb-1">No transactions yet</p>
-                <p className="text-sm">Add the first transaction to start tracking the ledger</p>
+              <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                  <Activity className="w-8 h-8 text-muted-foreground/50" />
+                </div>
+                <div>
+                  <p className="text-base font-bold text-foreground">No transactions yet</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">Add the first entry to start the ledger</p>
+                </div>
+                {isOwner && (
+                  <button
+                    onClick={() => {
+                      setEditingTx(null);
+                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '', payment_method: 'CASH' });
+                      setView('tx_form');
+                    }}
+                    className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <PlusCircle className="w-4 h-4" /> Add Transaction
+                  </button>
+                )}
               </div>
             ) : (
-              <div className="space-y-2">
-                {[...ledger].reverse().map((entry) => (
-                  <div key={entry.ledger_id}
-                    className="p-4 rounded-xl border border-border/80 bg-card hover:border-primary/30 transition-all duration-200 shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground font-semibold mb-1">
-                          <Calendar className="w-3.5 h-3.5" />
-                          <span>{formatDateTime(entry.transaction_date)}</span>
-                          {entry.reference_number && (
-                            <span className="flex items-center gap-1">
-                              <Hash className="w-3.5 h-3.5" /> {entry.reference_number}
-                            </span>
-                          )}
+              <div className="space-y-2.5">
+                {[...ledger].reverse().map((entry) => {
+                  const isCredit = entry.credit_amount > 0;
+                  const amount = isCredit ? entry.credit_amount : entry.debit_amount;
+                  return (
+                    <div
+                      key={entry.ledger_id}
+                      className={clsx(
+                        'rounded-xl border bg-card shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md',
+                        isCredit ? 'border-emerald-200 dark:border-emerald-900/50' : 'border-red-200 dark:border-red-900/50'
+                      )}
+                    >
+                      {/* Colored top bar */}
+                      <div className={clsx('h-1 w-full', isCredit ? 'bg-emerald-500' : 'bg-red-500')} />
+
+                      <div className="p-4">
+                        <div className="flex items-start justify-between gap-4">
+
+                          {/* Left: badge + description + meta */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
+                              {/* Type badge */}
+                              <span className={clsx(
+                                'inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
+                                isCredit
+                                  ? 'bg-emerald-500 text-white'
+                                  : 'bg-red-500 text-white'
+                              )}>
+                                {isCredit ? <PlusCircle className="w-3 h-3" /> : <MinusCircle className="w-3 h-3" />}
+                                {isCredit ? 'Credit' : 'Debit'}
+                              </span>
+                              {/* Reference badge */}
+                              {entry.reference_number && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border/60 px-2 py-1 rounded-lg">
+                                  <Hash className="w-3 h-3" />{entry.reference_number}
+                                </span>
+                              )}
+                            </div>
+
+                            <p className="font-bold text-sm text-foreground leading-snug">{entry.description}</p>
+
+                            <div className="flex items-center gap-3 mt-2 flex-wrap">
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                                <Calendar className="w-3 h-3" />{formatDateTime(entry.transaction_date)}
+                              </span>
+                              <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                                <User className="w-3 h-3" />{entry.created_by_name || 'Unknown'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Right: amount + balance + actions */}
+                          <div className="shrink-0 flex flex-col items-end gap-1.5">
+                            <p className={clsx(
+                              'text-xl font-black leading-none',
+                              isCredit ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400'
+                            )}>
+                              {isCredit ? '+' : '−'}₹{amount.toFixed(2)}
+                            </p>
+                            <div className={clsx(
+                              'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md',
+                              entry.running_balance > 0
+                                ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
+                                : entry.running_balance < 0
+                                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-muted text-muted-foreground'
+                            )}>
+                              Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
+                            </div>
+
+                            {/* Actions — under balance */}
+                            {isOwner && (
+                              <div className="flex items-center gap-1 mt-1">
+                                <button
+                                  onClick={() => {
+                                    setEditingTx(entry);
+                                    const amt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
+                                    setTxForm({
+                                      amount: String(amt),
+                                      transaction_type: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
+                                      description: entry.description,
+                                      transaction_date: entry.transaction_date.slice(0, 16),
+                                      reference_number: entry.reference_number || '',
+                                      payment_method: 'CASH',
+                                    });
+                                    setView('tx_form');
+                                  }}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-transparent hover:border-blue-200 dark:hover:border-blue-800/40 transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <Pencil className="w-3 h-3" /> Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTx(entry)}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 border border-transparent hover:border-red-200 dark:hover:border-red-800/40 transition-all active:scale-95 cursor-pointer"
+                                >
+                                  <Trash className="w-3 h-3" /> Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                        <p className="font-black text-sm">{entry.description}</p>
-                        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground font-semibold mt-1">
-                          <User className="w-3 h-3" /> {entry.created_by_name || 'Unknown'}
-                        </span>
-                      </div>
-                      <div className="text-right shrink-0">
-                        {entry.credit_amount > 0 && <p className="text-green-600 font-black text-sm">+₹{entry.credit_amount.toFixed(2)}</p>}
-                        {entry.debit_amount > 0 && <p className="text-destructive font-black text-sm">-₹{entry.debit_amount.toFixed(2)}</p>}
-                        <p className={clsx('text-xs font-black mt-0.5', entry.running_balance > 0 ? 'text-destructive' : entry.running_balance < 0 ? 'text-green-600' : 'text-muted-foreground')}>
-                          Bal: {formatBalance(entry.running_balance)}
-                        </p>
                       </div>
                     </div>
-                    {isOwner && (
-                      <div className="flex items-center justify-end gap-1 mt-3 pt-3 border-t border-border/60">
-                        <button onClick={() => {
-                          setEditingTx(entry);
-                          const amt = entry.credit_amount > 0 ? entry.credit_amount : entry.debit_amount;
-                          setTxForm({
-                            amount: String(amt),
-                            transaction_type: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
-                            description: entry.description,
-                            transaction_date: entry.transaction_date.slice(0, 16),
-                            reference_number: entry.reference_number || '',
-                          });
-                          setView('tx_form');
-                        }} className="p-1.5 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all active:scale-95" title="Edit Transaction">
-                          <Pencil className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => handleDeleteTx(entry)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95" title="Delete Transaction">
-                          <Trash className="w-4 h-4" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* ── TX FORM VIEW ── */}
+      {/* ══════════════════════════════════════════
+          TX FORM VIEW
+      ══════════════════════════════════════════ */}
       {view === 'tx_form' && selectedParty && (
         <form onSubmit={handleSaveTx} className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+
+            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
-                  <PlusCircle className="w-4 h-4" />
+                  <Activity className="w-4 h-4" />
                 </div>
-                <span className="text-xs font-black text-primary uppercase tracking-wider">Transaction Details</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary">Transaction Details</span>
+                <span className="ml-auto text-xs text-muted-foreground font-medium">
+                  Party: <span className="font-bold text-foreground">{selectedParty.name}</span>
+                </span>
               </div>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Transaction Type</label>
-                    <div className="grid grid-cols-2 gap-3 max-w-md">
-                      <button type="button"
-                        onClick={() => setTxForm(f => ({ ...f, transaction_type: 'CREDIT' }))}
-                        className={clsx(
-                          'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer',
-                          txForm.transaction_type === 'CREDIT'
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border'
-                        )}>
-                        <PlusCircle className="w-4 h-4 inline mr-1" /> Credit (+)
-                      </button>
-                      <button type="button"
-                        onClick={() => setTxForm(f => ({ ...f, transaction_type: 'DEBIT' }))}
-                        className={clsx(
-                          'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer',
-                          txForm.transaction_type === 'DEBIT'
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50 hover:border-border'
-                        )}>
-                        <MinusCircle className="w-4 h-4 inline mr-1" /> Debit (-)
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Amount (₹) *</label>
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                      <input required type="number" step="0.01" min="0.01" placeholder="0.00"
-                        value={txForm.amount} onChange={e => setTxForm(f => ({ ...f, amount: e.target.value }))}
-                        onWheel={e => (e.target as HTMLInputElement).blur()}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm" />
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Transaction Date</label>
-                    <input type="datetime-local"
-                      value={txForm.transaction_date} onChange={e => setTxForm(f => ({ ...f, transaction_date: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Reference Number</label>
-                    <input type="text" placeholder="Optional ref / invoice no."
-                      value={txForm.reference_number} onChange={e => setTxForm(f => ({ ...f, reference_number: e.target.value }))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                  </div>
+
+              {/* Type selector */}
+              <div className="mb-5">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Transaction Type</label>
+                <div className="grid grid-cols-2 gap-3 max-w-sm">
+                  <button
+                    type="button"
+                    onClick={() => setTxForm(f => ({ ...f, transaction_type: 'CREDIT' }))}
+                    className={clsx(
+                      'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                      txForm.transaction_type === 'CREDIT'
+                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <PlusCircle className="w-4 h-4" /> Credit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTxForm(f => ({ ...f, transaction_type: 'DEBIT' }))}
+                    className={clsx(
+                      'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                      txForm.transaction_type === 'DEBIT'
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 shadow-sm'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <MinusCircle className="w-4 h-4" /> Debit
+                  </button>
                 </div>
               </div>
-              <div className="mt-4">
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Description / Remarks *</label>
-                <textarea required placeholder="Transaction description" rows={2}
-                  value={txForm.description} onChange={e => setTxForm(f => ({ ...f, description: e.target.value }))}
-                  className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm resize-none" />
+
+              {/* Amount + Date */}
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Amount (₹) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                    <input
+                      required
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={txForm.amount}
+                      onChange={e => setTxForm(f => ({ ...f, amount: e.target.value }))}
+                      onWheel={e => (e.target as HTMLInputElement).blur()}
+                      className={clsx(fieldCls, 'pl-8 no-spinners text-lg font-black')}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Date & Time</label>
+                  <input
+                    type="datetime-local"
+                    value={txForm.transaction_date}
+                    onChange={e => setTxForm(f => ({ ...f, transaction_date: e.target.value }))}
+                    className={fieldCls}
+                  />
+                </div>
               </div>
+
+              {/* Description */}
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Description / Remarks *</label>
+                <textarea
+                  required
+                  placeholder="e.g. Payment received for Invoice #123"
+                  rows={2}
+                  value={txForm.description}
+                  onChange={e => setTxForm(f => ({ ...f, description: e.target.value }))}
+                  className={clsx(fieldCls, 'resize-none')}
+                />
+              </div>
+
+              {/* Reference */}
+              <div className="mb-4">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Reference / Invoice No.</label>
+                <div className="relative">
+                  <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Optional reference number"
+                    value={txForm.reference_number}
+                    onChange={e => setTxForm(f => ({ ...f, reference_number: e.target.value }))}
+                    className={clsx(fieldCls, 'pl-9')}
+                  />
+                </div>
+              </div>
+
+              {/* Payment method (new only) */}
               {!editingTx && (
-                <div className="mt-4">
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Payment Method</label>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Payment Method</label>
                   <div className="grid grid-cols-5 gap-2">
                     {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'] as const).map(m => (
-                      <button key={m} type="button" onClick={() => setTxForm(f => ({ ...f, payment_method: m }))}
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setTxForm(f => ({ ...f, payment_method: m }))}
                         className={clsx(
-                          'py-2 px-1 rounded-xl border-2 text-[11px] font-bold transition-all duration-200 active:scale-95 cursor-pointer text-center leading-tight',
+                          'py-2.5 px-2 rounded-xl border-2 text-[11px] font-bold transition-all duration-200 active:scale-95 cursor-pointer flex flex-col items-center gap-1 leading-tight',
                           txForm.payment_method === m
-                            ? m === 'CASH' ? 'border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm'
+                            ? m === 'CASH'
+                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
                               : 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border/70 bg-background text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                        )}>
-                        {m === 'CASH' ? '💵 Cash' : m === 'BANK_TRANSFER' ? '🏦 Bank' : m === 'UPI' ? '📱 UPI' : m === 'CARD' ? '💳 Card' : '📄 Other'}
+                            : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                        )}
+                      >
+                        <PaymentMethodIcon method={m} />
+                        {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : 'Other'}
                       </button>
                     ))}
                   </div>
                   {txForm.payment_method === 'CASH' && (
-                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-semibold mt-1.5 flex items-center gap-1">
-                      <Banknote className="w-3 h-3" /> {txForm.transaction_type === 'CREDIT' ? 'Cash will be deducted from drawer' : 'Cash will be added to drawer'}
+                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1.5">
+                      <Banknote className="w-3.5 h-3.5" />
+                      {txForm.transaction_type === 'CREDIT'
+                        ? 'This will deduct cash from the drawer'
+                        : 'This will add cash to the drawer'}
                     </p>
                   )}
                 </div>
@@ -756,30 +1112,41 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="border-t border-border/50 bg-background">
-            <div className="px-4 pt-2">
-              {statusMessage && (
-                <div className={clsx(
-                  "px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
-                  statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                  <span className="flex-1">{statusMessage.text}</span>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center justify-between px-4 py-3">
-              <div className="flex items-center gap-2" />
+          <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+            {statusMessage && (
+              <div className={clsx(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                {statusMessage.text}
+              </div>
+            )}
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground font-medium">
+                {txForm.amount && parseFloat(txForm.amount) > 0 && (
+                  <span className={clsx('font-bold', txForm.transaction_type === 'CREDIT' ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500 dark:text-red-400')}>
+                    {txForm.transaction_type === 'CREDIT' ? '+' : '-'}₹{parseFloat(txForm.amount).toFixed(2)}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={() => setView('ledger')}
-                  className="flex items-center gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
-                  <X className="w-3.5 h-3.5" />
+                <button
+                  type="button"
+                  onClick={() => setView('ledger')}
+                  className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
+                >
                   Cancel
                 </button>
-                <button type="submit" disabled={isSavingTx}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
-                  {isSavingTx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  {isSavingTx ? 'Saving...' : editingTx ? 'Update' : 'Add Transaction'}
+                <button
+                  type="submit"
+                  disabled={isSavingTx}
+                  className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+                >
+                  {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isSavingTx ? 'Saving…' : editingTx ? 'Update' : 'Add Transaction'}
                 </button>
               </div>
             </div>

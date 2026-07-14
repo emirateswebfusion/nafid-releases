@@ -29,7 +29,7 @@ interface QuotationItem {
   amount: number;
 }
 
-export function QuotationManager({ onClose }: { onClose: () => void }) {
+export function QuotationManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const { shopName, tenantId, role: authRole, userName } = useAuthStore();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -182,9 +182,15 @@ export function QuotationManager({ onClose }: { onClose: () => void }) {
               <X className="w-4 h-4 text-destructive" />
             </button>
           ) : (
-            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            {isRestricted ? (
+              <button onClick={() => useAuthStore.getState().logout()} className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Logout">
+                <LogOut className="w-4 h-4 text-destructive" />
+              </button>
+            ) : (
+              <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+                <X className="w-4 h-4 text-destructive" />
+              </button>
+            )}
           )}
         </div>
       </header>
