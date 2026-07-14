@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { 
   Users, UserPlus, Mail, Shield, Key, Save, Loader2, Trash, X, 
-  Search, SlidersHorizontal, User, ShieldAlert, BarChart3, CheckCircle2, Check
+  Search, SlidersHorizontal, User, ShieldAlert, BarChart3, CheckCircle2, Check,
+  AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
@@ -76,6 +77,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const [view, setView] = useState<'list' | 'add'>('list');
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+
+  useEffect(() => {
+    if (statusMessage) {
+      const t = setTimeout(() => setStatusMessage(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [statusMessage]);
 
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -166,10 +175,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         setFormData({ name: '', email: '', password: '', role: 'BILLER' });
         setSelectedPages([]);
       } else {
-        alert(data.error || 'Failed to add staff');
+        setStatusMessage({ text: data.error || 'Failed to add staff', type: 'error' });
       }
     } catch (err) {
-      alert('Network error');
+      setStatusMessage({ text: 'Network error', type: 'error' });
     } finally {
       setLoading(false);
     }
@@ -195,22 +204,41 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200">
-      {/* Premium Header */}
+      {/* Dynamic Themed Header matching InventoryManager */}
       <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="p-2.5 rounded-xl bg-gradient-to-tr from-primary to-indigo-600 text-primary-foreground shadow-md shadow-primary/20">
+          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
             <Users className="w-5 h-5" />
           </div>
           <div className="min-w-0 leading-tight">
-            <h1 className="text-base font-black tracking-tight text-foreground truncate">Staff Administration</h1>
-            <p className="text-xs text-muted-foreground font-semibold mt-0.5">Configure access roles, permissions and user directories</p>
+            <h1 className="text-base font-black tracking-tight text-foreground truncate">
+              {view === 'list' ? 'Staff Administration' : 'Create New Staff Account'}
+            </h1>
+            {view === 'list' ? (
+              <p className="text-xs text-muted-foreground font-semibold mt-0.5">{stats.total} staff accounts</p>
+            ) : (
+              <span className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
+                {useAuthStore.getState().role === 'OWNER' ? 'Owner' : (useAuthStore.getState().userName || 'Staff')}
+              </span>
+            )}
           </div>
         </div>
-        <button onClick={onClose}
-          className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/20 flex items-center justify-center"
-          title="Close">
-          <X className="w-4 h-4 text-destructive" />
-        </button>
+        
+        <div className="flex items-center gap-2">
+          {view !== 'list' ? (
+            <button onClick={() => { setView('list'); setSelectedPages([]); }}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+              title="Back to list">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          ) : (
+            <button onClick={onClose}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+              title="Close">
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Main Workspace */}
@@ -418,68 +446,67 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
         {/* Add View */}
         {view === 'add' && (
-          <div className="flex-1 flex flex-col min-h-0 max-w-4xl mx-auto w-full bg-card border border-border/80 rounded-2xl p-6 shadow-sm overflow-hidden animate-in zoom-in-98 duration-200">
-            
-            {/* Header */}
-            <div className="pb-4 border-b border-border shrink-0">
-              <h2 className="text-base font-black text-foreground">Create New Staff Account</h2>
-              <p className="text-xs text-muted-foreground font-semibold mt-0.5">Register credentials and configure custom page restrictions</p>
-            </div>
+          <div className="flex flex-col flex-1 min-h-0 bg-background">
+            <form onSubmit={handleAddStaff} className="flex flex-col flex-1 min-h-0">
+              
+              {/* Form Content Area */}
+              <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
 
-            <form onSubmit={handleAddStaff} className="flex-1 flex flex-col h-full min-h-0 mt-6">
-              <div className="flex-1 overflow-y-auto space-y-6 pr-2">
-                
-                {/* Text Fields Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-2 ml-1">Full Name</label>
-                    <div className="relative">
-                      <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input 
+                {/* Section 1: Basic Details */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                      <User className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Full Name *</label>
+                      <input 
                         required
                         type="text" 
                         value={formData.name}
                         onChange={e => setFormData({...formData, name: e.target.value})}
                         placeholder="e.g. John Doe"
-                        className="pl-11 rounded-xl" 
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" 
                       />
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-2 ml-1">Email Address</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input 
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Email Address *</label>
+                      <input 
                         required
                         type="email" 
                         value={formData.email}
                         onChange={e => setFormData({...formData, email: e.target.value})}
                         placeholder="staff@example.com"
-                        className="pl-11 rounded-xl" 
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" 
                       />
                     </div>
-                  </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-muted-foreground uppercase mb-2 ml-1">Temporary Password</label>
-                    <div className="relative">
-                      <Key className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input 
+                    <div>
+                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Temporary Password *</label>
+                      <input 
                         required
                         type="password" 
                         value={formData.password}
                         onChange={e => setFormData({...formData, password: e.target.value})}
                         placeholder="••••••••"
-                        className="pl-11 rounded-xl" 
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" 
                       />
                     </div>
                   </div>
-                </div>
+                </section>
 
-                {/* Role Selector Card */}
-                <div className="bg-muted/30 border border-border/80 rounded-2xl p-5">
-                  <label className="block text-xs font-extrabold text-muted-foreground uppercase mb-3 ml-1">Assigned System Role</label>
+                {/* Section 2: System Role */}
+                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">2. System Role</span>
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
@@ -535,22 +562,25 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                       )}
                     </button>
                   </div>
-                </div>
+                </section>
 
-                {/* Categorized Permissions Grid */}
+                {/* Section 3: Allowed Pages / Access Restrictions */}
                 {formData.role === 'BILLER' && (
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-xs font-black text-foreground uppercase tracking-wide">Configure Allowed Modules</h3>
-                      <p className="text-[10px] text-muted-foreground mt-0.5 font-semibold">
-                        Staff accounts will be restricted to the checked pages below. Leave all boxes empty to grant full unrestricted access.
-                      </p>
+                  <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                      <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                        <SlidersHorizontal className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Access Permissions</span>
                     </div>
+                    <p className="text-[11px] text-muted-foreground mb-4 font-semibold leading-relaxed">
+                      Staff accounts will be restricted to the checked pages below. Leave all boxes empty to grant full unrestricted access.
+                    </p>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {PERMISSION_GROUPS.map((group) => (
-                        <div key={group.title} className="bg-card border border-border/80 rounded-2xl p-5 space-y-4 flex flex-col">
-                          <div className="shrink-0">
+                        <div key={group.title} className="bg-card border border-border/60 rounded-xl p-4 space-y-3 flex flex-col">
+                          <div className="shrink-0 pb-1.5 border-b border-border/40">
                             <h4 className="text-xs font-extrabold text-foreground flex items-center gap-2">
                               <span className={clsx("w-2 h-2 rounded-full bg-gradient-to-r", group.color)} />
                               {group.title}
@@ -558,17 +588,17 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                             <p className="text-[10px] text-muted-foreground mt-0.5 font-medium leading-tight">{group.desc}</p>
                           </div>
                           
-                          <div className="flex-1 space-y-2">
+                          <div className="flex-grow space-y-1.5">
                             {group.pages.map((page) => {
                               const isChecked = selectedPages.includes(page.key);
                               return (
                                 <label
                                   key={page.key}
                                   className={clsx(
-                                    "flex items-center gap-3 p-3 rounded-xl border text-[11px] font-extrabold transition-all cursor-pointer select-none active:scale-98",
+                                    "flex items-center gap-2.5 p-2.5 rounded-lg border text-[11px] font-bold transition-all cursor-pointer select-none active:scale-98",
                                     isChecked 
                                       ? "bg-primary/5 border-primary text-primary" 
-                                      : "bg-background border-border text-muted-foreground hover:bg-muted"
+                                      : "bg-background border-border hover:bg-muted"
                                   )}
                                 >
                                   <input
@@ -585,27 +615,40 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </section>
                 )}
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center gap-4 pt-5 border-t border-border shrink-0 mt-5">
+              {/* Status Alerts */}
+              {statusMessage && (
+                <div className="px-4 pt-2">
+                  <div className={clsx(
+                    "px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
+                    statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
+                  )}>
+                    {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+                    <span className="flex-1">{statusMessage.text}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Action row at the bottom of the form */}
+              <div className="border-t border-border/50 bg-background px-4 py-3 shrink-0 flex items-center justify-end gap-3">
                 <button
                   type="button" 
                   onClick={() => { setView('list'); setSelectedPages([]); }}
-                  className="flex-1 py-3 text-xs font-extrabold text-red-500 hover:text-red-600 hover:bg-red-500/5 border border-red-500/20 rounded-xl transition-all duration-200 cursor-pointer active:scale-95 text-center"
+                  className="px-5 py-2.5 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm"
                 >
-                  Cancel Registration
+                  Cancel
                 </button>
-                <Button 
+                <button 
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl text-xs font-black shadow-md shadow-primary/10"
+                  className="flex items-center gap-1.5 px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm"
                 >
-                  {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  Create Staff Account
-                </Button>
+                  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  {loading ? 'Saving...' : 'Create Staff Account'}
+                </button>
               </div>
             </form>
           </div>
