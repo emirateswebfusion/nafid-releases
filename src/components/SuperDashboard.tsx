@@ -36,6 +36,7 @@ export default function SuperDashboard() {
   const [dbConnectionString, setDbConnectionString] = useState('');
   const [neonMailId, setNeonMailId] = useState('');
   const [neonPassword, setNeonPassword] = useState('');
+  const [showOwnerPassword, setShowOwnerPassword] = useState(false);
   
   // Action status states
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
@@ -416,8 +417,10 @@ export default function SuperDashboard() {
           </div>
           <div className="flex items-center gap-2 sm:gap-4">
             <div className="text-right hidden sm:block">
-              <span className="text-xs font-semibold text-foreground block">{userName || 'Platform Admin'}</span>
-              <span className="text-[10px] text-amber-600 dark:text-amber-500 font-mono">system.platform_admin</span>
+              <span className="text-xs font-semibold text-foreground block mb-0.5">{userName || 'Platform Admin'}</span>
+              <span className="inline-block text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                Platform Administrator
+              </span>
             </div>
             <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
             
@@ -788,14 +791,6 @@ export default function SuperDashboard() {
                 <Database className="h-4.5 w-4.5 text-amber-500" />
                 {editingAdmin ? `Configure Tenant: ${editingAdmin.name}` : 'Provision New Store Workspace'}
               </h2>
-              {provisionStatus !== 'provisioning' && (
-                <button 
-                  onClick={() => setModalOpen(false)}
-                  className="text-muted-foreground hover:text-foreground text-sm cursor-pointer p-1 rounded hover:bg-muted"
-                >
-                  ✕
-                </button>
-              )}
             </div>
 
             {/* Interactive Progress Visualizer Logs Terminal */}
@@ -937,14 +932,23 @@ export default function SuperDashboard() {
                       </div>
                       <div>
                         <label className="block text-[10px] text-muted-foreground mb-0.5 font-mono">ACCESS PASSWORD</label>
-                        <input
-                          type="password"
-                          required
-                          placeholder="••••••••••••"
-                          className="w-full px-3 py-1.5 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1.5 focus:ring-primary/50 transition text-xs"
-                          value={ownerPassword}
-                          onChange={e => setOwnerPassword(e.target.value)}
-                        />
+                        <div className="relative">
+                          <input
+                            type={showOwnerPassword ? 'text' : 'password'}
+                            required
+                            placeholder="••••••••••••"
+                            className="w-full pl-3 pr-9 py-1.5 bg-background border border-border rounded-lg text-foreground focus:outline-none focus:ring-1.5 focus:ring-primary/50 transition text-xs"
+                            value={ownerPassword}
+                            onChange={e => setOwnerPassword(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowOwnerPassword(!showOwnerPassword)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                          >
+                            {showOwnerPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
