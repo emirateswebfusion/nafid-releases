@@ -703,8 +703,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     </div>
                     <p className="text-[11px] text-muted-foreground font-medium mt-2">
                       {partyForm.balance_type === 'RECEIVABLE'
-                        ? 'Will be recorded as a credit (+)'
-                        : 'Will be recorded as a debit (-)'}
+                        ? 'Will add to the balance (+)'
+                        : 'Will subtract from the balance (-)'}
                     </p>
                   </div>
                 </div>
@@ -885,7 +885,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                   : 'bg-red-500 text-white'
                               )}>
                                 {isCredit ? <PlusCircle className="w-3 h-3" /> : <MinusCircle className="w-3 h-3" />}
-                                {isCredit ? 'Credit' : 'Debit'}
+                                {isCredit ? 'Paid' : 'Received'}
                               </span>
                               {/* Reference badge */}
                               {entry.reference_number && (
@@ -999,7 +999,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                         : 'border-border bg-background text-muted-foreground hover:bg-muted'
                     )}
                   >
-                    <PlusCircle className="w-4 h-4" /> Credit
+                    <PlusCircle className="w-4 h-4" /> Paid
                   </button>
                   <button
                     type="button"
@@ -1011,7 +1011,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                         : 'border-border bg-background text-muted-foreground hover:bg-muted'
                     )}
                   >
-                    <MinusCircle className="w-4 h-4" /> Debit
+                    <MinusCircle className="w-4 h-4" /> Received
                   </button>
                 </div>
               </div>

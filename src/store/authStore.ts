@@ -6,7 +6,7 @@ export interface AuthState {
   token: string | null;
   tenantId: string | null;
   userId: string | null;
-  role: 'OWNER' | 'BILLER' | null;
+  role: 'OWNER' | 'BILLER' | 'SUPER_ADMIN' | null;
   userName: string | null;
   shopName: string | null;
   isLoading: boolean;
@@ -77,12 +77,12 @@ export const useAuthStore = create<AuthState>()((set) => ({
             token: stored.jwt_token,
             tenantId: stored.tenant_id,
             userId: stored.user_id,
-            role: stored.role as 'OWNER' | 'BILLER',
+            role: stored.role as 'OWNER' | 'BILLER' | 'SUPER_ADMIN',
             userName: stored.user_name || null,
             shopName: stored.shop_name,
             restrictedPage: stored.restricted_page || null,
           });
-          useCartStore.getState().setRole(stored.role as 'OWNER' | 'BILLER');
+          useCartStore.getState().setRole(stored.role as 'OWNER' | 'BILLER' | 'SUPER_ADMIN');
           if (stored.domain_type) {
             useCartStore.getState().setDomain(stored.domain_type as any);
             // Check local DB for confirmation if offline/restarting

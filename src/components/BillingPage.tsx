@@ -281,10 +281,14 @@ export function BillingPage() {
     }
   }, [getActiveTab, updateActiveTab]);
 
+  const scrapLeftoverAmount = !isScrapMode && storeScrapDeduction > grandTotal
+    ? (storeScrapDeduction - grandTotal)
+    : 0;
+
   const displayGrandTotal = isScrapMode
     ? scrapTotal
     : Math.max(0, grandTotal - (storeScrapDeduction || 0));
-  const balanceAmount = receivedAmount - displayGrandTotal;
+  const balanceAmount = (receivedAmount - displayGrandTotal) + scrapLeftoverAmount;
 
   useEffect(() => {
     if (initialized.current) return;
@@ -1184,7 +1188,7 @@ export function BillingPage() {
 
     const isPaymentPending = paymentMethod === 'PENDING';
     const effectiveReceivedAmount = isPaymentPending ? 0 : receivedAmount;
-    const effectiveBalanceAmount = isPaymentPending ? 0 : balanceAmount;
+    const effectiveBalanceAmount = isPaymentPending ? 0 : (scrapLeftoverAmount > 0 ? 0 : balanceAmount);
 
     const invoice_id = isEditing ? editingInvoiceId : uuidv4();
     const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
@@ -1377,6 +1381,23 @@ export function BillingPage() {
         });
       }
       if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
+
+      // Auto-record cash out if there was a leftover refund amount and payment method is CASH
+      if (scrapLeftoverAmount > 0 && paymentMethod === 'CASH' && window.electronAPI) {
+        try {
+          await window.electronAPI.dbCashierAddTransaction({
+            tenant_id: tenantId || 'global',
+            type: 'CASH_OUT',
+            amount: scrapLeftoverAmount,
+            category: 'SCRAP_REFUND',
+            notes: `Refund leftover scrap deduction for invoice ${invoice_number}`,
+            user_id: userId,
+            user_name: useAuthStore.getState().userName || undefined
+          });
+        } catch (e) {
+          console.error('Failed to log auto cash-out for scrap refund:', e);
+        }
+      }
 
       // Update tab title to reflect the completed invoice number
       updateActiveTab({ title: invoice_number });
@@ -2497,6 +2518,11 @@ export function BillingPage() {
                   {isScrapMode ? 'Scrap Total' : storeScrapDeduction > 0 ? 'After Scrap' : 'Total'}
                 </p>
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
+                {scrapLeftoverAmount > 0 && (
+                  <p className="text-[10px] font-black text-orange-600 mt-1">
+                    Refund: {formatCurrency(scrapLeftoverAmount)}
+                  </p>
+                )}
               </div>
               {/* Divider — hidden in scrap/quotation/PENDING/CARD/UPI mode */}
               <div className={clsx('w-px h-8 bg-primary/20 transition-all duration-300', isScrapMode || isQuotationMode || editingQuotationId || paymentMethod === 'PENDING' || paymentMethod === 'CARD' || paymentMethod === 'UPI' ? 'opacity-0' : 'opacity-100')} />

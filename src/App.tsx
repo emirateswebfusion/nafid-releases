@@ -26,6 +26,7 @@ import { StaffManager } from './components/StaffManager';
 import { SettingsManager } from './components/SettingsManager';
 import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
+import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 
@@ -401,6 +402,11 @@ function App() {
 
   if (!isAuthenticated) {
     return <LoginScreen />;
+  }
+
+  const role = useAuthStore(state => state.role);
+  if (role === 'SUPER_ADMIN') {
+    return <SuperDashboard />;
   }
 
   if (restrictedPage) {

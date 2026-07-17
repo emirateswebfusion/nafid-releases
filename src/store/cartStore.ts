@@ -24,7 +24,7 @@ export interface CartItem {
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
-export type UserRole = 'OWNER' | 'BILLER';
+export type UserRole = 'OWNER' | 'BILLER' | 'SUPER_ADMIN';
 export type ShopDomain = 'GENERAL' | 'HARDWARE' | 'JEWELRY' | 'GROCERY';
 
 interface CartState {
