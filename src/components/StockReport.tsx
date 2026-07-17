@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, LogOut } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 

@@ -16,21 +16,12 @@ export interface AuthState {
   // Actions
   login: (email: string, password: string, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
   setLastSyncTime: (time: number) => void;
-  register: (data: RegisterData, apiBase?: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
   checkAuth: () => Promise<void>;
   updateDomain: (domain: string) => Promise<{ success: boolean; error?: string }>;
   forgotPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (token: string, password: string) => Promise<{ success: boolean; error?: string }>;
   changePassword: (oldPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
-}
-
-interface RegisterData {
-  shop_name: string;
-  domain_type: string;
-  owner_email: string;
-  owner_password: string;
-  owner_name: string;
 }
 
 const CLOUD_API = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
@@ -163,47 +154,6 @@ export const useAuthStore = create<AuthState>()((set) => ({
       return { success: true };
     } catch (err: any) {
       return { success: false, error: `Cannot reach server. Check your network connection.` };
-    }
-  },
-
-  // ── Register: create tenant + first OWNER ────────────────────────────────
-  register: async (data, apiBase = CLOUD_API) => {
-    try {
-      const baseUrl = apiBase.replace(/\/$/, '');
-      const res = await fetch(`${baseUrl}/auth/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-
-      if (!res.ok) return { success: false, error: json.error || 'Registration failed' };
-
-      if (window.electronAPI) {
-        await window.electronAPI.authSaveToken({
-          jwt_token: json.token,
-          tenant_id: json.tenant_id,
-          user_id: json.user_id,
-          role: json.role,
-          user_name: json.user_name,
-          shop_name: data.shop_name,
-        });
-      }
-
-      set({
-        isAuthenticated: true,
-        token: json.token,
-        tenantId: json.tenant_id,
-        userId: json.user_id,
-        role: json.role,
-        userName: json.user_name || data.owner_name || null,
-        shopName: data.shop_name,
-        restrictedPage: null,
-      });
-      useCartStore.getState().setRole(json.role);
-      return { success: true };
-    } catch (err: any) {
-      return { success: false, error: 'Cannot reach server. Check your network connection.' };
     }
   },
 

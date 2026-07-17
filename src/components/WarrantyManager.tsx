@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar, LogOut } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';

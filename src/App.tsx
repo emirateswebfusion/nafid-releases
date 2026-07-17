@@ -98,7 +98,7 @@ function App() {
   }, []);
 
   const { currentUserRole, addItem } = useCartStore();
-  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout } = useAuthStore();
+  const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
   const [showStockReport, setShowStockReport] = useState(false);
@@ -404,7 +404,6 @@ function App() {
     return <LoginScreen />;
   }
 
-  const role = useAuthStore(state => state.role);
   if (role === 'SUPER_ADMIN') {
     return <SuperDashboard />;
   }

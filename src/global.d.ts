@@ -35,8 +35,8 @@ export interface IElectronAPI {
   dbDeleteGrade: (grade_id: string) => Promise<{ success: boolean; error?: string }>;
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
-  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string }) => Promise<{ success: boolean; error?: string }>;
-  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string } | null>;
+  authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string }) => Promise<{ success: boolean; error?: string }>;
+  authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;

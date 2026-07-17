@@ -5,7 +5,7 @@ import { useThemeStore } from '../store/themeStore';
 import { 
   Plus, LogOut, Database, CheckCircle2, XCircle, Edit, RefreshCw, Loader2, KeyRound, Globe, User, 
   ShieldAlert, Eye, EyeOff, Copy, Check, Search, Filter, ArrowUpDown, Store, Activity, 
-  Wrench, Gem, ShoppingBag, Server, Terminal, Info, ChevronDown, Sun, Moon
+  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon
 } from 'lucide-react';
 
 interface TenantAdmin {
@@ -658,7 +658,7 @@ export default function SuperDashboard() {
                             <div className="h-8 w-8 rounded-lg bg-muted border border-border flex items-center justify-center">
                               {getDomainIcon(admin.domain_type)}
                             </div>
-                            <div>
+                            <div className="whitespace-nowrap">
                               <span className="font-bold text-foreground block text-sm group-hover:text-amber-500 transition">{admin.name}</span>
                               <span className="text-[10px] text-muted-foreground block font-mono mt-0.5 select-all">{admin.tenant_id}</span>
                             </div>
@@ -666,7 +666,7 @@ export default function SuperDashboard() {
                         </td>
 
                         {/* Column 2: Owner details */}
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-xs">
                             <span className="text-foreground block font-medium">{admin.owner_email}</span>
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold bg-muted text-muted-foreground border border-border mt-1 uppercase tracking-wide">
@@ -766,7 +766,7 @@ export default function SuperDashboard() {
                         </td>
 
                         {/* Column 6: Edit button */}
-                        <td className="px-6 py-4 text-right">
+                        <td className="px-6 py-4 text-right whitespace-nowrap">
                           <button
                             onClick={() => handleOpenEditModal(admin)}
                             className="inline-flex items-center gap-1.5 text-xs text-foreground hover:text-amber-550 font-semibold bg-muted hover:bg-amber-500/10 px-3 py-1.5 rounded-lg border border-border hover:border-amber-500/20 transition cursor-pointer"
@@ -781,6 +781,7 @@ export default function SuperDashboard() {
               </table>
             </div>
           )}
+        </section>
       {modalOpen && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border w-full max-w-5xl rounded-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
@@ -817,7 +818,7 @@ export default function SuperDashboard() {
                 </div>
 
                 {/* Log Terminal Screen */}
-                <div className="bg-black/95 rounded-lg border border-zinc-800 p-4 h-60 overflow-y-auto font-mono text-[11px] text-zinc-400 space-y-1.5 scrollbar-thin">
+                <div className="bg-black/95 rounded-lg border border-zinc-800 p-4 h-[380px] overflow-y-auto font-mono text-[11px] text-zinc-400 space-y-1.5 scrollbar-thin">
                   {provisionLogs.map((log, index) => {
                     let color = 'text-zinc-400';
                     if (log.includes('✅') || log.includes('🎉') || log.includes('SUCCESS')) {
@@ -862,7 +863,10 @@ export default function SuperDashboard() {
                       Finalizing workspace registry reload...
                     </span>
                   )}
-                     <form onSubmit={handleExecuteProvisioning} className="px-6 py-4 space-y-4">
+                </div>
+              </div>
+            ) : (
+              <form onSubmit={handleExecuteProvisioning} className="px-6 py-4 space-y-4">
                 {formError && (
                   <div className="text-xs text-destructive bg-destructive/10 p-2.5 rounded-lg border border-destructive/20 flex items-start gap-2">
                     <ShieldAlert className="h-4 w-4 text-destructive shrink-0" />
@@ -1042,6 +1046,7 @@ export default function SuperDashboard() {
           </div>
         </div>
       )}
+      </main>
     </div>
   );
 }

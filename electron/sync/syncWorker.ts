@@ -8,6 +8,12 @@ const FETCH_TIMEOUT_MS = 300000;
 let syncInProgress = false;
 let syncPromise: Promise<void> | null = null;
 let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
+let isSyncActive = false;
+
+export function setSyncActive(active: boolean) {
+  isSyncActive = active;
+  console.log(`[SyncWorker] Sync active state changed to: ${active}`);
+}
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
   const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log'];
@@ -121,6 +127,7 @@ function isJwtExpired(token: string): boolean {
 }
 
 async function clearAuthAndNotify() {
+  isSyncActive = false;
   const configPath = path.join(app.getPath('userData'), 'config.json');
   if (fs.existsSync(configPath)) {
     fs.unlinkSync(configPath);
@@ -134,17 +141,18 @@ async function clearAuthAndNotify() {
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
-  // Only kick off immediate sync if auth already exists (session restored).
-  // Otherwise, the renderer's runInitialSync triggers the first sync after login.
-  const config = getAuthConfig();
-  if (config) {
-    runSyncCycle().catch(err => console.error('[SyncWorker] Initial startup sync error:', err.message));
-  }
-  setInterval(runSyncCycle, SYNC_INTERVAL_MS);
+  // We do not run the sync cycle immediately here.
+  // The frontend will invoke 'sync:runInitial' once it verifies authentication.
+  setInterval(() => {
+    if (isSyncActive) {
+      runSyncCycle().catch(err => console.error('[SyncWorker] Background sync error:', err.message));
+    }
+  }, SYNC_INTERVAL_MS);
 }
 
 export async function runInitialSync(sender?: WebContents) {
   console.log('[SyncWorker] Running explicit initial sync...');
+  isSyncActive = true;
   await runSyncCycle(sender);
   return { success: true };
 }

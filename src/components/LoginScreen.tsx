@@ -1,21 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Building2, Mail, Lock, User, StoreIcon, ChevronLeft } from 'lucide-react';
+import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, StoreIcon, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
-type Tab = 'login' | 'register' | 'forgot-password' | 'reset-password';
-
-const DOMAIN_OPTIONS = [
-  { value: 'GENERAL', label: 'General', icon: ShoppingBag },
-  { value: 'HARDWARE', label: 'Hardware', icon: Wrench },
-  { value: 'JEWELRY', label: 'Jewelry', icon: Gem },
-  { value: 'GROCERY', label: 'Grocery', icon: Building2 },
-] as const;
+type Tab = 'login' | 'forgot-password' | 'reset-password';
 
 export function LoginScreen() {
-  const { login, register } = useAuthStore();
+  const { login } = useAuthStore();
 
   const [tab, setTab] = useState<Tab>('login');
   const [loading, setLoading] = useState(false);
@@ -25,15 +18,6 @@ export function LoginScreen() {
   // Login fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  // Register fields
-  const [reg, setReg] = useState({
-    shop_name: '',
-    domain_type: 'GENERAL',
-    owner_email: '',
-    owner_password: '',
-    owner_name: '',
-  });
 
   const [resetToken, setResetToken] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -56,22 +40,6 @@ export function LoginScreen() {
     setLoading(true);
     const res = await login(email, password);
     if (!res.success) setError(res.error || 'Login failed.');
-    setLoading(false);
-  };
-
-  const handleRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    clearMessages();
-    const errors: Record<string, string> = {};
-    if (!reg.shop_name.trim()) errors.shop_name = 'What\'s your shop called?';
-    if (!reg.owner_name.trim()) errors.owner_name = 'We\'d love to know your name';
-    if (!reg.owner_email.trim()) errors.owner_email = 'Please enter your email address';
-    if (!reg.owner_password) errors.owner_password = 'Please create a password';
-    else if (reg.owner_password.length < 6) errors.owner_password = 'Make it at least 6 characters for security';
-    if (Object.keys(errors).length) { setFieldErrors(errors); return; }
-    setLoading(true);
-    const res = await register(reg);
-    if (!res.success) setError(res.error || 'Registration failed.');
     setLoading(false);
   };
 
@@ -176,35 +144,6 @@ export function LoginScreen() {
       {/* ── Right Auth Panel ────────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 bg-background">
         <div className="w-full max-w-sm">
-
-          {/* Tab Switcher */}
-          {tab !== 'forgot-password' && tab !== 'reset-password' && (
-            <div className="flex gap-1 mb-8 p-1 bg-muted rounded-lg border border-border">
-              <button
-                onClick={() => switchTab('login')}
-                className={clsx(
-                  'flex-1 py-2.5 rounded-md text-sm font-semibold transition-all duration-200',
-                  tab === 'login'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Sign In
-              </button>
-              <button
-                onClick={() => switchTab('register')}
-                className={clsx(
-                  'flex-1 py-2.5 rounded-md text-sm font-semibold transition-all duration-200',
-                  tab === 'register'
-                    ? 'bg-background text-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground'
-                )}
-              >
-                Get Started
-              </button>
-            </div>
-          )}
-
           {/* ── LOGIN ────────────────────────────────────────────────────── */}
           {tab === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
@@ -280,149 +219,6 @@ export function LoginScreen() {
               <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold shadow-sm">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                 {loading ? 'Signing you in...' : 'Sign In to Vendora'}
-              </Button>
-            </form>
-          )}
-
-          {/* ── REGISTER ─────────────────────────────────────────────────── */}
-          {tab === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-5">
-              <div className="mb-6">
-                <h2 className="text-2xl font-bold text-foreground">Start your journey</h2>
-                <p className="text-muted-foreground text-sm mt-1">Join thousands of retailers already using Vendora</p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-shop">Shop Name</label>
-                  <div className="relative">
-                    <StoreIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                      id="reg-shop"
-                      type="text"
-                      value={reg.shop_name}
-                      onChange={e => setReg(r => ({ ...r, shop_name: e.target.value }))}
-                      placeholder="e.g. My Corner Shop"
-                      className={clsx("pl-9", fieldErrors.shop_name && "border-destructive ring-1 ring-destructive")}
-                    />
-                  </div>
-                  {fieldErrors.shop_name && <p className="text-destructive text-xs mt-1">{fieldErrors.shop_name}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">What do you sell?</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {DOMAIN_OPTIONS.map(({ value, label, icon: Icon }) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => setReg(r => ({ ...r, domain_type: value }))}
-                        className={clsx(
-                          'flex flex-col items-center gap-1.5 py-3 px-1 rounded-lg text-xs font-semibold border transition-all',
-                          reg.domain_type === value
-                            ? 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border text-muted-foreground hover:border-muted-foreground/40 hover:text-foreground'
-                        )}
-                      >
-                        <Icon className={clsx(
-                          'w-4 h-4',
-                          reg.domain_type === value ? 'text-primary' : 'text-muted-foreground'
-                        )} />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-name">Your Name</label>
-                    <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="reg-name"
-                        type="text"
-                        value={reg.owner_name}
-                        onChange={e => setReg(r => ({ ...r, owner_name: e.target.value }))}
-                        placeholder="Your full name"
-                        className={clsx("pl-9", fieldErrors.owner_name && "border-destructive ring-1 ring-destructive")}
-                      />
-                    </div>
-                    {fieldErrors.owner_name && <p className="text-destructive text-xs mt-1">{fieldErrors.owner_name}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-email">Email</label>
-                    <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                      <Input
-                        id="reg-email"
-                        type="email"
-                        value={reg.owner_email}
-                        onChange={e => setReg(r => ({ ...r, owner_email: e.target.value }))}
-                        placeholder="you@shop.com"
-                        className={clsx("pl-9", fieldErrors.owner_email && "border-destructive ring-1 ring-destructive")}
-                      />
-                    </div>
-                    {fieldErrors.owner_email && <p className="text-destructive text-xs mt-1">{fieldErrors.owner_email}</p>}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5" htmlFor="reg-password">Password</label>
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    <Input
-                      id="reg-password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={reg.owner_password}
-                      onChange={e => setReg(r => ({ ...r, owner_password: e.target.value }))}
-                      placeholder="Create a strong password"
-                      className={clsx("pl-9 pr-10", fieldErrors.owner_password && "border-destructive ring-1 ring-destructive")}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(p => !p)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
-                      tabIndex={-1}
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                  {fieldErrors.owner_password && <p className="text-destructive text-xs mt-1">{fieldErrors.owner_password}</p>}
-                  {reg.owner_password && (
-                    <div className="flex gap-1 mt-1.5">
-                      {['weak', 'medium', 'strong'].map((level, i) => {
-                        const strength = Math.min(reg.owner_password.length / 4, 3);
-                        const active = i < strength;
-                        return (
-                          <div
-                            key={level}
-                            className={clsx(
-                              'h-1 flex-1 rounded-full transition-colors duration-300',
-                              active
-                                ? i === 0 ? 'bg-destructive'
-                                : i === 1 ? 'bg-amber-500'
-                                : 'bg-emerald-500'
-                                : 'bg-muted'
-                            )}
-                          />
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {error && (
-                <div className="bg-destructive/10 border border-destructive/30 text-destructive text-sm px-4 py-3 rounded-lg flex items-start gap-2">
-                  <span className="mt-0.5 shrink-0 w-1.5 h-1.5 rounded-full bg-destructive" />
-                  {error}
-                </div>
-              )}
-
-              <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold shadow-sm">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {loading ? 'Creating your account...' : 'Create Your Account'}
               </Button>
             </form>
           )}

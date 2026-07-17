@@ -43,7 +43,7 @@ import { initDb, getDb } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
-import { initSyncWorker } from './sync/syncWorker.js';
+import { initSyncWorker, setSyncActive } from './sync/syncWorker.js';
 
 // In CommonJS (which tsc is outputting), __dirname and __filename are already available.
 // We don't need the fileURLToPath logic.
@@ -1526,6 +1526,7 @@ const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 ipcMain.handle('auth:saveToken', (event, payload) => {
   try {
     fs.writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
+    setSyncActive(true);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
@@ -1546,6 +1547,7 @@ ipcMain.handle('auth:clearToken', () => {
   try {
     const p = getConfigPath();
     if (fs.existsSync(p)) fs.unlinkSync(p);
+    setSyncActive(false);
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message };
