@@ -200,7 +200,8 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      console.error('Update domain error:', err);
+      return { success: false, error: 'Authentication failed' };
     }
   },
   

@@ -377,7 +377,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
-      setMessage({ type: 'error', text: 'Failed to save settings: ' + err.message });
+      console.error('Failed to save settings:', err);
+      setMessage({ type: 'error', text: 'Failed to save settings. Please try again' });
       setTimeout(() => setMessage(null), 3000);
     }
     setSaving(false);
@@ -395,7 +396,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
       const res = await changePassword(pass.old, pass.new);
       if (res.success) { setMessage({ type: 'success', text: 'Password updated successfully!' }); setPass({ old: '', new: '', confirm: '' }); setTimeout(() => setMessage(null), 3000); }
       else { setMessage({ type: 'error', text: res.error || 'Failed to update password.' }); setTimeout(() => setMessage(null), 3000); }
-    } catch (err: any) { setMessage({ type: 'error', text: err.message }); setTimeout(() => setMessage(null), 3000); }
+    } catch (err: any) { console.error('Change password error:', err); setMessage({ type: 'error', text: 'Failed to change password. Please try again.' }); setTimeout(() => setMessage(null), 3000); }
     finally { setChangingPass(false); }
   };
 

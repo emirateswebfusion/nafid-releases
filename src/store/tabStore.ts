@@ -173,9 +173,17 @@ export const useTabStore = create<TabState>((set, get) => ({
 
   updateActiveTab: (updates) => {
     const { tabs, activeTabId } = get();
+    const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
+      'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
+      'paymentMethod', 'receivedAmount', 'reservedInvoiceNumber',
+      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'scrapPaymentStatus'
+    ];
+    const filtered = Object.fromEntries(
+      Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
+    );
     set({
       tabs: tabs.map(t =>
-        t.id === activeTabId ? { ...t, ...updates } : t
+        t.id === activeTabId ? { ...t, ...filtered } as Tab : t
       ),
     });
   },

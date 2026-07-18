@@ -1,5 +1,18 @@
 import { useEffect, useState } from 'react';
 
+function sanitizeHtml(html: string): string {
+  // Strip script/style blocks
+  html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+  // Strip dangerous tags (iframe, object, embed, svg, meta, link, form, input, etc.)
+  html = html.replace(/<\/?(?:iframe|object|embed|svg|meta|link|base|form|input|button|textarea|select|option|optgroup|label|fieldset|legend|datalist|output|progress|meter|details|summary|dialog|template|slot|canvas|map|area|math|noscript|noembed|plaintext|xmp)\b[^>]*>/gi, '');
+  // Strip event handlers (onclick, onerror, etc.) with any quote style including backticks
+  html = html.replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`|[^\s>]+)/gi, '');
+  // Strip javascript:/data:/vbscript: protocol URLs
+  html = html.replace(/(?:javascript|data|vbscript):/gi, '');
+  return html;
+}
+
 export function PrintA4View() {
   const [htmlContent, setHtmlContent] = useState('');
 
@@ -26,7 +39,7 @@ export function PrintA4View() {
   return (
     <div
       style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0 }}
-      dangerouslySetInnerHTML={{ __html: htmlContent }}
+      dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
     />
   );
 }

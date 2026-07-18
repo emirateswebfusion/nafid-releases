@@ -94,7 +94,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] A4 Print Error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'Print failed' };
     }
   });
 
@@ -125,7 +125,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Print Error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'Print failed' };
     }
   });
 
@@ -143,7 +143,7 @@ export function initPrinter() {
       }
       return { success: true };
     } catch (error: any) {
-      return { success: false, error: error.message };
+      return { success: false, error: 'Print failed' };
     }
   });
 
@@ -173,7 +173,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Barcode Print Error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'Print failed' };
     }
   });
 
@@ -201,14 +201,33 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Bulk Barcode Print Error:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: 'Print failed' };
     }
   });
 
   console.log('[Hardware] Printer service initialized');
 }
 
+function isPrivateIp(host: string): boolean {
+  // Block empty, localhost, and loopback
+  if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0') return true;
+  // Try parsing as IPv4
+  const parts = host.split('.');
+  if (parts.length === 4 && parts.every(p => /^\d{1,3}$/.test(p) && parseInt(p) <= 255)) {
+    const first = parseInt(parts[0]);
+    if (first === 10) return true;
+    if (first === 127) return true;
+    if (first === 169 && parseInt(parts[1]) === 254) return true;
+    if (first === 172 && parseInt(parts[1]) >= 16 && parseInt(parts[1]) <= 31) return true;
+    if (first === 192 && parseInt(parts[1]) === 168) return true;
+  }
+  return false;
+}
+
 function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise<void> {
+  if (isPrivateIp(host)) {
+    return Promise.reject(new Error('Cannot connect to private or internal IP address'));
+  }
   return new Promise((resolve, reject) => {
     const client = new net.Socket();
     client.setTimeout(3000);
@@ -242,6 +261,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
       }
     });
 
@@ -295,6 +315,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
       }
     });
 
@@ -343,6 +364,7 @@ function printA4USB(deviceName: string): Promise<void> {
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
       }
     });
 
@@ -391,6 +413,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
         nodeIntegration: false,
+        sandbox: true,
       }
     });
 

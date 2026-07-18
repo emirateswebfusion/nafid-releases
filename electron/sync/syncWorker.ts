@@ -1,7 +1,35 @@
 import fs from 'fs';
 import path from 'path';
-import { app, BrowserWindow, type WebContents } from 'electron';
+import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
+
+const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
+const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
+
+function decrypt(data: Buffer): string | null {
+  if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
+  try {
+    return safeStorage.decryptString(data);
+  } catch {
+    return null;
+  }
+}
+
+function readAuthPayload(): any {
+  const encPath = getEncryptedPath();
+  if (fs.existsSync(encPath)) {
+    const raw = fs.readFileSync(encPath);
+    const decrypted = decrypt(raw);
+    if (decrypted) return JSON.parse(decrypted);
+  }
+  const p = getConfigPath();
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
 
 const BATCH_SIZE = 20;
 const FETCH_TIMEOUT_MS = 300000;
@@ -108,10 +136,10 @@ function getCloudApiBase() {
 
 function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
   try {
-    const configPath = path.join(app.getPath('userData'), 'config.json');
-    if (!fs.existsSync(configPath)) return null;
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    return config.jwt_token ? config : null;
+    const payload = readAuthPayload();
+    if (!payload) return null;
+    const { jwt_token, tenant_id, ...rest } = payload;
+    return jwt_token && tenant_id ? { jwt_token, tenant_id } : null;
   } catch {
     return null;
   }
@@ -128,10 +156,11 @@ function isJwtExpired(token: string): boolean {
 
 async function clearAuthAndNotify() {
   isSyncActive = false;
-  const configPath = path.join(app.getPath('userData'), 'config.json');
-  if (fs.existsSync(configPath)) {
-    fs.unlinkSync(configPath);
-    console.log('[SyncWorker] Token expired. Cleared auth config.');
+  const paths = [getConfigPath(), getEncryptedPath()];
+  for (const p of paths) {
+    if (fs.existsSync(p)) {
+      try { fs.unlinkSync(p); } catch {}
+    }
   }
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {

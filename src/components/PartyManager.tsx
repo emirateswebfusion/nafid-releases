@@ -183,8 +183,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       await loadParties();
       setView('list');
       resetPartyForm();
-    } catch (e: any) {
-      showStatus(e.message || 'Operation failed', 'error');
+    } catch {
+      showStatus('Operation failed', 'error');
     } finally {
       setIsSavingParty(false);
     }
@@ -197,8 +197,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       await window.electronAPI.dbDeleteParty(party.party_id);
       showStatus('Party deleted', 'success');
       setParties(prev => prev.filter(p => p.party_id !== party.party_id));
-    } catch (e: any) {
-      showStatus(e.message || 'Delete failed', 'error');
+    } catch {
+      showStatus('Delete failed', 'error');
     }
   };
 
@@ -256,8 +256,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       await loadLedger(selectedParty.party_id);
       await loadParties();
       setView('ledger');
-    } catch (e: any) {
-      showStatus(e.message || 'Operation failed', 'error');
+    } catch {
+      showStatus('Operation failed', 'error');
     } finally {
       setIsSavingTx(false);
     }
@@ -271,8 +271,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       showStatus('Transaction deleted', 'success');
       await loadLedger(selectedParty.party_id);
       await loadParties();
-    } catch (e: any) {
-      showStatus(e.message || 'Delete failed', 'error');
+    } catch {
+      showStatus('Delete failed', 'error');
     }
   };
 

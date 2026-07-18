@@ -1,6 +1,9 @@
 {
   "name": "vendora",
   "private": true,
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "version": "1.4.4",
   "main": "dist-electron/main.js",
   "scripts": {
@@ -13,7 +16,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "better-sqlite3": "^12.9.0",
+    "better-sqlite3": "12.11.1",
     "clsx": "^2.1.1",
     "dotenv": "^17.4.2",
     "electron-log": "^5.4.4",
@@ -23,7 +26,7 @@
     "react": "^19.2.5",
     "react-barcode": "^1.6.1",
     "react-dom": "^19.2.5",
-    "recharts": "^3.8.1",
+    "recharts": "3.8.1",
     "tailwind-merge": "^3.5.0",
     "uuid": "^14.0.0",
     "zustand": "^5.0.13"
@@ -57,5 +60,11 @@
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
     "wait-on": "^9.0.5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "@serialport/bindings-cpp"
+    ]
   }
 }

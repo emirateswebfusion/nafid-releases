@@ -48,6 +48,16 @@ export default function SuperDashboard() {
   // Masking toggles
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, boolean>>({});
   const [revealedUrls, setRevealedUrls] = useState<Record<string, boolean>>({});
+
+  // Unmasked credentials retrieved after verification
+  const [unmaskedCredentials, setUnmaskedCredentials] = useState<Record<string, { db_connection_string: string; neon_mail_id?: string; neon_password?: string }>>({});
+
+  // Verification modal state
+  const [verificationModalOpen, setVerificationModalOpen] = useState(false);
+  const [verificationTenantId, setVerificationTenantId] = useState<string | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationStatus, setVerificationStatus] = useState<'idle' | 'sending' | 'waiting' | 'verifying' | 'success' | 'failed'>('idle');
+  const [verificationError, setVerificationError] = useState('');
   
   // Clipboard state
   const [copiedText, setCopiedText] = useState<{ id: string; type: string } | null>(null);
@@ -100,7 +110,10 @@ export default function SuperDashboard() {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${useAuthStore.getState().token}`
           },
-          body: JSON.stringify({ db_connection_string: t.db_connection_string })
+          body: JSON.stringify({
+            db_connection_string: t.db_connection_string,
+            tenant_id: t.tenant_id
+          })
         });
         const statusData = await res.json();
         setConnectionHealth(prev => ({
@@ -129,7 +142,10 @@ export default function SuperDashboard() {
     try {
       const res = await fetchApi('/super-admin/test-connection', {
         method: 'POST',
-        body: JSON.stringify({ db_connection_string: dbConnectionString })
+        body: JSON.stringify({
+          db_connection_string: dbConnectionString,
+          tenant_id: editingAdmin?.tenant_id
+        })
       });
       if (res.success) {
         setTestStatus('success');
@@ -138,8 +154,9 @@ export default function SuperDashboard() {
         setTestError(res.error || 'Connection failed');
       }
     } catch (err: any) {
+      console.error('Test connection error:', err);
       setTestStatus('failed');
-      setTestError(err.message || 'Network error');
+      setTestError('Connection test failed');
     }
   };
 
@@ -268,7 +285,8 @@ export default function SuperDashboard() {
         apiSuccess = true;
       } catch (err: any) {
         apiSuccess = false;
-        apiError = err.message;
+        console.error('Provision API error:', err);
+        apiError = 'API call failed';
       } finally {
         clearInterval(progressInterval);
       }
@@ -293,9 +311,10 @@ export default function SuperDashboard() {
         setFormError(apiError);
       }
     } catch (err: any) {
-      appendLog(`❌ Fatal Exception: ${err.message}`);
+      console.error('Provision error:', err);
+      appendLog('❌ Provisioning failed');
       setProvisionStatus('failed');
-      setFormError(err.message);
+      setFormError('Provisioning failed. Please try again.');
     }
   };
 
@@ -313,8 +332,68 @@ export default function SuperDashboard() {
     setRevealedPasswords(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  const toggleUrlReveal = (id: string) => {
-    setRevealedUrls(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleUrlReveal = (tenantId: string) => {
+    setRevealedUrls(prev => ({ ...prev, [tenantId]: !prev[tenantId] }));
+  };
+
+  const handleRequestVerificationCode = async () => {
+    if (!verificationTenantId) return;
+    setVerificationStatus('sending');
+    setVerificationError('');
+    try {
+      const res = await fetchApi('/super-admin/request-view-code', {
+        method: 'POST',
+        body: JSON.stringify({ tenant_id: verificationTenantId })
+      });
+      if (res.success) {
+        setVerificationStatus('waiting');
+      } else {
+        setVerificationStatus('failed');
+        setVerificationError(res.error || 'Failed to send verification code');
+      }
+    } catch (err: any) {
+      setVerificationStatus('failed');
+      setVerificationError('Error requesting code');
+    }
+  };
+
+  const handleVerifyCode = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!verificationTenantId || !verificationCode) return;
+    setVerificationStatus('verifying');
+    setVerificationError('');
+    try {
+      const res = await fetchApi('/super-admin/verify-view-code', {
+        method: 'POST',
+        body: JSON.stringify({ tenant_id: verificationTenantId, code: verificationCode })
+      });
+      if (res.success) {
+        setUnmaskedCredentials(prev => ({
+          ...prev,
+          [verificationTenantId]: {
+            db_connection_string: res.db_connection_string,
+            neon_mail_id: res.neon_mail_id,
+            neon_password: res.neon_password
+          }
+        }));
+        // Auto-reveal the URL and password for this tenant
+        setRevealedUrls(prev => ({ ...prev, [verificationTenantId]: true }));
+        setRevealedPasswords(prev => ({ ...prev, [verificationTenantId]: true }));
+        setVerificationStatus('success');
+        setTimeout(() => {
+          setVerificationModalOpen(false);
+          setVerificationTenantId(null);
+          setVerificationCode('');
+          setVerificationStatus('idle');
+        }, 800);
+      } else {
+        setVerificationStatus('failed');
+        setVerificationError(res.error || 'Verification failed');
+      }
+    } catch (err: any) {
+      setVerificationStatus('failed');
+      setVerificationError('Invalid verification code');
+    }
   };
 
   // Compute stats metrics
@@ -678,27 +757,42 @@ export default function SuperDashboard() {
                         {/* Column 3: DB Host URL */}
                         <td className="px-6 py-4 font-mono text-xs">
                           <div className="flex items-center gap-1.5 max-w-xs">
-                            <span className="truncate text-muted-foreground block" title={admin.db_connection_string}>
-                              {isUrlRevealed ? admin.db_connection_string : dbHost}
-                            </span>
-                            <button
-                              onClick={() => toggleUrlReveal(admin.tenant_id)}
-                              className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
-                              title={isUrlRevealed ? "Hide Connection String" : "Reveal Connection String"}
-                            >
-                              {isUrlRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                            </button>
-                            <button
-                              onClick={() => handleCopy(admin.db_connection_string, admin.tenant_id, 'url')}
-                              className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
-                              title="Copy URL"
-                            >
-                              {copiedText?.id === admin.tenant_id && copiedText?.type === 'url' ? (
-                                <Check className="h-3 w-3 text-emerald-500" />
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </button>
+                            {!unmaskedCredentials[admin.tenant_id] ? (
+                              <button
+                                onClick={() => {
+                                  setVerificationTenantId(admin.tenant_id);
+                                  setVerificationModalOpen(true);
+                                }}
+                                className="text-amber-500 hover:text-amber-400 p-0.5 cursor-pointer flex items-center gap-1 text-[10px] font-mono border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 rounded animate-pulse"
+                                title="Unlock Sensitive Connection Details"
+                              >
+                                <KeyRound className="h-3 w-3" /> Unlock
+                              </button>
+                            ) : (
+                              <>
+                                <span className="truncate text-muted-foreground block" title={unmaskedCredentials[admin.tenant_id].db_connection_string}>
+                                  {isUrlRevealed ? unmaskedCredentials[admin.tenant_id].db_connection_string : dbHost}
+                                </span>
+                                <button
+                                  onClick={() => toggleUrlReveal(admin.tenant_id)}
+                                  className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                  title={isUrlRevealed ? "Hide Connection String" : "Reveal Connection String"}
+                                >
+                                  {isUrlRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                </button>
+                                <button
+                                  onClick={() => handleCopy(unmaskedCredentials[admin.tenant_id].db_connection_string, admin.tenant_id, 'url')}
+                                  className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                  title="Copy URL"
+                                >
+                                  {copiedText?.id === admin.tenant_id && copiedText?.type === 'url' ? (
+                                    <Check className="h-3 w-3 text-emerald-500" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
 
@@ -706,40 +800,55 @@ export default function SuperDashboard() {
                         <td className="px-6 py-4">
                           {admin.neon_mail_id ? (
                             <div className="text-xs space-y-1">
-                              <div className="flex items-center gap-1 font-mono text-muted-foreground">
-                                <span>{admin.neon_mail_id}</span>
+                              {!unmaskedCredentials[admin.tenant_id] ? (
                                 <button
-                                  onClick={() => handleCopy(admin.neon_mail_id || '', admin.tenant_id, 'mail')}
-                                  className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                  onClick={() => {
+                                    setVerificationTenantId(admin.tenant_id);
+                                    setVerificationModalOpen(true);
+                                  }}
+                                  className="text-amber-500 hover:text-amber-400 p-0.5 cursor-pointer flex items-center gap-1 text-[10px] font-mono border border-amber-500/20 bg-amber-500/5 px-1.5 py-0.5 rounded animate-pulse"
+                                  title="Unlock Sensitive Connection Details"
                                 >
-                                  {copiedText?.id === admin.tenant_id && copiedText?.type === 'mail' ? (
-                                    <Check className="h-2.5 w-2.5 text-emerald-550" />
-                                  ) : (
-                                    <Copy className="h-2.5 w-2.5" />
-                                  )}
+                                  <KeyRound className="h-3 w-3" /> Unlock
                                 </button>
-                              </div>
-                              <div className="flex items-center gap-1.5 font-mono text-muted-foreground/60">
-                                <span className="select-all">
-                                  {isPwdRevealed ? admin.neon_password : '••••••••'}
-                                </span>
-                                <button
-                                  onClick={() => togglePasswordReveal(admin.tenant_id)}
-                                  className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
-                                >
-                                  {isPwdRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
-                                </button>
-                                <button
-                                  onClick={() => handleCopy(admin.neon_password || '', admin.tenant_id, 'pwd')}
-                                  className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
-                                >
-                                  {copiedText?.id === admin.tenant_id && copiedText?.type === 'pwd' ? (
-                                    <Check className="h-2.5 w-2.5 text-emerald-550" />
-                                  ) : (
-                                    <Copy className="h-2.5 w-2.5" />
-                                  )}
-                                </button>
-                              </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-1 font-mono text-muted-foreground">
+                                    <span>{unmaskedCredentials[admin.tenant_id].neon_mail_id}</span>
+                                    <button
+                                      onClick={() => handleCopy(unmaskedCredentials[admin.tenant_id].neon_mail_id || '', admin.tenant_id, 'mail')}
+                                      className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                    >
+                                      {copiedText?.id === admin.tenant_id && copiedText?.type === 'mail' ? (
+                                        <Check className="h-2.5 w-2.5 text-emerald-550" />
+                                      ) : (
+                                        <Copy className="h-2.5 w-2.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                  <div className="flex items-center gap-1.5 font-mono text-muted-foreground/60">
+                                    <span className="select-all">
+                                      {isPwdRevealed ? unmaskedCredentials[admin.tenant_id].neon_password : '••••••••'}
+                                    </span>
+                                    <button
+                                      onClick={() => togglePasswordReveal(admin.tenant_id)}
+                                      className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                    >
+                                      {isPwdRevealed ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                                    </button>
+                                    <button
+                                      onClick={() => handleCopy(unmaskedCredentials[admin.tenant_id].neon_password || '', admin.tenant_id, 'pwd')}
+                                      className="text-muted-foreground/75 hover:text-foreground p-0.5 cursor-pointer"
+                                    >
+                                      {copiedText?.id === admin.tenant_id && copiedText?.type === 'pwd' ? (
+                                        <Check className="h-2.5 w-2.5 text-emerald-550" />
+                                      ) : (
+                                        <Copy className="h-2.5 w-2.5" />
+                                      )}
+                                    </button>
+                                  </div>
+                                </>
+                              )}
                             </div>
                           ) : (
                             <span className="text-muted-foreground/50 font-mono text-xs">—</span>
@@ -1043,6 +1152,116 @@ export default function SuperDashboard() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Verification Code Modal */}
+      {verificationModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-card border border-border w-full max-w-md rounded-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Title */}
+            <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center justify-between">
+              <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <KeyRound className="h-4 w-4 text-amber-500" />
+                Security Verification
+              </h2>
+              <button
+                onClick={() => {
+                  setVerificationModalOpen(false);
+                  setVerificationTenantId(null);
+                  setVerificationCode('');
+                  setVerificationStatus('idle');
+                  setVerificationError('');
+                }}
+                className="text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                <XCircle className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-4">
+              {verificationStatus === 'idle' && (
+                <div className="space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    To view this store's database connection details, we need to verify your identity.
+                    A 6-digit verification code will be sent to your registered admin email address.
+                  </p>
+                  <button
+                    onClick={handleRequestVerificationCode}
+                    className="w-full py-2 bg-amber-500 hover:bg-amber-400 text-zinc-955 dark:text-zinc-955 font-bold rounded-lg transition cursor-pointer text-xs flex items-center justify-center gap-1.5"
+                  >
+                    Send Verification Code
+                  </button>
+                </div>
+              )}
+
+              {verificationStatus === 'sending' && (
+                <div className="py-8 flex flex-col items-center justify-center gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+                  <span className="text-xs text-muted-foreground font-medium">Sending verification code...</span>
+                </div>
+              )}
+
+              {(verificationStatus === 'waiting' || verificationStatus === 'verifying' || verificationStatus === 'failed') && (
+                <form onSubmit={handleVerifyCode} className="space-y-4">
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Enter the 6-digit verification code sent to your email.
+                  </p>
+                  <div>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      pattern="[0-9]{6}"
+                      required
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, ''))}
+                      className="w-full text-center py-2.5 bg-background border border-border rounded-lg text-foreground placeholder-muted-foreground/30 font-mono text-2xl tracking-[0.75em] pl-[0.75em] focus:outline-none focus:ring-1.5 focus:ring-amber-500/50 transition duration-200"
+                      placeholder="000000"
+                    />
+                  </div>
+
+                  {verificationError && (
+                    <div className="text-[11px] text-rose-500 font-medium bg-rose-500/5 border border-rose-500/10 p-2 rounded-lg flex items-center gap-1.5">
+                      <ShieldAlert className="h-3.5 w-3.5" />
+                      {verificationError}
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={handleRequestVerificationCode}
+                      disabled={verificationStatus === 'verifying'}
+                      className="flex-1 py-2 bg-background hover:bg-muted border border-border rounded-lg text-xs font-semibold text-foreground transition cursor-pointer disabled:opacity-50"
+                    >
+                      Resend Code
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={verificationStatus === 'verifying' || verificationCode.length !== 6}
+                      className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-955 dark:text-zinc-955 font-bold rounded-lg transition cursor-pointer text-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    >
+                      {verificationStatus === 'verifying' ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        'Verify & Reveal'
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {verificationStatus === 'success' && (
+                <div className="py-8 flex flex-col items-center justify-center gap-3">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500 animate-bounce" />
+                  <span className="text-xs text-emerald-500 font-bold">Identity Verified!</span>
+                  <span className="text-[10px] text-muted-foreground">Revealing credentials...</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

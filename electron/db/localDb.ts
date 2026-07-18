@@ -6,7 +6,7 @@ import fs from 'fs';
 let db: Database.Database;
 
 export function initDb() {
-  const dbPath = path.join(app.getPath('userData'), 'vendora.db');
+  const dbPath = path.join(app.getPath('userData'), 'vendora_v2.db');
   
   // Ensure directory exists
   const dbDir = path.dirname(dbPath);

@@ -67,7 +67,9 @@ function safeHandler<T, A extends unknown[]>(handler: IpcHandler<T, A>): IpcHand
   };
 }
 
-// GH_TOKEN for electron-updater; prefer GITHUB_TOKEN (CI-safe) over manual parsing
+// GH_TOKEN for electron-updater; prefer GITHUB_TOKEN (CI-safe) over bundled file
+// WARNING: .env.production is bundled with the app (see electron-builder.config.js extraResources).
+// DO NOT put real secrets there — they'd be extractable from the installed app.
 if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)) {
   const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
   if (parsed.GH_TOKEN) {
@@ -120,7 +122,9 @@ function handleDeepLink(url: string) {
   try {
     const urlObj = new URL(url);
     const token = urlObj.searchParams.get('token');
-    if (token) {
+    // Only forward tokens that look like JWTs (3 dot-separated base64 parts)
+    // This prevents arbitrary data injection from other apps that register vendora://
+    if (token && /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token)) {
       mainWindow.webContents.send('auth:deep-link', token);
     }
   } catch (err) {
@@ -144,6 +148,10 @@ function setupCSP() {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",
+    "object-src 'none'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
   ];
 
   if (isDev) {
@@ -176,6 +184,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
     autoHideMenuBar: true,
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
@@ -192,7 +201,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const dbPath = path.join(app.getPath('userData'), 'vendora.db');
+  const dbPath = path.join(app.getPath('userData'), 'vendora_v2.db');
   console.log(`[Main] App Data Path: ${app.getPath('userData')}`);
   console.log(`[Main] Database Path: ${dbPath}`);
 
@@ -290,7 +299,7 @@ ipcMain.handle('app:downloadUpdate', async () => {
     return { success: true };
   } catch (error: any) {
     console.error('[Updater] Download error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -381,7 +390,8 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
 
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getProducts]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -464,7 +474,8 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
     );
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addProduct]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -511,7 +522,8 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
     );
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateProduct]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -522,7 +534,8 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
     db.prepare("UPDATE products SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?").run(productId);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteProduct]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -580,7 +593,8 @@ ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => 
     transaction(products);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:bulkImportProducts]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -596,7 +610,8 @@ ipcMain.handle('db:updatePrintStatus', (event, productIds: string[]) => {
     transaction(productIds);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updatePrintStatus]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -607,7 +622,8 @@ ipcMain.handle('db:resetPrintStatus', (event, tenant_id: string) => {
     db.prepare("UPDATE products SET print_status = 'PRINTED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND print_status = 'PENDING' AND is_deleted = 0").run(tenant_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:resetPrintStatus]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -638,7 +654,8 @@ ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, d
     
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getPendingPrintProducts]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -649,10 +666,11 @@ ipcMain.handle('db:adjustStock', (event, { product_id, delta }) => {
       UPDATE products 
       SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE product_id = ?
-    `).run(delta, product_id);
+    `    ).run(delta, product_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:adjustStock]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -662,7 +680,8 @@ ipcMain.handle('db:getGrades', (event, tenantId: string) => {
     if (!tenantId) return [];
     return db.prepare('SELECT * FROM product_grades WHERE tenant_id = ? AND is_deleted = 0 ORDER BY category, grade_name').all(tenantId);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getGrades]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -675,7 +694,8 @@ ipcMain.handle('db:addGrade', safeHandler((event, g) => {
     `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addGrade]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -689,7 +709,8 @@ ipcMain.handle('db:updateGrade', safeHandler((event, g) => {
     `).run(g.category, g.grade_name, g.rate, g.grade_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateGrade]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -699,7 +720,8 @@ ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
     db.prepare(`UPDATE product_grades SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE grade_id = ?`).run(gradeId);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteGrade]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -715,7 +737,8 @@ ipcMain.handle('db:getParties', (event, tenantId: string) => {
     `).all(tenantId);
     return parties;
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getParties]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -753,7 +776,8 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addParty]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -766,7 +790,8 @@ ipcMain.handle('db:updateParty', safeHandler((event, p) => {
     `).run(p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null, p.party_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateParty]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -776,7 +801,8 @@ ipcMain.handle('db:deleteParty', (event, partyId: string) => {
     db.prepare("UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(partyId);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteParty]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -786,7 +812,8 @@ ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id
     db.prepare("UPDATE parties SET balance = balance + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(amount, party_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:adjustPartyBalance]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -815,7 +842,8 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
       SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
     `).all(partyId);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getPartyLedger]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -855,7 +883,8 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addPartyLedgerEntry]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -908,7 +937,8 @@ ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updatePartyLedgerEntry]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -940,7 +970,8 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deletePartyLedgerEntry]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1041,7 +1072,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:checkout]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -1074,7 +1106,8 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
 
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:applyInvoiceDiscount]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1139,7 +1172,8 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
 
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getInvoices]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1155,7 +1189,8 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     `).get(tenantId, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
-    return { success: false, totalSales: 0, invoiceCount: 0, error: error.message };
+    console.error('[db:getDashboardStats]', error);
+    return { success: false, totalSales: 0, invoiceCount: 0, error: 'Operation failed' };
   }
 });
 
@@ -1164,7 +1199,8 @@ ipcMain.handle('db:getInvoiceItems', (event, invoice_id: string) => {
     const db = getDb();
     return db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getInvoiceItems]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1262,7 +1298,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     transaction();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateInvoice]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1291,7 +1328,8 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
     );
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateInvoicePayment]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1507,7 +1545,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
         console.log('[convertBosToGst] Converted', invoice_id, '→', invoice.new_number);
       } catch (err: any) {
         console.error('[convertBosToGst] Failed', invoice_id, err.message);
-        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: err.message });
+        results.push({ invoice_id, old_number: invoiceNumber, new_number: '', success: false, error: 'Conversion failed' });
       }
     }
 
@@ -1515,7 +1553,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
     return { success: true, results };
   } catch (error: any) {
     console.error('[convertBosToGst] Fatal error', error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1525,7 +1563,8 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', key);
     return row ? JSON.parse(row.value) : null;
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[settings:get]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1542,7 +1581,8 @@ ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: s
     `).run(tenant_id || 'global', key, JSON.stringify(value));
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[settings:set]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1561,7 +1601,10 @@ const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 
 const encrypt = (text: string): Buffer | null => {
-  if (!safeStorage.isEncryptionAvailable()) return Buffer.from(text);
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('[Auth] safeStorage unavailable — token will be stored in plaintext on disk');
+    return Buffer.from(text);
+  }
   return safeStorage.encryptString(text);
 };
 
@@ -1579,6 +1622,7 @@ ipcMain.handle('auth:saveToken', (event, payload) => {
     const encrypted = encrypt(JSON.stringify(payload));
     if (encrypted) {
       fs.writeFileSync(getEncryptedPath(), encrypted);
+    }
     // Remove legacy config after migration
     const oldPath = getConfigPath();
     if (fs.existsSync(oldPath)) {
@@ -1672,7 +1716,8 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     const data = await response.json();
     return { success: true, invoiceNumber: data.invoiceNumber };
   } catch (error: any) {
-    return { success: false, error: error.message, offline: true };
+    console.error('[db:getNextServerInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed', offline: true };
   }
 });
 
@@ -1713,7 +1758,8 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenan
 
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:getNextInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1730,18 +1776,8 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
     }
     return { success: true, invoiceNumber: `${terminalCode}-001` };
   } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('db:debug:dumpInvoices', () => {
-  if (app.isPackaged) return { success: false, error: 'Not available in production' };
-  try {
-    const db = getDb();
-    const rows = db.prepare('SELECT invoice_number, user_id, tenant_id FROM invoices LIMIT 20').all();
-    return { success: true, rows };
-  } catch (err: any) {
-    return { success: false, error: 'Debug operation failed' };
+    console.error('[db:peekNextInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1753,7 +1789,8 @@ ipcMain.handle('db:getScrapCategories', (event, tenantId: string) => {
     if (!tenantId) return [];
     return db.prepare('SELECT * FROM scrap_categories WHERE tenant_id = ? AND is_deleted = 0 ORDER BY name COLLATE NOCASE ASC').all(tenantId);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getScrapCategories]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1766,7 +1803,8 @@ ipcMain.handle('db:addScrapCategory', (event, cat) => {
     `).run(cat.scrap_category_id, cat.tenant_id, cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs');
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addScrapCategory]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1779,7 +1817,8 @@ ipcMain.handle('db:updateScrapCategory', (event, cat) => {
     `).run(cat.name, cat.purchase_price || 0, cat.selling_price || 0, cat.current_stock || 0, cat.unit || 'Kgs', cat.scrap_category_id);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateScrapCategory]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1789,7 +1828,8 @@ ipcMain.handle('db:deleteScrapCategory', (event, scrapCategoryId: string) => {
     db.prepare(`UPDATE scrap_categories SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(scrapCategoryId);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteScrapCategory]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1809,11 +1849,11 @@ ipcMain.handle('db:deduplicateScrapCategories', () => {
     }
     return { removed };
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:deduplicateScrapCategories]', error);
+    return { error: 'Operation failed' };
   }
 });
 
-// ── Scrap Transactions IPC (now references scrap_categories) ──
 ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
   try {
     const db = getDb();
@@ -1829,7 +1869,8 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
     })();
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addScrapTransaction]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -1851,7 +1892,8 @@ ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_category_id
     query += ' ORDER BY st.created_at DESC LIMIT 500';
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getScrapTransactions]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1866,7 +1908,8 @@ ipcMain.handle('db:getScrapCategoriesBySearch', (event, { tenant_id, search }: {
       LIMIT 10
     `).all(tenant_id, `%${search}%`);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getScrapCategoriesBySearch]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1907,7 +1950,8 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
 
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:getNextScrapInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1923,7 +1967,8 @@ ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_
     }
     return { success: true, invoiceNumber: `${terminalCode}-SCR-001` };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:peekNextScrapInvoiceNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -1942,7 +1987,8 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
     const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
     return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number };
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getScrapInvoiceByNumber]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1972,7 +2018,8 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
     `).all(tenant_id);
     return rows;
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getScrapInvoiceList]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -1985,11 +2032,11 @@ ipcMain.handle('db:updateScrapInvoicePaymentStatus', (event, { tenant_id, scrap_
     `).run(payment_status, tenant_id, scrap_invoice_number);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateScrapInvoicePaymentStatus]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
-// ── Stock Report IPC ───────────────────────────────────────────
 ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -2002,7 +2049,8 @@ ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
       ORDER BY p.category ASC, p.name COLLATE NOCASE ASC
     `).all(tenantId);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getStockReport]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2044,7 +2092,8 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: 
 
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:getNextQuotationNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2060,7 +2109,8 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
     }
     return { success: true, quotationNumber: `${terminalCode}-QTN-001` };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:peekNextQuotationNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2084,7 +2134,8 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
     })();
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:saveQuotation]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2101,7 +2152,8 @@ ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: s
     query += ' ORDER BY created_at DESC LIMIT 200';
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getQuotations]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2110,7 +2162,8 @@ ipcMain.handle('db:getQuotationItems', (event, quotationId: string) => {
     const db = getDb();
     return db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getQuotationItems]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2123,7 +2176,8 @@ ipcMain.handle('db:deleteQuotation', (event, quotationId: string) => {
     })();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteQuotation]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2155,7 +2209,8 @@ ipcMain.handle('db:updateQuotation', (event, q) => {
     })();
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateQuotation]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2171,7 +2226,8 @@ ipcMain.handle('db:updateQuotationStatus', (event, { quotation_id, status, conve
     db.prepare(`UPDATE quotations SET ${updates.join(', ')} WHERE quotation_id = ?`).run(...params);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:updateQuotationStatus]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2185,7 +2241,8 @@ ipcMain.handle('db:saveWarranty', safeHandler((event, w) => {
     `).run(w.warranty_id, w.tenant_id, w.invoice_id || null, w.invoice_item_id || null, w.customer_name, w.customer_phone || null, w.product_name, w.product_details || null, w.purchase_date, w.warranty_period_days, w.expiry_date, w.notes || null);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:saveWarranty]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2202,7 +2259,8 @@ ipcMain.handle('db:getWarranties', (event, { tenant_id, search }: { tenant_id: s
     query += ' ORDER BY created_at DESC LIMIT 200';
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getWarranties]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2212,7 +2270,8 @@ ipcMain.handle('db:deleteWarranty', (event, warrantyId: string) => {
     db.prepare('DELETE FROM warranties WHERE warranty_id = ?').run(warrantyId);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deleteWarranty]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2254,7 +2313,8 @@ ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_i
 
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:getNextPurchaseBillNumber]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2332,7 +2392,8 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
     })();
     return result;
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:addPurchaseBill]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2362,7 +2423,8 @@ ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset
 
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getPurchaseBills]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2371,7 +2433,8 @@ ipcMain.handle('db:getPurchaseBillItems', (event, purchase_bill_id: string) => {
     const db = getDb();
     return db.prepare('SELECT pbi.*, p.sku_barcode, p.item_code FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getPurchaseBillItems]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2384,7 +2447,8 @@ ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
     })();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:deletePurchaseBill]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2415,7 +2479,8 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
     query += ' ORDER BY p.name COLLATE NOCASE ASC LIMIT 200';
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getPurchaseBillProducts]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2445,7 +2510,8 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_
     const barcode = prefix + String(nextNum).padStart(digits, '0');
     return { success: true, barcode };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:generateBarcode]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 
@@ -2459,7 +2525,7 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
     return drawer || null;
   } catch (error: any) {
     console.error(`[Cashier] getDrawer error:`, error.message);
-    return { error: error.message };
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2514,7 +2580,8 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
     
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:cashier:setOpeningBalance]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2539,7 +2606,8 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
     query += ` ORDER BY i.created_at DESC LIMIT 100`;
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:cashier:getPendingInvoices]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2592,7 +2660,8 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
     tx();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:cashier:settlePayment]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2647,7 +2716,8 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
     tx();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:cashier:addTransaction]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2685,7 +2755,8 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     tx();
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error('[db:cashier:dayClosing]', error);
+    return { success: false, error: 'Operation failed' };
   }
 }));
 
@@ -2698,7 +2769,8 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
     
     return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND drawer_id = ? ORDER BY transaction_date DESC`).all(tenant_id, drawer.drawer_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:cashier:getTransactions]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2719,7 +2791,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       LIMIT ? OFFSET ?
     `).all(tenant_id, limit, offset);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:cashier:getHistory]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2734,7 +2807,8 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
       ORDER BY i.updated_at DESC
     `).all(tenant_id, business_date);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:cashier:getDaySettlements]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2743,7 +2817,8 @@ ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset
     const db = getDb();
     return db.prepare(`SELECT * FROM cashier_audit_log WHERE tenant_id = ? ORDER BY performed_at DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:cashier:getAuditLog]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2755,7 +2830,8 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) 
     if (!tenant_id) return [];
     return db.prepare(`SELECT * FROM customers WHERE tenant_id = ? ORDER BY name COLLATE NOCASE ASC`).all(tenant_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getCustomers]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2776,7 +2852,8 @@ ipcMain.handle('db:findCustomers', (event, { tenant_id, name, phone }: { tenant_
     query += ` ORDER BY name COLLATE NOCASE ASC LIMIT 20`;
     return db.prepare(query).all(...params);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:findCustomers]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2793,7 +2870,8 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
       ORDER BY created_at DESC
     `).all(customer_id, tenant_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getCustomerInvoices]', error);
+    return { error: 'Operation failed' };
   }
 });
 
@@ -2809,7 +2887,7 @@ ipcMain.handle('db:getCustomerLoyaltyTransactions', (event, { customer_id, tenan
       ORDER BY lt.created_at DESC
     `).all(customer_id, tenant_id);
   } catch (error: any) {
-    return { error: error.message };
+    console.error('[db:getCustomerLoyaltyTransactions]', error);
+    return { error: 'Operation failed' };
   }
 });
-

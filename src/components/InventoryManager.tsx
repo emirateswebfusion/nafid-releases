@@ -411,7 +411,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           alert('Failed to adjust stock: ' + res.error);
         }
       } catch (err: any) {
-        alert('Failed to adjust stock: ' + err.message);
+        console.error('Adjust stock error:', err);
+        alert('Failed to adjust stock. Please try again.');
       } finally {
         setAdjustingStockId(null);
       }

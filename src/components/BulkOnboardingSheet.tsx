@@ -393,7 +393,8 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           setMessage({ type: 'error', text: res.error || 'Failed to import products.' });
         }
       } catch (err: any) {
-        setMessage({ type: 'error', text: err.message });
+        console.error('Bulk import error:', err);
+        setMessage({ type: 'error', text: 'An error occurred. Please try again.' });
       }
     }
     setLoading(false);
@@ -411,7 +412,8 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           setPrintStatusMsg({ type: 'error', text: res.error || 'Failed to reset print status.' });
         }
       } catch (err: any) {
-        setPrintStatusMsg({ type: 'error', text: err.message });
+        console.error('Reset print status error:', err);
+        setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
       }
     }
   };
@@ -492,7 +494,8 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
          setPrintStatusMsg({ type: 'error', text: `Print failed: ${printRes.error}` });
       }
     } catch (err: any) {
-      setPrintStatusMsg({ type: 'error', text: `Error: ${err.message}` });
+      console.error('Bulk print error:', err);
+      setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
     }
     setPrinting(false);
   };
