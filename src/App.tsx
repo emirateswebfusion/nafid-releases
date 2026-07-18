@@ -199,6 +199,13 @@ function App() {
     checkAuth();
   }, [checkAuth]);
 
+  useEffect(() => {
+    // If running in browser dev mode and a pathname like /login is entered, clean it up
+    if (!window.electronAPI && window.location.pathname !== '/') {
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
+
   // Reset syncChecked and sync state when user logs out
   useEffect(() => {
     if (!isAuthenticated) {
