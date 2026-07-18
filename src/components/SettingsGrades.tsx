@@ -2,12 +2,13 @@ import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash, Edit2, Check, X, Loader2, Search,
   Folder, Layers, TrendingUp, Tag, ChevronDown, ChevronRight,
-  FolderOpen, PanelLeftClose, PanelLeft
+  FolderOpen, ArrowLeft, ArrowUpRight, Edit3
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
 import { Badge } from './ui/Badge';
 import { useAuthStore } from '../store/authStore';
+import clsx from 'clsx';
 
 interface Grade {
   grade_id: string;
@@ -28,10 +29,8 @@ export function SettingsGrades() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryRenameValue, setCategoryRenameValue] = useState('');
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [confirmDeleteCategory, setConfirmDeleteCategory] = useState<string | null>(null);
 
   useEffect(() => {
@@ -80,27 +79,6 @@ export function SettingsGrades() {
     return groups;
   }, [filteredGrades]);
 
-  const toggleCategory = (cat: string) => {
-    setExpandedCategories(prev => {
-      const next = new Set(prev);
-      if (next.has(cat)) next.delete(cat);
-      else next.add(cat);
-      return next;
-    });
-  };
-
-  const expandAll = () => setExpandedCategories(new Set(categories));
-  const collapseAll = () => setExpandedCategories(new Set());
-
-  useEffect(() => {
-    if (selectedCategory === 'all') {
-      setExpandedCategories(prev => {
-        if (prev.size === 0) return new Set(categories);
-        return prev;
-      });
-    }
-  }, [categories, selectedCategory]);
-
   const handleAdd = async () => {
     if (!newForm.category.trim() || !newForm.grade_name.trim() || newForm.rate <= 0) {
       setError('Please fill in all fields (ensure Category, Grade, and Rate > 0).');
@@ -111,7 +89,7 @@ export function SettingsGrades() {
     const { tenantId } = useAuthStore.getState();
     const grade = {
       grade_id: crypto.randomUUID(),
-      tenant_id: tenantId,
+      tenant_id: tenantId || '',
       category: newForm.category.trim(),
       grade_name: newForm.grade_name.trim(),
       rate: newForm.rate
@@ -182,6 +160,9 @@ export function SettingsGrades() {
     const failed = results.filter(r => !r.success);
     if (failed.length === 0) {
       setEditingCategory(null);
+      if (selectedCategory === oldCategory) {
+        setSelectedCategory(newName);
+      }
       await loadGrades();
     } else {
       setError(`Failed to rename ${failed.length} grade(s). Check for duplicate names.`);
@@ -242,688 +223,543 @@ export function SettingsGrades() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-16 gap-4 text-muted-foreground">
+      <div className="flex flex-col items-center justify-center p-16 gap-4 text-muted-foreground bg-card/25 border border-border/40 rounded-[28px] backdrop-blur-sm">
         <div className="relative">
           <Loader2 className="w-10 h-10 animate-spin text-primary" />
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-2 h-2 rounded-full bg-primary/30 animate-ping" />
           </div>
         </div>
-        <span className="text-sm font-medium">Loading grades & categories...</span>
+        <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/75 animate-pulse">Loading categories...</span>
       </div>
     );
   }
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-300">
+    <div className="space-y-6 animate-in fade-in duration-300 select-none">
       {error && (
-        <div className="p-3.5 bg-destructive/10 text-destructive text-sm rounded-xl border border-destructive/20 flex items-center justify-between gap-2 animate-in slide-in-from-top-1 duration-200 shadow-sm">
+        <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-2xl border border-destructive/20 flex items-center justify-between gap-3 shadow-inner">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse shrink-0" />
-            <span>{error}</span>
+            <span className="font-bold">{error}</span>
           </div>
-          <button onClick={() => setError(null)} className="p-1 hover:bg-destructive/20 rounded-lg transition-colors shrink-0">
-            <X className="w-4 h-4" />
+          <button onClick={() => setError(null)} className="p-1 hover:bg-destructive/20 rounded-lg transition-colors shrink-0 cursor-pointer">
+            <X className="w-4.5 h-4.5" />
           </button>
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="bg-card border border-border/80 p-4 rounded-2xl flex items-center gap-4 hover:border-primary/20 hover:shadow-sm transition-all duration-200 group">
-          <div className="p-3 bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-xl group-hover:scale-105 transition-transform">
-            <Folder className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold tracking-tight">{categories.length}</p>
-            <p className="text-xs text-muted-foreground font-semibold">Categories</p>
-          </div>
-        </div>
-        <div className="bg-card border border-border/80 p-4 rounded-2xl flex items-center gap-4 hover:border-primary/20 hover:shadow-sm transition-all duration-200 group">
-          <div className="p-3 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-xl group-hover:scale-105 transition-transform">
-            <Layers className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold tracking-tight">{totalGrades}</p>
-            <p className="text-xs text-muted-foreground font-semibold">Grades Configured</p>
-          </div>
-        </div>
-        <div className="bg-card border border-border/80 p-4 rounded-2xl flex items-center gap-4 hover:border-primary/20 hover:shadow-sm transition-all duration-200 group">
-          <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl group-hover:scale-105 transition-transform">
-            <TrendingUp className="w-5 h-5" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold tracking-tight">₹{avgRate.toFixed(2)}</p>
-            <p className="text-xs text-muted-foreground font-semibold">Average Base Rate</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* Category Sidebar */}
-        <div className={`${sidebarCollapsed ? 'lg:col-span-1' : 'lg:col-span-3'} transition-all duration-300`}>
-          <div className="flex items-center justify-between px-1 mb-2.5">
-            <h3 className={`text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-              <Folder className="w-3.5 h-3.5" /> Categories
-            </h3>
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="p-1 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors hidden lg:block"
-              title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              {sidebarCollapsed ? <PanelLeft className="w-3.5 h-3.5" /> : <PanelLeftClose className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-
-          <div className="bg-card border border-border/80 rounded-2xl overflow-hidden divide-y divide-border/60">
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`w-full text-left px-4 py-3 flex items-center justify-between text-sm transition-all duration-200 ${
-                selectedCategory === 'all'
-                  ? 'bg-primary/5 text-primary font-semibold border-l-[3px] border-primary'
-                  : 'hover:bg-muted/50 text-foreground border-l-[3px] border-transparent'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <Layers className="w-4 h-4 shrink-0" />
-                <span className={`truncate ${sidebarCollapsed ? 'lg:hidden' : ''}`}>All Categories</span>
-              </div>
-              <Badge variant={selectedCategory === 'all' ? 'default' : 'secondary'} className="shrink-0 text-[10px] px-1.5 py-0">
-                {grades.length}
-              </Badge>
-            </button>
-
-            {categories.map((cat, index) => {
-              const count = grades.filter(g => g.category === cat).length;
-              const colorClass = categoryColor(index);
-              const isRenaming = editingCategory === cat;
-              const isActive = selectedCategory === cat;
-              return (
-                <div key={cat}>
-                  <div className="group/cat relative">
-                    {isRenaming ? (
-                      <div className="px-3 py-2.5 flex items-center gap-2">
-                        <div className="flex-1 flex items-center gap-1.5 bg-background border border-primary/40 rounded-lg px-2 py-1">
-                          <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
-                          <input
-                            value={categoryRenameValue}
-                            onChange={e => setCategoryRenameValue(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleRenameCategory(cat);
-                              if (e.key === 'Escape') setEditingCategory(null);
-                            }}
-                            className="flex-1 text-sm bg-transparent outline-none min-w-0"
-                            autoFocus
-                          />
-                        </div>
-                        <button
-                          onClick={() => handleRenameCategory(cat)}
-                          disabled={operating}
-                          className="p-1 bg-primary/10 text-primary rounded-md hover:bg-primary/20 transition-colors"
-                        >
-                          <Check className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          onClick={() => setEditingCategory(null)}
-                          className="p-1 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted transition-colors"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => setSelectedCategory(cat)}
-                          className={`w-full text-left px-4 py-3 flex items-center justify-between text-sm transition-all duration-200 ${
-                            isActive
-                              ? 'bg-primary/5 text-primary font-semibold border-l-[3px] border-primary'
-                              : 'hover:bg-muted/50 text-foreground border-l-[3px] border-transparent'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                            <div className={`p-1 rounded-md ${isActive ? colorClass : 'bg-muted text-muted-foreground'}`}>
-                              <Folder className="w-3.5 h-3.5" />
-                            </div>
-                            <span className={`truncate ${sidebarCollapsed ? 'lg:hidden' : ''}`}>{cat}</span>
-                          </div>
-                          <Badge
-                            variant={isActive ? 'default' : 'secondary'}
-                            className={`shrink-0 text-[10px] px-1.5 py-0 ${sidebarCollapsed ? 'lg:hidden' : ''}`}
-                          >
-                            {count}
-                          </Badge>
-                        </button>
-                        <div className={`absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover/cat:opacity-100 transition-opacity ${sidebarCollapsed ? 'lg:hidden' : ''}`}>
-                          <div className="flex items-center">
-                            <button
-                              onClick={(e) => { e.stopPropagation(); startCategoryRename(cat); }}
-                              className="p-1 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors"
-                              title="Rename category"
-                            >
-                              <Edit2 className="w-3 h-3" />
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setConfirmDeleteCategory(cat); }}
-                              className="p-1 hover:bg-destructive/10 rounded-md text-muted-foreground hover:text-destructive transition-colors"
-                              title="Delete category"
-                            >
-                              <Trash className="w-3 h-3" />
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-            {categories.length === 0 && (
-              <div className="px-4 py-8 text-center text-xs text-muted-foreground">
-                <FolderOpen className="w-6 h-6 mx-auto mb-2 text-muted-foreground/40" />
-                No categories configured.
-              </div>
+      {/* Top scrollable category selection pills - styled like the hardware tabs */}
+      {categories.length > 0 && (
+        <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border/40 rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto mb-2 select-none">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('all')}
+            className={clsx(
+              "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+              selectedCategory === 'all'
+                ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
+                : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
             )}
-          </div>
+          >
+            <Layers className="w-4 h-4 shrink-0 text-current" />
+            <span>All Categories ({grades.length})</span>
+          </button>
+          {categories.map((cat, index) => {
+            const isTabActive = selectedCategory === cat;
+            const count = grades.filter(g => g.category === cat).length;
+            return (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={clsx(
+                  "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                  isTabActive
+                    ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
+                )}
+              >
+                <Folder className="w-4 h-4 shrink-0 text-current opacity-70" />
+                <span>{cat} ({count})</span>
+              </button>
+            );
+          })}
         </div>
+      )}
 
-        {/* Right Panel */}
-        <div className={`${sidebarCollapsed ? 'lg:col-span-11' : 'lg:col-span-9'} transition-all duration-300 space-y-4`}>
+      {/* Main Content Areas */}
+      {selectedCategory === 'all' ? (
+        /* View 1: Unified dashboard when "All Categories" is selected */
+        <div className="space-y-6">
+          {/* Dashboard Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="p-3.5 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                <Folder className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">{categories.length}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Categories</p>
+              </div>
+            </div>
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="p-3.5 bg-gradient-to-br from-purple-500/10 to-purple-500/5 text-purple-600 dark:text-purple-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">{totalGrades}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Grades Configured</p>
+              </div>
+            </div>
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgRate.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base Rate</p>
+              </div>
+            </div>
+          </div>
+
           {/* Action Bar */}
-          <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card border border-border/80 p-3.5 rounded-2xl">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card/45 dark:bg-card/25 border border-border/50 p-4 rounded-[28px] backdrop-blur-sm shadow-sm">
             <div className="relative w-full sm:max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/80" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
               <input
                 type="text"
                 placeholder="Search grades or categories..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-8 py-2 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/70"
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-0.5"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-3 h-3" />
                 </button>
               )}
             </div>
-
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              {selectedCategory === 'all' && categories.length > 1 && (
-                <div className="hidden sm:flex items-center gap-1">
-                  <button
-                    onClick={expandAll}
-                    className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                  >
-                    Expand All
-                  </button>
-                  <button
-                    onClick={collapseAll}
-                    className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                  >
-                    Collapse All
-                  </button>
-                </div>
-              )}
-              <Button
-                size="sm"
-                onClick={handleOpenAdd}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-xl shadow-sm font-semibold animate-in fade-in"
-              >
-                <Plus className="w-4 h-4" /> Add Grade
-              </Button>
-            </div>
+            <Button
+              size="sm"
+              onClick={handleOpenAdd}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl shadow-sm font-bold active:scale-95 transition-all py-2.5 px-5 cursor-pointer shrink-0"
+            >
+              <Plus className="w-4.5 h-4.5 shrink-0" /> Add New Grade
+            </Button>
           </div>
 
-          {/* Grouped View (All Categories mode) */}
-          {selectedCategory === 'all' ? (
-            <div className="space-y-4">
-              {Object.entries(groupedGrades).length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground bg-muted/10 rounded-2xl border border-dashed border-border/85 flex flex-col items-center justify-center gap-3">
-                  <div className="p-4 bg-muted/20 rounded-full">
-                    <Layers className="w-10 h-10 text-muted-foreground/40 stroke-[1.5]" />
-                  </div>
-                  <p className="text-sm font-medium">
-                    {searchQuery ? 'No grades match your search.' : 'No grades configured yet.'}
-                  </p>
-                  <p className="text-xs text-muted-foreground/80 max-w-xs text-center">
-                    {searchQuery
-                      ? 'Try adjusting your search terms or filters.'
-                      : 'Start by adding categories and their associated grades with base pricing.'}
-                  </p>
-                  {!searchQuery && (
-                    <Button
-                      size="sm"
-                      onClick={handleOpenAdd}
-                      variant="outline"
-                      className="mt-2 rounded-xl"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Your First Grade
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                Object.entries(groupedGrades).map(([category, categoryGrades], index) => {
-                  const isExpanded = expandedCategories.has(category);
-                  const colorClass = categoryColor(index);
-                  const totalRate = categoryGrades.reduce((s, g) => s + g.rate, 0);
-                  const avgCatRate = totalRate / categoryGrades.length;
-                  return (
-                    <div
-                      key={category}
-                      className="bg-card border border-border/80 rounded-2xl overflow-hidden hover:border-border transition-all duration-200"
-                    >
-                      {/* Category Group Header */}
-                      <button
-                        onClick={() => toggleCategory(category)}
-                        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-muted/30 transition-colors group/gh"
-                      >
-                        <div className="flex items-center gap-3 min-w-0">
-                          <div className={`p-2 rounded-xl ${colorClass} transition-transform group-hover/gh:scale-105`}>
-                            <Folder className="w-4 h-4" />
-                          </div>
-                          <div className="text-left min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-sm text-foreground">{category}</span>
-                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-semibold">
-                                {categoryGrades.length} grade{categoryGrades.length !== 1 ? 's' : ''}
-                              </Badge>
-                            </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
-                              Avg rate: <span className="font-semibold font-mono">₹{avgCatRate.toFixed(2)}</span>
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <div
-                            onClick={(e) => { e.stopPropagation(); startCategoryRename(category); }}
-                            className="p-1.5 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground opacity-0 group-hover/gh:opacity-100 transition-all"
-                            title="Rename category"
-                          >
-                            <Edit2 className="w-3.5 h-3.5" />
-                          </div>
-                          <div
-                            onClick={(e) => { e.stopPropagation(); setConfirmDeleteCategory(category); }}
-                            className="p-1.5 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive opacity-0 group-hover/gh:opacity-100 transition-all"
-                            title="Delete category"
-                          >
-                            <Trash className="w-3.5 h-3.5" />
-                          </div>
-                          <div className={`p-1.5 rounded-lg transition-colors ${
-                            isExpanded ? 'bg-muted text-foreground' : 'text-muted-foreground'
-                          }`}>
-                            {isExpanded ? (
-                              <ChevronDown className="w-4 h-4 transition-transform duration-200" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 transition-transform duration-200" />
-                            )}
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Collapsible Grade Rows */}
-                      <div
-                        className={`transition-all duration-300 overflow-hidden ${
-                          isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-                        }`}
-                      >
-                        <div className="border-t border-border/60">
-                          <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-2 bg-muted/20 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70">
-                            <div className="col-span-5">Grade Name</div>
-                            <div className="col-span-3">Rate (₹/kg)</div>
-                            <div className="col-span-4 text-right">Actions</div>
-                          </div>
-                          {categoryGrades.map((grade) => {
-                            const isEditing = editingId === grade.grade_id;
-                            return (
-                              <div
-                                key={grade.grade_id}
-                                className={`border-b border-border/40 last:border-b-0 transition-all duration-200 ${
-                                  isEditing ? 'bg-primary/[0.02]' : 'hover:bg-muted/20'
-                                }`}
-                              >
-                                {isEditing ? (
-                                  <div className="px-5 py-3 space-y-3">
-                                    <div className="flex items-center justify-between pb-2 border-b border-border/40">
-                                      <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                                        <Edit2 className="w-3 h-3" /> Editing
-                                      </span>
-                                      <span className="text-[9px] text-muted-foreground font-mono">
-                                        ID: {grade.grade_id.slice(0, 8)}...
-                                      </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                      <div>
-                                        <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                          Category
-                                        </label>
-                                        <input
-                                          value={editForm.category}
-                                          onChange={e => setEditForm({ ...editForm, category: e.target.value })}
-                                          className="w-full px-3 h-9 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                          Grade Name
-                                        </label>
-                                        <input
-                                          value={editForm.grade_name}
-                                          onChange={e => setEditForm({ ...editForm, grade_name: e.target.value })}
-                                          className="w-full px-3 h-9 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                          Rate (₹)
-                                        </label>
-                                        <div className="relative">
-                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">₹</span>
-                                          <input
-                                            type="number"
-                                            value={editForm.rate || ''}
-                                            onChange={e => setEditForm({ ...editForm, rate: parseFloat(e.target.value) || 0 })}
-                                            className="w-full pl-7 pr-3 h-9 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                    <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
-                                      <button
-                                        onClick={() => setEditingId(null)}
-                                        className="px-3 py-1.5 hover:bg-muted text-xs font-semibold rounded-lg text-muted-foreground transition-colors"
-                                      >
-                                        Cancel
-                                      </button>
-                                      <button
-                                        onClick={() => handleUpdate(grade.grade_id)}
-                                        disabled={operating}
-                                        className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                                      >
-                                        {operating ? (
-                                          <Loader2 className="w-3 h-3 animate-spin" />
-                                        ) : (
-                                          <Check className="w-3.5 h-3.5" />
-                                        )}
-                                        Save
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="px-5 py-3 flex items-center justify-between gap-3">
-                                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                                      <div className="p-1.5 bg-muted/40 rounded-lg border border-border/40 shrink-0">
-                                        <Tag className="w-3.5 h-3.5 text-muted-foreground" />
-                                      </div>
-                                      <div className="min-w-0">
-                                        <span className="text-sm font-medium text-foreground">{grade.grade_name}</span>
-                                      </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 shrink-0">
-                                      <div className="text-right min-w-[80px]">
-                                        <span className="text-sm font-bold text-primary font-mono">₹{grade.rate.toFixed(2)}</span>
-                                      </div>
-                                      <div className="flex items-center gap-0.5 border-l border-border/60 pl-3">
-                                        <button
-                                          onClick={() => startEdit(grade)}
-                                          className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all"
-                                          title="Edit"
-                                        >
-                                          <Edit2 className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          onClick={() => handleDelete(grade.grade_id)}
-                                          disabled={operating}
-                                          className="p-1.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-all"
-                                          title="Delete"
-                                        >
-                                          <Trash className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
+          {/* Dashboard Category Cards Grid */}
+          {Object.entries(groupedGrades).length === 0 ? (
+            <div className="text-center py-20 text-muted-foreground bg-card/25 rounded-[28px] border border-dashed border-border/80 flex flex-col items-center justify-center gap-4 backdrop-blur-sm p-6">
+              <div className="p-4.5 bg-muted/30 rounded-2xl shadow-inner">
+                <Layers className="w-10 h-10 text-muted-foreground/30 stroke-[1.5]" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">
+                  {searchQuery ? 'No grades match your search.' : 'No categories configured yet.'}
+                </p>
+                <p className="text-xs text-muted-foreground/70 max-w-xs mx-auto mt-1 leading-relaxed">
+                  {searchQuery
+                    ? 'Try adjusting your search terms or filters.'
+                    : 'Create and organize grades under categories to manage standard base rates.'}
+                </p>
+              </div>
+              {!searchQuery && (
+                <Button
+                  size="sm"
+                  onClick={handleOpenAdd}
+                  variant="outline"
+                  className="mt-1 rounded-xl shadow-sm font-bold py-2 px-4 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 mr-1 shrink-0" /> Create Your First Grade
+                </Button>
               )}
             </div>
           ) : (
-            /* Specific Category View */
-            <div className="space-y-3">
-              {/* Category Header Card */}
-              {selectedCategory !== 'all' && (
-                <div className="bg-card border border-border/80 rounded-2xl p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2.5 bg-primary/10 text-primary rounded-xl">
-                        <Folder className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-foreground">{selectedCategory}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {filteredGrades.length} grade{filteredGrades.length !== 1 ? 's' : ''}
-                          {filteredGrades.length > 0 && (
-                            <> · Avg rate: <span className="font-mono font-semibold">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span></>
-                          )}
-                        </p>
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {Object.entries(groupedGrades).map(([category, categoryGrades], index) => {
+                const colorClass = categoryColor(index);
+                const avgCatRate = categoryGrades.reduce((sum, g) => sum + g.rate, 0) / categoryGrades.length;
+                const isRenaming = editingCategory === category;
+                return (
+                  <div
+                    key={category}
+                    className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm flex flex-col justify-between group relative"
+                  >
+                    {/* Header Row */}
+                    <div className="flex items-start justify-between gap-3 mb-5">
+                      {isRenaming ? (
+                        <div className="flex items-center gap-2 w-full select-none">
+                          <div className="flex-1 flex items-center gap-1.5 bg-background/50 border border-primary/30 rounded-xl px-2.5 py-1.5">
+                            <Folder className="w-3.5 h-3.5 text-primary shrink-0" />
+                            <input
+                              value={categoryRenameValue}
+                              onChange={e => setCategoryRenameValue(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleRenameCategory(category);
+                                if (e.key === 'Escape') setEditingCategory(null);
+                              }}
+                              className="flex-1 text-xs bg-transparent outline-none min-w-0 font-bold text-foreground"
+                              autoFocus
+                            />
+                          </div>
+                          <button
+                            onClick={() => handleRenameCategory(category)}
+                            disabled={operating}
+                            className="p-2 bg-primary/15 text-primary rounded-xl hover:bg-primary hover:text-primary-foreground transition-all cursor-pointer shrink-0"
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => setEditingCategory(null)}
+                            className="p-2 text-muted-foreground hover:text-foreground rounded-xl hover:bg-muted transition-all cursor-pointer shrink-0"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className={clsx('p-2.5 rounded-2xl shadow-inner shrink-0', colorClass)}>
+                              <Folder className="w-4.5 h-4.5" />
+                            </div>
+                            <div className="leading-tight">
+                              <h4 className="font-extrabold text-foreground text-sm truncate">{category}</h4>
+                              <p className="text-[9px] text-muted-foreground/60 font-black uppercase tracking-widest mt-0.5 select-none">
+                                {categoryGrades.length} Grade{categoryGrades.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity bg-card/90 dark:bg-card/75 rounded-lg border border-border/40 p-0.5 backdrop-blur-sm shrink-0 shadow-sm">
+                            <button
+                              onClick={() => startCategoryRename(category)}
+                              className="p-1.5 hover:bg-muted rounded-md text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                              title="Rename Category"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteCategory(category)}
+                              className="p-1.5 hover:bg-destructive/15 rounded-md text-muted-foreground hover:text-destructive transition-colors cursor-pointer"
+                              title="Delete Category"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => startCategoryRename(selectedCategory)}
-                        className="p-2 hover:bg-muted rounded-lg text-muted-foreground hover:text-foreground transition-colors"
-                        title="Rename category"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setConfirmDeleteCategory(selectedCategory)}
-                        className="p-2 hover:bg-destructive/10 rounded-lg text-muted-foreground hover:text-destructive transition-colors"
-                        title="Delete category"
-                      >
-                        <Trash className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
 
-              {/* Grade Table */}
-              {filteredGrades.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground bg-muted/10 rounded-2xl border border-dashed border-border/85 flex flex-col items-center justify-center gap-3">
-                  <div className="p-4 bg-muted/20 rounded-full">
-                    <Tag className="w-10 h-10 text-muted-foreground/40 stroke-[1.5]" />
-                  </div>
-                  <p className="text-sm font-medium">
-                    {searchQuery ? 'No grades match your search.' : 'No grades in this category.'}
-                  </p>
-                  <p className="text-xs text-muted-foreground/80 max-w-xs text-center">
-                    {searchQuery
-                      ? 'Try adjusting your search terms.'
-                      : 'Add grades with base pricing for this category.'}
-                  </p>
-                  {!searchQuery && (
-                    <Button
-                      size="sm"
-                      onClick={handleOpenAdd}
-                      variant="outline"
-                      className="mt-2 rounded-xl"
-                    >
-                      <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Grade
-                    </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="bg-card border border-border/80 rounded-2xl overflow-hidden">
-                  <div className="hidden sm:grid grid-cols-12 gap-3 px-5 py-3 bg-muted/30 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 border-b border-border/60">
-                    <div className="col-span-5">Grade Name</div>
-                    <div className="col-span-3">Rate (₹/kg)</div>
-                    <div className="col-span-4 text-right">Actions</div>
-                  </div>
-                  {filteredGrades.map((grade) => {
-                    const isEditing = editingId === grade.grade_id;
-                    return (
-                      <div
-                        key={grade.grade_id}
-                        className={`border-b border-border/40 last:border-b-0 transition-all duration-200 ${
-                          isEditing ? 'bg-primary/[0.02]' : 'hover:bg-muted/20'
-                        }`}
-                      >
-                        {isEditing ? (
-                          /* Inline Editing Form */
-                          <div className="px-5 py-3 space-y-3">
-                            <div className="flex items-center justify-between pb-2 border-b border-border/40">
-                              <span className="text-[10px] font-bold text-primary flex items-center gap-1">
-                                <Edit2 className="w-3 h-3" /> Editing Grade
-                              </span>
-                              <span className="text-[9px] text-muted-foreground font-mono">
-                                ID: {grade.grade_id.slice(0, 8)}...
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                  Grade Name
-                                </label>
-                                <input
-                                  value={editForm.grade_name}
-                                  onChange={e => setEditForm({ ...editForm, grade_name: e.target.value })}
-                                  className="w-full px-3 h-9 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                  Rate (₹)
-                                </label>
-                                <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground font-medium">₹</span>
-                                  <input
-                                    type="number"
-                                    value={editForm.rate || ''}
-                                    onChange={e => setEditForm({ ...editForm, rate: parseFloat(e.target.value) || 0 })}
-                                    className="w-full pl-7 pr-3 h-9 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary font-mono"
-                                  />
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
-                              <button
-                                onClick={() => setEditingId(null)}
-                                className="px-3 py-1.5 hover:bg-muted text-xs font-semibold rounded-lg text-muted-foreground transition-colors"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleUpdate(grade.grade_id)}
-                                disabled={operating}
-                                className="px-3 py-1.5 bg-primary text-primary-foreground text-xs font-semibold rounded-lg hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-60"
-                              >
-                                {operating ? (
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                ) : (
-                                  <Check className="w-3.5 h-3.5" />
-                                )}
-                                Save
-                              </button>
-                            </div>
+                    {/* Quick Grades Preview */}
+                    <div className="space-y-2 border-t border-b border-border/30 py-3.5 my-1.5 flex-1">
+                      {categoryGrades.slice(0, 3).map((g) => (
+                        <div key={g.grade_id} className="flex justify-between items-center text-xs font-semibold text-muted-foreground/90">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
+                            <span className="truncate text-foreground/80">{g.grade_name}</span>
                           </div>
-                        ) : (
-                          /* Grade Row */
-                          <div className="px-5 py-3 flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-3 min-w-0 flex-1">
-                              <div className="p-1.5 bg-muted/40 rounded-lg border border-border/40 shrink-0">
-                                <Tag className="w-3.5 h-3.5 text-muted-foreground" />
-                              </div>
-                              <span className="text-sm font-medium text-foreground">{grade.grade_name}</span>
-                            </div>
-                            <div className="flex items-center gap-4 shrink-0">
-                              <div className="text-right min-w-[80px]">
-                                <span className="text-sm font-bold text-primary font-mono">₹{grade.rate.toFixed(2)}</span>
-                              </div>
-                              <div className="flex items-center gap-0.5 border-l border-border/60 pl-3">
-                                <button
-                                  onClick={() => startEdit(grade)}
-                                  className="p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground rounded-lg transition-all"
-                                  title="Edit"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => handleDelete(grade.grade_id)}
-                                  disabled={operating}
-                                  className="p-1.5 hover:bg-destructive/10 text-muted-foreground hover:text-destructive rounded-lg transition-all"
-                                  title="Delete"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                          <span className="font-mono text-primary font-bold">₹{g.rate.toFixed(2)}</span>
+                        </div>
+                      ))}
+                      {categoryGrades.length > 3 && (
+                        <p className="text-[10px] text-muted-foreground/50 italic text-left pl-3">
+                          + {categoryGrades.length - 3} more grade(s)
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Bottom Action Footer */}
+                    <div className="flex items-center justify-between mt-4 select-none">
+                      <div className="leading-tight text-left">
+                        <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Average Rate</span>
+                        <span className="text-xs font-extrabold text-foreground font-mono">₹{avgCatRate.toFixed(2)}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                      <button
+                        onClick={() => setSelectedCategory(category)}
+                        className="flex items-center gap-1.5 text-xs font-bold text-primary hover:text-primary-foreground bg-primary/10 hover:bg-primary border border-primary/20 hover:border-primary py-2 px-3.5 rounded-xl cursor-pointer transition-all duration-200"
+                      >
+                        <span>Manage Grades</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
-      </div>
+      ) : (
+        /* View 2: Focused category grades table spreadsheets when drill down */
+        <div className="space-y-6 animate-in slide-in-from-bottom-2 duration-300">
+          {/* Top Category Context Header */}
+          <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-5 backdrop-blur-sm shadow-sm select-none">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className="p-2.5 hover:bg-muted rounded-2xl text-muted-foreground hover:text-foreground transition-all border border-border/40 hover:border-border/80 cursor-pointer shrink-0"
+                  title="Back to all categories"
+                >
+                  <ArrowLeft className="w-4.5 h-4.5" />
+                </button>
+                <div className="leading-tight text-left">
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-extrabold text-foreground text-sm">{selectedCategory}</h4>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 font-bold shrink-0">
+                      Category
+                    </Badge>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    {filteredGrades.length} grade{filteredGrades.length !== 1 ? 's' : ''}
+                    {filteredGrades.length > 0 && (
+                      <> · Average rate: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span></>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button
+                  onClick={() => startCategoryRename(selectedCategory)}
+                  className="p-2 hover:bg-muted rounded-xl text-muted-foreground hover:text-foreground transition-all cursor-pointer border border-transparent hover:border-border/40"
+                  title="Rename Category"
+                >
+                  <Edit3 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => setConfirmDeleteCategory(selectedCategory)}
+                  className="p-2 hover:bg-destructive/15 rounded-xl text-muted-foreground hover:text-destructive transition-all cursor-pointer border border-transparent hover:border-border/40"
+                  title="Delete Category"
+                >
+                  <Trash className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Row */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card/45 dark:bg-card/25 border border-border/50 p-4 rounded-[28px] backdrop-blur-sm shadow-sm">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
+              <input
+                type="text"
+                placeholder={`Search grades in ${selectedCategory}...`}
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            <Button
+              size="sm"
+              onClick={handleOpenAdd}
+              className="w-full sm:w-auto flex items-center justify-center gap-1.5 rounded-xl shadow-sm font-bold active:scale-95 transition-all py-2.5 px-5 cursor-pointer shrink-0"
+            >
+              <Plus className="w-4.5 h-4.5 shrink-0" /> Add Grade to {selectedCategory}
+            </Button>
+          </div>
+
+          {/* Grades Table Spreadsheets Container */}
+          {filteredGrades.length === 0 ? (
+            <div className="text-center py-20 text-muted-foreground bg-card/25 rounded-[28px] border border-dashed border-border/80 flex flex-col items-center justify-center gap-4 p-6 backdrop-blur-sm">
+              <div className="p-4.5 bg-muted/30 rounded-2xl shadow-inner">
+                <Tag className="w-10 h-10 text-muted-foreground/30 stroke-[1.5]" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-foreground">
+                  {searchQuery ? 'No grades match your search.' : 'No grades in this category.'}
+                </p>
+                <p className="text-xs text-muted-foreground/70 max-w-xs mx-auto mt-1 leading-relaxed">
+                  {searchQuery
+                    ? 'Try adjusting your query term or clear search.'
+                    : 'Set up pricing grades to establish distinct base rates under this category.'}
+                </p>
+              </div>
+              {!searchQuery && (
+                <Button
+                  size="sm"
+                  onClick={handleOpenAdd}
+                  variant="outline"
+                  className="mt-1 rounded-xl shadow-sm font-bold py-2 px-4 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 mr-1.5 shrink-0" /> Add Your First Grade
+                </Button>
+              )}
+            </div>
+          ) : (
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] overflow-hidden backdrop-blur-sm shadow-sm">
+              <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 select-none">
+                <div className="col-span-5">Grade Name</div>
+                <div className="col-span-3">Rate (₹/kg)</div>
+                <div className="col-span-4 text-right">Actions</div>
+              </div>
+              {filteredGrades.map((grade) => {
+                const isEditing = editingId === grade.grade_id;
+                return (
+                  <div
+                    key={grade.grade_id}
+                    className={clsx(
+                      'border-b border-border/40 last:border-b-0 transition-all duration-200',
+                      isEditing ? 'bg-primary/[0.03]' : 'hover:bg-muted/10'
+                    )}
+                  >
+                    {isEditing ? (
+                      /* Inline Editing View */
+                      <div className="px-6 py-4 space-y-4 bg-muted/20 dark:bg-muted/10 select-none">
+                        <div className="flex items-center justify-between pb-2 border-b border-border/40">
+                          <span className="text-[10px] font-black text-primary flex items-center gap-1.5 uppercase tracking-wider">
+                            <Edit2 className="w-3.5 h-3.5" /> Editing Grade
+                          </span>
+                          <span className="text-[9px] text-muted-foreground/60 font-mono font-semibold">
+                            ID: {grade.grade_id.slice(0, 8)}...
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                              Grade Name
+                            </label>
+                            <input
+                              value={editForm.grade_name}
+                              onChange={e => setEditForm({ ...editForm, grade_name: e.target.value })}
+                              className="w-full px-3.5 h-9.5 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-bold text-foreground"
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                              Rate (₹)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                              <input
+                                type="number"
+                                value={editForm.rate || ''}
+                                onChange={e => setEditForm({ ...editForm, rate: parseFloat(e.target.value) || 0 })}
+                                className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex justify-end gap-2.5 pt-3 border-t border-border/40">
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="px-4 py-2 hover:bg-muted text-xs font-bold rounded-xl text-muted-foreground hover:text-foreground transition-all border border-transparent hover:border-border/50 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => handleUpdate(grade.grade_id)}
+                            disabled={operating}
+                            className="px-4 py-2 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:bg-primary/95 transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                          >
+                            {operating ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Check className="w-3.5 h-3.5" />
+                            )}
+                            Save Changes
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Standard Row View */
+                      <div className="px-6 py-4 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                          <div className="p-2 bg-muted/40 dark:bg-muted/10 rounded-xl border border-border/50 shrink-0 shadow-inner">
+                            <Tag className="w-3.5 h-3.5 text-muted-foreground/75" />
+                          </div>
+                          <span className="text-xs font-bold text-foreground truncate">{grade.grade_name}</span>
+                        </div>
+                        <div className="flex items-center gap-4 shrink-0">
+                          <div className="text-right min-w-[90px]">
+                            <span className="text-sm font-extrabold text-primary font-mono">₹{grade.rate.toFixed(2)}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 border-l border-border/60 pl-3">
+                            <button
+                              onClick={() => startEdit(grade)}
+                              className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer"
+                              title="Edit Grade"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(grade.grade_id)}
+                              disabled={operating}
+                              className="p-2 hover:bg-destructive/15 text-muted-foreground hover:text-destructive rounded-xl transition-all cursor-pointer"
+                              title="Delete Grade"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add Grade Modal */}
       <Modal
         isOpen={isAdding}
         onClose={() => !operating && setIsAdding(false)}
         title={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 select-none">
             <Tag className="w-5 h-5 text-primary" />
-            <span>Create New Category & Grade</span>
+            <span className="font-black text-sm uppercase tracking-widest text-foreground">Create New Category &amp; Grade</span>
           </div>
         }
-        className="max-w-lg"
+        className="max-w-md"
       >
         <div className="space-y-5">
-          <p className="text-xs text-muted-foreground">
-            Define a product category, its grade variant, and set the base pricing rate.
+          <p className="text-xs text-muted-foreground/80 leading-relaxed">
+            Define a product category, its grade variant, and set the base pricing rate per kilogram.
           </p>
 
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1">
-                <Folder className="w-3.5 h-3.5 text-muted-foreground" /> Category Name
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+                <Folder className="w-3.5 h-3.5 text-muted-foreground/50" /> Category Name
               </label>
               <input
                 placeholder="e.g. Steel, Brass, Copper"
                 value={newForm.category}
                 onChange={e => setNewForm({ ...newForm, category: e.target.value })}
-                className="w-full px-3.5 h-10 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
+                className="w-full px-4 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
               {categories.length > 0 && (
-                <div className="mt-2">
-                  <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5">Quick Select Category</p>
+                <div className="mt-2.5">
+                  <p className="text-[9px] text-muted-foreground/60 font-black uppercase tracking-widest mb-2 select-none">Quick Select Category</p>
                   <div className="flex flex-wrap gap-1.5">
                     {categories.map((cat, index) => (
                       <button
                         key={cat}
                         type="button"
                         onClick={() => setNewForm({ ...newForm, category: cat })}
-                        className={`px-2.5 py-1 text-[10px] rounded-lg transition-all border font-semibold ${
+                        className={clsx(
+                          'px-3 py-1.5 text-[9px] font-bold rounded-xl border transition-all duration-200 cursor-pointer flex items-center gap-1',
                           newForm.category === cat
-                            ? 'bg-primary/10 text-primary border-primary/20 ring-1 ring-primary/20'
-                            : 'bg-muted hover:bg-primary/5 hover:text-primary text-muted-foreground border-border/40'
-                        }`}
+                            ? 'bg-primary/10 text-primary border-primary/20 ring-1 ring-primary/20 scale-100 font-black'
+                            : 'bg-muted/50 hover:bg-primary/5 hover:text-primary text-muted-foreground border-border/40'
+                        )}
                       >
-                        <div className="flex items-center gap-1">
-                          <Folder className="w-2.5 h-2.5" />
-                          {cat}
-                        </div>
+                        <Folder className="w-2.5 h-2.5 shrink-0 opacity-60" />
+                        <span>{cat}</span>
                       </button>
                     ))}
                   </div>
@@ -931,36 +767,36 @@ export function SettingsGrades() {
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1">
-                <Tag className="w-3.5 h-3.5 text-muted-foreground" /> Grade Variant
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-muted-foreground/50" /> Grade Variant
               </label>
               <input
                 placeholder="e.g. Grade A, Scrap, Heavy"
                 value={newForm.grade_name}
                 onChange={e => setNewForm({ ...newForm, grade_name: e.target.value })}
-                className="w-full px-3.5 h-10 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60"
+                className="w-full px-4 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[10px] text-muted-foreground/60 mt-1 select-none">
                 Specify the quality, purity, or thickness name.
               </p>
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5 flex items-center gap-1">
-                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground" /> Base Rate (Per Kg)
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" /> Base Rate (Per Kg)
               </label>
               <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground/80">₹</span>
+                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
                 <input
                   type="number"
                   placeholder="0.00"
                   value={newForm.rate || ''}
                   onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
-                  className="w-full pl-8 pr-3 h-10 text-sm bg-background border border-input rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all placeholder:text-muted-foreground/60 font-mono"
+                  className="w-full pl-8 pr-3 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-mono font-bold text-foreground"
                 />
               </div>
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-[10px] text-muted-foreground/60 mt-1 select-none">
                 Enter the base buying/selling rate per kilogram.
               </p>
             </div>
@@ -971,7 +807,7 @@ export function SettingsGrades() {
               type="button"
               onClick={() => !operating && setIsAdding(false)}
               disabled={operating}
-              className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 disabled:opacity-50"
+              className="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 disabled:opacity-50 border border-transparent hover:border-border/40 cursor-pointer"
             >
               Cancel
             </button>
@@ -979,7 +815,7 @@ export function SettingsGrades() {
               size="sm"
               onClick={handleAdd}
               disabled={operating}
-              className="px-4 rounded-xl shadow-md font-semibold flex items-center gap-1.5"
+              className="px-4 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2 cursor-pointer"
             >
               {operating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -997,24 +833,24 @@ export function SettingsGrades() {
         isOpen={confirmDeleteCategory !== null}
         onClose={() => !operating && setConfirmDeleteCategory(null)}
         title={
-          <div className="flex items-center gap-2 text-destructive">
+          <div className="flex items-center gap-2 text-destructive select-none">
             <Trash className="w-5 h-5" />
-            <span>Delete Category</span>
+            <span className="font-black text-sm uppercase tracking-widest">Delete Category</span>
           </div>
         }
         className="max-w-sm"
       >
         <div className="space-y-4">
-          <div className="p-4 bg-destructive/5 rounded-xl border border-destructive/10">
-            <p className="text-sm text-foreground font-medium">
-              Are you sure you want to delete <span className="font-bold">"{confirmDeleteCategory}"</span>?
+          <div className="p-4 bg-destructive/[0.03] rounded-2xl border border-destructive/20 text-xs leading-relaxed text-muted-foreground">
+            <p className="text-sm text-foreground font-bold leading-normal">
+              Are you sure you want to delete <span className="font-black text-destructive">"{confirmDeleteCategory}"</span>?
             </p>
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="mt-2 text-muted-foreground/80 font-medium">
               This will permanently delete all{' '}
-              <span className="font-bold text-destructive">
+              <span className="font-black text-destructive">
                 {grades.filter(g => g.category === confirmDeleteCategory).length} grade(s)
               </span>{' '}
-              in this category. This action cannot be undone.
+              associated with this category. This action cannot be undone.
             </p>
           </div>
           <div className="flex justify-end gap-2.5 pt-2">
@@ -1022,7 +858,7 @@ export function SettingsGrades() {
               type="button"
               onClick={() => setConfirmDeleteCategory(null)}
               disabled={operating}
-              className="px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 disabled:opacity-50"
+              className="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 disabled:opacity-50 border border-transparent hover:border-border/40 cursor-pointer"
             >
               Cancel
             </button>
@@ -1031,14 +867,14 @@ export function SettingsGrades() {
               variant="destructive"
               onClick={() => confirmDeleteCategory && handleDeleteCategory(confirmDeleteCategory)}
               disabled={operating}
-              className="px-4 rounded-xl shadow-md font-semibold flex items-center gap-1.5"
+              className="px-4 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2 cursor-pointer"
             >
               {operating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Trash className="w-4 h-4" />
               )}
-              Delete All {grades.filter(g => g.category === confirmDeleteCategory).length} Grades
+              Delete Grades
             </Button>
           </div>
         </div>

@@ -63,50 +63,38 @@ interface SidebarGroup {
 
 const SIDEBAR_GROUPS: SidebarGroup[] = [
   {
-    category: 'Business',
+    category: 'Store Settings',
     icon: Store,
     items: [
-      { id: 'invoice', label: 'Invoice Numbering', icon: Receipt, ownerOnly: true },
-      { id: 'gst', label: 'GST Details', icon: Building, ownerOnly: true },
-      { id: 'shop', label: 'Shop Details', icon: Building, ownerOnly: true },
-      { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
-      { id: 'scrap', label: 'Scrap Settings', icon: Recycle, ownerOnly: true },
-      { id: 'loyalty', label: 'Loyalty Points', icon: TrendingUp, ownerOnly: true },
+      { id: 'store', label: 'Store Profile', icon: Store, ownerOnly: true },
     ],
   },
   {
-    category: 'Hardware',
+    category: 'Hardware & Devices',
     icon: Monitor,
     items: [
-      { id: 'barcode-printer', label: 'Barcode Printer', icon: Printer },
-      { id: 'receipt-printer', label: 'Receipt Printer', icon: Printer },
-      { id: 'a4-printer', label: 'A4 Printer', icon: FileText },
-      { id: 'scale', label: 'Weighing Scale', icon: Scale },
+      { id: 'hardware', label: 'Devices & Hardware', icon: Monitor },
     ],
   },
   {
-    category: 'Products',
+    category: 'Products & Coding',
     icon: Package,
     items: [
-      { id: 'coding', label: 'Price Coding', icon: Tags, ownerOnly: true },
-      { id: 'grades', label: 'Categories & Grades', icon: Tags },
+      { id: 'products', label: 'Products & Inventory', icon: Package },
     ],
   },
   {
-    category: 'Printing',
+    category: 'Printing & Layout',
     icon: Printer,
     items: [
-      { id: 'print-format', label: 'Print Format', icon: FileText, ownerOnly: true },
-      { id: 'label-settings', label: 'Label Settings', icon: Tags, ownerOnly: true },
+      { id: 'printing', label: 'Print Templates', icon: Printer, ownerOnly: true },
     ],
   },
   {
-    category: 'System',
-    icon: Monitor,
+    category: 'Application',
+    icon: Settings,
     items: [
-      { id: 'updates', label: 'System Updates', icon: RefreshCw },
-      { id: 'appearance', label: 'Appearance', icon: Type },
-      { id: 'security', label: 'Security', icon: Shield },
+      { id: 'system', label: 'App Preferences', icon: Settings },
     ],
   },
 ];
@@ -131,11 +119,12 @@ function formatBytes(bytes: number): string {
 }
 
 export function SettingsManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  const { role, updateDomain } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [activeSection, setActiveSection] = useState('invoice');
+  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'store' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
   const [barcodePrinter, setBarcodePrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
@@ -144,7 +133,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [scale, setScale] = useState({ path: 'COM3', baudRate: 9600 });
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
-  const { role, updateDomain } = useAuthStore();
+  const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
+  const [activeProductsTab, setActiveProductsTab] = useState<'grades' | 'coding' | 'bulk'>('grades');
   const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
@@ -193,9 +183,9 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, billSettings, scrapBillSettings, gstProfitPercentage });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, billSettings, scrapBillSettings, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -431,95 +421,410 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
   const renderSectionContent = (sectionId: string) => {
     switch (sectionId) {
-      case 'invoice':
+      case 'store':
         return (
-          <div className="space-y-6">
-            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
-                  <Receipt className="w-4 h-4" />
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Card 1: Shop Profile */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] dark:shadow-[0_4px_12px_rgba(79,70,229,0.05)] shrink-0">
+                  <Building className="w-4.5 h-4.5" />
                 </div>
-                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">Invoice Series</span>
-                <div className="ml-auto flex items-center gap-1.5 px-2 py-1 rounded-lg bg-muted/50">
-                  <span className="text-[10px] font-mono font-bold text-foreground">{terminalCode || 'POS1'}-{String(Number(invoiceStartNumber) || 1).padStart(3, '0')}</span>
-                  <span className="text-[9px] text-muted-foreground font-semibold px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">NEXT</span>
-                </div>
+                <span className="text-xs font-black text-foreground uppercase tracking-widest">Shop Details</span>
               </div>
               <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                    Terminal Code
-                    <span className="text-[9px] font-normal text-muted-foreground bg-amber-500/10 text-amber-600 px-1.5 py-0.5 rounded-full ml-auto">Per computer</span>
-                  </label>
-                  <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider" maxLength={6} />
-                  <p className="text-[10px] text-muted-foreground/70">Format: <span className="font-mono text-foreground/80">{terminalCode || 'POS1'}-XXX</span></p>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Shop Name</label>
+                  <Input type="text" value={shopNameLocal} onChange={(e) => setShopNameLocal(e.target.value)} placeholder="Your business name" className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                    Starting Number
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Phone Number</label>
+                  <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder="e.g. +91 98765 43210" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Shop Address</label>
+                  <textarea value={shopAddress} onChange={(e) => setShopAddress(e.target.value)} placeholder="Enter your business address..." rows={3} className="w-full bg-background/50 border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium" />
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block flex items-center justify-between">
+                    <span>UPI ID</span>
+                    <span className="text-[9px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full lowercase">Shown on receipts</span>
                   </label>
-                  <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                  <div className="relative">
+                    <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/50" />
+                    <Input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="e.g. shopname@upi" className="pl-11 font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">This UPI ID will appear on printed receipts for customer payments.</p>
+                </div>
+                <div className="col-span-2 flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a QR code with the bill amount pre-filled will appear on printed receipts.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowUpiQr(!showUpiQr)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showUpiQr ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showUpiQr ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
                 </div>
               </div>
             </div>
 
-            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-1.5 rounded-lg bg-purple-500/10 text-purple-500">
-                    <Receipt className="w-4 h-4" />
+            {/* Card 2: GST & Taxation */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-emerald-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.1)] dark:shadow-[0_4px_12px_rgba(16,185,129,0.05)] shrink-0">
+                  <Building className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-emerald-600 uppercase tracking-widest">GST &amp; Taxation</span>
+              </div>
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Shop GSTIN</label>
+                    <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder="e.g. 27AAAAA1111A1Z1" className="uppercase font-semibold font-mono bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                   </div>
-                  <div>
-                    <span className="text-xs font-black text-purple-500 uppercase tracking-wider">3 Invoice Series</span>
-                    <p className="text-[10px] text-muted-foreground/70 mt-0.5">Separate counters for B2B &amp; B2C GST invoices</p>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">State (Place of Business)</label>
+                    <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
                   </div>
                 </div>
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input type="checkbox" checked={enableThreeInvoiceSeries} onChange={(e) => setEnableThreeInvoiceSeries(e.target.checked)} className="sr-only peer" />
-                  <div className="w-10 h-6 bg-muted rounded-full peer peer-checked:bg-purple-500 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4 shadow-inner" />
-                </label>
+                <div className="rounded-2xl border border-border/50 p-5 space-y-4 bg-muted/20 dark:bg-muted/10 backdrop-blur-sm">
+                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-border/40">
+                    <TrendingUp className="w-4 h-4 text-emerald-600" />
+                    <span className="text-xs font-bold text-foreground">Bill of Supply → GST Conversion</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2 col-span-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">
+                        Profit Percentage Margin
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex-1">
+                          <input type="number" min="0" max="999" value={gstProfitPercentage}
+                            onChange={e => setGstProfitPercentage(e.target.value === '' ? 0 : Number(e.target.value))}
+                            className="w-full bg-background border border-border/80 rounded-xl px-3 py-2 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
+                          <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">%</span>
+                        </div>
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">GST sale price = GST purchase price + this % margin. Used when converting Bill of Supply invoices to GST Invoices.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Card 3: Invoice Counter & Series */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-blue-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.1)] dark:shadow-[0_4px_12px_rgba(59,130,246,0.05)] shrink-0">
+                  <Receipt className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-blue-500 uppercase tracking-widest">Invoice Counters</span>
+                <div className="ml-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted/60 border border-border/50 text-[10px] font-mono font-bold text-foreground">
+                  <span>{terminalCode || 'POS1'}-{String(Number(invoiceStartNumber) || 1).padStart(3, '0')}</span>
+                  <span className="text-[9px] text-muted-foreground font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0">NEXT</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block flex items-center justify-between">
+                    <span>Terminal Code</span>
+                    <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Per computer</span>
+                  </label>
+                  <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" maxLength={6} />
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">Format: <span className="font-mono text-foreground/80">{terminalCode || 'POS1'}-XXX</span></p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Starting Number</label>
+                  <Input type="number" min="1" value={invoiceStartNumber} onChange={(e) => setInvoiceStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                </div>
               </div>
 
-              {enableThreeInvoiceSeries && (
-                <div className="mt-4 space-y-3">
-                  <div className="rounded-xl border border-blue-500/25 bg-blue-500/[0.03] p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-blue-500" />
-                        GST B2B Invoice Series
-                      </h5>
-                      <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
-                        <Input type="text" value={b2bPrefix} onChange={(e) => setB2bPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. B2B" />
+              {/* 3 Invoice Series Block */}
+              <div className="mt-6 border-t border-border/40 pt-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-black text-purple-500 uppercase tracking-widest">3 Invoice Series</span>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">Separate counters for B2B &amp; B2C GST invoices</p>
+                  </div>
+                  <button type="button" onClick={() => setEnableThreeInvoiceSeries(!enableThreeInvoiceSeries)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableThreeInvoiceSeries ? 'bg-purple-500 shadow-[0_2px_8px_rgba(168,85,247,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableThreeInvoiceSeries ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {enableThreeInvoiceSeries && (
+                  <div className="space-y-4 pt-2">
+                    <div className="rounded-2xl border border-blue-500/25 bg-blue-500/[0.03] p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-black text-blue-600 dark:text-blue-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                          GST B2B Invoice Series
+                        </h5>
+                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border/40 px-2 py-0.5 rounded-lg">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
-                        <Input type="number" min="1" value={b2bStartNumber} onChange={(e) => setB2bStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
+                          <Input type="text" value={b2bPrefix} onChange={(e) => setB2bPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" maxLength={6} placeholder="e.g. B2B" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
+                          <Input type="number" min="1" value={b2bStartNumber} onChange={(e) => setB2bStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] p-5 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                          GST B2C Invoice Series
+                        </h5>
+                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border/40 px-2 py-0.5 rounded-lg">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
+                          <Input type="text" value={b2cPrefix} onChange={(e) => setB2cPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-emerald-500/10 rounded-xl" maxLength={6} placeholder="e.g. B2C" />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
+                          <Input type="number" min="1" value={b2cStartNumber} onChange={(e) => setB2cStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold bg-background focus:ring-4 focus:ring-emerald-500/10 rounded-xl" />
+                        </div>
                       </div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.03] p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <h5 className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                        GST B2C Invoice Series
-                      </h5>
-                      <span className="text-[10px] font-mono font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Card 4: Store Features */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] dark:shadow-[0_4px_12px_rgba(168,85,247,0.05)] shrink-0">
+                  <Tags className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Store Features</span>
+              </div>
+              <div className="space-y-5">
+                {/* Scrap Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, and scrap manager.</p>
+                  </div>
+                  <button type="button" onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableScrap ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableScrap ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* Loyalty Toggle & Configs */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}>Enable Loyalty Points System</label>
+                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for future discounts.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Prefix</label>
-                        <Input type="text" value={b2cPrefix} onChange={(e) => setB2cPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} className="font-mono font-bold uppercase" maxLength={6} placeholder="e.g. B2C" />
+                    <button type="button" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', loyaltyEnabled ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  {loyaltyEnabled && (
+                    <div className="rounded-2xl border border-border/50 p-5 space-y-4 bg-muted/20 dark:bg-muted/10 backdrop-blur-sm animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center gap-2.5 pb-2.5 border-b border-border/40">
+                        <TrendingUp className="w-4 h-4 text-primary" />
+                        <span className="text-xs font-bold text-foreground">Points Earning &amp; Redemption Rules</span>
                       </div>
-                      <div className="space-y-1.5">
-                        <label className="text-[10px] font-bold text-muted-foreground tracking-wide">Starting Number</label>
-                        <Input type="number" min="1" value={b2cStartNumber} onChange={(e) => setB2cStartNumber(e.target.value === '' ? '' : Number(e.target.value))} placeholder="e.g. 1" className="font-mono font-bold" />
+                      <div className="grid grid-cols-2 gap-5">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
+                            <input type="number" min="1" value={loyaltyEarningRate}
+                              onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
+                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
+                            <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
+                            <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
+                              onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
+                              className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
+                          </div>
+                          <p className="text-[10px] text-muted-foreground/70">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
+                        </div>
                       </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'hardware':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Top Sub-tabs */}
+            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border/40 rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
+              {[
+                { id: 'receipt', label: 'Receipt Printer', icon: Printer },
+                { id: 'barcode', label: 'Barcode Printer', icon: Printer },
+                { id: 'a4', label: 'A4 Printer', icon: FileText },
+                { id: 'scale', label: 'Weighing Scale', icon: Scale },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isTabActive = activeHardwareTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveHardwareTab(tab.id as any)}
+                    className={clsx(
+                      "flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      isTabActive
+                        ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold scale-100"
+                        : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
+                    )}
+                  >
+                    <Icon className="w-4 h-4 shrink-0 text-current" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Render selected hardware settings card */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm backdrop-blur-sm">
+              {activeHardwareTab === 'receipt' && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                    <Printer className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Receipt Printer Settings</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="col-span-2 space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Connection Type</label>
+                      <div className="flex gap-3">
+                        <button type="button" className={clsx("flex items-center justify-center gap-2 py-3 px-5 rounded-2xl border text-xs font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", receiptPrinter.type === 'network' ? "border-primary bg-primary/10 text-primary shadow-sm font-extrabold" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30")} onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'network' })}>
+                          <Globe className="w-4 h-4 shrink-0" /> Network (TCP/IP)
+                        </button>
+                        <button type="button" className={clsx("flex items-center justify-center gap-2 py-3 px-5 rounded-2xl border text-xs font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", receiptPrinter.type === 'usb' ? "border-primary bg-primary/10 text-primary shadow-sm font-extrabold" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30")} onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'usb' })}>
+                          <Usb className="w-4 h-4 shrink-0" /> USB (OS Print Queue)
+                        </button>
+                      </div>
+                    </div>
+                    {receiptPrinter.type === 'network' ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Printer IP Address</label>
+                          <Input type="text" value={receiptPrinter.ip} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, ip: e.target.value })} placeholder="192.168.1.100" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Port</label>
+                          <Input type="text" inputMode="numeric" value={receiptPrinter.port ?? 9100} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="col-span-2 space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
+                        <Select value={receiptPrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
+                      </div>
+                    )}
+                    <div className="col-span-2 space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Receipt Width (cm)</label>
+                      <Input type="text" inputMode="decimal" value={receiptPrinter.receiptWidthCm ?? 5.8} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '') })} placeholder="e.g. 5.8 or 8.0" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Standard sizes: 5.8cm (58mm) and 8.0cm (80mm).</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {activeHardwareTab === 'barcode' && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                    <Printer className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Barcode Printer Settings</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="col-span-2 space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Connection Type</label>
+                      <div className="flex gap-3">
+                        <button type="button" className={clsx("flex items-center justify-center gap-2 py-3 px-5 rounded-2xl border text-xs font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", barcodePrinter.type === 'network' ? "border-primary bg-primary/10 text-primary shadow-sm font-extrabold" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30")} onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'network' })}>
+                          <Globe className="w-4 h-4 shrink-0" /> Network (TCP/IP)
+                        </button>
+                        <button type="button" className={clsx("flex items-center justify-center gap-2 py-3 px-5 rounded-2xl border text-xs font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", barcodePrinter.type === 'usb' ? "border-primary bg-primary/10 text-primary shadow-sm font-extrabold" : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/30")} onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'usb' })}>
+                          <Usb className="w-4 h-4 shrink-0" /> USB (OS Print Queue)
+                        </button>
+                      </div>
+                    </div>
+                    {barcodePrinter.type === 'network' ? (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Printer IP Address</label>
+                          <Input type="text" value={barcodePrinter.ip} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, ip: e.target.value })} placeholder="192.168.1.100" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Port</label>
+                          <Input type="text" inputMode="numeric" value={barcodePrinter.port ?? 9100} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="col-span-2 space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Select USB Printer</label>
+                        <Select value={barcodePrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
+                      </div>
+                    )}
+                    {barcodePrinter.type === 'usb' && (
+                      <div className="col-span-2 grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Label Width (mm)</label>
+                          <Input type="text" inputMode="numeric" value={barcodePrinter.labelWidthMm ?? 50} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Label Height (mm)</label>
+                          <Input type="text" inputMode="numeric" value={barcodePrinter.labelHeightMm ?? 25} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Label Columns</label>
+                          <Input type="text" inputMode="numeric" value={barcodePrinter.labelColumns ?? 1} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {activeHardwareTab === 'a4' && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                    <FileText className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 Printer Settings</span>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Select A4 Printer</label>
+                    <Select value={a4Printer.deviceName} placeholder="-- Use default system printer --" onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
+                    <p className="text-[10px] text-muted-foreground/75 mt-2">Choose a printer for A4 documents (quotations, invoices, reports). Leave as default to use system printer dialog.</p>
+                  </div>
+                </div>
+              )}
+
+              {activeHardwareTab === 'scale' && (
+                <div className="space-y-5">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                    <Scale className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Weighing Scale Connection</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Serial Port (COM/tty)</label>
+                      <Input type="text" value={scale.path} onChange={(e) => setScale({ ...scale, path: e.target.value })} placeholder="COM3" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Baud Rate</label>
+                      <Select value={String(scale.baudRate)} onChange={v => setScale({ ...scale, baudRate: parseInt(v) })} options={['2400','4800','9600','19200','38400','115200'].map(b => ({value:b,label:b}))} />
                     </div>
                   </div>
                 </div>
@@ -527,1323 +832,677 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
           </div>
         );
-      case 'bulk':
-        return (
-          <div>
-            <button onClick={() => setShowBulkSheet(true)}
-              className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-primary/20 hover:border-primary">
-              <Upload className="w-4 h-4" /> Open Bulk Import Sheet
-            </button>
-          </div>
-        );
-      case 'gst':
-        return (
-          <div className="space-y-5">
-            <div className="grid grid-cols-2 gap-5">
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop GSTIN</label>
-                <Input type="text" maxLength={15} value={shopGstin} onChange={(e) => setShopGstin(e.target.value.toUpperCase())} placeholder="e.g. 27AAAAA1111A1Z1" className="uppercase font-semibold font-mono" />
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">State (Place of Business)</label>
-                <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
-              </div>
-            </div>
-            <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
-                <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <span className="text-xs font-black text-amber-500 uppercase tracking-wider">Bill of Supply → GST Conversion</span>
-              </div>
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-1.5">
-                  <label className="text-[11px] font-bold text-muted-foreground tracking-wide flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    Profit Percentage
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <input type="number" min="0" max="999" value={gstProfitPercentage}
-                      onChange={e => setGstProfitPercentage(e.target.value === '' ? 0 : Number(e.target.value))}
-                      className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
-                    <span className="text-xs font-bold text-muted-foreground">%</span>
-                  </div>
-                  <p className="text-[10px] text-muted-foreground">GST sale price = GST purchase price + this % margin. Used when converting Bill of Supply invoices to GST Invoices.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
-      case 'shop':
-        return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop Name</label>
-              <Input type="text" value={shopNameLocal} onChange={(e) => setShopNameLocal(e.target.value)} placeholder="Your business name" className="font-semibold" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Phone Number</label>
-              <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder="e.g. +91 98765 43210" />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Shop Address</label>
-              <textarea value={shopAddress} onChange={(e) => setShopAddress(e.target.value)} placeholder="Enter your business address..." rows={3} className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 transition-all resize-none text-sm font-medium" />
-            </div>
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                UPI ID
-                <span className="ml-2 text-[10px] font-normal text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">Shown on receipts</span>
-              </label>
-              <div className="relative">
-                <Smartphone className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
-                <Input type="text" value={upiId} onChange={(e) => setUpiId(e.target.value)} placeholder="e.g. shopname@upi" className="pl-10 font-mono font-semibold" />
-              </div>
-              <p className="text-[10px] text-muted-foreground mt-0.5">This UPI ID will appear on printed receipts for customer payments.</p>
-            </div>
-            <div className="col-span-2 flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
-              <button onClick={() => setShowUpiQr(!showUpiQr)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', showUpiQr ? 'bg-primary' : 'bg-muted-foreground/30')}>
-                <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', showUpiQr ? 'translate-x-6' : 'translate-x-0')} />
-              </button>
-              <div className="flex-1">
-                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, a QR code with the bill amount pre-filled will appear on printed receipts.</p>
-              </div>
-            </div>
-          </div>
-        );
-      case 'scrap':
-        return (
-          <div>
-            <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
-              <button onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', enableScrap ? 'bg-primary' : 'bg-muted-foreground/30')}>
-                <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', enableScrap ? 'translate-x-6' : 'translate-x-0')} />
-              </button>
-              <div className="flex-1">
-                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, scrap manager, and scrapers card. Use this for shops that do not deal with scrap (e.g. fruit shops).</p>
-              </div>
-            </div>
-          </div>
-        );
-      case 'loyalty':
-        return (
-          <div className="space-y-6">
-            <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200">
-              <button onClick={() => setLoyaltyEnabled(!loyaltyEnabled)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', loyaltyEnabled ? 'bg-primary' : 'bg-muted-foreground/30')}>
-                <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', loyaltyEnabled ? 'translate-x-6' : 'translate-x-0')} />
-              </button>
-              <div className="flex-1">
-                <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}>Enable Loyalty Points System</label>
-                <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for discounts on future purchases.</p>
-              </div>
-            </div>
+      case 'products':
+        const productTabs = [
+          { id: 'grades', label: 'Categories & Grades', icon: Tags, ownerOnly: false },
+          { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
+          { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
+        ].filter(t => !t.ownerOnly || role === 'OWNER');
 
-            {loyaltyEnabled && (
-              <div className="space-y-4">
-                <div className="bg-card border border-border/80 rounded-xl p-5 shadow-sm">
-                  <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/60">
-                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                      <TrendingUp className="w-4 h-4" />
-                    </div>
-                    <span className="text-xs font-black text-emerald-500 uppercase tracking-wider">Points Earning Rules</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-5">
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-muted-foreground tracking-wide">Earning Rate</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground">₹</span>
-                        <input type="number" min="1" value={loyaltyEarningRate}
-                          onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
-                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
-                        <span className="text-xs font-bold text-muted-foreground">= 1 Point</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">e.g. ₹100 = 1 Point means customer earns 1 point per ₹100 spent.</p>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[11px] font-bold text-muted-foreground tracking-wide">Redemption Value</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-bold text-muted-foreground">1 Point = ₹</span>
-                        <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
-                          onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
-                          className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold" />
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">e.g. 1 Point = ₹1 means each point gives ₹1 discount.</p>
-                    </div>
-                  </div>
-                </div>
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Top Sub-tabs (only show if role is OWNER, since cashier only sees Grades) */}
+            {productTabs.length > 1 && (
+              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border/40 rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
+                {productTabs.map((tab) => {
+                  const Icon = tab.icon;
+                  const isTabActive = activeProductsTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveProductsTab(tab.id as any)}
+                      className={clsx(
+                        "flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                        isTabActive
+                          ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold scale-100"
+                          : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
+                      )}
+                    >
+                      <Icon className="w-4 h-4 shrink-0 text-current" />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             )}
-          </div>
-        );
-      case 'print-format':
-        return (
-          <div className="space-y-5">
-            {/* ── Format Toggle: Thermal vs A4 ── */}
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Paper Format</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  onClick={() => setPrintFormat('thermal')}
-                  className={clsx(
-                    "relative flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
-                    printFormat === 'thermal'
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                  )}
-                >
-                  <div className={clsx("p-2.5 rounded-xl", printFormat === 'thermal' ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
-                    <Receipt className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-foreground">Thermal Receipt</p>
-                    <p className="text-xs text-muted-foreground">58mm / 80mm roll paper</p>
-                  </div>
-                  {printFormat === 'thermal' && (
-                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                    </div>
-                  )}
-                </button>
-                <button
-                  onClick={() => setPrintFormat('a4')}
-                  className={clsx(
-                    "relative flex items-center gap-3 p-3.5 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
-                    printFormat === 'a4'
-                      ? "border-primary bg-primary/5 shadow-sm"
-                      : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                  )}
-                >
-                  <div className={clsx("p-2.5 rounded-xl", printFormat === 'a4' ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
-                    <FileText className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-bold text-foreground">A4 Invoice</p>
-                    <p className="text-xs text-muted-foreground">Full-page A4 document</p>
-                  </div>
-                  {printFormat === 'a4' && (
-                    <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                    </div>
-                  )}
-                </button>
+
+            {/* Content pane */}
+            {activeProductsTab === 'grades' && (
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm backdrop-blur-sm">
+                <SettingsGrades />
               </div>
-            </div>
+            )}
 
-            {/* ── A4 Style Selection ── */}
-            {printFormat === 'a4' && (
-              <div>
-                <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Invoice Style</span>
-                <div className="grid grid-cols-3 gap-4">
-                    {/* Standard A4 */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", a4Style === 'standard' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {a4Style === 'standard' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setA4Style('standard'); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-blue-500/10 to-blue-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Standard</span>
-                        </div>
-                      </button>
-                      <div className="bg-gray-50 p-3 flex justify-center">
-                        <div className="relative group">
-                          <div className="bg-white shadow-sm w-full rounded-sm overflow-hidden border border-gray-200">
-                            <div className="text-center border-b border-gray-300 px-2 py-1.5">
-                              <div className="font-bold text-[6px] text-gray-900">YOUR SHOP NAME</div>
-                              <div className="text-[4px] text-gray-500">123, Main Street</div>
-                              <div className="font-bold text-[7px] text-blue-600 mt-0.5">TAX INVOICE</div>
-                            </div>
-                            <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-200">
-                              <div><span className="text-gray-500">#:</span> INV-001</div>
-                              <div className="text-right"><span className="text-gray-500">Customer:</span> Walk-in</div>
-                            </div>
-                            <div className="px-2 py-1">
-                              <table className="w-full text-[4px] border-collapse">
-                                <thead><tr className="bg-gray-100">
-                                  <th className="border border-gray-300 px-0.5 text-center">#</th>
-                                  <th className="border border-gray-300 px-0.5">Item</th>
-                                  <th className="border border-gray-300 px-0.5 text-center">Qty</th>
-                                  <th className="border border-gray-300 px-0.5 text-right">Rate</th>
-                                  <th className="border border-gray-300 px-0.5 text-right">Amount</th>
-                                </tr></thead>
-                                <tbody>
-                                  {['Item A||2|₹25|₹50','Item B||1|₹30|₹30'].map(r => { const c = r.split('|'); return (
-                                    <tr key={c[0]}><td className="border border-gray-300 text-center px-0.5">{c[0]}</td>
-                                    <td className="border border-gray-300 px-0.5">{c[1]}</td>
-                                    <td className="border border-gray-300 text-center px-0.5">{c[3]}</td>
-                                    <td className="border border-gray-300 text-right px-0.5">{c[4]}</td>
-                                    <td className="border border-gray-300 text-right px-0.5">{c[5]}</td></tr>); })}
-                                </tbody>
-                                <tfoot>
-                                  <tr><td colSpan={4} className="border border-gray-300 text-right font-bold px-0.5">Subtotal</td><td className="border border-gray-300 text-right px-0.5">₹80</td></tr>
-                                  <tr className="text-blue-600 font-bold"><td colSpan={4} className="border border-gray-300 text-right px-0.5">Grand Total</td><td className="border border-gray-300 text-right px-0.5">₹84</td></tr>
-                                </tfoot>
-                              </table>
-                            </div>
-                            <div className="border-t border-gray-300 px-2 py-0.5 text-[3px] text-gray-500">Terms & Conditions apply</div>
-                          </div>
-                          <button
-                            onClick={() => { setA4Style('standard'); setPreviewFormat('a4'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
+            {activeProductsTab === 'coding' && role === 'OWNER' && (
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
+                <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <Key className="w-4.5 h-4.5 text-primary" />
+                  <span className="text-xs font-black uppercase tracking-widest text-foreground">Purchase Price Coding System</span>
+                </div>
+                <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                  Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for ₹1250).
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+                    <div key={digit} className="flex items-center gap-3 bg-muted/20 dark:bg-muted/10 p-3.5 rounded-2xl border border-border/50 hover:border-primary/40 hover:bg-background/50 transition-all duration-300">
+                      <span className="flex items-center justify-center font-black text-sm w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
+                      <span className="text-muted-foreground/60 text-xs font-bold">=</span>
+                      <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="text-center font-black text-sm uppercase bg-background border-border/60 focus:ring-4 focus:ring-primary/10 rounded-xl py-1.5" />
                     </div>
-
-                  {/* Modern A4 */}
-                  <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", a4Style === 'modern' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                    {a4Style === 'modern' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                    <button onClick={() => { setA4Style('modern'); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-amber-500/10 to-amber-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Modern</span>
-                        </div>
-                      </button>
-                    <div className="bg-gray-50 p-3 flex justify-center">
-                      <div className="relative group">
-                        <div className="bg-white shadow-sm w-full overflow-hidden rounded-sm border border-gray-200">
-                          <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 px-2 py-1.5 text-white">
-                            <div className="font-bold text-[6px]">YOUR SHOP NAME</div>
-                            <div className="text-[4px] opacity-80">123, Main Street | GST: 27AAAAA1111A1Z1</div>
-                            <div className="text-[6px] font-bold mt-0.5 opacity-90">TAX INVOICE</div>
-                          </div>
-                          <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-200">
-                            <div className="text-gray-500">INV-001</div>
-                            <div className="text-gray-500">{new Date().toLocaleDateString('en-IN')}</div>
-                          </div>
-                          <div className="px-2 py-1">
-                            <table className="w-full text-[4px] border-collapse">
-                              <thead><tr className="bg-gray-50">
-                                <th className="px-0.5 text-left font-semibold text-gray-500">Item</th>
-                                <th className="px-0.5 text-center font-semibold text-gray-500">Qty</th>
-                                <th className="px-0.5 text-right font-semibold text-gray-500">Amount</th>
-                              </tr></thead>
-                              <tbody>
-                                {['Item A|2|₹50','Item B|1|₹30'].map(r => { const c = r.split('|'); return (
-                                  <tr key={c[0]} className="border-b border-gray-200">
-                                    <td className="px-0.5 py-0.5 text-gray-900">{c[0]}</td>
-                                    <td className="px-0.5 py-0.5 text-center text-gray-900">{c[1]}</td>
-                                    <td className="px-0.5 py-0.5 text-right text-gray-900">{c[2]}</td>
-                                  </tr>); })}
-                              </tbody>
-                            </table>
-                          </div>
-                          <div className="px-2 py-1 bg-emerald-50">
-                            <div className="flex justify-between text-[5px] font-bold text-emerald-700"><span>Grand Total</span><span>₹84.00</span></div>
-                          </div>
-                          <div className="px-2 py-0.5 text-[3px] text-gray-400 text-center border-t border-gray-200">Thank you for your business!</div>
-                        </div>
-                        <button
-                          onClick={() => { setA4Style('modern'); setPreviewFormat('a4'); }}
-                          className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                          title="View full preview"
-                        >
-                          <Maximize2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Classic A4 */}
-                  <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", a4Style === 'classic' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                    {a4Style === 'classic' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                    <button onClick={() => { setA4Style('classic'); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-rose-500/10 to-rose-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Classic</span>
-                        </div>
-                      </button>
-                    <div className="bg-gray-50 p-3 flex justify-center">
-                      <div className="relative group">
-                        <div className="bg-white shadow-sm w-full overflow-hidden border-2 border-double border-gray-600">
-                          <div className="text-center border-b-2 border-double border-gray-600 px-2 py-1">
-                            <div className="font-bold text-[6px] tracking-widest text-gray-900">YOUR SHOP NAME</div>
-                            <div className="text-[4px] text-gray-500">123, Main Street, City - 400001</div>
-                            <div className="text-[4px] text-gray-500">Phone: +91 98765 43210 | GSTIN: 27AAAAA1111A1Z1</div>
-                            <div className="font-bold text-[7px] tracking-widest mt-0.5 text-gray-900">TAX INVOICE</div>
-                          </div>
-                          <div className="flex justify-between px-2 py-1 text-[4px] border-b border-gray-300 text-gray-700">
-                            <div>Invoice No: INV-001</div>
-                            <div>Date: {new Date().toLocaleDateString('en-IN')}</div>
-                          </div>
-                          <div className="px-2 py-1">
-                            <table className="w-full text-[4px] border-collapse">
-                              <thead><tr className="bg-gray-100">
-                                <th className="border border-gray-300 px-0.5 text-center text-gray-700">#</th>
-                                <th className="border border-gray-300 px-0.5 text-gray-700">Particulars</th>
-                                <th className="border border-gray-300 px-0.5 text-right text-gray-700">Amount</th>
-                              </tr></thead>
-                              <tbody>
-                                {['1|Item A x 2|₹50.00','2|Item B x 1|₹30.00'].map(r => { const c = r.split('|'); return (
-                                  <tr key={c[0]} className="text-gray-900">
-                                    <td className="border border-gray-300 text-center px-0.5">{c[0]}</td>
-                                    <td className="border border-gray-300 px-0.5">{c[1]}</td>
-                                    <td className="border border-gray-300 text-right px-0.5">{c[2]}</td>
-                                  </tr>); })}
-                              </tbody>
-                              <tfoot>
-                                <tr className="text-gray-900 font-bold"><td colSpan={2} className="border border-gray-300 text-right px-0.5">Subtotal</td><td className="border border-gray-300 text-right px-0.5">₹80.00</td></tr>
-                                <tr className="text-gray-700"><td colSpan={2} className="border border-gray-300 text-right px-0.5">CGST @2.5%</td><td className="border border-gray-300 text-right px-0.5">₹2.00</td></tr>
-                                <tr className="text-gray-700"><td colSpan={2} className="border border-gray-300 text-right px-0.5">SGST @2.5%</td><td className="border border-gray-300 text-right px-0.5">₹2.00</td></tr>
-                                <tr className="text-gray-900 font-bold"><td colSpan={2} className="border border-gray-300 text-right px-0.5">Grand Total</td><td className="border border-gray-300 text-right px-0.5">₹84.00</td></tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                          <div className="text-center px-2 py-0.5 text-[3px] text-gray-500 border-t border-gray-300">This is a computer generated invoice</div>
-                        </div>
-                        <button
-                          onClick={() => { setA4Style('classic'); setPreviewFormat('a4'); }}
-                          className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                          title="View full preview"
-                        >
-                          <Maximize2 className="w-3 h-3" />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* ── Thermal: Width Toggle + Style Selection ── */}
-            {printFormat === 'thermal' && (
-              <>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Paper Width</span>
-                  <div className="flex items-center gap-1.5 p-0.5 bg-muted rounded-lg border border-border/60">
-                    <button onClick={() => setPrintWidth(58)}
-                      className={clsx("px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer", printWidth === 58 ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>58mm</button>
-                    <button onClick={() => setPrintWidth(80)}
-                      className={clsx("px-3.5 py-1.5 rounded-md text-xs font-bold transition-all cursor-pointer", printWidth === 80 ? "bg-background shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground")}>80mm</button>
-                  </div>
+            {activeProductsTab === 'bulk' && role === 'OWNER' && (
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
+                <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <Upload className="w-4.5 h-4.5 text-primary" />
+                  <span className="text-xs font-black uppercase tracking-widest text-foreground">Bulk Product Import</span>
                 </div>
-
+                <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                  Quickly upload products and generate barcode labels in bulk using a spreadsheet layout.
+                </p>
                 <div>
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Receipt Style</span>
+                  <button type="button" onClick={() => setShowBulkSheet(true)}
+                    className="flex items-center gap-2 px-5 py-3 text-xs font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer border border-primary/20 hover:border-primary shadow-sm shadow-primary/5">
+                    <Upload className="w-4 h-4 shrink-0" /> Open Bulk Import Sheet
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      case 'printing':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Card 1: Receipt & Invoice Format */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <FileText className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Receipt &amp; Invoice Format</span>
+              </div>
+              <div className="space-y-6">
+                {/* Format Toggle: Thermal vs A4 */}
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Paper Format</label>
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Standard */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'standard' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'standard' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('standard'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-blue-500/10 to-blue-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Standard</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`════════════════════════════════
-        VENDORA MART           
-    123, Main Street          
-    Ph: +91 98765 43210       
-    GSTIN: 27AAAAA1111A1Z1    
-    -- TAX INVOICE --         
-════════════════════════════════
-  INV No:  INV-001             
-  Date:    03/07/2026          
-────────────────────────────────
-#  Item          Qty    Amount  
-────────────────────────────────
-1  Item A          2     50.00 
-2  Item B          1     30.00 
-────────────────────────────────
-SUBTOTAL                   80.00
-CGST                       43.00
-SGST                       43.00
-DISCOUNT                  -50.00
-════════════════════════════════
-         GRAND TOTAL            
-          ₹ 116.00              
-════════════════════════════════
-     ++ You Saved ₹50 ++        
-────────────────────────────────
-   Thank you for your visit!    
-        Have a great day!       
-════════════════════════════════`}</pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('standard'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
+                    <button
+                      type="button"
+                      onClick={() => setPrintFormat('thermal')}
+                      className={clsx(
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        printFormat === 'thermal'
+                          ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                          : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                      )}
+                    >
+                      <div className={clsx("p-2.5 rounded-xl", printFormat === 'thermal' ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                        <Receipt className="w-5 h-5 shrink-0" />
                       </div>
-                    </div>
-
-                    {/* Compact */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'compact' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'compact' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('compact'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-violet-500/10 to-violet-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Compact</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`SHOP NAME
-123, Main Street, City
-GST: 27AAAAA1111A1Z1
-────────────────────────────────
-INV-001  03/07/2026
-────────────────────────────────
-Item A                    50.00
- 2x25.00
-Item B                    30.00
- 1x30.00
-────────────────────────────────
-Subtotal                  80.00
-CGST                      43.00
-SGST                      43.00
-Discount                 -50.00
-────────────────────────────────
-GRAND TOTAL              116.00
-────────────────────────────────
-  ** SAVED ₹50 **
-────────────────────────────────
-         THANK YOU`}</pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('compact'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-foreground">Thermal Receipt</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5">58mm / 80mm roll paper</p>
                       </div>
-                    </div>
-
-                    {/* Modern */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'modern' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'modern' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('modern'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-amber-500/10 to-amber-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Modern</span>
+                      {printFormat === 'thermal' && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
                         </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`    ✦ VENDORA MART ✦    
-   123, Main Street       
-  📞 +91 98765 43210      
-  GST: 27AAAAA1111A1Z1    
-   [ TAX INVOICE ]        
-════════════════════════════════
-  INV:  INV-001                  
-  Date: 03/07/2026               
-────────────────────────────────
-▸ Item A                   50.00 
- 2 x 25.00                       
-▸ Item B                   30.00 
- 1 x 30.00                       
-────────────────────────────────
-SUBTOTAL                   80.00 
-CGST                       43.00 
-SGST                       43.00 
-DISCOUNT                  -50.00 
-────────────────────────────────
-      >> GRAND TOTAL <<           
-            ₹ 116.00              
-────────────────────────────────
-      ✦ Saved 50.00 ✦            
-────────────────────────────────
-        ✦ Thank You! ✦           
-         Visit Again             
-`}</pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('modern'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Classic */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'classic' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'classic' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('classic'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-rose-500/10 to-rose-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Classic</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border-2 border-border/60", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`════════════════════════════════
-     *** VENDORA MART ***       
-    123, Main Street            
-    Phone: +91 98765 43210      
-    GSTIN: 27AAAAA1111A1Z1      
-    --- TAX INVOICE ---         
-════════════════════════════════
-  Invoice No:  INV-001          
-  Date:        03/07/2026       
-────────────────────────────────
-1. Item A                  50.00
-    2 x 25.00
-2. Item B                  30.00
-    1 x 30.00
-────────────────────────────────
-Subtotal:                  80.00
-CGST @2.5%:                43.00
-SGST @2.5%:                43.00
-Discount:                 -50.00
-════════════════════════════════
-       *** GRAND TOTAL ***       
-            ₹ 116.00             
-════════════════════════════════
-     *** YOU SAVED ₹50 ***       
-────────────────────────────────
-   * Thank you, visit again! *   
-════════════════════════════════`}</pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('classic'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Clean */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'clean' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'clean' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('clean'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-teal-500/10 to-teal-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Clean</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`          VENDORA MART
-       123, Main Street
-      Ph: +91 98765 43210
-    GSTIN: 27AAAAA1111A1Z1
-
-Date: 03/07/2026
-Receipt No: INV-001
-
-ITEM       QTY   RATE   AMOUNT
-Item A       2  25.00    50.00
-Item B       1  30.00    30.00
-
-SUB TOTAL :            ₹80.00
-CGST :                 ₹43.00
-SGST :                 ₹43.00
-DISCOUNT :           ₹-50.00
-NET PAYABLE :         ₹116.00
-
-       YOU SAVED ₹50.00
-
-  Thank You, Visit Again!`}
-                            </pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('clean'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Dot */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'dot' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'dot' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('dot'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-cyan-500/10 to-cyan-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Dot</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`       VENDORA MART
-     123, Main Street
-    Ph: +91 98765 43210
-    GST: 27AAAAA1111A1Z1
-     TAX INVOICE
-
-INV-001     03/07/2026
-
-Item A ................ 50.00
-  2x25.00
-Item B ................ 30.00
-  1x30.00
---------------------------------
-SUBTOTAL .............. 80.00
-CGST ................. 43.00
-SGST ................. 43.00
-DISCOUNT ............ -50.00
-GRAND TOTAL .......... 116.00
---------------------------------
-   Thank you, visit again!`}
-                            </pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('dot'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Slim */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'slim' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'slim' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('slim'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-stone-500/10 to-stone-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Slim</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border border-border/40", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`VENDORA MART
-123, Main Street
-GST: 27AAAAA1111A1Z1
-
-INV-001  03/07/2026
-
-Item A               50.00
-  2x25.00
-Item B               30.00
-  1x30.00
-
-SUBTOTAL             80.00
-CGST                 43.00
-SGST                 43.00
-DISCOUNT            -50.00
-GRAND TOTAL         116.00
-
-Thank You`}
-                            </pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('slim'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Luxe */}
-                    <div className={clsx("relative rounded-xl border-2 transition-all overflow-hidden", thermalStyle === 'luxe' ? "border-primary shadow-md ring-1 ring-primary/20" : "border-border/80 hover:border-primary/40")}>
-                      {thermalStyle === 'luxe' && <div className="absolute top-2 right-2 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                      <button onClick={() => { setThermalStyle('luxe'); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                        <div className="p-2 bg-gradient-to-r from-purple-500/10 to-purple-500/5 border-b border-border/60">
-                          <span className="text-[11px] font-bold text-foreground">Luxe</span>
-                        </div>
-                      </button>
-                      <div className="bg-muted/30 flex justify-center py-3">
-                        <div className="relative group flex justify-center">
-                          <div className={clsx("bg-card shadow-inner font-mono overflow-hidden border-2 border-border/60", printWidth === 58 ? "w-40" : "w-48")}>
-                            <pre className="text-[4px] leading-[1.4] whitespace-pre text-foreground pl-16" style={{ fontFamily: FONT_OPTIONS.find(f => f.id === receiptFont)?.family || '"Courier New", monospace' }}>
-{`════════════════════════════════
-      VENDORA MART
-   123, Main Street
-  Ph: +91 98765 43210
-  GSTIN: 27AAAAA1111A1Z1
-════════════════════════════════
-  Invoice: INV-001
-  Date:    03/07/2026
-────────────────────────────────
-           ITEMS
-────────────────────────────────
-1. Item A                 50.00
-    2 x 25.00
-2. Item B                 30.00
-    1 x 30.00
-────────────────────────────────
-Subtotal           ₹80.00
-CGST               ₹43.00
-SGST               ₹43.00
-Discount          ₹-50.00
-════════════════════════════════
-       GRAND TOTAL
-        ₹ 116.00
-════════════════════════════════
-  Thank You, Visit Again!
-────────────────────────────────`}
-                            </pre>
-                          </div>
-                          <button
-                            onClick={() => { setThermalStyle('luxe'); setPreviewFormat('thermal'); }}
-                            className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 bg-primary text-primary-foreground rounded-md shadow-lg hover:bg-primary/90 cursor-pointer"
-                            title="View full preview"
-                          >
-                            <Maximize2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <button onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary' : 'bg-muted-foreground/30')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', showProductOffers ? 'translate-x-6' : 'translate-x-0')} />
+                      )}
                     </button>
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Receipt</label>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels on printed receipts.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-3 p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <button onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-12 h-6 rounded-full transition-all duration-200 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary' : 'bg-muted-foreground/30')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-200', openCashDrawerOnPending ? 'translate-x-6' : 'translate-x-0')} />
+                    <button
+                      type="button"
+                      onClick={() => setPrintFormat('a4')}
+                      className={clsx(
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        printFormat === 'a4'
+                          ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                          : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                      )}
+                    >
+                      <div className={clsx("p-2.5 rounded-xl", printFormat === 'a4' ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                        <FileText className="w-5 h-5 shrink-0" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-bold text-foreground">A4 Invoice</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5">Full-page A4 document</p>
+                      </div>
+                      {printFormat === 'a4' && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                        </div>
+                      )}
                     </button>
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
-                      <p className="text-[10px] text-muted-foreground mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing. Enable this only if you collect cash at the billing counter.</p>
-                    </div>
                   </div>
+                </div>
 
-                  <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Bill Content</label>
-                    <p className="text-[10px] text-muted-foreground mb-3">Tick what to show on printed bills & invoices</p>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                      {[
-                        { key: 'showShopName', label: 'Shop Name' },
-                        { key: 'showShopAddress', label: 'Shop Address' },
-                        { key: 'showPhone', label: 'Phone Number' },
-                        { key: 'showShopGstin', label: 'Shop GSTIN' },
-                        { key: 'showShopState', label: 'Shop State' },
-                        { key: 'showTitle', label: 'Document Title' },
-                        { key: 'showCustomerName', label: 'Customer Name' },
-                        { key: 'showCustomerGstin', label: 'Customer GSTIN' },
-                        { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
-                      ].map(({ key, label }) => {
-                        const forcedOn = key === 'showTitle' && billSettings.estimateMode;
-                        return (
-                          <label key={key} className={`flex items-center gap-2.5 py-1.5 ${forcedOn ? '' : 'cursor-pointer group'}`}>
-                            <button
-                              onClick={() => {
-                                if (forcedOn) return;
-                                setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
+                {/* Thermal Options: Width, Style, Cash Drawer, Fonts */}
+                {printFormat === 'thermal' ? (
+                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Paper Width</span>
+                      <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border/60">
+                        <button type="button" onClick={() => setPrintWidth(58)}
+                          className={clsx("px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95", printWidth === 58 ? "bg-background shadow-sm text-foreground font-extrabold" : "text-muted-foreground hover:text-foreground")}>58mm</button>
+                        <button type="button" onClick={() => setPrintWidth(80)}
+                          className={clsx("px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95", printWidth === 80 ? "bg-background shadow-sm text-foreground font-extrabold" : "text-muted-foreground hover:text-foreground")}>80mm</button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Receipt Style</span>
+                      <div className="grid grid-cols-2 gap-4">
+                        {[
+                          { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
+                          { id: 'compact', name: 'Compact', color: 'from-violet-500/10 to-violet-500/5' },
+                          { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
+                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
+                        ].map((style) => {
+                          const isActive = thermalStyle === style.id;
+                          return (
+                            <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
+                              {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                              <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
+                                <div className={clsx("p-3 border-b border-border/40 bg-gradient-to-r", style.color)}>
+                                  <span className="text-xs font-extrabold text-foreground">{style.name}</span>
+                                </div>
+                              </button>
+                              <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
+                                <div className="relative group flex justify-center">
+                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border/40 w-36 rounded-md">
+                                    <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
+                                  </div>
+                                  <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <div className="flex-1">
+                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Receipt</label>
+                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
+                      </div>
+                      <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <div className="flex-1">
+                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
+                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
+                      </div>
+                      <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
+                      </button>
+                    </div>
+
+                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                        {[
+                          { key: 'showShopName', label: 'Shop Name' },
+                          { key: 'showShopAddress', label: 'Shop Address' },
+                          { key: 'showPhone', label: 'Phone Number' },
+                          { key: 'showShopGstin', label: 'Shop GSTIN' },
+                          { key: 'showShopState', label: 'Shop State' },
+                          { key: 'showTitle', label: 'Document Title' },
+                          { key: 'showCustomerName', label: 'Customer Name' },
+                          { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                          { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
+                        ].map(({ key, label }) => {
+                          const forcedOn = key === 'showTitle' && billSettings.estimateMode;
+                          return (
+                            <label key={key} className={`flex items-center gap-3 py-1.5 ${forcedOn ? '' : 'cursor-pointer group text-xs text-foreground font-medium select-none'}`}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (forcedOn) return;
+                                  setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
+                                }}
+                                className={clsx(
+                                  'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                                  (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50',
+                                  forcedOn && 'opacity-50'
+                                )}
+                              >
+                                {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                              </button>
+                              <span>{label}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+
+                      {billSettings.showBosTaxBreakup && (
+                        <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                          <div className="flex items-center gap-3">
+                            <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>
+                            <input
+                              type="number"
+                              min="0"
+                              max="100"
+                              step="0.1"
+                              value={billSettings.bosTaxRatePercent}
+                              onChange={e => {
+                                const v = parseFloat(e.target.value) || 0;
+                                setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
                               }}
-                              className={clsx(
-                                'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
-                                (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50',
-                                forcedOn && 'opacity-50'
-                              )}
-                            >
-                              {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                            </button>
-                            <span className={`text-xs select-none ${forcedOn ? 'text-muted-foreground' : 'text-foreground'}`}>
-                              {label}
-                            </span>
-                          </label>
-                        );
-                      })}
-                      {billSettings.showBosTaxBreakup && (<>
-                        <div className="col-span-2 flex items-center gap-3 py-2 border-b border-border/40 mb-1">
-                          <label className="text-xs text-foreground shrink-0">CGST/SGST Rate %</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={billSettings.bosTaxRatePercent}
-                            onChange={e => {
-                              const v = parseFloat(e.target.value) || 0;
-                              setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
-                            }}
-                            className="w-20 px-2 py-1 text-xs border border-border/60 rounded bg-background text-foreground text-center"
-                          />
-                          <span className="text-[10px] text-muted-foreground">Total tax is split equally as CGST + SGST (or IGST for inter-state)</span>
-                        </div>
-                        <div className="col-span-2 flex items-center gap-3 pb-2">
-                          <label className="text-xs text-foreground shrink-0">Tax Type</label>
-                          <div className="flex rounded-lg border border-border/60 overflow-hidden">
-                            <button
-                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
-                              className={clsx(
-                                'px-3 py-1 text-xs font-medium transition-all cursor-pointer',
-                                !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'
-                              )}
-                            >
-                              Exclusive (tax extra)
-                            </button>
-                            <button
-                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
-                              className={clsx(
-                                'px-3 py-1 text-xs font-medium transition-all cursor-pointer',
-                                billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground' : 'bg-background text-foreground hover:bg-muted'
-                              )}
-                            >
-                              Inclusive (tax included)
-                            </button>
+                              className="w-20 px-3 py-1.5 text-xs border border-border/80 rounded-xl bg-background text-foreground text-center font-mono font-bold"
+                            />
+                            <span className="text-[10px] text-muted-foreground/70">Split equally as CGST + SGST</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <label className="text-xs text-foreground shrink-0 font-bold">Tax Type</label>
+                            <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner">
+                              <button
+                                type="button"
+                                onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
+                                className={clsx(
+                                  'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                                  !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                                )}
+                              >
+                                Exclusive
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
+                                className={clsx(
+                                  'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                                  billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                                )}
+                              >
+                                Inclusive
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </>)}
-                      <div className="col-span-2 border-t border-border/60 my-1.5" />
-                      <label className="flex items-center gap-2.5 py-1.5 cursor-pointer group col-span-2">
+                      )}
+
+                      <div className="border-t border-border/40 my-3.5" />
+                      <label className="flex items-center gap-3 cursor-pointer group select-none">
                         <button
-                          onClick={() => {
-                            if (!billSettings.estimateMode) {
-                              setBillSettings(s => ({ ...s, estimateMode: true, showTitle: true }));
-                            } else {
-                              setBillSettings(s => ({ ...s, estimateMode: false }));
-                            }
-                          }}
+                          type="button"
+                          onClick={() => setBillSettings(s => ({ ...s, estimateMode: !s.estimateMode, showTitle: !s.estimateMode ? true : s.showTitle }))}
                           className={clsx(
-                            'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
-                            billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50'
+                            'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                            billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
                           )}
                         >
                           {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
                         </button>
                         <div>
-                          <span className="text-xs text-foreground select-none font-bold">Force "BILL OF SUPPLY" title</span>
-                          <p className="text-[10px] text-muted-foreground">Overrides document title to BILL OF SUPPLY. Automatically enables Document Title.</p>
+                          <span className="text-xs text-foreground font-bold">Force "BILL OF SUPPLY" title</span>
+                          <p className="text-[10px] text-muted-foreground/75 mt-0.5">Overrides document title to BILL OF SUPPLY.</p>
                         </div>
                       </label>
                     </div>
-                  </div>
 
-                  <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2 block">Scrap Bill Content</label>
-                    <p className="text-[10px] text-muted-foreground mb-3">Separate settings for scrap bill receipts</p>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1">
-                      {[
-                        { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
-                        { key: 'showShopName', label: 'Shop Name' },
-                        { key: 'showShopAddress', label: 'Shop Address' },
-                        { key: 'showPhone', label: 'Phone Number' },
-                        { key: 'showShopGstin', label: 'Shop GSTIN' },
-                        { key: 'showTitle', label: 'Document Title' },
-                        { key: 'showCustomerName', label: 'Customer Name' },
-                      ].map(({ key, label }) => (
-                        <label key={key} className="flex items-center gap-2.5 py-1.5 cursor-pointer group">
+                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                        {[
+                          { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
+                          { key: 'showShopName', label: 'Shop Name' },
+                          { key: 'showShopAddress', label: 'Shop Address' },
+                          { key: 'showPhone', label: 'Phone Number' },
+                          { key: 'showShopGstin', label: 'Shop GSTIN' },
+                          { key: 'showTitle', label: 'Document Title' },
+                          { key: 'showCustomerName', label: 'Customer Name' },
+                        ].map(({ key, label }) => (
+                          <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
+                            <button
+                              type="button"
+                              onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
+                              className={clsx(
+                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                                (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                              )}
+                            >
+                              {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                            </button>
+                            <span>{label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Receipt Font</label>
+                      <div className="flex flex-wrap gap-2.5">
+                        {FONT_OPTIONS.map(f => (
                           <button
-                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
+                            type="button"
+                            key={f.id}
+                            onClick={() => setReceiptFont(f.id)}
                             className={clsx(
-                              'w-4 h-4 rounded border-2 flex items-center justify-center transition-all shrink-0',
-                              (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/40 group-hover:border-primary/50'
+                              'px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer border',
+                              receiptFont === f.id
+                                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10 border-transparent scale-100 font-extrabold'
+                                : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border/60'
                             )}
+                            style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
                           >
-                            {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                            {f.name}
                           </button>
-                          <span className="text-xs text-foreground select-none">{label}</span>
-                        </label>
-                      ))}
+                        ))}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing thermal receipts.</p>
                     </div>
                   </div>
-
-                  <div className="p-3.5 bg-card border border-border/80 rounded-xl hover:border-primary/30 transition-all duration-200 mt-4">
-                    <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Receipt Font</label>
-                    <div className="flex flex-wrap gap-2">
-                      {FONT_OPTIONS.map(f => (
-                        <button
-                          key={f.id}
-                          onClick={() => setReceiptFont(f.id)}
-                          className={clsx(
-                            'px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer',
-                            receiptFont === f.id
-                              ? 'bg-primary text-primary-foreground shadow-sm'
-                              : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/60'
-                          )}
-                          style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
-                        >
-                          {f.name}
-                        </button>
-                      ))}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-2">Font used when printing thermal receipts. Pick one installed on your system.</p>
-                  </div>
-                </div>
-                </>
-              )}
-  
-              <div className="p-3.5 bg-amber-500/5 border border-amber-500/20 rounded-xl flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-                Changes apply only to new invoices. Previously generated invoices remain unaffected.
-              </p>
-            </div>
-          </div>
-        );
-      case 'coding':
-        return (
-          <div className="grid grid-cols-5 gap-3">
-            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-              <div key={digit} className="flex items-center gap-1.5 bg-card p-2.5 rounded-xl border border-border/80 hover:border-primary/30 transition-all duration-200">
-                <span className="font-bold text-base w-5 text-center text-muted-foreground">{digit}</span>
-                <span className="text-muted-foreground text-xs">=</span>
-                <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="text-center font-bold text-sm" />
-              </div>
-            ))}
-          </div>
-        );
-      case 'barcode-printer':
-        return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connection Type</label>
-              <div className="flex gap-3">
-                <button className={clsx("flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", barcodePrinter.type === 'network' ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40")} onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'network' })}>
-                  <Globe className="w-4 h-4" /> Network (TCP/IP)
-                </button>
-                <button className={clsx("flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", barcodePrinter.type === 'usb' ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40")} onClick={() => setBarcodePrinter({ ...barcodePrinter, type: 'usb' })}>
-                  <Usb className="w-4 h-4" /> USB (OS Print Queue)
-                </button>
-              </div>
-            </div>
-            {barcodePrinter.type === 'network' ? (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Printer IP Address</label>
-                  <Input type="text" value={barcodePrinter.ip} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, ip: e.target.value })} placeholder="192.168.1.100" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Port</label>
-                  <Input type="text" inputMode="numeric" value={barcodePrinter.port ?? 9100} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} />
-                </div>
-              </>
-            ) : (
-              <div className="col-span-2 space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
-                <Select value={barcodePrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setBarcodePrinter({ ...barcodePrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
-              </div>
-            )}
-            {barcodePrinter.type === 'usb' && (
-              <div className="col-span-2 grid grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Width (mm)</label>
-                  <Input type="text" inputMode="numeric" value={barcodePrinter.labelWidthMm ?? 50} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelWidthMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Height (mm)</label>
-                  <Input type="text" inputMode="numeric" value={barcodePrinter.labelHeightMm ?? 25} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelHeightMm: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Label Columns</label>
-                  <Input type="text" inputMode="numeric" value={barcodePrinter.labelColumns ?? 1} onChange={(e) => setBarcodePrinter({ ...barcodePrinter, labelColumns: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} />
-                </div>
-              </div>
-            )}
-          </div>
-        );
-      case 'receipt-printer':
-        return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Connection Type</label>
-              <div className="flex gap-3">
-                <button className={clsx("flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", receiptPrinter.type === 'network' ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40")} onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'network' })}>
-                  <Globe className="w-4 h-4" /> Network (TCP/IP)
-                </button>
-                <button className={clsx("flex items-center gap-2 px-5 py-3 rounded-xl border text-sm font-bold transition-all duration-200 active:scale-95 flex-1 cursor-pointer", receiptPrinter.type === 'usb' ? "border-primary bg-primary/5 text-primary shadow-sm" : "border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40")} onClick={() => setReceiptPrinter({ ...receiptPrinter, type: 'usb' })}>
-                  <Usb className="w-4 h-4" /> USB (OS Print Queue)
-                </button>
-              </div>
-            </div>
-            {receiptPrinter.type === 'network' ? (
-              <>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Printer IP Address</label>
-                  <Input type="text" value={receiptPrinter.ip} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, ip: e.target.value })} placeholder="192.168.1.100" />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Port</label>
-                  <Input type="text" inputMode="numeric" value={receiptPrinter.port ?? 9100} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, port: e.target.value === '' ? '' : e.target.value.replace(/\D/g, '') })} />
-                </div>
-              </>
-            ) : (
-              <div className="col-span-2 space-y-2">
-                <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select USB Printer</label>
-                <Select value={receiptPrinter.deviceName} placeholder="-- Select a printer --" onChange={v => setReceiptPrinter({ ...receiptPrinter, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
-              </div>
-            )}
-            <div className="col-span-2 space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Receipt Width (cm)</label>
-              <Input type="text" inputMode="decimal" value={receiptPrinter.receiptWidthCm ?? 5.8} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '') })} placeholder="e.g. 5.8 or 8.0" />
-              <p className="text-[10px] text-muted-foreground mt-1">Standard sizes: 5.8cm (58mm) and 8.0cm (80mm).</p>
-            </div>
-          </div>
-        );
-      case 'a4-printer':
-        return (
-          <div className="space-y-5">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Select A4 Printer</label>
-              <Select value={a4Printer.deviceName} placeholder="-- Use default system printer --" onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
-              <p className="text-[10px] text-muted-foreground mt-1">Choose a printer for A4 documents (quotations, invoices, reports). Leave as default to use system printer dialog.</p>
-            </div>
-          </div>
-        );
-      case 'scale':
-        return (
-          <div className="grid grid-cols-2 gap-5">
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Serial Port (COM/tty)</label>
-              <Input type="text" value={scale.path} onChange={(e) => setScale({ ...scale, path: e.target.value })} placeholder="COM3" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Baud Rate</label>
-              <Select value={String(scale.baudRate)} onChange={v => setScale({ ...scale, baudRate: parseInt(v) })} options={['2400','4800','9600','19200','38400','115200'].map(b => ({value:b,label:b}))} />
-            </div>
-          </div>
-        );
-      case 'updates':
-        return (
-          <div className="space-y-5">
-            <div className="relative overflow-hidden rounded-xl border border-border bg-gradient-to-br from-primary/[0.04] to-transparent">
-              <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.06),transparent_70%)]" />
-              <div className="relative p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="p-3 rounded-xl bg-primary/10 text-primary shadow-sm"><RefreshCw className="w-5 h-5" /></div>
+                ) : (
+                  /* A4 Options: Styles */
+                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div>
-                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Current Version</p>
-                      <p className="text-2xl font-bold text-foreground font-mono tracking-tight mt-0.5">{appVersion}</p>
-                      {lastChecked && (<p className="text-[11px] text-muted-foreground/70 mt-1">Last checked {formatTimeAgo(lastChecked)}</p>)}
+                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Invoice Style</span>
+                      <div className="grid grid-cols-3 gap-4">
+                        {[
+                          { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
+                          { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
+                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
+                        ].map((style) => {
+                          const isActive = a4Style === style.id;
+                          return (
+                            <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
+                              {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
+                              <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
+                                <div className={clsx("p-3 border-b border-border/40 bg-gradient-to-r", style.color)}>
+                                  <span className="text-xs font-extrabold text-foreground">{style.name}</span>
+                                </div>
+                              </button>
+                              <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
+                                <div className="relative group flex justify-center">
+                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border/40 w-36 rounded-md">
+                                    <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
+                                  </div>
+                                  <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                  {updateStatus && (
-                    <div className={clsx("flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold border shrink-0", updateStatus === 'Up to date' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : updateStatus === 'Update available' || updateStatus === 'Update ready to install' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400" : updateStatus === 'Downloading...' || isDownloading ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 border-border text-muted-foreground")}>
-                      {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-                      {updateStatus}
-                    </div>
-                  )}
+                )}
+
+                <div className="p-4 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
+                    Changes apply only to new invoices. Previously generated invoices remain unaffected.
+                  </p>
                 </div>
               </div>
             </div>
-            {updateStatus === 'Up to date' && !updateInfo && (
-              <div className="rounded-xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] to-transparent overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-emerald-500/10">
-                  <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="w-5 h-5" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-foreground">{appVersion} — You're on the latest version</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">No updates available at this time.</p>
-                  </div>
-                  <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold rounded-md border border-emerald-500/20">UP TO DATE</span>
+
+            {/* Card 2: Label Format */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] shrink-0">
+                  <Tags className="w-4.5 h-4.5" />
                 </div>
-                {lastChecked && (<div className="px-5 py-2.5 bg-emerald-500/[0.02] border-t border-emerald-500/5"><p className="text-[11px] text-muted-foreground/70">Last checked {formatTimeAgo(lastChecked)}</p></div>)}
+                <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Product Label Codes</span>
               </div>
-            )}
-            {updateInfo && (
-              <div className="rounded-xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.04] to-transparent overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-blue-500/10">
-                  <div className="p-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400"><Download className="w-4 h-4" /></div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold text-foreground">v{updateInfo.version} {updateReady ? 'Ready to Install' : isDownloading ? 'Downloading...' : 'Available'}</p>
-                    {updateInfo.releaseDate && (<p className="text-xs text-muted-foreground mt-0.5">Released {new Date(updateInfo.releaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>)}
-                  </div>
-                  <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-bold rounded-md border border-blue-500/20">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
-                </div>
-                {updateInfo.releaseNotes && (
-                  <div className="px-5 py-4">
-                    <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">What's New</p>
-                    <div className="text-xs text-muted-foreground max-h-36 overflow-y-auto leading-relaxed space-y-2">
-                      {typeof updateInfo.releaseNotes === 'string'
-                        ? updateInfo.releaseNotes.split('\n').filter(Boolean).map((line: string, i: number) => (<p key={i} className="flex items-start gap-2.5"><span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" /><span>{line}</span></p>))
-                        : <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>}
-                    </div>
-                  </div>
-                )}
-                {isDownloading && downloadProgress && (
-                  <div className="px-5 pb-4">
-                    <div className="w-full bg-border/50 rounded-full h-2.5 overflow-hidden"><div className="h-full bg-primary rounded-full transition-all duration-300" style={{ width: `${Math.min(downloadProgress.percent, 100)}%` }} /></div>
-                    <div className="flex items-center justify-between mt-2"><p className="text-[11px] text-muted-foreground">{Math.round(downloadProgress.percent)}%</p><p className="text-[11px] text-muted-foreground">{formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}</p></div>
-                  </div>
-                )}
-                {updateReady && (
-                  <div className="px-5 pb-4">
-                    <button onClick={handleInstallUpdate} className="flex items-center justify-center gap-2 w-full h-11 rounded-xl font-bold text-sm bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer">
-                      <RotateCcw className="w-4 h-4" /> Restart & Install Update
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        );
-      case 'appearance':
-        return (
-          <div className="space-y-4">
-            <div className="bg-muted/30 border border-border rounded-xl p-5">
-              <div className="flex items-center justify-between">
+              <div className="space-y-5">
                 <div>
-                  <p className="text-sm font-bold text-foreground">Font Size</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">Scale the entire UI text size</p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button onClick={decreaseFontScale} disabled={fontScale <= 70} className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"><Minus className="w-4 h-4" /></button>
-                  <div className="w-20 text-center">
-                    <span className="text-2xl font-black text-foreground">{fontScale}%</span>
-                    <div className="flex items-center justify-center gap-1 mt-1">
-                      <span className={clsx('w-2 h-2 rounded-full', fontScale <= 80 ? 'bg-blue-500' : fontScale <= 100 ? 'bg-emerald-500' : fontScale <= 120 ? 'bg-amber-500' : 'bg-red-500')} />
-                      <span className="text-[10px] font-semibold text-muted-foreground">{fontScale <= 80 ? 'Small' : fontScale <= 100 ? 'Normal' : fontScale <= 120 ? 'Large' : 'X-Large'}</span>
-                    </div>
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Default Code Type</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    {CODE_TYPES.map((ct) => (
+                      <button
+                        type="button"
+                        key={ct.id}
+                        onClick={() => setLabelCodeType(ct.id)}
+                        className={clsx(
+                          "relative flex items-center gap-3.5 p-4.5 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                          labelCodeType === ct.id
+                            ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                            : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                        )}
+                      >
+                        <div className={clsx(
+                          "p-2.5 rounded-xl shrink-0",
+                          labelCodeType === ct.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+                        )}>
+                          {ct.id === 'barcode' ? (
+                            <svg className="w-5 h-5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M2 4h2v16H2zM6 4h1v16H6zM9 4h2v16H9zM13 4h1v16h-1zM16 4h2v16h-2zM20 4h2v16h-2z" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5 text-current" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="3" width="18" height="18" rx="2" />
+                              {[7,9,11,13,15].map(x => (
+                                <g key={x}>
+                                  <rect x={x} y="7" width="1" height="2" fill="currentColor" />
+                                  <rect x={x} y="11" width="1" height="2" fill="currentColor" />
+                                  <rect x={x} y="15" width="1" height="2" fill="currentColor" />
+                                </g>
+                              ))}
+                              <rect x="17" y="7" width="1" height="10" fill="currentColor" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-foreground truncate">{ct.label}</p>
+                          <p className="text-xs text-muted-foreground/75 truncate mt-0.5">{ct.description}</p>
+                        </div>
+                        {labelCodeType === ct.id && (
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                  <button onClick={increaseFontScale} disabled={fontScale >= 140} className="w-10 h-10 flex items-center justify-center rounded-xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"><Plus className="w-4 h-4" /></button>
+                </div>
+
+                <div className="p-4 bg-blue-500/[0.04] border border-blue-500/20 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-blue-700 dark:text-blue-400 font-medium leading-relaxed">
+                    The selected code type will be used as the default for generating, previewing, and printing product labels. Existing labels remain unaffected.
+                  </p>
                 </div>
               </div>
-              <div className="mt-5 p-4 bg-card border border-border/60 rounded-xl">
-                <div className="flex items-center gap-3 mb-3"><Type className="w-4 h-4 text-primary" /><span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Preview</span></div>
-                <p className="text-xs text-foreground font-medium">The quick brown fox jumps over the lazy dog.</p>
-                <p className="text-[10px] text-muted-foreground mt-1.5">This is how your receipts, invoices, and product labels will appear.</p>
-              </div>
-              <button onClick={() => setFontScale(100)} disabled={fontScale === 100} className="mt-4 px-4 py-2 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer">Reset to Default</button>
             </div>
           </div>
         );
-      case 'security':
+      case 'system':
         return (
-          <div className="space-y-5">
-            <div className="bg-muted/30 border border-border/80 rounded-xl p-6 space-y-5">
-              <div>
-                <h3 className="font-bold text-foreground">Change Password</h3>
-                <p className="text-xs text-muted-foreground mt-1">Update your account password regularly to keep your shop secure.</p>
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Card 1: Appearance */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Type className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Appearance</span>
               </div>
-              <div className="relative">
-                <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input type="password" placeholder="Current Password" className="pl-11" value={pass.old} onChange={(e) => setPass({ ...pass, old: e.target.value })} />
+              <div className="space-y-4">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Font Size</p>
+                    <p className="text-xs text-muted-foreground/75 mt-0.5">Scale the entire UI text size</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button type="button" onClick={decreaseFontScale} disabled={fontScale <= 70} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"><Minus className="w-4 h-4" /></button>
+                    <div className="w-20 text-center select-none">
+                      <span className="text-2xl font-black text-foreground font-mono">{fontScale}%</span>
+                      <div className="flex items-center justify-center gap-1 mt-1">
+                        <span className={clsx('w-2 h-2 rounded-full shrink-0', fontScale <= 80 ? 'bg-blue-500 animate-pulse' : fontScale <= 100 ? 'bg-emerald-500' : fontScale <= 120 ? 'bg-amber-500' : 'bg-red-500')} />
+                        <span className="text-[9px] font-bold text-muted-foreground/80">{fontScale <= 80 ? 'Small' : fontScale <= 100 ? 'Normal' : fontScale <= 120 ? 'Large' : 'X-Large'}</span>
+                      </div>
+                    </div>
+                    <button type="button" onClick={increaseFontScale} disabled={fontScale >= 140} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"><Plus className="w-4 h-4" /></button>
+                  </div>
+                </div>
+                <div className="p-5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl">
+                  <div className="flex items-center gap-2 mb-3"><Type className="w-4 h-4 text-primary" /><span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Preview</span></div>
+                  <p className="text-xs text-foreground font-semibold leading-relaxed">The quick brown fox jumps over the lazy dog.</p>
+                  <p className="text-[10px] text-muted-foreground/70 mt-1">This is how your receipts, invoices, and product labels will appear.</p>
+                </div>
+                <button type="button" onClick={() => setFontScale(100)} disabled={fontScale === 100} className="px-4 py-2.5 text-xs font-bold text-muted-foreground hover:text-foreground bg-muted/60 hover:bg-muted border border-border/80 rounded-xl transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm">Reset to Default</button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Input type="password" placeholder="New Password" value={pass.new} onChange={(e) => setPass({ ...pass, new: e.target.value })} />
-                <Input type="password" placeholder="Confirm New Password" value={pass.confirm} onChange={(e) => setPass({ ...pass, confirm: e.target.value })} />
-              </div>
-              <button type="button" disabled={changingPass} onClick={handleChangePassword}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border border-primary/20 hover:border-primary">
-                {changingPass ? <Loader2 className="w-4 h-4 animate-spin" /> : <Shield className="w-4 h-4" />}
-                Update Password
-              </button>
             </div>
-          </div>
-        );
-      case 'label-settings':
-        return (
-          <div className="space-y-5">
-            <div>
-              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-3 block">Code Type</label>
-              <div className="grid grid-cols-2 gap-3">
-                {CODE_TYPES.map((ct) => (
-                  <button
-                    key={ct.id}
-                    onClick={() => setLabelCodeType(ct.id)}
-                    className={clsx(
-                      "relative flex items-center gap-3 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer text-left",
-                      labelCodeType === ct.id
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border/80 hover:border-primary/40 hover:bg-muted/30"
-                    )}
-                  >
-                    <div className={clsx(
-                      "p-2.5 rounded-xl",
-                      labelCodeType === ct.id ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-                    )}>
-                      {ct.id === 'barcode' ? (
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M2 4h2v16H2zM6 4h1v16H6zM9 4h2v16H9zM13 4h1v16h-1zM16 4h2v16h-2zM20 4h2v16h-2z" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="3" width="18" height="18" rx="2" />
-                          {[7,9,11,13,15].map(x => (
-                            <g key={x}>
-                              <rect x={x} y="7" width="1" height="2" fill="currentColor" />
-                              <rect x={x} y="11" width="1" height="2" fill="currentColor" />
-                              <rect x={x} y="15" width="1" height="2" fill="currentColor" />
-                            </g>
-                          ))}
-                          <rect x="17" y="7" width="1" height="10" fill="currentColor" />
-                        </svg>
+
+            {/* Card 2: Security */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Shield className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Security</span>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-bold text-foreground text-sm">Change Password</h3>
+                  <p className="text-xs text-muted-foreground/75 mt-1 leading-relaxed">Update your account password regularly to keep your shop secure.</p>
+                </div>
+                <div className="relative">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/50" />
+                  <Input type="password" placeholder="Current Password" className="pl-11 bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" value={pass.old} onChange={(e) => setPass({ ...pass, old: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input type="password" placeholder="New Password" value={pass.new} onChange={(e) => setPass({ ...pass, new: e.target.value })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  <Input type="password" placeholder="Confirm New Password" value={pass.confirm} onChange={(e) => setPass({ ...pass, confirm: e.target.value })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                </div>
+                <button type="button" disabled={changingPass} onClick={handleChangePassword}
+                  className="w-full flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border border-primary/20 hover:border-primary shadow-sm">
+                  {changingPass ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Shield className="w-4 h-4 shrink-0" />}
+                  Update Password
+                </button>
+              </div>
+            </div>
+
+            {/* Card 3: Updates */}
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <RefreshCw className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">System Updates</span>
+              </div>
+              <div className="space-y-5">
+                <div className="relative overflow-hidden rounded-[24px] border border-primary/25 bg-gradient-to-br from-primary/10 via-primary/[0.02] to-transparent shadow-sm">
+                  <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(59,130,246,0.06),transparent_70%)]" />
+                  <div className="relative p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="p-3.5 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-[0_4px_20px_rgba(59,130,246,0.15)]"><RefreshCw className="w-5 h-5 animate-pulse" /></div>
+                        <div>
+                          <p className="text-[10px] font-bold text-muted-foreground/75 uppercase tracking-wider">Current Version</p>
+                          <p className="text-3xl font-black text-foreground font-mono tracking-tight mt-0.5">{appVersion}</p>
+                          {lastChecked && (<p className="text-[10px] text-muted-foreground/60 mt-1">Last checked {formatTimeAgo(lastChecked)}</p>)}
+                        </div>
+                      </div>
+                      {updateStatus && (
+                        <div className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold border shrink-0 uppercase tracking-wider", updateStatus === 'Up to date' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : updateStatus === 'Update available' || updateStatus === 'Update ready to install' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 animate-bounce" : updateStatus === 'Downloading...' || isDownloading ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 border-border text-muted-foreground")}>
+                          {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                          {updateStatus}
+                        </div>
                       )}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-sm font-bold text-foreground">{ct.label}</p>
-                      <p className="text-xs text-muted-foreground">{ct.description}</p>
+                  </div>
+                </div>
+                {updateStatus === 'Up to date' && !updateInfo && (
+                  <div className="rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/[0.04] to-transparent overflow-hidden shadow-sm">
+                    <div className="flex items-center gap-4.5 px-5 py-4.5">
+                      <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0"><CheckCircle2 className="w-5 h-5" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground">{appVersion} — You're on the latest version</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5">No updates available at this time.</p>
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold rounded-lg border border-emerald-500/20 shrink-0 uppercase tracking-wider">UP TO DATE</span>
                     </div>
-                    {labelCodeType === ct.id && (
-                      <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0">
-                        <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                  </div>
+                )}
+                {updateInfo && (
+                  <div className="rounded-2xl border border-blue-500/20 bg-gradient-to-br from-blue-500/[0.04] to-transparent overflow-hidden shadow-sm">
+                    <div className="flex items-center gap-4.5 px-5 py-4.5 border-b border-blue-500/10">
+                      <div className="p-2.5 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 shrink-0"><Download className="w-4.5 h-4.5" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground">v{updateInfo.version} {updateReady ? 'Ready to Install' : isDownloading ? 'Downloading...' : 'Available'}</p>
+                        {updateInfo.releaseDate && (<p className="text-xs text-muted-foreground/70 mt-0.5">Released {new Date(updateInfo.releaseDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</p>)}
+                      </div>
+                      <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-lg border border-blue-500/20 shrink-0 uppercase tracking-wider">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
+                    </div>
+                    {updateInfo.releaseNotes && (
+                      <div className="px-5 py-4.5 bg-background/30 backdrop-blur-sm">
+                        <p className="text-[10px] font-extrabold text-muted-foreground/80 uppercase tracking-widest mb-3">What's New</p>
+                        <div className="text-xs text-muted-foreground/80 max-h-36 overflow-y-auto leading-relaxed space-y-2 font-medium">
+                          {typeof updateInfo.releaseNotes === 'string'
+                            ? updateInfo.releaseNotes.split('\n').filter(Boolean).map((line: string, i: number) => (<p key={i} className="flex items-start gap-2.5"><span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-blue-500/60 shrink-0" /><span>{line}</span></p>))
+                            : <p className="text-muted-foreground">{JSON.stringify(updateInfo.releaseNotes)}</p>}
+                        </div>
                       </div>
                     )}
-                  </button>
-                ))}
+                    {isDownloading && downloadProgress && (
+                      <div className="px-5 pb-4.5">
+                        <div className="w-full bg-border/50 rounded-full h-2 overflow-hidden shadow-inner"><div className="h-full bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-300" style={{ width: `${Math.min(downloadProgress.percent, 100)}%` }} /></div>
+                        <div className="flex items-center justify-between mt-2"><p className="text-[10px] font-bold text-muted-foreground/80">{Math.round(downloadProgress.percent)}%</p><p className="text-[10px] font-bold text-muted-foreground/80 font-mono">{formatBytes(downloadProgress.transferred)} / {formatBytes(downloadProgress.total)}</p></div>
+                      </div>
+                    )}
+                    {updateReady && (
+                      <div className="px-5 pb-4.5">
+                        <button type="button" onClick={handleInstallUpdate} className="flex items-center justify-center gap-2 w-full h-11 rounded-2xl font-bold text-xs bg-primary/10 hover:bg-primary hover:text-primary-foreground border border-primary/20 hover:border-primary transition-all duration-200 active:scale-95 cursor-pointer shadow-sm">
+                          <RotateCcw className="w-4 h-4 shrink-0" /> Restart & Install Update
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-
-            <div className="p-3.5 bg-blue-500/5 border border-blue-500/20 rounded-xl flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">
-                The selected code type will be used as the default for generating, previewing, and printing product labels. Existing labels remain unaffected.
-              </p>
             </div>
           </div>
         );
-      case 'grades':
-        return <SettingsGrades />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden">
+    <div className="flex-1 flex flex-col bg-background overflow-hidden font-sans">
       {renderMessage()}
       {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
 
       {/* ── Premium Header ── */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border/70 bg-card/75 backdrop-blur-md shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="relative">
+          <div className="relative shrink-0">
             <div className="absolute inset-0 bg-primary/20 rounded-xl blur-sm" />
-            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary ring-1 ring-primary/20">
+            <div className="relative p-2.5 rounded-xl bg-gradient-to-br from-primary/25 to-primary/5 text-primary ring-1 ring-primary/20 shadow-inner">
               <Settings className="w-5 h-5" />
             </div>
           </div>
           <div className="min-w-0 leading-tight">
             <div className="flex items-center gap-2.5">
-              <h1 className="text-sm font-bold text-foreground truncate">Settings</h1>
-              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 bg-muted/60 rounded-md text-[10px] text-muted-foreground font-mono font-semibold border border-border/40">
+              <h1 className="text-sm font-black text-foreground uppercase tracking-widest truncate">Settings</h1>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 bg-muted/80 rounded-md text-[9px] text-muted-foreground font-mono font-bold border border-border/50">
                 {appVersion}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground font-medium mt-0.5">Configure your shop, hardware, and system preferences</p>
+            <p className="text-xs text-muted-foreground/75 font-medium mt-0.5">Configure your shop, hardware, and system preferences</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {activeSection !== 'grades' && hasChanges && (
+          {!(activeSection === 'products' && activeProductsTab === 'grades') && hasChanges && (
             <button onClick={handleSave} disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in border border-primary/20 hover:border-primary">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in border border-primary/20 hover:border-primary shadow-sm">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
               <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
               <span className="sm:hidden">Save</span>
             </button>
           )}
           <button onClick={onClose}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+            className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/80 shadow-sm"
             title="Close">
-            <X className="w-4 h-4 text-destructive" />
+            <X className="w-4.5 h-4.5 text-destructive" />
           </button>
         </div>
       </header>
@@ -1852,39 +1511,43 @@ Discount          ₹-50.00
       <div className="flex-1 flex overflow-hidden">
 
         {/* ── Left Sidebar Navigation ── */}
-        <aside className="w-56 lg:w-64 shrink-0 bg-muted/30 border-r border-border overflow-y-auto hidden md:block">
-          <nav className="py-3 px-2 space-y-5">
+        <aside className="w-56 lg:w-64 shrink-0 bg-muted/20 dark:bg-muted/5 border-r border-border/60 overflow-y-auto hidden md:block backdrop-blur-sm">
+          <nav className="py-4 px-3.5 space-y-6">
             {SIDEBAR_GROUPS.map((group) => {
               const visibleItems = group.items.filter(item => !item.ownerOnly || role === 'OWNER');
               if (visibleItems.length === 0) return null;
               const GroupIcon = group.icon;
               return (
-                <div key={group.category}>
-                  <div className="flex items-center gap-2 px-3 py-1.5">
-                    <GroupIcon className="w-3.5 h-3.5 text-muted-foreground/50" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">{group.category}</span>
+                <div key={group.category} className="space-y-1">
+                  <div className="flex items-center gap-2 px-3 py-1 mb-1.5 select-none">
+                    <GroupIcon className="w-3.5 h-3.5 text-muted-foreground/45" />
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{group.category}</span>
                   </div>
-                  <div className="mt-0.5 space-y-0.5">
+                  <div className="space-y-0.5">
                     {visibleItems.map((item) => {
                       const ItemIcon = item.icon;
                       const isActive = activeSection === item.id;
                       return (
                         <button
                           key={item.id}
-                          onClick={() => setActiveSection(item.id)}
+                          onClick={() => {
+                            setActiveSection(item.id);
+                            if (item.id === 'hardware') setActiveHardwareTab('receipt');
+                            if (item.id === 'products') setActiveProductsTab('grades');
+                          }}
                           className={clsx(
-                            "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer text-left group",
+                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left border-l-2 group",
                             isActive
-                              ? "bg-primary/10 text-primary shadow-sm border border-primary/15"
-                              : "text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent"
+                              ? "bg-gradient-to-r from-primary/10 to-primary/[0.01] text-primary border-primary shadow-sm font-extrabold"
+                              : "text-muted-foreground/80 hover:text-foreground hover:bg-muted/40 border-transparent"
                           )}
                         >
-                          <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-colors", isActive ? "text-primary" : "text-muted-foreground/60 group-hover:text-foreground/70")} />
+                          <ItemIcon className={clsx("w-4 h-4 shrink-0 transition-all duration-200", isActive ? "text-primary scale-110" : "text-muted-foreground/50 group-hover:text-foreground group-hover:scale-105")} />
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.ownerOnly && (
-                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[8px] font-bold rounded border border-amber-500/20 shrink-0">O</span>
+                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[8px] font-bold rounded-lg border border-amber-500/20 shrink-0">OWNER</span>
                           )}
-                          {isActive && <ChevronRight className="w-3 h-3 text-primary/60 shrink-0" />}
+                          {isActive && <ChevronRight className="w-3 h-3 text-primary/60 shrink-0 animate-pulse" />}
                         </button>
                       );
                     })}
@@ -1897,16 +1560,17 @@ Discount          ₹-50.00
 
         {/* ── Mobile Section Picker ── */}
         <div className="md:hidden shrink-0 border-b border-border bg-muted/20 overflow-x-auto">
-          <div className="flex gap-1 p-2 whitespace-nowrap">
+          <div className="flex gap-1.5 p-2 whitespace-nowrap">
             {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || role === 'OWNER').map((item) => {
               const ItemIcon = item.icon;
               const isActive = activeSection === item.id;
               return (
                 <button key={item.id} onClick={() => setActiveSection(item.id)}
-                  className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 cursor-pointer border shrink-0",
-                    isActive ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "bg-card text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
+                  className={clsx("flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border shrink-0 active:scale-95",
+                    isActive ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "bg-card text-muted-foreground/80 border-border/60 hover:text-foreground hover:bg-muted"
                   )}>
-                  <ItemIcon className="w-3.5 h-3.5" /> {item.label}
+                  <ItemIcon className="w-3.5 h-3.5 shrink-0" />
+                  <span>{item.label}</span>
                 </button>
               );
             })}
@@ -1915,56 +1579,36 @@ Discount          ₹-50.00
 
         {/* ── Main Content Area ── */}
         <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/20" style={{ scrollbarGutter: 'stable' }}>
-          <div className="max-w-3xl mx-auto p-6 lg:p-8">
+          <div className="max-w-3xl mx-auto p-6 lg:p-8 animate-in fade-in duration-300">
 
             {/* Section Header */}
             {activeItem && (
-              <div className="mb-8">
-                <div className="flex items-center gap-3 mb-1">
-                  <div className="p-2 rounded-lg bg-primary/10 text-primary shadow-sm">
-                    <activeItem.icon className="w-4 h-4" />
+              <div className="mb-8 flex justify-center text-center">
+                <div className="flex items-center gap-3.5 mb-1 select-none max-w-xl text-left">
+                  <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                    <activeItem.icon className="w-4.5 h-4.5" />
                   </div>
                   <div>
-                    <h2 className="text-lg font-bold text-foreground tracking-tight">{activeItem.label}</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {activeItem.id === 'invoice' && 'Assign a unique code per computer. Invoice numbers use code - number format to avoid conflicts.'}
-                      {activeItem.id === 'bulk' && 'Import products and print barcode labels in bulk.'}
-                      {activeItem.id === 'gst' && 'Configure your business GSTIN and default state for GST invoices.'}
-                      {activeItem.id === 'shop' && 'Manage your business name, address, phone, and UPI payment ID.'}
-                      {activeItem.id === 'coding' && 'Assign alphabets to each digit to encode your purchase prices.'}
-                      {activeItem.id === 'barcode-printer' && 'Configure your barcode label printer connection and label dimensions.'}
-                      {activeItem.id === 'receipt-printer' && 'Configure your receipt printer connection and paper width.'}
-                      {activeItem.id === 'a4-printer' && 'Select a printer for A4 document printing (quotations, invoices, reports).'}
-                      {activeItem.id === 'scale' && 'Configure the serial port connection for your weighing scale.'}
-                      {activeItem.id === 'updates' && 'Check for new versions and update your application.'}
-                      {activeItem.id === 'appearance' && 'Adjust the UI font size for better readability.'}
-                      {activeItem.id === 'security' && 'Manage your account password and security settings.'}
-                      {activeItem.id === 'grades' && 'Manage product categories and grades.'}
-                       {activeItem.id === 'print-format' && 'Choose between thermal receipt or A4 invoice as the default print format and select what details appear on the bill.'}
-                      {activeItem.id === 'label-settings' && 'Choose the default code format (Barcode or QR Code) for product labels.'}
-                      {activeItem.id === 'scrap' && 'Enable or disable scrap management for shops that do not deal with scrap.'}
-                      {activeItem.id === 'loyalty' && 'Configure loyalty points: enable/disable, set earning rate (e.g. ₹100 = 1 point), and set redemption value (e.g. 1 point = ₹1 discount).'}
+                    <h2 className="text-lg font-black text-foreground uppercase tracking-widest">{activeItem.label}</h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
+                      {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
+                      {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
+                      {activeItem.id === 'printing' && 'Choose print formats, invoice styles, receipt typography, and barcode layouts.'}
+                      {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
                     </p>
                   </div>
                   {activeItem.ownerOnly && (
-                    <span className="ml-auto px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-full border border-amber-500/20 shrink-0 self-start">OWNER ONLY</span>
+                    <span className="ml-4 px-2.5 py-1 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold rounded-full border border-amber-500/20 shrink-0 uppercase tracking-wider select-none">OWNER ONLY</span>
                   )}
                 </div>
               </div>
             )}
 
-            {/* Section Content Card */}
-            {activeSection === 'grades' ? (
-              <div className="bg-card border border-border/80 rounded-2xl p-6 shadow-sm hover:border-primary/20 transition-colors duration-200">
-                {renderSectionContent(activeSection)}
-              </div>
-            ) : activeSection === 'updates' ? (
-              renderSectionContent(activeSection)
-            ) : (
-              <div className="bg-card border border-border/80 rounded-2xl p-6 lg:p-8 shadow-sm hover:border-primary/20 transition-colors duration-200">
-                {renderSectionContent(activeSection)}
-              </div>
-            )}
+            {/* Section Content */}
+            <div className="space-y-6">
+              {renderSectionContent(activeSection)}
+            </div>
 
           </div>
         </main>
