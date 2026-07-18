@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, session } from 'electron';
+import { app, BrowserWindow, ipcMain, session, safeStorage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
@@ -30,12 +30,48 @@ if (fs.existsSync(envPath)) {
   dotenv.config(); // Fallback to root .env
 }
 
-// Ensure GH_TOKEN is set for electron-updater (fallback if dotenv didn't pick it up)
+// ── IPC Input Validation ────────────────────────────────────────────────────────
+function validateString(value: unknown, name: string): string {
+  if (typeof value !== 'string' || !value) throw new Error(`Invalid ${name}: expected non-empty string`);
+  return value;
+}
+function validateNumber(value: unknown, name: string): number {
+  if (typeof value !== 'number' || isNaN(value)) throw new Error(`Invalid ${name}: expected number`);
+  return value;
+}
+function validateOptionalString(value: unknown, name: string): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  return validateString(value, name);
+}
+function validateOptionalNumber(value: unknown, name: string): number | undefined {
+  if (value === undefined || value === null) return undefined;
+  return validateNumber(value, name);
+}
+function validateObject<T extends Record<string, unknown>>(value: unknown, name: string): T {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error(`Invalid ${name}: expected object`);
+  return value as T;
+}
+function validateArray<T>(value: unknown, name: string): T[] {
+  if (!Array.isArray(value)) throw new Error(`Invalid ${name}: expected array`);
+  return value;
+}
+type IpcHandler<T, A extends unknown[]> = (event: Electron.IpcMainInvokeEvent, ...args: A) => T;
+function safeHandler<T, A extends unknown[]>(handler: IpcHandler<T, A>): IpcHandler<T, A> {
+  return (event, ...args) => {
+    try {
+      return handler(event, ...args);
+    } catch (err: any) {
+      log.error(`[IPC] Validation error: ${err.message}`);
+      throw err;
+    }
+  };
+}
+
+// GH_TOKEN for electron-updater; prefer GITHUB_TOKEN (CI-safe) over manual parsing
 if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)) {
-  const envContent = fs.readFileSync(envPath, 'utf-8');
-  const match = envContent.match(/^GH_TOKEN=(.+)$/m);
-  if (match) {
-    process.env.GH_TOKEN = match[1].trim();
+  const parsed = dotenv.parse(fs.readFileSync(envPath, 'utf-8'));
+  if (parsed.GH_TOKEN) {
+    process.env.GH_TOKEN = parsed.GH_TOKEN;
     console.log('[Main] GH_TOKEN loaded manually from env file');
   }
 }
@@ -386,7 +422,7 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
   }
 });
 
-ipcMain.handle('db:addProduct', (event, p) => {
+ipcMain.handle('db:addProduct', safeHandler((event, p) => {
   try {
     const db = getDb();
     const stmt = db.prepare(`
@@ -430,9 +466,9 @@ ipcMain.handle('db:addProduct', (event, p) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
-ipcMain.handle('db:updateProduct', (event, p) => {
+ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
   try {
     const db = getDb();
     const stmt = db.prepare(`
@@ -477,7 +513,7 @@ ipcMain.handle('db:updateProduct', (event, p) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:deleteProduct', (event, productId) => {
   try {
@@ -490,7 +526,7 @@ ipcMain.handle('db:deleteProduct', (event, productId) => {
   }
 });
 
-ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
+ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => {
   try {
     const db = getDb();
     const transaction = db.transaction((prods) => {
@@ -546,7 +582,7 @@ ipcMain.handle('db:bulkImportProducts', (event, products: any[]) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:updatePrintStatus', (event, productIds: string[]) => {
   try {
@@ -598,7 +634,7 @@ ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, d
     }
     
     query += " ORDER BY created_at ASC";
-    if (limit) query += ` LIMIT ${limit}`;
+    if (limit) { query += " LIMIT ?"; params.push(limit); }
     
     return db.prepare(query).all(...params);
   } catch (error: any) {
@@ -630,7 +666,7 @@ ipcMain.handle('db:getGrades', (event, tenantId: string) => {
   }
 });
 
-ipcMain.handle('db:addGrade', (event, g) => {
+ipcMain.handle('db:addGrade', safeHandler((event, g) => {
   try {
     const db = getDb();
     db.prepare(`
@@ -641,9 +677,9 @@ ipcMain.handle('db:addGrade', (event, g) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
-ipcMain.handle('db:updateGrade', (event, g) => {
+ipcMain.handle('db:updateGrade', safeHandler((event, g) => {
   try {
     const db = getDb();
     db.prepare(`
@@ -655,7 +691,7 @@ ipcMain.handle('db:updateGrade', (event, g) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
   try {
@@ -683,7 +719,7 @@ ipcMain.handle('db:getParties', (event, tenantId: string) => {
   }
 });
 
-ipcMain.handle('db:addParty', (event, p) => {
+ipcMain.handle('db:addParty', safeHandler((event, p) => {
   try {
     const db = getDb();
     const bt = p.balance_type || 'RECEIVABLE';
@@ -719,9 +755,9 @@ ipcMain.handle('db:addParty', (event, p) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
-ipcMain.handle('db:updateParty', (event, p) => {
+ipcMain.handle('db:updateParty', safeHandler((event, p) => {
   try {
     const db = getDb();
     db.prepare(`
@@ -732,7 +768,7 @@ ipcMain.handle('db:updateParty', (event, p) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:deleteParty', (event, partyId: string) => {
   try {
@@ -783,7 +819,7 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
   }
 });
 
-ipcMain.handle('db:addPartyLedgerEntry', (event, entry) => {
+ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
   try {
     const db = getDb();
     
@@ -821,7 +857,7 @@ ipcMain.handle('db:addPartyLedgerEntry', (event, entry) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
   try {
@@ -908,7 +944,7 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
   }
 });
 
-ipcMain.handle('db:checkout', (event, payload) => {
+ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
@@ -1007,7 +1043,7 @@ ipcMain.handle('db:checkout', (event, payload) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, discount_value, role }: { invoice_id: string, discount_type: 'FIXED' | 'PERCENTAGE', discount_value: number, role?: string }) => {
   try {
@@ -1522,22 +1558,62 @@ ipcMain.handle('sync:getProgress', async () => {
 
 // ── Auth Token Persistence ───────────────────────────────────────────────────
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
+const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
+
+const encrypt = (text: string): Buffer | null => {
+  if (!safeStorage.isEncryptionAvailable()) return Buffer.from(text);
+  return safeStorage.encryptString(text);
+};
+
+const decrypt = (data: Buffer): string | null => {
+  if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
+  try {
+    return safeStorage.decryptString(data);
+  } catch {
+    return null;
+  }
+};
 
 ipcMain.handle('auth:saveToken', (event, payload) => {
   try {
-    fs.writeFileSync(getConfigPath(), JSON.stringify(payload, null, 2));
+    const encrypted = encrypt(JSON.stringify(payload));
+    if (encrypted) {
+      fs.writeFileSync(getEncryptedPath(), encrypted);
+    // Remove legacy config after migration
+    const oldPath = getConfigPath();
+    if (fs.existsSync(oldPath)) {
+      try { fs.unlinkSync(oldPath); } catch {}
+    }
     setSyncActive(true);
     return { success: true };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    return { success: false, error: 'Failed to save token' };
   }
 });
 
+// Shared helper to read auth payload from encrypted storage
+function readAuthPayload(): any {
+  const encPath = getEncryptedPath();
+  if (fs.existsSync(encPath)) {
+    const raw = fs.readFileSync(encPath);
+    const decrypted = decrypt(raw);
+    if (decrypted) return JSON.parse(decrypted);
+  }
+  // Legacy fallback during migration
+  const p = getConfigPath();
+  if (!fs.existsSync(p)) return null;
+  try {
+    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
+    // Migrate to encrypted on next saveToken call
+    return data;
+  } catch {
+    return null;
+  }
+}
+
 ipcMain.handle('auth:getToken', () => {
   try {
-    const p = getConfigPath();
-    if (!fs.existsSync(p)) return null;
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+    return readAuthPayload();
   } catch {
     return null;
   }
@@ -1545,12 +1621,14 @@ ipcMain.handle('auth:getToken', () => {
 
 ipcMain.handle('auth:clearToken', () => {
   try {
+    const encPath = getEncryptedPath();
+    if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
     const p = getConfigPath();
     if (fs.existsSync(p)) fs.unlinkSync(p);
     setSyncActive(false);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message };
+  } catch {
+    return { success: false, error: 'Failed to clear token' };
   }
 });
 
@@ -1578,9 +1656,8 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
       }
     }
 
-    const configPath = getConfigPath();
-    if (!fs.existsSync(configPath)) return { success: false, error: 'Not authenticated', offline: true };
-    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const config = readAuthPayload();
+    if (!config) return { success: false, error: 'Not authenticated', offline: true };
     const token = config.jwt_token;
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
@@ -1658,12 +1735,13 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
 });
 
 ipcMain.handle('db:debug:dumpInvoices', () => {
+  if (app.isPackaged) return { success: false, error: 'Not available in production' };
   try {
     const db = getDb();
     const rows = db.prepare('SELECT invoice_number, user_id, tenant_id FROM invoices LIMIT 20').all();
     return { success: true, rows };
   } catch (err: any) {
-    return { success: false, error: err.message };
+    return { success: false, error: 'Debug operation failed' };
   }
 });
 
@@ -1736,7 +1814,7 @@ ipcMain.handle('db:deduplicateScrapCategories', () => {
 });
 
 // ── Scrap Transactions IPC (now references scrap_categories) ──
-ipcMain.handle('db:addScrapTransaction', (event, t) => {
+ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
   try {
     const db = getDb();
     const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
@@ -1753,7 +1831,7 @@ ipcMain.handle('db:addScrapTransaction', (event, t) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_category_id }: { tenant_id: string; scrap_category_id?: string }) => {
   try {
@@ -1986,7 +2064,7 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
   }
 });
 
-ipcMain.handle('db:saveQuotation', (event, q) => {
+ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
   try {
     const db = getDb();
     const result = db.transaction(() => {
@@ -2008,7 +2086,7 @@ ipcMain.handle('db:saveQuotation', (event, q) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
   try {
@@ -2098,7 +2176,7 @@ ipcMain.handle('db:updateQuotationStatus', (event, { quotation_id, status, conve
 });
 
 // ── Warranties IPC ─────────────────────────────────────────────
-ipcMain.handle('db:saveWarranty', (event, w) => {
+ipcMain.handle('db:saveWarranty', safeHandler((event, w) => {
   try {
     const db = getDb();
     db.prepare(`
@@ -2109,7 +2187,7 @@ ipcMain.handle('db:saveWarranty', (event, w) => {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:getWarranties', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
   try {
@@ -2180,7 +2258,7 @@ ipcMain.handle('db:getNextPurchaseBillNumber', (event, { tenant_id }: { tenant_i
   }
 });
 
-ipcMain.handle('db:addPurchaseBill', (event, payload: {
+ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
   purchase_bill_id: string;
   tenant_id: string;
   bill_number: string;
@@ -2256,7 +2334,7 @@ ipcMain.handle('db:addPurchaseBill', (event, payload: {
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset }: { tenant_id: string; search?: string; limit?: number; offset?: number }) => {
   try {
@@ -2385,7 +2463,7 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
   }
 });
 
-ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => {
+ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => {
   try {
     const db = getDb();
     const date = new Date().toISOString().split('T')[0];
@@ -2438,7 +2516,7 @@ ipcMain.handle('db:cashier:setOpeningBalance', (event, { tenant_id, opening_bala
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
   try {
@@ -2465,7 +2543,7 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
   }
 });
 
-ipcMain.handle('db:cashier:settlePayment', (event, { tenant_id, invoice_id, received_amount, payment_method, user_id, user_name }: {
+ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, user_id, user_name }: {
   tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; user_id: string; user_name?: string
 }) => {
   const db = getDb();
@@ -2516,9 +2594,9 @@ ipcMain.handle('db:cashier:settlePayment', (event, { tenant_id, invoice_id, rece
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
-ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, category, notes, user_id, user_name }: {
+ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, type, amount, category, notes, user_id, user_name }: {
   tenant_id: string; type: 'CASH_IN' | 'CASH_OUT'; amount: number; category?: string; notes?: string; user_id: string; user_name?: string
 }) => {
   const db = getDb();
@@ -2571,9 +2649,9 @@ ipcMain.handle('db:cashier:addTransaction', (event, { tenant_id, type, amount, c
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
-ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closing_remarks, user_id, user_name, business_date }: {
+ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_cash, closing_remarks, user_id, user_name, business_date }: {
   tenant_id: string; actual_cash: number; closing_remarks?: string; user_id: string; user_name?: string; business_date?: string
 }) => {
   const db = getDb();
@@ -2609,7 +2687,7 @@ ipcMain.handle('db:cashier:dayClosing', (event, { tenant_id, actual_cash, closin
   } catch (error: any) {
     return { success: false, error: error.message };
   }
-});
+}));
 
 ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id: string }) => {
   try {
