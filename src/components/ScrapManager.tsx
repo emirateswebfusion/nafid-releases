@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import {
@@ -425,7 +425,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         {/* ══════════════════════════════════════════
             HEADER
         ══════════════════════════════════════════ */}
-        <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
           <div className="flex items-center gap-3 px-5 py-3">
 
             {view === 'list' && (
@@ -531,7 +531,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           <div className="flex flex-col flex-1 min-h-0">
 
             {/* Gradient stats */}
-            <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
+            <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
               <div className="grid grid-cols-3 gap-3">
                 <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#f97316 0%,#ea580c 100%)' }}>
                   <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
@@ -566,7 +566,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
             </div>
 
             {/* Search */}
-            <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
+            <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
@@ -624,7 +624,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     return (
                       <div
                         key={cat.scrap_category_id}
-                        className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-border/60 bg-card hover:border-orange-500/30 hover:shadow-md hover:shadow-orange-500/5 transition-all duration-200 cursor-pointer"
+                        className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-border bg-card hover:border-orange-500/30 hover:shadow-md hover:shadow-orange-500/5 transition-all duration-200 cursor-pointer"
                         onClick={() => openTransaction(cat)}
                       >
                         <div
@@ -711,8 +711,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         {view === 'category_form' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                     <Recycle className="w-4 h-4" />
                   </div>
@@ -746,8 +746,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                 </div>
               </section>
 
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
                     <IndianRupee className="w-4 h-4" />
                   </div>
@@ -803,7 +803,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               </section>
             </div>
 
-            <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+            <div className="shrink-0 border-t border-border bg-card px-5 py-3">
               {statusMessage && (
                 <div className={clsx(
                   'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
@@ -845,7 +845,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
             {/* Category Banner */}
             <div
-              className="shrink-0 px-5 py-4 border-b border-border/60"
+              className="shrink-0 px-5 py-4 border-b border-border"
               style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)},60%,96%) 0%, hsl(${nameToHue(selectedCategory.name)},40%,98%) 100%)` }}
             >
               <div className="flex items-center gap-4">
@@ -858,7 +858,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border/40 px-2 py-0.5 rounded-lg">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border px-2 py-0.5 rounded-lg">
                       <Package className="w-3 h-3" /> {Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}
                     </span>
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
@@ -939,7 +939,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                                   {isPurchase ? 'Purchase' : 'Sale'}
                                 </span>
                                 {entry.party_name && (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border/60 px-2 py-1 rounded-lg">
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
                                     {entry.party_name}
                                   </span>
                                 )}
@@ -984,8 +984,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         {view === 'tx_form' && selectedCategory && (
           <form onSubmit={handleSaveTransaction} className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto p-5 space-y-4">
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                     <Activity className="w-4 h-4" />
                   </div>
@@ -1087,7 +1087,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
                 {/* Total preview */}
                 {txForm.quantity && txForm.rate && Number(txForm.quantity) > 0 && Number(txForm.rate) > 0 && (
-                  <div className="pt-3 border-t border-border/60">
+                  <div className="pt-3 border-t border-border">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground font-semibold">Total Amount</span>
                       <span className={clsx(
@@ -1102,7 +1102,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               </section>
             </div>
 
-            <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+            <div className="shrink-0 border-t border-border bg-card px-5 py-3">
               {statusMessage && (
                 <div className={clsx(
                   'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
@@ -1147,8 +1147,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {/* Section 1: Search & Select */}
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                     <Search className="w-4 h-4" />
                   </div>
@@ -1175,7 +1175,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                           <button
                             key={s.scrap_category_id}
                             onClick={() => handleAddToSellingCart(s)}
-                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border/40 last:border-0 cursor-pointer"
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-emerald-500/5 border-b border-border last:border-0 cursor-pointer"
                           >
                             <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 shrink-0">
                               <Recycle className="w-4 h-4" />
@@ -1198,8 +1198,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               </section>
 
               {/* Section 2: Selected Items */}
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-border">
                   <div className="flex items-center gap-2.5">
                     <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
                       <ShoppingCart className="w-4 h-4" />
@@ -1224,7 +1224,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     {sellingSelected.map((entry, idx) => {
                       const stockNum = Number(entry.category.current_stock);
                       return (
-                        <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border/60 rounded-xl group hover:border-indigo-500/30 transition-all duration-150">
+                        <div key={entry.category.scrap_category_id} className="flex items-center gap-3 p-3 bg-muted/20 border border-border rounded-xl group hover:border-indigo-500/30 transition-all duration-150">
                           <div className="flex-1 min-w-0">
                             <div className="font-bold text-sm text-foreground truncate">{entry.category.name}</div>
                             <div className="text-xs text-muted-foreground mt-0.5">
@@ -1233,7 +1233,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                           </div>
 
                           <div className="flex items-center gap-2">
-                            <div className="flex items-center gap-0.5 bg-background border border-border/80 rounded-lg p-0.5 shadow-sm">
+                            <div className="flex items-center gap-0.5 bg-background border border-border rounded-lg p-0.5 shadow-sm">
                               <button
                                 onClick={() => setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, qty: Math.max(0.1, s.qty - 0.1) } : s))}
                                 className="w-7 h-7 flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted transition-all active:scale-90 cursor-pointer"
@@ -1264,7 +1264,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                                 step="0.01"
                                 value={entry.rate}
                                 onChange={e => { const val = e.target.value === '' ? 0 : Number(e.target.value); setSellingSelected(prev => prev.map((s, i) => i === idx ? { ...s, rate: val } : s)); }}
-                                className="w-full bg-background border border-border/80 rounded-lg pl-6 pr-2 py-1.5 text-sm font-bold text-right text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                className="w-full bg-background border border-border rounded-lg pl-6 pr-2 py-1.5 text-sm font-bold text-right text-foreground focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                               />
                             </div>
 
@@ -1287,8 +1287,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               </section>
 
               {/* Section 3: Summary & Confirm */}
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
                     <IndianRupee className="w-4 h-4" />
                   </div>
@@ -1304,7 +1304,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setView('list')}
-                      className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors active:scale-95 cursor-pointer"
+                      className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors active:scale-95 cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -1342,7 +1342,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-2">Invoice No.</div>
                   <div className="col-span-2">Customer</div>
                   <div className="col-span-2 text-center">Date</div>
@@ -1359,7 +1359,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                       <p className="text-sm mt-1">Complete a scrap purchase from billing to see it here</p>
                     </div>
                   ) : invoices.map((inv: any) => (
-                    <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
+                    <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
                       <div className="col-span-2">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
@@ -1442,7 +1442,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               )}
 
               <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-4">Category</div>
                   <div className="col-span-2 text-right">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
@@ -1472,3 +1472,4 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     </>
   );
 }
+

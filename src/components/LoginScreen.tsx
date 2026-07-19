@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, StoreIcon, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
@@ -130,7 +130,7 @@ export function LoginScreen() {
               { icon: Wrench, label: 'Hardware Stores' },
               { icon: Gem, label: 'Jewelry Shops' },
             ].map(({ icon: Icon, label }) => (
-              <div key={label} className="flex flex-col items-center gap-2 p-4 bg-background/80 backdrop-blur-sm rounded-xl border border-border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
+              <div key={label} className="flex flex-col items-center gap-2 p-4 bg-background rounded-xl border border-border shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200">
                 <Icon className="w-5 h-5 text-primary" />
                 <span className="text-[11px] text-muted-foreground text-center font-medium leading-tight">{label}</span>
               </div>
@@ -347,3 +347,4 @@ export function LoginScreen() {
     </div>
   );
 }
+

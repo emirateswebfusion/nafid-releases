@@ -1,4 +1,4 @@
-import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
@@ -231,7 +231,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <Receipt className="w-4 h-4" />
@@ -262,7 +262,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
       {/* ── LIST VIEW ── */}
       {!showAddForm && (
         <>
-          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
             {/* Search */}
             <div className="flex-1 max-w-sm">
               <div className="relative">
@@ -272,7 +272,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                   placeholder="Search bill or supplier..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
                 />
               </div>
             </div>
@@ -280,7 +280,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             {/* Filter Pills */}
             <div className="flex items-center gap-3 flex-wrap">
               {/* Type Filter */}
-              <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 rounded-xl p-1">
+              <div className="flex items-center gap-1.5 bg-muted/40 border border-border rounded-xl p-1">
                 {(['ALL', 'GST', 'ESTIMATE'] as const).map(type => {
                   const count = type === 'ALL' ? bills.length : bills.filter(b => b.bill_type === type).length;
                   const active = filterType === type;
@@ -293,7 +293,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                         "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
                         active
                           ? type === 'ALL'
-                            ? "bg-background text-foreground shadow-sm border border-border/60"
+                            ? "bg-background text-foreground shadow-sm border border-border"
                             : type === 'GST'
                               ? "bg-emerald-500 text-white shadow-sm"
                               : "bg-amber-500 text-white shadow-sm"
@@ -344,7 +344,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             {/* Table Header */}
-            <div className="grid grid-cols-12 gap-3 px-8 py-3 text-xs font-black text-muted-foreground uppercase tracking-wider border-b border-border/60 shrink-0 bg-muted/40">
+            <div className="grid grid-cols-12 gap-3 px-8 py-3 text-xs font-black text-muted-foreground uppercase tracking-wider border-b border-border shrink-0 bg-muted/40">
               <div className="col-span-2 text-left pl-4">Bill No</div>
               <div className="col-span-2 text-center">Invoice No</div>
               <div className="col-span-2 text-center">Supplier</div>
@@ -394,7 +394,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                     <div
                       onClick={() => handleViewBill(bill)}
                       className={clsx(
-                        "grid grid-cols-12 gap-3 px-8 py-4 items-center bg-card border-b border-border/40 hover:border-primary/40 hover:shadow-md transition-all duration-150 group cursor-pointer",
+                        "grid grid-cols-12 gap-3 px-8 py-4 items-center bg-card border-b border-border hover:border-primary/40 hover:shadow-md transition-all duration-150 group cursor-pointer",
                         viewingBill?.purchase_bill_id === bill.purchase_bill_id && "border-l-2 border-l-primary bg-muted/30"
                       )}
                     >
@@ -475,7 +475,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             </div>
 
             {!loading && bills.length > 0 && (
-              <div className="shrink-0 border-t border-border/60 bg-muted/20 px-6 py-4 text-center text-sm font-bold text-muted-foreground">
+              <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-sm font-bold text-muted-foreground">
                 {bills.length} purchase bill{bills.length !== 1 ? 's' : ''}
               </div>
             )}
@@ -487,11 +487,11 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
       {showAddForm && (
         <div className="flex flex-col flex-1 min-h-0">
           {/* ── Shared Info Bar ── */}
-          <div className="flex items-center gap-4 px-6 py-3 bg-card border-b border-border/80 shrink-0 shadow-sm">
+          <div className="flex items-center gap-4 px-6 py-3 bg-card border-b border-border shrink-0 shadow-sm">
             <input
               type="date" value={billDate}
               onChange={e => setBillDate(e.target.value)}
-              className="bg-background border border-border/80 rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shrink-0"
+              className="bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shrink-0"
             />
             <div className="relative flex-1">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -513,7 +513,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                     <button
                       key={s.party_id} type="button"
                       onMouseDown={() => { setSupplierName(s.name); setSupplierId(s.party_id); setSupplierSearch(''); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border/40 last:border-0 cursor-pointer"
+                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border last:border-0 cursor-pointer"
                     >
                       <User className="w-4 h-4 text-muted-foreground shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -525,7 +525,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 border border-border/60 shrink-0">
+            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 border border-border shrink-0">
               <button
                 type="button"
                 onClick={() => setBillType('GST')}
@@ -550,7 +550,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           </div>
 
           {/* ── Notes Bar ── */}
-          <div className="flex items-center gap-3 px-6 py-2.5 bg-card/60 border-b border-border/50 shrink-0">
+          <div className="flex items-center gap-3 px-6 py-2.5 bg-card border-b border-border shrink-0">
             <Tag className="w-4 h-4 text-muted-foreground/50 shrink-0" />
             <input
               type="text"
@@ -601,7 +601,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           </div>
 
           {/* ── Save Button ── */}
-          <div className="border-t border-border/80 bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
+          <div className="border-t border-border bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
             <button
               onClick={handleSaveAll}
               disabled={isSavingAll || (!gstRef.current?.hasItems && !estRef.current?.hasItems)}
@@ -622,7 +622,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           onClick={() => setViewingBill(null)}
         >
           {/* backdrop */}
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div className="absolute inset-0 bg-black/50" />
 
           {/* Panel */}
           <div
@@ -686,7 +686,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             <div className="flex-1 overflow-y-auto">
 
               {/* Supplier + Meta Strip */}
-              <div className="px-8 py-5 border-b border-border/60 grid grid-cols-4 gap-8">
+              <div className="px-8 py-5 border-b border-border grid grid-cols-4 gap-8">
                 <div className="col-span-2">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-2">Supplier</p>
                   <div className="flex items-center gap-2.5">
@@ -713,7 +713,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 <div>
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1">Supplier Invoice No.</p>
                   {viewingBill.invoice_number ? (
-                    <span className="inline-block mt-1.5 text-xs font-mono font-bold bg-muted/60 px-2.5 py-1 rounded-lg border border-border/60 text-foreground">
+                    <span className="inline-block mt-1.5 text-xs font-mono font-bold bg-muted/60 px-2.5 py-1 rounded-lg border border-border text-foreground">
                       {viewingBill.invoice_number}
                     </span>
                   ) : (
@@ -727,16 +727,16 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Line Items</p>
                   {!loadingViewingItems && viewingBillItems.length > 0 && (
-                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border/40">
+                    <span className="text-[10px] font-bold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded-full border border-border">
                       {viewingBillItems.length} item{viewingBillItems.length !== 1 ? 's' : ''}
                     </span>
                   )}
                 </div>
 
-                <div className="rounded-xl border border-border/60 overflow-hidden bg-card">
+                <div className="rounded-xl border border-border overflow-hidden bg-card">
                   {/* Table head */}
                   <div className={clsx(
-                    "grid gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/50 bg-muted/30",
+                    "grid gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border bg-muted/30",
                     viewingBill.bill_type === 'GST'
                       ? "grid-cols-[minmax(0,3fr)_80px_120px_100px_120px]"
                       : "grid-cols-[minmax(0,3fr)_80px_120px_120px]"
@@ -829,7 +829,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 {/* Notes */}
                 <div className="flex-1 min-w-0">
                   {viewingBill.notes ? (
-                    <div className="px-4 py-3 bg-muted/20 border border-border/40 rounded-xl h-full">
+                    <div className="px-4 py-3 bg-muted/20 border border-border rounded-xl h-full">
                       <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-1.5">Notes</p>
                       <p className="text-xs text-muted-foreground leading-relaxed">{viewingBill.notes}</p>
                     </div>
@@ -1251,7 +1251,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             <input
               type="text" value={billNumber}
               onChange={e => setBillNumber(e.target.value)}
-              className="w-40 bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+              className="w-40 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
             />
           </div>
           <div>
@@ -1260,7 +1260,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               type="text" value={invoiceNumber}
               onChange={e => setInvoiceNumber(e.target.value)}
               placeholder="Supplier inv #"
-              className="w-40 bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+              className="w-40 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
             />
           </div>
           <div>
@@ -1274,7 +1274,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 { value: 'UPI', label: 'UPI' },
                 { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
               ]}
-              triggerClassName="w-32 bg-background border border-border/80 rounded-lg px-2.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shadow-none"
+              triggerClassName="w-32 bg-background border border-border rounded-lg px-2.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shadow-none"
               size="sm"
             />
           </div>
@@ -1290,15 +1290,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             placeholder="Search products..."
             value={productSearch}
             onChange={e => searchProducts(e.target.value)}
-            className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
+            className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
           />
           {products.length > 0 && !showProductCreateForm && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
               {products.map(p => (
                 <button
                   key={p.product_id} type="button"
                   onMouseDown={() => addProductToBill(p)}
-                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 border-b border-border/40 last:border-0 hover:bg-muted transition-colors cursor-pointer"
+                  className="w-full text-left px-3 py-2.5 flex items-center gap-2.5 border-b border-border last:border-0 hover:bg-muted transition-colors cursor-pointer"
                 >
                   <Package className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
@@ -1314,7 +1314,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             </div>
           )}
           {productSearch.length >= 2 && products.length === 0 && !showProductCreateForm && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden">
+            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
               <button
                 type="button"
                 onMouseDown={() => { setShowProductCreateForm(true); setNewProductName(productSearch); }}
@@ -1334,8 +1334,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
               {/* Dialog */}
               <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-                <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
-                  <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+                <div className="w-full max-w-6xl bg-card border border-border rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                         <Package className="w-4 h-4" />
@@ -1350,8 +1350,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   </div>
                   <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
                     {/* 1. Basic Details */}
-                    <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                         <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                           <Package className="w-4 h-4" />
                         </div>
@@ -1362,12 +1362,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           <div>
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
                             <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
-                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                           </div>
                           <div>
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
                             <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
-                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
                           </div>
                           <div className="grid grid-cols-2 gap-4">
                             <div>
@@ -1375,7 +1375,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                               {newProductIsCustomCategory ? (
                                 <div className="flex gap-2 items-center">
                                   <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
-                                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                                    className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                                   <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
                                 </div>
                               ) : (
@@ -1401,11 +1401,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             <div>
                               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
                               <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
-                                className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                             </div>
                           </div>
                         </div>
-                        <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                        <div className="bg-muted/20 p-4 rounded-xl border border-border flex flex-col justify-center shadow-sm">
                           <div>
                             <div className="flex justify-between items-center mb-1.5">
                               <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
@@ -1415,15 +1415,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                               </button>
                             </div>
                             <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
-                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
                           </div>
                         </div>
                       </div>
                     </section>
 
                     {/* 2. Inventory & Pricing */}
-                    <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                         <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                           <Tag className="w-4 h-4" />
                         </div>
@@ -1452,7 +1452,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   else setNewProductReorderLevel(val);
                                 }}
                                 className={clsx(
-                                  'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
+                                  'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
                                   prefix && 'pl-8',
                                   field === 'basePrice' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                                 )}
@@ -1473,15 +1473,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                     </section>
 
                     {/* 3. Discount & Offers */}
-                    <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                         <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                           <Tag className="w-4 h-4" />
                         </div>
                         <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Discount & Offers</span>
                       </div>
                       <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                        <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-bold text-foreground">Discount</h4>
                             <span className="text-xs text-muted-foreground">Applies to MRP</span>
@@ -1494,7 +1494,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                 value={newProductDiscountPercent}
                                 onChange={e => handleDiscountPercentChange(e.target.value)}
                                 disabled={!!newProductOfferPrice}
-                                className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                             </div>
                             <div>
                               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
@@ -1503,11 +1503,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                 value={newProductDiscountFlat}
                                 onChange={e => handleDiscountFlatChange(e.target.value)}
                                 disabled={!!newProductOfferPrice}
-                                className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                             </div>
                           </div>
                         </div>
-                        <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                        <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                           <div className="flex items-center justify-between">
                             <h4 className="text-sm font-bold text-foreground">Offer</h4>
                             <span className="text-xs text-muted-foreground">Overrides MRP</span>
@@ -1519,15 +1519,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                               value={newProductOfferPrice}
                               onChange={e => handleOfferPriceChange(e.target.value)}
                               disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
-                              className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                           </div>
                         </div>
                       </div>
                     </section>
 
                     {/* 4. Taxes & Config */}
-                    <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                    <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                         <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                           <Package className="w-4 h-4" />
                         </div>
@@ -1542,7 +1542,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                               'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
                               newProductIsGstApplicable
                                 ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                                : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
+                                : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
                             )}
                           >
                             <input
@@ -1566,7 +1566,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         <div>
                           <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
                           <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
                         </div>
                         <div>
                           <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
@@ -1581,7 +1581,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       </div>
                     </section>
                   </div>
-                  <div className="flex items-center justify-end px-5 py-3 border-t border-border/50 bg-background">
+                  <div className="flex items-center justify-end px-5 py-3 border-t border-border bg-background">
                     <button type="button" onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
                       className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                       <Save className="w-3.5 h-3.5" />
@@ -1610,25 +1610,25 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               <span className="text-right"></span>
             </div>
             {billItems.map(item => (
-              <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1.5 bg-card border border-border/60 rounded-lg items-center">
+              <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
                 <span className="text-xs font-medium text-foreground truncate">{item.name}</span>
                 <input
                   type="number" step="0.01" min="0"
                   value={item.quantity}
                   onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                  className="w-full bg-background border border-border/80 rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
                 />
                 <input
                   type="number" step="0.01" min="0"
                   value={item.purchase_price}
                   onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                  className="w-full bg-background border border-border/80 rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
                 />
                 <input
                   type="number" step="0.01" min="0"
                   value={item.selling_price}
                   onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
-                  className="w-full bg-background border border-border/80 rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
                 />
                 <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
                   <X className="w-3 h-3" />
@@ -1639,7 +1639,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         )}
 
         {billItems.length > 0 && (
-          <div className="flex justify-end mt-3 pt-2.5 border-t border-border/60">
+          <div className="flex justify-end mt-3 pt-2.5 border-t border-border">
             <div className="text-right">
               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total</span>
               <p className={clsx(
@@ -1653,3 +1653,5 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     </section>
   );
 });
+
+

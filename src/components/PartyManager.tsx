@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
@@ -292,7 +292,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       {/* ══════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
 
           {/* Icon (list view only) */}
@@ -385,11 +385,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col flex-1 min-h-0">
 
           {/* Summary strip */}
-          <div className="shrink-0 px-5 py-4 border-b border-border/60 bg-transparent">
+          <div className="shrink-0 px-5 py-4 border-b border-border bg-transparent">
             <div className="grid grid-cols-3 gap-4">
 
               {/* Receivable */}
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-rose-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-rose-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
                 <div className="p-3.5 bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                   <TrendingUp className="w-5 h-5" />
                 </div>
@@ -401,7 +401,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Payable */}
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-emerald-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-emerald-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
                 <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                   <TrendingDown className="w-5 h-5" />
                 </div>
@@ -413,7 +413,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Total parties */}
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-blue-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="bg-card dark:bg-card border border-border p-4.5 rounded-[24px] flex items-center gap-4 hover:border-blue-500/25 hover:shadow-md hover:bg-card transition-all duration-300 group select-none">
                 <div className="p-3.5 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                   <Activity className="w-5 h-5" />
                 </div>
@@ -427,7 +427,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Search */}
-          <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
+          <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
               <input
@@ -486,7 +486,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   return (
                     <div
                       key={party.party_id}
-                      className="group flex items-center gap-3.5 p-4 rounded-2xl border border-border/50 bg-card/45 dark:bg-card/25 hover:border-primary/30 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm shadow-sm hover:shadow-md cursor-pointer"
+                      className="group flex items-center gap-3.5 p-4 rounded-2xl border border-border bg-card dark:bg-card hover:border-primary/30 hover:bg-card transition-all duration-300 shadow-sm hover:shadow-md cursor-pointer"
                       onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
                     >
                       {/* Avatar */}
@@ -587,8 +587,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
             {/* Section: Identity */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <UserCircle className="w-4 h-4" />
                 </div>
@@ -654,8 +654,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
             {/* Section: Opening Balance (new party only) */}
             {!editingParty && (
-              <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
                     <Banknote className="w-4 h-4" />
                   </div>
@@ -715,8 +715,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
             )}
 
             {/* Section: Notes */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <FileText className="w-4 h-4" />
                 </div>
@@ -733,7 +733,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+          <div className="shrink-0 border-t border-border bg-card px-5 py-3">
             {statusMessage && (
               <div className={clsx(
                 'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
@@ -775,7 +775,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
           {/* ── Party Banner ── */}
           <div
-            className="shrink-0 px-5 py-4 border-b border-border/60"
+            className="shrink-0 px-5 py-4 border-b border-border"
             style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},60%,96%) 0%, hsl(${nameToHue(selectedParty.name)},40%,98%) 100%)` }}
           >
             <div className="flex items-center gap-4">
@@ -791,7 +791,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {selectedParty.phone && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border/40 px-2 py-0.5 rounded-lg">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border px-2 py-0.5 rounded-lg">
                       <Phone className="w-3 h-3" /> {selectedParty.phone}
                     </span>
                   )}
@@ -801,7 +801,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     </span>
                   )}
                   {selectedParty.address && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-white/60 border border-border/40 px-2 py-0.5 rounded-lg truncate max-w-[200px]">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-white/60 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
                       <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
                     </span>
                   )}
@@ -867,7 +867,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     <div
                       key={entry.ledger_id}
                       className={clsx(
-                        'rounded-2xl border bg-card/45 dark:bg-card/25 shadow-sm overflow-hidden transition-all duration-300 backdrop-blur-sm hover:shadow-md hover:bg-card/65',
+                        'rounded-2xl border bg-card dark:bg-card shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:bg-card',
                         isCredit ? 'border-emerald-500/20 dark:border-emerald-900/30' : 'border-rose-500/20 dark:border-rose-900/30'
                       )}
                     >
@@ -892,7 +892,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                               </span>
                               {/* Reference badge */}
                               {entry.reference_number && (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border/60 px-2 py-1 rounded-lg">
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
                                   <Hash className="w-3 h-3" />{entry.reference_number}
                                 </span>
                               )}
@@ -977,8 +977,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSaveTx} className="flex flex-col flex-1 min-h-0 bg-background">
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Activity className="w-4 h-4" />
                 </div>
@@ -1115,7 +1115,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-border/50 bg-card px-5 py-3">
+          <div className="shrink-0 border-t border-border bg-card px-5 py-3">
             {statusMessage && (
               <div className={clsx(
                 'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',

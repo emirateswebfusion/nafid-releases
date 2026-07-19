@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { fetchApi } from '../lib/api';
 import { useThemeStore } from '../store/themeStore';
@@ -480,7 +480,7 @@ export default function SuperDashboard() {
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground font-sans antialiased selection:bg-amber-500/30 transition-colors duration-200">
       {/* Header bar */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 shadow-inner shrink-0">
@@ -502,7 +502,7 @@ export default function SuperDashboard() {
             <span className="w-px h-5 bg-border/40 hidden sm:block" />
             <button
               onClick={toggleTheme}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
               title="Toggle Theme"
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -524,7 +524,7 @@ export default function SuperDashboard() {
         {/* Statistics Hero Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           {/* Card 1: Total Tenants */}
-          <div className="bg-card border border-border p-5 rounded-xl flex items-center justify-between relative overflow-hidden group hover:border-border/80 transition duration-300 shadow-sm">
+          <div className="bg-card border border-border p-5 rounded-xl flex items-center justify-between relative overflow-hidden group hover:border-border transition duration-300 shadow-sm">
             <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full blur-xl -translate-y-1/3 translate-x-1/3 group-hover:bg-amber-500/10 transition duration-300" />
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">Total Tenants</span>
@@ -537,7 +537,7 @@ export default function SuperDashboard() {
           </div>
 
           {/* Card 2: Database Health */}
-          <div className="bg-card border border-border p-5 rounded-xl flex items-center justify-between relative overflow-hidden group hover:border-border/80 transition duration-300 shadow-sm">
+          <div className="bg-card border border-border p-5 rounded-xl flex items-center justify-between relative overflow-hidden group hover:border-border transition duration-300 shadow-sm">
             <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-xl -translate-y-1/3 translate-x-1/3 group-hover:bg-emerald-500/10 transition duration-300" />
             <div>
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">Neon Connection Status</span>
@@ -556,7 +556,7 @@ export default function SuperDashboard() {
           </div>
 
           {/* Card 3: Domain Breakdown */}
-          <div className="bg-card border border-border p-5 rounded-xl flex flex-col justify-between relative overflow-hidden group hover:border-border/80 transition duration-300 shadow-sm lg:col-span-2">
+          <div className="bg-card border border-border p-5 rounded-xl flex flex-col justify-between relative overflow-hidden group hover:border-border transition duration-300 shadow-sm lg:col-span-2">
             <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-xl -translate-y-1/3 translate-x-1/3 group-hover:bg-blue-500/10 transition duration-300" />
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">Domain Deployments</span>
@@ -887,7 +887,7 @@ export default function SuperDashboard() {
           )}
         </section>
       {modalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border w-full max-w-5xl rounded-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             
             {/* Modal Title */}
@@ -1153,7 +1153,7 @@ export default function SuperDashboard() {
 
       {/* Verification Code Modal */}
       {verificationModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-card border border-border w-full max-w-md rounded-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             
             {/* Modal Title */}
@@ -1264,3 +1264,4 @@ export default function SuperDashboard() {
     </div>
   );
 }
+

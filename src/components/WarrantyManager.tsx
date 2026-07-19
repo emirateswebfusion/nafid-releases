@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar, LogOut } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
@@ -159,7 +159,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500 shadow-inner shrink-0">
             <Shield className="w-4 h-4" />
@@ -191,7 +191,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
 
       {!showCreate ? (
         <>
-          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
             <div className="flex-1 max-w-lg">
               <div className="relative">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -200,7 +200,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                   placeholder="Search by customer or product..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                  className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
                 />
               </div>
             </div>
@@ -212,7 +212,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           </div>
 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 shrink-0 bg-muted/40">
+            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40">
               <div className="col-span-3">Customer</div>
               <div className="col-span-3">Product</div>
               <div className="col-span-2 text-center">Purchase</div>
@@ -256,7 +256,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                   const expired = isExpired(w.expiry_date);
                   const remaining = daysRemaining(w.expiry_date);
                   return (
-                    <div key={w.warranty_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
+                    <div key={w.warranty_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
                       <div className="col-span-3">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
@@ -308,8 +308,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
         <div className="flex flex-col flex-1 min-h-0 bg-background">
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
 
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <User className="w-4 h-4" />
                 </div>
@@ -318,17 +318,17 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Customer Name *</label>
-                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.customer_name} onChange={e => setForm(p => ({ ...p, customer_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Customer Phone</label>
-                  <input type="text" value={form.customer_phone} onChange={e => setForm(p => ({ ...p, customer_phone: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.customer_phone} onChange={e => setForm(p => ({ ...p, customer_phone: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                 </div>
               </div>
             </section>
 
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
                   <Package className="w-4 h-4" />
                 </div>
@@ -337,17 +337,17 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Product Name *</label>
-                  <input type="text" value={form.product_name} onChange={e => setForm(p => ({ ...p, product_name: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.product_name} onChange={e => setForm(p => ({ ...p, product_name: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Product Details</label>
-                  <input type="text" value={form.product_details} onChange={e => setForm(p => ({ ...p, product_details: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="text" value={form.product_details} onChange={e => setForm(p => ({ ...p, product_details: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                 </div>
               </div>
             </section>
 
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
                   <Calendar className="w-4 h-4" />
                 </div>
@@ -356,7 +356,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase Date *</label>
-                  <input type="date" value={form.purchase_date} onChange={e => setForm(p => ({ ...p, purchase_date: e.target.value }))} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                  <input type="date" value={form.purchase_date} onChange={e => setForm(p => ({ ...p, purchase_date: e.target.value }))} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Warranty Period</label>
@@ -369,8 +369,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               </div>
             </section>
 
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                   <FileText className="w-4 h-4" />
                 </div>
@@ -378,14 +378,14 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               </div>
               <div>
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
               </div>
             </section>
 
           </div>
 
-          <div className="flex justify-end items-center gap-3 px-6 py-4 border-t border-border bg-card/50 shrink-0 shadow-sm">
-            <button onClick={() => setShowCreate(false)} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-all active:scale-95 cursor-pointer border border-border/60">Cancel</button>
+          <div className="flex justify-end items-center gap-3 px-6 py-4 border-t border-border bg-card shrink-0 shadow-sm">
+            <button onClick={() => setShowCreate(false)} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-all active:scale-95 cursor-pointer border border-border">Cancel</button>
             <button onClick={handleSave} className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
               <Shield className="w-4 h-4" /> Register Warranty
             </button>
@@ -414,3 +414,4 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     </div>
   );
 }
+

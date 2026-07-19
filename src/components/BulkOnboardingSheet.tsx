@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Save, Printer, AlertCircle, Trash, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
@@ -537,9 +537,9 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
         <div className="flex-1 overflow-x-auto overflow-y-auto border border-border rounded-xl shadow-inner relative custom-scrollbar bg-card">
           <table className="w-max text-sm text-left">
-            <thead className="text-xs text-muted-foreground uppercase bg-muted/80 sticky top-0 z-20 shadow-sm backdrop-blur-md">
+            <thead className="text-xs text-muted-foreground uppercase bg-muted/80 sticky top-0 z-20 shadow-sm">
               <tr>
-                <th className="px-3 py-3 font-semibold min-w-[200px] sticky left-0 bg-muted/80 backdrop-blur-md z-30">Product Name *</th>
+                <th className="px-3 py-3 font-semibold min-w-[200px] sticky left-0 bg-muted/80 z-30">Product Name *</th>
                 <th className="px-3 py-3 font-semibold min-w-[120px]">Barcode</th>
                 <th className="px-3 py-3 font-semibold min-w-[100px]">Item Code</th>
                 <th className="px-3 py-3 font-semibold min-w-[120px]">Brand</th>
@@ -555,7 +555,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                 <th className="px-3 py-3 font-semibold min-w-[80px]">GST?</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">Tax %</th>
                 <th className="px-3 py-3 font-semibold min-w-[80px]">UOM</th>
-                <th className="px-3 py-3 font-semibold w-[50px] text-center sticky right-0 bg-muted/80 backdrop-blur-md z-30">Act</th>
+                <th className="px-3 py-3 font-semibold w-[50px] text-center sticky right-0 bg-muted/80 z-30">Act</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -686,3 +686,4 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     </Modal>
   );
 }
+

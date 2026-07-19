@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -238,7 +238,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             {/* ═══════════════════════════════════════════════════
                 HEADER
             ═══════════════════════════════════════════════════ */}
-            <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+            <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
                 <div className="flex items-center justify-between gap-4 px-5 py-3">
                     <div>
                         <div className="flex items-center gap-2">
@@ -269,14 +269,14 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         </div>
                         <button
                             onClick={toggleTheme}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
+                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
                             title="Toggle Theme"
                         >
                             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </button>
                         <button
                             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
+                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
                             title="Settings"
                         >
                             <Settings className="w-4 h-4" />
@@ -390,3 +390,4 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         </div>
     );
 }
+

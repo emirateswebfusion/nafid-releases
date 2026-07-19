@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -1494,7 +1494,7 @@ export function BillingPage() {
       </div>
 
       {/* ─── TOP HEADER ─── */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
@@ -1633,7 +1633,7 @@ export function BillingPage() {
       </header>
 
       {/* ─── TABS BAR ─── */}
-      <div className="shrink-0 bg-muted/20 border-b border-border/40">
+      <div className="shrink-0 bg-muted/20 border-b border-border">
         <BillingTabBar onAddTab={handleAddTab} enableThreeInvoiceSeries={enableThreeInvoiceSeries} />
       </div>
 
@@ -1644,7 +1644,7 @@ export function BillingPage() {
         <div className="flex flex-col w-[58%] border-r border-border bg-muted/10">
           
           {/* Prominent Search bar */}
-          <div className="p-3 pb-2.5 bg-card border-b border-border/60">
+          <div className="p-3 pb-2.5 bg-card border-b border-border">
             <div ref={searchContainerRef} className="relative">
               <div className="flex gap-2">
                 <div className="relative flex-1">
@@ -1657,7 +1657,7 @@ export function BillingPage() {
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
-                    className="w-full pl-10 pr-9 py-2.5 bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                    className="w-full pl-10 pr-9 py-2.5 bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
                   />
                   {searchQuery && (
                     <button
@@ -1681,7 +1681,7 @@ export function BillingPage() {
                     "flex items-center gap-1.5 px-3 py-2.5 rounded-xl transition-all text-sm font-bold shrink-0 cursor-pointer active:scale-95 border",
                     isPastBillMode
                       ? "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted border-border/80"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted border-border"
                   )}
                   title="Search past bills by invoice number"
                 >
@@ -1693,7 +1693,7 @@ export function BillingPage() {
               {isPastBillMode && pastBillResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[320px] overflow-y-auto">
-                    <div className="px-3 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border/40">
+                    <div className="px-3 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
                       Past Bills ({pastBillResults.length})
                     </div>
                     {pastBillResults.map((inv, i) => {
@@ -1704,7 +1704,7 @@ export function BillingPage() {
                           onClick={() => handleSelectPastBill(inv)}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
                             isSelected ? 'bg-teal-500/10 border-l-4 border-l-teal-500 pl-2' : 'hover:bg-teal-500/5'
                           )}
                         >
@@ -1745,7 +1745,7 @@ export function BillingPage() {
                           onClick={() => handleSelectProduct(p)}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
                             isSelected ? 'bg-primary/5 border-l-4 border-l-primary pl-2' : 'hover:bg-muted/40'
                           )}
                         >
@@ -1796,7 +1796,7 @@ export function BillingPage() {
                           onClick={() => handleSelectScrapItem(s)}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border/40 last:border-0 cursor-pointer',
+                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
                             isSelected ? 'bg-orange-500/10 border-l-4 border-l-orange-500 pl-2' : 'hover:bg-orange-500/5'
                           )}
                         >
@@ -1849,7 +1849,7 @@ export function BillingPage() {
 
 
           {/* Customer details — moved to top of cart */}
-          <div className="px-4 py-2.5 border-b border-border/50 bg-card/40 shrink-0">
+          <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
@@ -1880,7 +1880,7 @@ export function BillingPage() {
                           setLoyaltyCustomerData({ customerId: c.customer_id, pointsBalance: Number(c.current_points_balance) || 0 });
                           setCustomerSearchResults([]);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border/40 last:border-0 cursor-pointer">
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border last:border-0 cursor-pointer">
                         <User className="w-4 h-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
@@ -1926,7 +1926,7 @@ export function BillingPage() {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border/40">
+              <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
                 <button
                   onClick={() => handleInvoiceTypeChange('BILL_OF_SUPPLY')}
                   className={clsx(
@@ -2017,7 +2017,7 @@ export function BillingPage() {
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground/60 gap-2 text-center max-w-xs mx-auto">
-                <div className="w-12 h-12 rounded-2xl bg-card border border-border/60 flex items-center justify-center text-muted-foreground shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center text-muted-foreground shadow-sm">
                   {emptyIcon}
                 </div>
                 <div>
@@ -2109,7 +2109,7 @@ export function BillingPage() {
                 return (
                   <div
                     key={item.product_id}
-                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border/80 hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-sm group"
+                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-sm group"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -2137,7 +2137,7 @@ export function BillingPage() {
                     <div className="flex flex-col items-center gap-1">
                       {isPiecesWeight ? (
                         <>
-                          <div className="flex items-center gap-1 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                          <div className="flex items-center gap-1 bg-muted/40 border border-border rounded-lg px-1.5 py-0.5">
                             <span className="text-[10px] text-muted-foreground font-bold uppercase">Pcs</span>
                             <input
                               type="number" min="1" step="1"
@@ -2146,7 +2146,7 @@ export function BillingPage() {
                               onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
                             />
                           </div>
-                          <div className="flex items-center gap-1 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                          <div className="flex items-center gap-1 bg-muted/40 border border-border rounded-lg px-1.5 py-0.5">
                             <span className="text-[10px] text-muted-foreground font-bold uppercase">Kg</span>
                             <input
                               type="number" min="0" step="0.001"
@@ -2157,7 +2157,7 @@ export function BillingPage() {
                           </div>
                         </>
                       ) : (
-                        <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg p-0.5">
+                        <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border rounded-lg p-0.5">
                           <button
                             onClick={() => {
                               const q = Number(item.quantity);
@@ -2165,7 +2165,7 @@ export function BillingPage() {
                               if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3));
                               else removeItem(item.product_id);
                             }}
-                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
@@ -2183,7 +2183,7 @@ export function BillingPage() {
                               const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
                               updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3));
                             }}
-                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
@@ -2218,10 +2218,10 @@ export function BillingPage() {
         </div>
 
         {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
-        <div className="flex flex-col w-[42%] bg-card/65 dark:bg-card/45 shadow-2xl z-25 border-l border-border/50 backdrop-blur-md">
+        <div className="flex flex-col w-[42%] bg-card dark:bg-card shadow-2xl z-25 border-l border-border">
 
           {/* ── RIGHT PANEL HEADER ── */}
-          <div className="shrink-0 px-5 py-2.5 border-b border-border/60 bg-transparent">
+          <div className="shrink-0 px-5 py-2.5 border-b border-border bg-transparent">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Transaction Console</p>
           </div>
 
@@ -2249,7 +2249,7 @@ export function BillingPage() {
                         'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer col-span-1',
                         isActive
                           ? `${opt.activeBg} ${opt.activeBorder} ${opt.activeText} shadow-sm`
-                          : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                          : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
                       )}
                     >
                       <div className={clsx(
@@ -2287,7 +2287,7 @@ export function BillingPage() {
                         span,
                         isActive
                           ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
-                          : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                          : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
                       )}
                     >
                       <div className={clsx(
@@ -2344,10 +2344,10 @@ export function BillingPage() {
           </div>
 
           {/* ── STICKY FOOTER: Totals + Actions ── */}
-          <div className="shrink-0 border-t border-border/50 bg-background">
+          <div className="shrink-0 border-t border-border bg-background">
 
             {/* Calculation breakdown */}
-            <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border/40">
+            <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border">
               {(!isScrapMode || subtotal > 0) && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
@@ -2388,7 +2388,7 @@ export function BillingPage() {
                   )}
                 </div>
                 {/* Inline discount input */}
-                <div className="flex items-center bg-muted/50 border border-border/60 rounded-xl p-0.5 shadow-sm">
+                <div className="flex items-center bg-muted/50 border border-border rounded-xl p-0.5 shadow-sm">
                   <div className="flex bg-card rounded-lg mr-1 border border-border/30">
                     <button
                       onClick={() => setDiscount(discountValue || 0, 'FIXED')}
@@ -2537,7 +2537,7 @@ export function BillingPage() {
                     onFocus={e => e.target.select()}
                     placeholder={grandTotal.toFixed(2)}
                     inputMode="decimal"
-                    className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border/50 focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 </div>
               </div>
@@ -2711,7 +2711,7 @@ export function BillingPage() {
               </div>
 
               <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 bg-muted/40">
+                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-4">Category</div>
                   <div className="col-span-2 text-right">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
@@ -2749,10 +2749,10 @@ export function BillingPage() {
             <div className="py-8 text-center text-muted-foreground text-sm">No data found for this scrap invoice</div>
           )}
 
-          <div className="flex justify-end pt-2 border-t border-border/40">
+          <div className="flex justify-end pt-2 border-t border-border">
             <button
               onClick={() => { setShowScrapInvoiceView(false); setScrapInvoiceViewData(null); }}
-              className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
             >
               Close
             </button>
@@ -2764,7 +2764,7 @@ export function BillingPage() {
       {scrapDeductionResults.length > 0 && scrapDeductionDropdownStyle && (
         <div id="scrap-deduction-dropdown" style={scrapDeductionDropdownStyle} className="bg-card border border-border rounded-xl shadow-xl animate-in fade-in slide-in-from-top-1 duration-200">
           <div className="max-h-[260px] overflow-y-auto">
-            <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/40">
+            <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
               Pending Scrap Invoices
             </div>
             {scrapDeductionResults.map((inv, i) => (
@@ -2792,7 +2792,7 @@ export function BillingPage() {
                     setHardwareError('Failed to fetch scrap invoice');
                   }
                 }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-500/5 border-b border-border/40 last:border-0 transition-colors cursor-pointer"
+                className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-orange-500/5 border-b border-border last:border-0 transition-colors cursor-pointer"
               >
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
@@ -2812,8 +2812,8 @@ export function BillingPage() {
         <>
           <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
           <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-            <div className="w-full max-w-6xl bg-card/95 dark:bg-card/90 border border-border/50 rounded-[28px] shadow-2xl pointer-events-auto overflow-hidden backdrop-blur-md">
-              <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+            <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl pointer-events-auto overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                     <Package className="w-4 h-4" />
@@ -2828,8 +2828,8 @@ export function BillingPage() {
               </div>
               <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
                 {/* 1. Basic Details */}
-                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                     <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                       <Package className="w-4 h-4" />
                     </div>
@@ -2840,12 +2840,12 @@ export function BillingPage() {
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
                         <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                       </div>
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
                         <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div>
@@ -2853,7 +2853,7 @@ export function BillingPage() {
                           {newProductIsCustomCategory ? (
                             <div className="flex gap-2 items-center">
                               <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
-                                className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                               <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
                             </div>
                           ) : (
@@ -2879,11 +2879,11 @@ export function BillingPage() {
                         <div>
                           <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
                           <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                         </div>
                       </div>
                     </div>
-                    <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                    <div className="bg-muted/20 p-4 rounded-xl border border-border flex flex-col justify-center shadow-sm">
                       <div>
                         <div className="flex justify-between items-center mb-1.5">
                           <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
@@ -2897,15 +2897,15 @@ export function BillingPage() {
                           </button>
                         </div>
                         <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
                       </div>
                     </div>
                   </div>
                 </section>
 
                 {/* 2. Inventory & Pricing */}
-                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                     <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                       <Package className="w-4 h-4" />
                     </div>
@@ -2934,7 +2934,7 @@ export function BillingPage() {
                               else setNewProductReorderLevel(val);
                             }}
                             className={clsx(
-                              'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
+                              'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm',
                               prefix && 'pl-8',
                               field === 'basePrice' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                             )}
@@ -2955,15 +2955,15 @@ export function BillingPage() {
                 </section>
 
                 {/* 3. Discount & Offers */}
-                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                     <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                       <Package className="w-4 h-4" />
                     </div>
                     <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Discount & Offers</span>
                   </div>
                   <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-bold text-foreground">Discount</h4>
                         <span className="text-xs text-muted-foreground">Applies to MRP</span>
@@ -2988,7 +2988,7 @@ export function BillingPage() {
                               setNewProductOfferPrice('');
                             }}
                             disabled={!!newProductOfferPrice}
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                         </div>
                         <div>
                           <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
@@ -3009,11 +3009,11 @@ export function BillingPage() {
                               setNewProductOfferPrice('');
                             }}
                             disabled={!!newProductOfferPrice}
-                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                         </div>
                       </div>
                     </div>
-                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                       <div className="flex items-center justify-between">
                         <h4 className="text-sm font-bold text-foreground">Offer</h4>
                         <span className="text-xs text-muted-foreground">Overrides MRP</span>
@@ -3029,15 +3029,15 @@ export function BillingPage() {
                             setNewProductDiscountFlat('');
                           }}
                           disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
-                          className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
                       </div>
                     </div>
                   </div>
                 </section>
 
                 {/* 4. Taxes & Config */}
-                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                  <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                     <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                       <Package className="w-4 h-4" />
                     </div>
@@ -3052,7 +3052,7 @@ export function BillingPage() {
                           'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
                           newProductIsGstApplicable
                             ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                            : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
+                            : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
                         )}
                       >
                         <input
@@ -3076,7 +3076,7 @@ export function BillingPage() {
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
                       <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
@@ -3091,7 +3091,7 @@ export function BillingPage() {
                   </div>
                 </section>
               </div>
-              <div className="flex items-center justify-end px-5 py-3 border-t border-border/50 bg-background">
+              <div className="flex items-center justify-end px-5 py-3 border-t border-border bg-background">
                 <button type="button" onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
@@ -3106,3 +3106,5 @@ export function BillingPage() {
     </div>
   );
 }
+
+

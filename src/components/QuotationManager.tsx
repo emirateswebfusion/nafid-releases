@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 import clsx from 'clsx';
@@ -156,7 +156,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <FileText className="w-4 h-4" />
@@ -191,7 +191,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
       {/* ── Action Bar (list view) ── */}
       {!showDetail && (
-        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
           <div className="flex-1 max-w-lg">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -200,7 +200,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                 placeholder="Search quotations..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
               />
             </div>
           </div>
@@ -221,7 +221,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         {/* ── QUOTATION LIST ── */}
         {!showDetail && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 shrink-0 bg-muted/40">
+            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40">
               <div className="col-span-2">QTN #</div>
               <div className="col-span-3">Customer</div>
               <div className="col-span-2 text-right">Amount</div>
@@ -252,11 +252,11 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                   }, {})
               ).map(([date, qs]) => (
                 <div key={date}>
-                  <div className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border/60">
+                  <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
                     {date}
                   </div>
                   {qs.map(q => (
-                    <div key={q.quotation_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group cursor-pointer" onClick={() => viewQuotation(q)}>
+                    <div key={q.quotation_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-primary/30 hover:shadow-sm transition-all duration-150 group cursor-pointer" onClick={() => viewQuotation(q)}>
                       <div className="col-span-2 font-mono font-bold text-primary">{q.quotation_number}</div>
                       <div className="col-span-3 font-medium">{q.customer_name || '-'}</div>
                       <div className="col-span-2 text-right font-bold">{formatCurrency(q.grand_total)}</div>
@@ -298,7 +298,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         {/* ── QUOTATION DETAIL ── */}
         {showDetail && selectedQuotation && (
           <div className="max-w-4xl mx-auto p-6">
-            <div ref={printRef} className="space-y-6 bg-card border border-border/80 rounded-2xl p-8 shadow-sm">
+            <div ref={printRef} className="space-y-6 bg-card border border-border rounded-2xl p-8 shadow-sm">
               <div className="text-center border-b-2 border-foreground pb-4">
                 <h1 className="text-3xl font-black">{shopName || 'Shop'}</h1>
                 <p className="text-sm text-muted-foreground mt-1">QUOTATION</p>
@@ -321,56 +321,56 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-muted">
-                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border/80">#</th>
-                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border/80">Item</th>
-                    <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border/80">Qty</th>
-                    <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border/80">Weight</th>
-                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border/80">Rate</th>
-                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border/80">Amount</th>
+                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border">#</th>
+                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border">Item</th>
+                    <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border">Qty</th>
+                    <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border">Weight</th>
+                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Rate</th>
+                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
                   {quotationItems.map((item, idx) => (
                     <tr key={item.item_id}>
-                      <td className="p-3 border border-border/80 text-center">{idx + 1}</td>
-                      <td className="p-3 border border-border/80 font-medium">{item.name}</td>
-                      <td className="p-3 border border-border/80 text-center">{item.quantity}</td>
-                      <td className="p-3 border border-border/80 text-center">{item.weight ? `${item.weight} KG` : '-'}</td>
-                      <td className="p-3 border border-border/80 text-right">{formatCurrency(item.rate)}</td>
-                      <td className="p-3 border border-border/80 text-right font-bold">{formatCurrency(item.amount)}</td>
+                      <td className="p-3 border border-border text-center">{idx + 1}</td>
+                      <td className="p-3 border border-border font-medium">{item.name}</td>
+                      <td className="p-3 border border-border text-center">{item.quantity}</td>
+                      <td className="p-3 border border-border text-center">{item.weight ? `${item.weight} KG` : '-'}</td>
+                      <td className="p-3 border border-border text-right">{formatCurrency(item.rate)}</td>
+                      <td className="p-3 border border-border text-right font-bold">{formatCurrency(item.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
                   <tr className="font-bold">
-                    <td colSpan={5} className="p-3 border border-border/80 text-right">Subtotal</td>
-                    <td className="p-3 border border-border/80 text-right">{formatCurrency(selectedQuotation.subtotal)}</td>
+                    <td colSpan={5} className="p-3 border border-border text-right">Subtotal</td>
+                    <td className="p-3 border border-border text-right">{formatCurrency(selectedQuotation.subtotal)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="p-3 border border-border/80 text-right text-muted-foreground">GST</td>
-                    <td className="p-3 border border-border/80 text-right">{formatCurrency(selectedQuotation.tax_total)}</td>
+                    <td colSpan={5} className="p-3 border border-border text-right text-muted-foreground">GST</td>
+                    <td className="p-3 border border-border text-right">{formatCurrency(selectedQuotation.tax_total)}</td>
                   </tr>
                   <tr className="font-black text-lg">
-                    <td colSpan={5} className="p-3 border border-border/80 text-right">Grand Total</td>
-                    <td className="p-3 border border-border/80 text-right text-primary">{formatCurrency(selectedQuotation.grand_total)}</td>
+                    <td colSpan={5} className="p-3 border border-border text-right">Grand Total</td>
+                    <td className="p-3 border border-border text-right text-primary">{formatCurrency(selectedQuotation.grand_total)}</td>
                   </tr>
                 </tfoot>
               </table>
 
               {selectedQuotation.terms_conditions && (
-                <div className="border-t border-border/80 pt-4">
+                <div className="border-t border-border pt-4">
                   <h3 className="font-bold text-sm mb-2">Terms & Conditions</h3>
                   <p className="text-xs text-muted-foreground whitespace-pre-line">{selectedQuotation.terms_conditions}</p>
                 </div>
               )}
 
-              <p className="text-xs text-muted-foreground text-center pt-4 border-t border-border/80">
+              <p className="text-xs text-muted-foreground text-center pt-4 border-t border-border">
                 Generated by Vendora POS — {new Date().toLocaleString('en-IN')}
               </p>
             </div>
 
             <div className="flex justify-end gap-2 mt-4">
-              <button onClick={handlePrint} className="px-4 py-2.5 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
+              <button onClick={handlePrint} className="px-4 py-2.5 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
                 <Printer className="w-4 h-4" /> Print
               </button>
               <button onClick={handlePrint} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
@@ -393,3 +393,4 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     </div>
   );
 }
+

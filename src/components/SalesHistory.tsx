@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, X,
   BookOpen, IndianRupee, Percent, TrendingUp,
@@ -72,7 +72,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-border/50 bg-card/45 dark:bg-card/25 shadow-sm group hover:shadow-md hover:border-primary/20 transition-all duration-300 min-w-0 backdrop-blur-sm">
+    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-border bg-card dark:bg-card shadow-sm group hover:shadow-md hover:border-primary/20 transition-all duration-300 min-w-0">
       <div className={clsx('p-1.5 rounded-lg shrink-0', bgClass)}>
         <Icon className={clsx('w-3.5 h-3.5', colorClass)} />
       </div>
@@ -128,7 +128,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
     <tr
       onClick={onClick}
       className={clsx(
-        'group cursor-pointer transition-all duration-150 border-b border-border/40 last:border-0',
+        'group cursor-pointer transition-all duration-150 border-b border-border last:border-0',
         isSelected
           ? 'bg-primary/5'
           : 'hover:bg-muted/30'
@@ -587,7 +587,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
       {/* ─── TOAST ─── */}
       {reprintSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/10 backdrop-blur-sm border border-emerald-500/25 rounded-2xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
           <CheckCheck className="w-4 h-4 shrink-0" />
           Invoice reprinted successfully!
         </div>
@@ -595,7 +595,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
       {/* ─── EXPORT TOAST ─── */}
       {exportStatusMsg && (
-        <div className="fixed top-4 right-4 z-[60] px-5 py-3 bg-card/90 backdrop-blur-sm border border-border/60 rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
+        <div className="fixed top-4 right-4 z-[60] px-5 py-3 bg-card border border-border rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
           {isExporting
             ? <RefreshCw className="w-4 h-4 text-emerald-500 animate-spin shrink-0" />
             : <Download className="w-4 h-4 text-emerald-500 shrink-0" />
@@ -607,7 +607,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       )}
 
       {/* ─── HEADER ─── */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
@@ -660,14 +660,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         <div className="flex flex-col flex-1 overflow-hidden w-full">
 
           {/* Stats & Graph Side-by-Side Container */}
-          <div className="px-3 py-2.5 border-b border-border/60 bg-background shrink-0">
+          <div className="px-3 py-2.5 border-b border-border bg-background shrink-0">
             <div className="flex gap-3 items-stretch">
               
               {/* Left Side: Stats cards (2x2 grid) */}
               <div className="grid grid-cols-2 gap-2 shrink-0 w-[45%]">
                 {loading ? (
                   Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border/60 bg-card">
+                    <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-card">
                       <Skeleton className="h-6 w-6 rounded-lg shrink-0" />
                       <div className="space-y-1 flex-1">
                         <Skeleton className="h-2 w-10" />
@@ -690,7 +690,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
               {/* Right Side: Graph / Chart */}
               {!loading && invoices.length > 1 && (
-                <div className="flex-1 bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-4 flex flex-col justify-between overflow-hidden backdrop-blur-sm shadow-sm transition-all duration-300">
+                <div className="flex-1 bg-card dark:bg-card border border-border rounded-[28px] p-4 flex flex-col justify-between overflow-hidden shadow-sm transition-all duration-300">
                   {/* Chart header inside block */}
                   <div className="flex items-center justify-between px-2 pb-1 shrink-0">
                     <div className="flex items-center gap-1.5">
@@ -702,7 +702,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         <span className="w-1.5 h-1.5 rounded-full bg-primary/70 inline-block" />
                         Revenue
                       </span>
-                      <span className="bg-muted/60 border border-border/60 px-1 py-px rounded text-[8px] font-bold text-foreground/70">
+                      <span className="bg-muted/60 border border-border px-1 py-px rounded text-[8px] font-bold text-foreground/70">
                         {dailySales.length}d
                       </span>
                     </div>
@@ -760,13 +760,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
 
           {/* Search + Filters */}
-          <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border/40 bg-card">
+          <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <Input
                 type="text"
                 placeholder="Search invoice or customer…"
-                className="pl-9 h-8 text-xs bg-background border-border/80 font-medium"
+                className="pl-9 h-8 text-xs bg-background border-border font-medium"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
               />
@@ -789,7 +789,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
                       paymentFilter === opt.value
                         ? 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15'
-                        : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground'
+                        : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
                     )}
                   >
                     {opt.label}
@@ -843,7 +843,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
                   selectionMode
                     ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                    : 'bg-muted/50 text-muted-foreground border-border/50 hover:bg-muted hover:text-foreground'
+                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
                 )}
               >
                 <ShieldAlert className="w-3 h-3 inline -mt-0.5 mr-1" />
@@ -881,7 +881,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     'h-7 px-4 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border flex items-center gap-1.5',
                     selectedBosInvoices.length > 0
                       ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600 active:scale-95'
-                      : 'bg-muted/50 text-muted-foreground border-border/50 cursor-not-allowed'
+                      : 'bg-muted/50 text-muted-foreground border-border cursor-not-allowed'
                   )}
                 >
                   <ArrowDownRight className="w-3 h-3" />
@@ -897,7 +897,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               <table className="w-full">
                 <tbody>
                   {Array.from({ length: 8 }).map((_, i) => (
-                    <tr key={i} className="border-b border-border/40">
+                    <tr key={i} className="border-b border-border">
                       <td className="px-4 py-3.5"><div className="flex items-center gap-2.5"><Skeleton className="w-8 h-8 rounded-xl shrink-0" /><div className="space-y-1.5"><Skeleton className="h-3 w-24" /><Skeleton className="h-2.5 w-16" /></div></div></td>
                       <td className="px-4 py-3.5"><Skeleton className="h-3 w-20" /></td>
                       <td className="px-4 py-3.5"><Skeleton className="h-3 w-24" /></td>
@@ -910,7 +910,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </table>
             ) : invoices.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-4 text-center py-20">
-                <div className="w-16 h-16 rounded-2xl bg-muted/40 border border-border/60 flex items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl bg-muted/40 border border-border flex items-center justify-center">
                   <Receipt className="w-7 h-7 text-muted-foreground/50" />
                 </div>
                 <div>
@@ -920,7 +920,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </div>
             ) : (
               <table className="w-full">
-                <thead className="sticky top-0 z-10 bg-muted/60 backdrop-blur-sm border-b border-border/60">
+                <thead className="sticky top-0 z-10 bg-muted/60 border-b border-border">
                   <tr>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Type</th>
@@ -990,7 +990,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         {selectedInvoice && (
           <div className="space-y-4 text-foreground">
             {/* Action Buttons & Time */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border/50 rounded-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border rounded-2xl">
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
@@ -1030,7 +1030,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
             {/* Customer + Payment Split */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+              <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</div>
                 <div className="font-bold text-sm text-foreground truncate">
                   {selectedInvoice.customer_name || 'Walk-in Customer'}
@@ -1045,7 +1045,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
                 )}
               </div>
-              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+              <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
                 <div className="flex items-center gap-2">
                   <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
@@ -1085,9 +1085,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">{items.length} item{items.length !== 1 ? 's' : ''}</span>
               </div>
-              <div className="border border-border/60 rounded-xl overflow-hidden bg-card">
+              <div className="border border-border rounded-xl overflow-hidden bg-card">
                 {/* Table header */}
-                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   <div className="col-span-5">Item</div>
                   <div className="col-span-2 text-center">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
@@ -1118,7 +1118,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
             {/* Totals */}
             <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
-              <div className="px-4 py-3 space-y-2 bg-card/50">
+              <div className="px-4 py-3 space-y-2 bg-card">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground font-semibold">Subtotal</span>
                   <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
@@ -1190,7 +1190,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
                           isActive
                             ? `${opt.bg} ${opt.border} ${opt.color} shadow-sm`
-                            : 'border-border/70 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
                         )}
                       >
                         <div className={clsx(
@@ -1260,10 +1260,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
                   onClick={() => setCollectPaymentOpen(false)}
-                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer"
+                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1343,7 +1343,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
                   onClick={() => {
                     setConversionOpen(false);
@@ -1375,18 +1375,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
               <div className="max-h-[300px] overflow-y-auto space-y-1.5">
                 {selectedBosInvoices.map(inv => (
-                  <div key={inv.invoice_id} className="flex items-center justify-between p-2.5 bg-card border border-border/60 rounded-xl text-xs">
+                  <div key={inv.invoice_id} className="flex items-center justify-between p-2.5 bg-card border border-border rounded-xl text-xs">
                     <span className="font-bold text-foreground">{inv.invoice_number}</span>
                     <span className="text-muted-foreground">{formatCurrency(inv.grand_total)}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
+              <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
                   onClick={() => setConversionOpen(false)}
                   disabled={converting}
-                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border/80 rounded-xl transition-colors cursor-pointer"
+                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1450,3 +1450,4 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     </div>
   );
 }
+

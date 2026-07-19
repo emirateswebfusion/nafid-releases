@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+﻿import { useState, useMemo } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
@@ -134,7 +134,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col bg-black/70 backdrop-blur-sm" onWheel={handleWheel}>
+    <div className="fixed inset-0 z-[100] flex flex-col bg-black/70" onWheel={handleWheel}>
       <div className="flex items-center justify-between px-4 py-2.5 bg-background border-b border-border shrink-0">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-bold text-foreground">
@@ -250,3 +250,4 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
     </div>
   );
 }
+

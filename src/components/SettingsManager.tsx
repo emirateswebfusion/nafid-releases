@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb,
@@ -425,8 +425,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Card 1: Shop Profile */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] dark:shadow-[0_4px_12px_rgba(79,70,229,0.05)] shrink-0">
                   <Building className="w-4.5 h-4.5" />
                 </div>
@@ -456,7 +456,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                   </div>
                   <p className="text-[10px] text-muted-foreground/70 mt-1">This UPI ID will appear on printed receipts for customer payments.</p>
                 </div>
-                <div className="col-span-2 flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                <div className="col-span-2 flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
                     <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowUpiQr(!showUpiQr)}>Show UPI QR Code on Receipt</label>
                     <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a QR code with the bill amount pre-filled will appear on printed receipts.</p>
@@ -469,8 +469,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 2: GST & Taxation */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-emerald-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-emerald-500/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-[0_4px_12px_rgba(16,185,129,0.1)] dark:shadow-[0_4px_12px_rgba(16,185,129,0.05)] shrink-0">
                   <Building className="w-4.5 h-4.5" />
                 </div>
@@ -487,10 +487,10 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <Select value={shopState} onChange={setShopState} options={INDIAN_STATES.map(s => ({value:s.code,label:s.name+' ('+s.code+')'}))} />
                   </div>
                 </div>
-                <div className="rounded-2xl border border-border/50 p-5 space-y-4 bg-muted/20 dark:bg-muted/10 backdrop-blur-sm">
-                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-border/40">
+                <div className="rounded-2xl border border-border p-5 space-y-4 bg-muted/30">
+                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-border">
                     <TrendingUp className="w-4 h-4 text-emerald-600" />
-                    <span className="text-xs font-bold text-foreground">Bill of Supply → GST Conversion</span>
+                    <span className="text-xs font-bold text-foreground">Bill of Supply â†’ GST Conversion</span>
                   </div>
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-2 col-span-2">
@@ -513,8 +513,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 3: Invoice Counter & Series */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-blue-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-blue-500/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-blue-500/10 text-blue-500 shadow-[0_4px_12px_rgba(59,130,246,0.1)] dark:shadow-[0_4px_12px_rgba(59,130,246,0.05)] shrink-0">
                   <Receipt className="w-4.5 h-4.5" />
                 </div>
@@ -559,7 +559,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
                           GST B2B Invoice Series
                         </h5>
-                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border/40 px-2 py-0.5 rounded-lg">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
+                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded-lg">{b2bPrefix || 'B2B'}-{String(Number(b2bStartNumber) || 1).padStart(3, '0')}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
@@ -578,7 +578,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                           GST B2C Invoice Series
                         </h5>
-                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border/40 px-2 py-0.5 rounded-lg">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
+                        <span className="text-[10px] font-mono font-bold text-foreground bg-background border border-border px-2 py-0.5 rounded-lg">{b2cPrefix || 'B2C'}-{String(Number(b2cStartNumber) || 1).padStart(3, '0')}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
@@ -597,8 +597,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 4: Store Features */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] dark:shadow-[0_4px_12px_rgba(168,85,247,0.05)] shrink-0">
                   <Tags className="w-4.5 h-4.5" />
                 </div>
@@ -606,10 +606,10 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
               </div>
               <div className="space-y-5">
                 {/* Scrap Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
                     <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When disabled, all scrap features are hidden globally — scrap mode, scrap deduction, and scrap manager.</p>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When disabled, all scrap features are hidden globally â€” scrap mode, scrap deduction, and scrap manager.</p>
                   </div>
                   <button type="button" onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableScrap ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableScrap ? 'translate-x-5' : 'translate-x-0')} />
@@ -618,7 +618,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
                 {/* Loyalty Toggle & Configs */}
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                     <div className="flex-1">
                       <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setLoyaltyEnabled(!loyaltyEnabled)}>Enable Loyalty Points System</label>
                       <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, customers will earn loyalty points on every purchase which can be redeemed for future discounts.</p>
@@ -629,8 +629,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                   </div>
 
                   {loyaltyEnabled && (
-                    <div className="rounded-2xl border border-border/50 p-5 space-y-4 bg-muted/20 dark:bg-muted/10 backdrop-blur-sm animate-in slide-in-from-top-2 duration-200">
-                      <div className="flex items-center gap-2.5 pb-2.5 border-b border-border/40">
+                    <div className="rounded-2xl border border-border p-5 space-y-4 bg-muted/30 animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center gap-2.5 pb-2.5 border-b border-border">
                         <TrendingUp className="w-4 h-4 text-primary" />
                         <span className="text-xs font-bold text-foreground">Points Earning &amp; Redemption Rules</span>
                       </div>
@@ -638,23 +638,23 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Earning Rate</label>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-bold text-muted-foreground font-mono">₹</span>
+                            <span className="text-sm font-bold text-muted-foreground font-mono">â‚¹</span>
                             <input type="number" min="1" value={loyaltyEarningRate}
                               onChange={e => setLoyaltyEarningRate(e.target.value === '' ? 100 : Number(e.target.value))}
                               className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
                             <span className="text-xs font-bold text-muted-foreground shrink-0">= 1 Pt</span>
                           </div>
-                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per ₹{loyaltyEarningRate} spent.</p>
+                          <p className="text-[10px] text-muted-foreground/70">Customer earns 1 point per â‚¹{loyaltyEarningRate} spent.</p>
                         </div>
                         <div className="space-y-1.5">
                           <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1">Redemption Value</label>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = ₹</span>
+                            <span className="text-xs font-bold text-muted-foreground shrink-0">1 Pt = â‚¹</span>
                             <input type="number" min="0.5" step="0.5" value={loyaltyRedemptionRate}
                               onChange={e => setLoyaltyRedemptionRate(e.target.value === '' ? 1 : Number(e.target.value))}
                               className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all text-sm font-bold font-mono" />
                           </div>
-                          <p className="text-[10px] text-muted-foreground/70">Each point gives ₹{loyaltyRedemptionRate} discount on bills.</p>
+                          <p className="text-[10px] text-muted-foreground/70">Each point gives â‚¹{loyaltyRedemptionRate} discount on bills.</p>
                         </div>
                       </div>
                     </div>
@@ -668,7 +668,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Top Sub-tabs */}
-            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border/40 rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
+            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
               {[
                 { id: 'receipt', label: 'Receipt Printer', icon: Printer },
                 { id: 'barcode', label: 'Barcode Printer', icon: Printer },
@@ -686,7 +686,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       "flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                       isTabActive
                         ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold scale-100"
-                        : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     <Icon className="w-4 h-4 shrink-0 text-current" />
@@ -697,10 +697,10 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Render selected hardware settings card */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm backdrop-blur-sm">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm">
               {activeHardwareTab === 'receipt' && (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <Printer className="w-4.5 h-4.5 text-primary" />
                     <span className="text-xs font-black uppercase tracking-widest text-foreground">Receipt Printer Settings</span>
                   </div>
@@ -744,7 +744,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
               {activeHardwareTab === 'barcode' && (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <Printer className="w-4.5 h-4.5 text-primary" />
                     <span className="text-xs font-black uppercase tracking-widest text-foreground">Barcode Printer Settings</span>
                   </div>
@@ -799,7 +799,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
               {activeHardwareTab === 'a4' && (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <FileText className="w-4.5 h-4.5 text-primary" />
                     <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 Printer Settings</span>
                   </div>
@@ -813,7 +813,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
               {activeHardwareTab === 'scale' && (
                 <div className="space-y-5">
-                  <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <Scale className="w-4.5 h-4.5 text-primary" />
                     <span className="text-xs font-black uppercase tracking-widest text-foreground">Weighing Scale Connection</span>
                   </div>
@@ -842,7 +842,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Top Sub-tabs (only show if role is OWNER, since cashier only sees Grades) */}
             {productTabs.length > 1 && (
-              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border/40 rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
+              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner mx-auto">
                 {productTabs.map((tab) => {
                   const Icon = tab.icon;
                   const isTabActive = activeProductsTab === tab.id;
@@ -855,7 +855,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                         "flex items-center justify-center gap-2 py-2 px-3.5 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                         isTabActive
                           ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold scale-100"
-                          : "text-muted-foreground hover:text-foreground hover:bg-background/30 dark:hover:bg-card/25"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       )}
                     >
                       <Icon className="w-4 h-4 shrink-0 text-current" />
@@ -869,17 +869,17 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             {/* Content pane */}
 
             {activeProductsTab === 'coding' && (
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
-                <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+              <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 pb-4 border-b border-border">
                   <Key className="w-4.5 h-4.5 text-primary" />
                   <span className="text-xs font-black uppercase tracking-widest text-foreground">Purchase Price Coding System</span>
                 </div>
                 <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                  Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for ₹1250).
+                  Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for â‚¹1250).
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-                    <div key={digit} className="flex items-center justify-between gap-3 bg-muted/40 dark:bg-muted/10 p-3 rounded-2xl border border-border/60 hover:border-primary/30 hover:bg-background/80 hover:shadow-sm transition-all duration-300 select-none">
+                    <div key={digit} className="flex items-center justify-between gap-3 bg-muted/40 dark:bg-muted/10 p-3 rounded-2xl border border-border hover:border-primary/30 hover:bg-background/80 hover:shadow-sm transition-all duration-300 select-none">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center justify-center font-black text-xs w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
                         <span className="text-muted-foreground/50 text-xs font-bold">=</span>
@@ -892,8 +892,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             )}
 
             {activeProductsTab === 'bulk' && (
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
-                <div className="flex items-center gap-3 pb-4 border-b border-border/40">
+              <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-6">
+                <div className="flex items-center gap-3 pb-4 border-b border-border">
                   <Upload className="w-4.5 h-4.5 text-primary" />
                   <span className="text-xs font-black uppercase tracking-widest text-foreground">Bulk Product Import</span>
                 </div>
@@ -914,8 +914,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Card 1: Receipt & Invoice Format */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
                   <FileText className="w-4.5 h-4.5" />
                 </div>
@@ -980,7 +980,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Paper Width</span>
-                      <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border/60">
+                      <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border">
                         <button type="button" onClick={() => setPrintWidth(58)}
                           className={clsx("px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95", printWidth === 58 ? "bg-background shadow-sm text-foreground font-extrabold" : "text-muted-foreground hover:text-foreground")}>58mm</button>
                         <button type="button" onClick={() => setPrintWidth(80)}
@@ -1002,13 +1002,13 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
                               <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
-                                <div className={clsx("p-3 border-b border-border/40 bg-gradient-to-r", style.color)}>
+                                <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
                               </button>
                               <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                                 <div className="relative group flex justify-center">
-                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border/40 w-36 rounded-md">
+                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
                                   </div>
                                   <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
@@ -1020,7 +1020,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <div className="flex-1">
                         <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Receipt</label>
                         <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
@@ -1030,7 +1030,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <div className="flex-1">
                         <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
                         <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
@@ -1040,7 +1040,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       </button>
                     </div>
 
-                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                         {[
@@ -1142,7 +1142,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       </label>
                     </div>
 
-                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                         {[
@@ -1171,7 +1171,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       </div>
                     </div>
 
-                    <div className="p-4.5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Receipt Font</label>
                       <div className="flex flex-wrap gap-2.5">
                         {FONT_OPTIONS.map(f => (
@@ -1210,13 +1210,13 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
                               <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
-                                <div className={clsx("p-3 border-b border-border/40 bg-gradient-to-r", style.color)}>
+                                <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
                               </button>
                               <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                                 <div className="relative group flex justify-center">
-                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border/40 w-36 rounded-md">
+                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
                                   </div>
                                   <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
@@ -1240,8 +1240,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 2: Label Format */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-purple-500/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-purple-500/10 text-purple-600 shadow-[0_4px_12px_rgba(168,85,247,0.1)] shrink-0">
                   <Tags className="w-4.5 h-4.5" />
                 </div>
@@ -1313,8 +1313,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Card 1: Appearance */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
                   <Type className="w-4.5 h-4.5" />
                 </div>
@@ -1348,8 +1348,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 2: Security */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
                   <Shield className="w-4.5 h-4.5" />
                 </div>
@@ -1377,8 +1377,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </div>
 
             {/* Card 3: Updates */}
-            <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border/40">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
                   <RefreshCw className="w-4.5 h-4.5" />
                 </div>
@@ -1411,7 +1411,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <div className="flex items-center gap-4.5 px-5 py-4.5">
                       <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-sm shrink-0"><CheckCircle2 className="w-5 h-5" /></div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground">{appVersion} — You're on the latest version</p>
+                        <p className="text-sm font-bold text-foreground">{appVersion} â€” You're on the latest version</p>
                         <p className="text-xs text-muted-foreground/75 mt-0.5">No updates available at this time.</p>
                       </div>
                       <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-extrabold rounded-lg border border-emerald-500/20 shrink-0 uppercase tracking-wider">UP TO DATE</span>
@@ -1429,7 +1429,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                       <span className="px-2.5 py-1 bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[9px] font-extrabold rounded-lg border border-blue-500/20 shrink-0 uppercase tracking-wider">{updateReady ? 'READY' : isDownloading ? 'DOWNLOADING' : 'NEW'}</span>
                     </div>
                     {updateInfo.releaseNotes && (
-                      <div className="px-5 py-4.5 bg-background/30 backdrop-blur-sm">
+                      <div className="px-5 py-4.5 bg-muted/20">
                         <p className="text-[10px] font-extrabold text-muted-foreground/80 uppercase tracking-widest mb-3">What's New</p>
                         <div className="text-xs text-muted-foreground/80 max-h-36 overflow-y-auto leading-relaxed space-y-2 font-medium">
                           {typeof updateInfo.releaseNotes === 'string'
@@ -1467,8 +1467,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
       {renderMessage()}
       {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
 
-      {/* ── Premium Header ── */}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-border/70 bg-card/75 backdrop-blur-md shrink-0 gap-4 shadow-sm z-30">
+      {/* â”€â”€ Premium Header â”€â”€ */}
+      <header className="flex items-center justify-between px-6 py-4 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative shrink-0">
             <div className="absolute inset-0 bg-primary/20 rounded-xl blur-sm" />
@@ -1503,11 +1503,11 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         </div>
       </header>
 
-      {/* ── Sidebar + Content ── */}
+      {/* â”€â”€ Sidebar + Content â”€â”€ */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* ── Left Sidebar Navigation ── */}
-        <aside className="w-56 lg:w-64 shrink-0 bg-muted/20 dark:bg-muted/5 border-r border-border/60 overflow-y-auto hidden md:block backdrop-blur-sm">
+        {/* â”€â”€ Left Sidebar Navigation â”€â”€ */}
+        <aside className="w-56 lg:w-64 shrink-0 bg-muted/30 border-r border-border overflow-y-auto hidden md:block">
           <nav className="py-4 px-3.5 space-y-6">
             {SIDEBAR_GROUPS.map((group) => {
               const visibleItems = group.items.filter(item => !item.ownerOnly || role === 'OWNER');
@@ -1554,7 +1554,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
           </nav>
         </aside>
 
-        {/* ── Mobile Section Picker ── */}
+        {/* â”€â”€ Mobile Section Picker â”€â”€ */}
         <div className="md:hidden shrink-0 border-b border-border bg-muted/20 overflow-x-auto">
           <div className="flex gap-1.5 p-2 whitespace-nowrap">
             {SIDEBAR_GROUPS.flatMap(g => g.items).filter(item => !item.ownerOnly || role === 'OWNER').map((item) => {
@@ -1578,8 +1578,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
           </div>
         </div>
 
-        {/* ── Main Content Area ── */}
-        <main className="flex-1 overflow-y-auto bg-gradient-to-b from-background via-background to-muted/20" style={{ scrollbarGutter: 'stable' }}>
+        {/* â”€â”€ Main Content Area â”€â”€ */}
+        <main className="flex-1 overflow-y-auto bg-background" style={{ scrollbarGutter: 'stable' }}>
           <div className="max-w-3xl mx-auto p-6 lg:p-8 animate-in fade-in duration-300">
 
             {/* Section Header */}
@@ -1629,3 +1629,4 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
     </div>
   );
 }
+

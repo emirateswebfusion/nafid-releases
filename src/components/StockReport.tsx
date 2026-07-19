@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+﻿import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, LogOut, Activity } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
@@ -32,6 +32,15 @@ interface Product {
   updated_at?: string;
 }
 
+interface EnrichedProduct extends Product {
+  rate: number;
+  finalSellingPrice: number;
+  totalWeight: number;
+  isLowStock: boolean;
+  isOutOfStock: boolean;
+  gradeName: string;
+}
+
 const CACHE_TTL = 5 * 60 * 1000;
 const reportCache = new Map<string, { products: Product[]; grades: any[]; timestamp: number }>();
 
@@ -45,6 +54,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+
+  const deferredSearch = useDeferredValue(searchQuery);
+  const deferredCategory = useDeferredValue(categoryFilter);
+  const deferredStock = useDeferredValue(stockFilter);
 
   const cacheKey = tenantId || 'global';
 
@@ -84,20 +97,13 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
 
-  const calcMrp = (p: Product) => {
-    const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+  const gradeMap = useMemo(() => new Map(grades.map(g => [g.grade_id, g])), [grades]);
+
+  const getMrp = useCallback((p: Product) => {
+    const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
     const grRate = gr ? Number(gr.rate) : null;
     return grRate !== null && p.pricing_mode === 'GRADE_RATE' ? grRate : Number(p.base_price);
-  };
-
-  const calcSellingPrice = (p: Product) => {
-    const rate = calcMrp(p);
-    let finalPrice = rate;
-    if (p.offer_price) finalPrice = Number(p.offer_price);
-    else if (p.discount_flat) finalPrice = rate - Number(p.discount_flat);
-    else if (p.discount_percent) finalPrice = rate * (1 - Number(p.discount_percent) / 100);
-    return Math.max(finalPrice, 0);
-  };
+  }, [gradeMap]);
 
   const categories = useMemo(() =>
     Array.from(new Set(products.filter(p => p.category).map(p => p.category))).sort(),
@@ -106,47 +112,108 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   const filteredProducts = useMemo(() =>
     products.filter(p => {
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
+      if (deferredSearch) {
+        const q = deferredSearch.toLowerCase();
         if (!p.name.toLowerCase().includes(q) &&
             !p.sku_barcode.toLowerCase().includes(q) &&
             !(p.item_code || '').toLowerCase().includes(q)) return false;
       }
-      if (categoryFilter && p.category !== categoryFilter) return false;
-      if (stockFilter === 'in_stock' && Number(p.current_stock) <= 0) return false;
-      if (stockFilter === 'low_stock' &&
+      if (deferredCategory && p.category !== deferredCategory) return false;
+      if (deferredStock === 'in_stock' && Number(p.current_stock) <= 0) return false;
+      if (deferredStock === 'low_stock' &&
           !(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
-      if (stockFilter === 'out_of_stock' && Number(p.current_stock) > 0) return false;
+      if (deferredStock === 'out_of_stock' && Number(p.current_stock) > 0) return false;
       return true;
     }),
-    [products, searchQuery, categoryFilter, stockFilter]
+    [products, deferredSearch, deferredCategory, deferredStock]
   );
 
-  const totalStock = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
-  const totalPurchaseValue = filteredProducts.reduce((sum, p) => sum + (Number(p.purchase_price) * Number(p.current_stock)), 0);
-  const totalMrpValue = filteredProducts.reduce((sum, p) => sum + (calcMrp(p) * Number(p.current_stock)), 0);
-  const totalSellingValue = filteredProducts.reduce((sum, p) => sum + (calcSellingPrice(p) * Number(p.current_stock)), 0);
-  const totalProducts = filteredProducts.length;
-  const outOfStockCount = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
+  const {
+    totalStock,
+    totalPurchaseValue,
+    totalMrpValue,
+    totalSellingValue,
+    totalProducts,
+    outOfStockCount,
+    groupedByCategory,
+    categoryStats,
+    maxPct,
+    lowStockItems,
+  } = useMemo(() => {
+    let tStock = 0;
+    let tPurchase = 0;
+    let tMrp = 0;
+    let tSelling = 0;
+    let tOutOfStock = 0;
+    const groups: Record<string, EnrichedProduct[]> = {};
+    const catAcc: Record<string, { stock: number; purchase: number; mrp: number; selling: number; count: number }> = {};
+    const lowAcc: EnrichedProduct[] = [];
 
-  const groupedByCategory = filteredProducts.reduce<Record<string, typeof filteredProducts>>((acc, p) => {
-    const cat = p.category || 'Uncategorized';
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(p);
-    return acc;
-  }, {});
+    for (const p of filteredProducts) {
+      const rate = getMrp(p);
+      let finalSellingPrice = rate;
+      if (p.offer_price) finalSellingPrice = Number(p.offer_price);
+      else if (p.discount_flat) finalSellingPrice = rate - Number(p.discount_flat);
+      else if (p.discount_percent) finalSellingPrice = rate * (1 - Number(p.discount_percent) / 100);
+      finalSellingPrice = Math.max(finalSellingPrice, 0);
+      const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+      const unitWeightGrams = Number(da?.weight_grams) || 0;
+      const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
+      const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
+      const isOutOfStock = Number(p.current_stock) <= 0;
+      const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
 
-  const categoryStats = Object.entries(groupedByCategory).map(([cat, items]) => {
-    const catStock = items.reduce((sum, p) => sum + Number(p.current_stock), 0);
-    const catPurchase = items.reduce((sum, p) => sum + (Number(p.purchase_price) * Number(p.current_stock)), 0);
-    const catMrp = items.reduce((sum, p) => sum + (calcMrp(p) * Number(p.current_stock)), 0);
-    const catSelling = items.reduce((sum, p) => sum + (calcSellingPrice(p) * Number(p.current_stock)), 0);
-    const pct = totalStock > 0 ? (catStock / totalStock) * 100 : 0;
-    return { name: cat, stock: catStock, purchase: catPurchase, mrp: catMrp, selling: catSelling, pct, count: items.length };
-  }).sort((a, b) => b.stock - a.stock);
+      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-' };
 
-  const maxPct = Math.max(...categoryStats.map(c => c.pct), 1);
-  const lowStockItems = filteredProducts.filter(p => Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0);
+      const cs = Number(p.current_stock);
+      tStock += cs;
+      tPurchase += Number(p.purchase_price) * cs;
+      tMrp += rate * cs;
+      tSelling += finalSellingPrice * cs;
+      if (isOutOfStock) tOutOfStock++;
+
+      const cat = p.category || 'Uncategorized';
+      if (!groups[cat]) {
+        groups[cat] = [];
+        catAcc[cat] = { stock: 0, purchase: 0, mrp: 0, selling: 0, count: 0 };
+      }
+      groups[cat].push(ep);
+      catAcc[cat].stock += cs;
+      catAcc[cat].purchase += Number(p.purchase_price) * cs;
+      catAcc[cat].mrp += rate * cs;
+      catAcc[cat].selling += finalSellingPrice * cs;
+      catAcc[cat].count++;
+
+      if (isLowStock) lowAcc.push(ep);
+    }
+
+    const stats = Object.entries(catAcc)
+      .map(([name, c]) => ({
+        name,
+        stock: c.stock,
+        purchase: c.purchase,
+        mrp: c.mrp,
+        selling: c.selling,
+        pct: tStock > 0 ? (c.stock / tStock) * 100 : 0,
+        count: c.count,
+      }))
+      .sort((a, b) => b.stock - a.stock);
+
+    const max = Math.max(...stats.map(c => c.pct), 1);
+
+    return {
+      totalStock: tStock,
+      totalPurchaseValue: tPurchase,
+      totalMrpValue: tMrp,
+      totalSellingValue: tSelling,
+      totalProducts: filteredProducts.length,
+      outOfStockCount: tOutOfStock,
+      groupedByCategory: groups,
+      categoryStats: stats,
+      maxPct: max,
+      lowStockItems: lowAcc,
+    };
+  }, [filteredProducts, getMrp, gradeMap]);
 
   const handlePrint = async () => {
     const repGroupedByCategory = filteredProducts.reduce<Record<string, typeof filteredProducts>>((acc, p) => {
@@ -158,7 +225,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
     const totalStockVal = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
     const totalValueVal = filteredProducts.reduce((sum, p) => {
-      const rate = calcMrp(p);
+      const rate = getMrp(p);
       return sum + (rate * Number(p.current_stock));
     }, 0);
     const totalProductsVal = filteredProducts.length;
@@ -166,7 +233,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
     const categoryRows = Object.entries(repGroupedByCategory).map(([cat, items]) => {
       const detailRows = items.map(p => {
-        const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+        const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
         const grRate = gr ? Number(gr.rate) : null;
         const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
         const value = rate * Number(p.current_stock);
@@ -255,7 +322,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       {/* ══════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
 
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
@@ -279,7 +346,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
             <button
               onClick={() => loadData(true)}
               disabled={refreshing}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 border border-border/60"
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 border border-border"
               title="Refresh data"
             >
               <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
@@ -342,7 +409,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           </div>
 
           {/* Filters */}
-          <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
+          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-xs">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
@@ -351,7 +418,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   placeholder="Search name, barcode, code..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className={clsx("w-full bg-background border border-border rounded-xl px-3.5 py-2.5 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm")}
+                  className={clsx("w-full bg-background border border-border rounded-xl px-3.5 py-2.5 pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm")}
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -362,7 +429,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               <select
                 value={categoryFilter}
                 onChange={e => setCategoryFilter(e.target.value)}
-                className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
+                className="bg-background border border-border rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
               >
                 <option value="">All Categories</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -370,28 +437,49 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               <select
                 value={stockFilter}
                 onChange={e => setStockFilter(e.target.value as any)}
-                className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
+                className="bg-background border border-border rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
               >
                 <option value="all">All Stock</option>
                 <option value="in_stock">In Stock</option>
                 <option value="low_stock">Low Stock</option>
                 <option value="out_of_stock">Out of Stock</option>
               </select>
-              {(searchQuery || categoryFilter || stockFilter !== 'all') && (
+            </div>
+            {searchQuery || categoryFilter || stockFilter !== 'all' ? (
+              <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
+                <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
+                  {searchQuery && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-[11px] font-bold">
+                      Search: "{searchQuery}"
+                      <button onClick={() => setSearchQuery('')} className="hover:bg-primary/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  {categoryFilter && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-500/10 text-sky-600 dark:text-sky-400 text-[11px] font-bold">
+                      {categoryFilter}
+                      <button onClick={() => setCategoryFilter('')} className="hover:bg-sky-500/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                  {stockFilter !== 'all' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold">
+                      {stockFilter === 'in_stock' ? 'In Stock' : stockFilter === 'low_stock' ? 'Low Stock' : 'Out of Stock'}
+                      <button onClick={() => setStockFilter('all')} className="hover:bg-amber-500/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
+                </div>
                 <button
                   onClick={() => { setSearchQuery(''); setCategoryFilter(''); setStockFilter('all'); }}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer"
-                  title="Clear filters"
+                  className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-destructive hover:bg-destructive/10 rounded-lg transition-all active:scale-95 cursor-pointer shrink-0"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-3.5 h-3.5" /> Clear all
                 </button>
-              )}
-            </div>
+              </div>
+            ) : null}
           </div>
 
           {/* Category Breakdown */}
-          <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
-            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
               <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                 <Package className="w-4 h-4" />
               </div>
@@ -479,8 +567,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           )}
 
           {/* Detailed Table */}
-          <div className="bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-border/50">
+          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Package className="w-3.5 h-3.5" />
@@ -492,7 +580,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="bg-muted/30 border-b border-border/60">
+                  <tr className="bg-muted/30 border-b border-border">
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Product</th>
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Category</th>
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
@@ -514,12 +602,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <tr>
                       <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
                     </tr>
-                  ) : (
+                    ) : (
                     Object.entries(groupedByCategory).map(([cat, items]) => {
                       const catTotalStock = items.reduce((s, p) => s + Number(p.current_stock), 0);
                       return (
-                        <>
-                          <tr className="bg-primary/5" key={cat}>
+                        <React.Fragment key={cat}>
+                          <tr className="bg-primary/5">
                             <td colSpan={8} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
                               <div className="flex items-center gap-2">
                                 <span>{cat}</span>
@@ -529,39 +617,29 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               </div>
                             </td>
                           </tr>
-                          {items.map(p => {
-                            const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
-                            const isOutOfStock = Number(p.current_stock) <= 0;
-                            const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-                            const rate = calcMrp(p);
-                            const finalSellingPrice = calcSellingPrice(p);
-                            const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
-                            const unitWeightGrams = Number(da?.weight_grams) || 0;
-                            const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
-                            return (
-                              <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
-                                <td className="px-4 py-2.5">
-                                  <div className="flex items-center gap-2">
-                                    <div className={clsx('w-2 h-2 rounded-full shrink-0', isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-emerald-500')} />
-                                    <span className="font-bold text-sm text-foreground">{p.name}</span>
-                                  </div>
-                                </td>
-                                <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
-                                <td className="px-4 py-2.5 text-sm text-muted-foreground">{gr?.grade_name || '-'}</td>
-                                <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', isOutOfStock ? 'text-red-500' : isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
-                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' : '-'}</td>
-                                <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
-                                <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(rate)}</td>
-                                <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(finalSellingPrice)}</td>
-                              </tr>
-                            );
-                          })}
-                        </>
+                          {items.map(p => (
+                            <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (p.isOutOfStock || p.isLowStock) && 'bg-amber-500/[0.02]')}>
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  <div className={clsx('w-2 h-2 rounded-full shrink-0', p.isOutOfStock ? 'bg-red-500' : p.isLowStock ? 'bg-amber-500' : 'bg-emerald-500')} />
+                                  <span className="font-bold text-sm text-foreground">{p.name}</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
+                              <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.gradeName}</td>
+                              <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', p.isOutOfStock ? 'text-red-500' : p.isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' : '-'}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(p.rate)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(p.finalSellingPrice)}</td>
+                            </tr>
+                          ))}
+                        </React.Fragment>
                       );
                     })
                   )}
                   {!loading && (
-                    <tr className="bg-muted/30 border-t-2 border-border/70">
+                    <tr className="bg-muted/30 border-t-2 border-border">
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                       <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
                       <td className="px-4 py-3 text-right"></td>
@@ -583,3 +661,4 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     </div>
   );
 }
+

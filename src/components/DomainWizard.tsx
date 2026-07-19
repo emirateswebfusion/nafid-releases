@@ -1,4 +1,4 @@
-import { useCartStore } from '../store/cartStore';
+﻿import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import type { ShopDomain } from '../store/cartStore';
 import { Settings, Wrench, Gem, ShoppingCart } from 'lucide-react';
@@ -27,7 +27,7 @@ export function DomainWizard() {
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
       <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-2xl w-full max-w-3xl shadow-2xl">
         <div className="flex items-center gap-3 mb-8">
           <div className="p-3 bg-blue-500/20 text-blue-400 rounded-xl">
@@ -69,3 +69,4 @@ export function DomainWizard() {
     </div>
   );
 }
+

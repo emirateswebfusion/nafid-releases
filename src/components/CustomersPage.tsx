@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, User, X, CheckCircle2, AlertCircle,
@@ -182,27 +182,27 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
       {view === 'list' && (
         <>
-          <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-border bg-card/50 shrink-0 shadow-sm">
-            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+          <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm">
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Points Issued</p>
               <p className="text-2xl font-black text-primary mt-1">{totalPointsIssued.toFixed(2)}</p>
             </div>
-            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Points Redeemed</p>
               <p className="text-2xl font-black text-amber-500 mt-1">{totalPointsRedeemed.toFixed(2)}</p>
             </div>
-            <div className="bg-card p-4 rounded-xl border border-border/80 shadow-sm">
+            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
               <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Active Points</p>
               <p className="text-2xl font-black text-emerald-500 mt-1">{totalPointsActive.toFixed(2)}</p>
             </div>
           </div>
 
-          <div className="px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input type="text" placeholder="Search by name or phone..."
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-background border border-border/80 rounded-xl py-2.5 pl-10 pr-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                className="w-full bg-background border border-border rounded-xl py-2.5 pl-10 pr-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
             </div>
           </div>
 
@@ -221,7 +221,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                   {filteredCustomers.map(customer => (
                     <div key={customer.customer_id}
                       onClick={() => loadCustomerDetails(customer)}
-                      className="flex items-center justify-between p-4 rounded-xl border border-border/80 bg-card hover:border-primary/30 hover:bg-muted/20 transition-all duration-200 shadow-sm cursor-pointer">
+                      className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-muted/20 transition-all duration-200 shadow-sm cursor-pointer">
                       <div className="flex items-center gap-3 flex-1 min-w-0">
                         <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
                           <User className="w-5 h-5" />
@@ -264,7 +264,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
       {view === 'detail' && selectedCustomer && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="px-6 py-4 border-b border-border bg-card/50 shrink-0">
+          <div className="px-6 py-4 border-b border-border bg-card shrink-0">
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-lg font-black text-foreground">{selectedCustomer.name}</h2>
@@ -293,7 +293,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 ) : (
                   <div className="space-y-2">
                     {invoices.map(inv => (
-                      <div key={inv.invoice_id} className="p-3.5 rounded-xl border border-border/80 bg-card hover:border-primary/30 transition-all">
+                      <div key={inv.invoice_id} className="p-3.5 rounded-xl border border-border bg-card hover:border-primary/30 transition-all">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2">
@@ -328,7 +328,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 ) : (
                   <div className="space-y-2">
                     {loyaltyTxs.map(tx => (
-                      <div key={tx.transaction_id} className="p-3.5 rounded-xl border border-border/80 bg-card">
+                      <div key={tx.transaction_id} className="p-3.5 rounded-xl border border-border bg-card">
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="flex items-center gap-2">

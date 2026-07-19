@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+﻿import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check } from 'lucide-react';
@@ -914,7 +914,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
@@ -947,7 +947,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       
       {/* Action Header inside page */}
       {view === 'list' && (
-        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
           <div className="flex-1 w-full">
             <div className="relative">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -956,7 +956,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 placeholder="Search by name, barcode, brand, or category..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                className="w-full pl-10 pr-9 py-2.5 bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
               />
               {searchQuery && (
                 <button
@@ -989,7 +989,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
               className="min-w-[180px]"
               triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
             />
-            <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border/80 rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
+            <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
             <button onClick={openAdd} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
@@ -1003,7 +1003,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       {view === 'list' && (
         <div className="flex flex-col flex-1 min-h-0 bg-background">
           {/* Table Header */}
-          <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border/60 shrink-0 bg-muted/40">
+          <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40">
             <div className="col-span-3">Product</div>
             <div className="col-span-1 text-right">Purchase</div>
             <div className="col-span-2 text-right">MRP</div>
@@ -1052,7 +1052,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
               </div>
             ) : Object.entries(groupedByDate).map(([date, items]) => (
               <Fragment key={date}>
-                <div className="sticky top-0 z-10 bg-muted/80 backdrop-blur-sm px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border/60">
+                <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
                   {date}
                 </div>
                 {items.map(p => {
@@ -1129,7 +1129,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         <button 
                           onClick={() => handleAdjustStock(p, -1)} 
                           disabled={adjustingStockId === p.product_id}
-                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                         >
                           <Minus className="w-3 h-3" />
                         </button>
@@ -1151,7 +1151,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         <button 
                           onClick={() => handleAdjustStock(p, 1)} 
                           disabled={adjustingStockId === p.product_id}
-                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border/50 text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
+                          className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                         >
                           <Plus className="w-3 h-3" />
                         </button>
@@ -1187,7 +1187,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           </div>
 
           {!hasMore && products.length > 0 && (
-            <div className="shrink-0 border-t border-border/60 bg-muted/20 px-6 py-4 text-center text-sm font-bold text-muted-foreground">
+            <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-4 text-center text-sm font-bold text-muted-foreground">
               End of inventory list &middot; {totalCount !== null ? totalCount : products.length} total products
             </div>
           )}
@@ -1211,8 +1211,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
 
             {/* Section 1: Core */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <PackagePlus className="w-4 h-4" />
                 </div>
@@ -1222,9 +1222,9 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 <div className="space-y-4">
                   <div ref={nameContainerRef} className="relative">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                    <input type="text" value={formData.name} onChange={e => { handleInputChange('name', e.target.value); setSelectedNameIndex(0); }} onKeyDown={handleNameKeyDown} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    <input type="text" value={formData.name} onChange={e => { handleInputChange('name', e.target.value); setSelectedNameIndex(0); }} onKeyDown={handleNameKeyDown} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     {nameSuggestions.length > 0 && (
-                      <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                      <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                         {nameSuggestions.map((p, i) => (
                           <button
                             key={p.product_id}
@@ -1262,7 +1262,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   </div>
                   <div>
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
-                    <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                    <input type="text" maxLength={10} value={formData.item_code} onChange={e => handleInputChange('item_code', e.target.value.toUpperCase())} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-4">
@@ -1270,7 +1270,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
                         {isCustomCategory || configuredCategories.length === 0 ? (
                           <div className="flex gap-2">
-                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
+                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
                              {configuredCategories.length > 0 && (
                                <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0">Cancel</button>
                              )}
@@ -1298,7 +1298,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                     </div>
                     <div>
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
-                      <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                      <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     </div>
                   </div>
                   {grades.filter(g => g.category === formData.category).length > 0 && (
@@ -1331,7 +1331,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   )}
                 </div>
 
-                <div className="bg-muted/20 p-4 rounded-xl border border-border/80 flex flex-col justify-center shadow-sm">
+                <div className="bg-muted/20 p-4 rounded-xl border border-border flex flex-col justify-center shadow-sm">
                   <div>
                     <div className="flex justify-between items-center mb-1.5">
                       <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
@@ -1339,7 +1339,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         <RefreshCw className="w-3 h-3" /> Auto Generate
                       </button>
                     </div>
-                    <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest mb-4 shadow-sm text-sm" />
+                    <input type="text" value={formData.sku_barcode} onChange={e => handleInputChange('sku_barcode', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest mb-4 shadow-sm text-sm" />
                     {formData.sku_barcode && (
                       <div className="flex flex-col items-center p-4 bg-white rounded-xl border border-border shadow-sm">
                         {labelCodeType === 'qrcode' ? (
@@ -1355,8 +1355,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             </section>
 
             {/* Section 2: Pricing */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <Tag className="w-4 h-4" />
                 </div>
@@ -1385,7 +1385,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         onChange={e => handleInputChange(field, e.target.value)}
                         disabled={(field === 'base_price' || field === 'purchase_price') && !!formData.grade_id}
                         className={clsx(
-                          'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
+                          'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
                           prefix && 'pl-8', 
                           field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold',
                           (field === 'base_price' || field === 'purchase_price') && formData.grade_id && 'opacity-70 cursor-not-allowed'
@@ -1412,7 +1412,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                     type="number" min="1" step="1"
                     value={formData.domain_attributes?.pcs || ''}
                     onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                    className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                     placeholder="e.g. 20"
                   />
                 </div>
@@ -1420,8 +1420,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             </section>
 
             {/* Section 3: Discount & Offers */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <Tag className="w-4 h-4" />
                 </div>
@@ -1429,7 +1429,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
               </div>
               <div className="grid grid-cols-2 gap-6">
                 {/* Discount Block */}
-                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-foreground">Discount</h4>
                     <span className="text-xs text-muted-foreground">Applies to MRP</span>
@@ -1444,7 +1444,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         value={formData.discount_percent || ''}
                         onChange={e => handleDiscountPercentChange(e.target.value)}
                         disabled={!!formData.offer_price}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
                       />
                     </div>
                     <div>
@@ -1456,14 +1456,14 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         value={formData.discount_flat || ''}
                         onChange={e => handleDiscountFlatChange(e.target.value)}
                         disabled={!!formData.offer_price}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
                       />
                     </div>
                   </div>
                 </div>
 
                 {/* Offer Block */}
-                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border/80">
+                <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
                   <div className="flex items-center justify-between">
                     <h4 className="text-sm font-bold text-foreground">Offer</h4>
                     <span className="text-xs text-muted-foreground">Overrides MRP</span>
@@ -1476,7 +1476,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                       value={formData.offer_price || ''}
                       onChange={e => handleOfferPriceChange(e.target.value)}
                       disabled={!!formData.discount_percent || !!formData.discount_flat}
-                      className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
+                      className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm"
                     />
                   </div>
                 </div>
@@ -1484,8 +1484,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             </section>
 
             {/* Section 4: Stock */}
-            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                 <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                   <Package className="w-4 h-4" />
                 </div>
@@ -1500,7 +1500,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                       'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
                       formData.is_gst_applicable
                         ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                        : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
+                        : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
                     )}
                   >
                     <input
@@ -1523,7 +1523,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
-                  <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm text-sm" />
+                  <input type="text" value={formData.hsn_sac_code} onChange={e => handleInputChange('hsn_sac_code', e.target.value)} disabled={!formData.is_gst_applicable} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm text-sm" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
@@ -1540,8 +1540,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
             {/* Section 4: Domain Attributes */}
             {shopDomain !== 'GENERAL' && (
-              <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+              <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
                     <Package className="w-4 h-4" />
                   </div>
@@ -1583,7 +1583,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                       onClick={() => handleInputChange('show_gst_purchase', !formData.show_gst_purchase)}
                       className={clsx(
                         'relative w-11 h-6 rounded-full transition-all duration-300 cursor-pointer shadow-inner',
-                        formData.show_gst_purchase ? 'bg-purple-500' : 'bg-muted/60 border border-border/80'
+                        formData.show_gst_purchase ? 'bg-purple-500' : 'bg-muted/60 border border-border'
                       )}
                     >
                       <div className={clsx(
@@ -1618,12 +1618,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
                         formData.gst_same_as_current
                           ? 'bg-purple-500/10 border-purple-500/30 shadow-sm'
-                          : 'bg-muted/10 border-border/60 hover:bg-muted/20 hover:border-border/80'
+                          : 'bg-muted/10 border-border hover:bg-muted/20 hover:border-border'
                       )}
                     >
                       <div className={clsx(
                         'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200',
-                        formData.gst_same_as_current ? 'bg-purple-500 border-purple-500' : 'border-border/80 bg-background'
+                        formData.gst_same_as_current ? 'bg-purple-500 border-purple-500' : 'border-border bg-background'
                       )}>
                         {formData.gst_same_as_current && (
                           <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -1641,7 +1641,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                     </div>
 
                     {/* Purchase Price & Quantity */}
-                    <div className="rounded-xl border border-border/60 overflow-hidden">
+                    <div className="rounded-xl border border-border overflow-hidden">
                       <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
                         <IndianRupee className="w-3.5 h-3.5 text-muted-foreground" />
                         <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Purchase Figures</span>
@@ -1683,7 +1683,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                     <div className="grid grid-cols-2 gap-4">
 
                       {/* Supplier Block */}
-                      <div className="rounded-xl border border-border/60 overflow-hidden">
+                      <div className="rounded-xl border border-border overflow-hidden">
                         <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
                           <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                           <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Supplier</span>
@@ -1734,7 +1734,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                                 className="w-full bg-background border border-border/70 rounded-lg p-2.5 text-foreground focus:border-purple-500 focus:ring-2 focus:ring-purple-500/10 focus:outline-none transition-all text-sm"
                               />
                               {supplierSearch && filteredSuppliers.length > 0 && (
-                                <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border/80 rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                                <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
                                   {filteredSuppliers.map(s => (
                                     <button
                                       key={s.party_id}
@@ -1767,7 +1767,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                       </div>
 
                       {/* Bill Reference Block */}
-                      <div className="rounded-xl border border-border/60 overflow-hidden">
+                      <div className="rounded-xl border border-border overflow-hidden">
                         <div className="px-4 py-2 bg-muted/20 border-b border-border/50 flex items-center gap-2">
                           <FileText className="w-3.5 h-3.5 text-muted-foreground" />
                           <span className="text-xs font-black text-muted-foreground uppercase tracking-wider">Bill Reference</span>
@@ -1828,7 +1828,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             {/* Action row */}
             <div className="flex items-center justify-between px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-muted/50 border border-border/60 rounded-xl p-0.5 px-2 shadow-sm">
+                <div className="flex items-center gap-2 bg-muted/50 border border-border rounded-xl p-0.5 px-2 shadow-sm">
                   <span className="text-muted-foreground text-sm font-bold">Qty{['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) ? ` (${formData.domain_attributes?.pcs ? 'Pcs' : formData.uom})` : ''}:</span>
                   <input 
                     type="number" 
@@ -1839,7 +1839,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                     className="w-10 h-7 bg-transparent text-foreground focus:outline-none text-center font-black text-sm no-spinners" 
                   />
                 </div>
-                <label className="flex items-center gap-1.5 bg-muted/50 border border-border/60 rounded-xl px-3 py-1.5 cursor-pointer hover:bg-muted transition-colors select-none shadow-sm">
+                <label className="flex items-center gap-1.5 bg-muted/50 border border-border rounded-xl px-3 py-1.5 cursor-pointer hover:bg-muted transition-colors select-none shadow-sm">
                   <input 
                     type="checkbox" 
                     id="print_price" 
@@ -1851,7 +1851,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 </label>
               </div>
               <div className="flex items-center gap-2">
-                <button onClick={printBarcode} className="flex items-center gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                <button onClick={printBarcode} className="flex items-center gap-1.5 px-3.5 py-2 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Printer className="w-3.5 h-3.5" />
                   Print Label
                 </button>
@@ -1996,3 +1996,4 @@ function DomainField({ label, value, onChange, type = 'text' }: { label: string;
     </div>
   );
 }
+

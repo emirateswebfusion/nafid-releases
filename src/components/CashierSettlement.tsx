@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
@@ -339,7 +339,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           HEADER
       ══════════════════════════════════════════════════════════════════════ */}
       {!showHist && (
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between px-5 py-3 gap-4">
           {/* Left: title + status */}
           <div className="flex items-center gap-3 min-w-0">
@@ -388,7 +388,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={openHistory}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
             >
               <History className="w-3.5 h-3.5" /> History
             </button>
@@ -467,7 +467,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       {showHist ? (
         <div className="flex-1 flex flex-col min-h-0 bg-background">
           {/* ── Header ── */}
-          <div className="relative shrink-0 border-b border-border/70">
+          <div className="relative shrink-0 border-b border-border">
             <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, hsl(217,91%,60%) 0%, transparent 60%)' }} />
             <div className="flex items-center justify-between px-6 py-3 bg-card">
               <div className="flex items-center gap-2.5">
@@ -494,20 +494,20 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               else totalExcess += v;
             });
             return (
-              <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-border/50 bg-muted/5 shrink-0">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+              <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-border bg-muted/5 shrink-0">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
                   <div className="p-2.5 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Sessions</p><p className="text-xl font-black text-foreground tabular-nums">{history.length}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
                   <div className="p-2.5 rounded-xl bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-500" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Cash Sales</p><p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalSales)}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
                   <div className="p-2.5 rounded-xl bg-violet-500/10"><DollarSign className="w-4 h-4 text-violet-500" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Collected</p><p className="text-xl font-black text-violet-600 dark:text-violet-400 tabular-nums">{formatCurrency(totalCollected)}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border/60 shadow-sm">
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
                   <div className={clsx('p-2.5 rounded-xl', totalShort > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10')}>
                     {totalShort > 0 ? <TrendingDown className="w-4 h-4 text-rose-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
                   </div>
@@ -532,7 +532,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             ) : (
               <div>
                 {/* Column headers */}
-                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-2.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 sticky top-0 z-10">
+                <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-2.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 sticky top-0 z-10">
                   <span className="flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => setExpandedDay(null)}>Date <ChevronDown className="w-2.5 h-2.5 opacity-40" /></span>
                   <span>Cashier</span>
                   <span className="text-right">Opening</span>
@@ -651,7 +651,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             ) : (
                               <div className="py-2 px-8">
                                 {/* Sub-header */}
-                                <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/40">
+                                <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 text-[8px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
                                   <span>Invoice</span>
                                   <span>Customer</span>
                                   <span className="text-right">Amount</span>
@@ -661,7 +661,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                                 </div>
                                 <div className="divide-y divide-border/20">
                                   {daySettlements.map((inv: any) => (
-                                    <div key={inv.invoice_id} className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 items-center hover:bg-card/50">
+                                    <div key={inv.invoice_id} className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 items-center hover:bg-card">
                                       <span className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</span>
                                       <span className="text-[10px] text-muted-foreground truncate">{inv.customer_name || '—'}</span>
                                       <span className="text-xs text-right tabular-nums text-foreground font-semibold">{formatCurrency(inv.grand_total)}</span>
@@ -687,7 +687,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                                   const totalDisc = daySettlements.reduce((s: number, i: any) => s + Number(i.discount_total || 0), 0);
                                   const totalRecv = daySettlements.reduce((s: number, i: any) => s + Number(i.received_amount || 0), 0);
                                   return (
-                                    <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 mt-1 border-t border-border/40 bg-card/50 rounded-b-lg">
+                                    <div className="grid grid-cols-[1.2fr_1fr_0.8fr_0.8fr_1fr_0.8fr] gap-x-3 px-3 py-2 mt-1 border-t border-border bg-card rounded-b-lg">
                                       <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider">Totals</span>
                                       <span />
                                       <span className="text-xs text-right font-black text-foreground tabular-nums">{formatCurrency(totalAmt)}</span>
@@ -716,10 +716,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         <div className="flex-1 flex min-h-0">
 
         {/* ═══ LEFT: Pending Invoices ═══════════════════════════════════════ */}
-        <div className="flex-1 min-w-0 flex flex-col border-r border-border/70">
+        <div className="flex-1 min-w-0 flex flex-col border-r border-border">
 
           {/* Toolbar */}
-          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border/50 bg-muted/10 shrink-0">
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-muted/10 shrink-0">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
               <input
@@ -727,7 +727,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 placeholder="Search invoice or customer…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs bg-card border border-border/70 rounded-xl outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 text-foreground placeholder:text-muted-foreground/50 transition-all duration-200"
+                className="w-full pl-9 pr-3 py-2 text-xs bg-card border border-border rounded-xl outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 text-foreground placeholder:text-muted-foreground/50 transition-all duration-200"
               />
             </div>
             {/* Pending count badge */}
@@ -758,7 +758,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
+          <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
             <span className="text-center">Invoice</span>
             <span className="text-center">Customer</span>
             <span className="text-center">Amount</span>
@@ -880,7 +880,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         </div>
 
         {/* ═══ RIGHT: Cash Register ═════════════════════════════════════════ */}
-        <div className="w-[400px] shrink-0 flex flex-col bg-card border-l border-border/50 z-10">
+        <div className="w-[400px] shrink-0 flex flex-col bg-card border-l border-border z-10">
 
           {/* Panel header */}
           <div className="relative shrink-0">
@@ -888,7 +888,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               className="absolute inset-x-0 top-0 h-0.5"
               style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(217,91%,60%) 50%, transparent 100%)' }}
             />
-            <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-blue-500/10">
                   <Receipt className="w-4 h-4 text-blue-500" />
@@ -916,7 +916,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
 
           {/* Mini stat cards for IN / OUT */}
-          <div className="grid grid-cols-2 gap-3 px-5 py-3 border-b border-border/50 bg-muted/5 shrink-0">
+          <div className="grid grid-cols-2 gap-3 px-5 py-3 border-b border-border bg-muted/5 shrink-0">
             <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
               <div className="p-1.5 rounded-lg bg-emerald-500/15">
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
@@ -938,7 +938,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
+          <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
             <span>Time</span>
             <span>Type</span>
             <span>Category</span>
@@ -1025,11 +1025,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setClosingDate(null); } }}
         >
           <div
-            className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[480px] overflow-hidden"
+            className="bg-card border border-border rounded-2xl shadow-2xl w-[480px] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
-            <div className="relative px-6 py-4 border-b border-border/60"
+            <div className="relative px-6 py-4 border-b border-border"
               style={{ background: 'linear-gradient(135deg, hsl(0,72%,51%,0.08) 0%, transparent 100%)' }}
             >
               <div className="flex items-center justify-between">
@@ -1067,11 +1067,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     <p className="text-xs text-muted-foreground font-semibold mt-1">{closingDate || drawer?.business_date}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-muted/30 rounded-xl text-center border border-border/40">
+                    <div className="p-4 bg-muted/30 rounded-xl text-center border border-border">
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Expected</p>
                       <p className="text-lg font-black text-foreground">{formatCurrency(closeResult.expected_closing)}</p>
                     </div>
-                    <div className="p-4 bg-muted/30 rounded-xl text-center border border-border/40">
+                    <div className="p-4 bg-muted/30 rounded-xl text-center border border-border">
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Actual</p>
                       <p className="text-lg font-black text-foreground">{formatCurrency(closeResult.actual_cash)}</p>
                     </div>
@@ -1098,7 +1098,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               ) : (
                 <>
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 bg-muted/20 rounded-xl text-center border border-border/40">
+                    <div className="p-4 bg-muted/20 rounded-xl text-center border border-border">
                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider mb-1">Expected Cash</p>
                       <p className="text-lg font-black text-foreground">{formatCurrency(closingDate ? yesterdayDrawer?.expected_closing : drawer?.expected_closing || 0)}</p>
                     </div>
@@ -1126,12 +1126,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     value={closeRemarks}
                     onChange={(e) => setCloseRemarks(e.target.value)}
                     placeholder="Closing remarks (optional)"
-                    className="w-full px-4 py-2.5 text-sm bg-card border border-border/70 rounded-xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
+                    className="w-full px-4 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
                   />
                   <div className="flex gap-3">
                     <button
                       onClick={() => { setShowDayClose(false); setClosingDate(null); }}
-                      className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
+                      className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -1160,10 +1160,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           onClick={() => { setShowOpeningBal(false); setOpeningBalError(''); }}
         >
           <div
-            className="bg-card border border-border/80 rounded-2xl shadow-2xl w-80 overflow-hidden"
+            className="bg-card border border-border rounded-2xl shadow-2xl w-80 overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="relative px-6 py-4 border-b border-border/60"
+            <div className="relative px-6 py-4 border-b border-border"
               style={{ background: 'linear-gradient(135deg, hsl(217,91%,60%,0.08) 0%, transparent 100%)' }}
             >
               <div className="flex items-center gap-2.5">
@@ -1194,7 +1194,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               <div className="flex gap-3">
                 <button
                   onClick={() => { setShowOpeningBal(false); setOpeningBalError(''); }}
-                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
+                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1225,12 +1225,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           }}
         >
           <div
-            className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[420px] overflow-hidden"
+            className="bg-card border border-border rounded-2xl shadow-2xl w-[420px] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal header */}
             <div
-              className="relative px-6 py-4 border-b border-border/60"
+              className="relative px-6 py-4 border-b border-border"
               style={{
                 background: txnType === 'CASH_IN'
                   ? 'linear-gradient(135deg, hsl(142,72%,29%,0.1) 0%, transparent 100%)'
@@ -1252,7 +1252,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
             <div className="p-6 space-y-4">
               {/* Toggle */}
-              <div className="flex rounded-xl bg-muted/40 border border-border/60 p-1 gap-1">
+              <div className="flex rounded-xl bg-muted/40 border border-border p-1 gap-1">
                 <button
                   onClick={() => setTxnType('CASH_IN')}
                   className={clsx(
@@ -1329,7 +1329,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   Link to Party <span className="font-normal normal-case text-muted-foreground/50">(optional)</span>
                 </label>
                 {txnPartyId ? (
-                  <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border/70 rounded-2xl shadow-sm">
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-2xl shadow-sm">
                     <span className="text-sm font-bold text-foreground flex-1 truncate">{txnPartyName}</span>
                     <button
                       onClick={() => { setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); }}
@@ -1346,10 +1346,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       value={partySearch}
                       onChange={(e) => setPartySearch(e.target.value)}
                       placeholder="Search party…"
-                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-card border border-border/70 rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 shadow-sm transition-all"
+                      className="w-full pl-9 pr-3 py-2.5 text-sm bg-card border border-border rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 shadow-sm transition-all"
                     />
                     {partySearch && (
-                      <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border/80 rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
+                      <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
                         {parties
                           .filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase()))
                           .slice(0, 20)
@@ -1357,7 +1357,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             <button
                               key={p.party_id}
                               onClick={() => { setTxnPartyId(p.party_id); setTxnPartyName(p.name); setPartySearch(''); }}
-                              className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer border-b border-border/40 last:border-0"
+                              className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer border-b border-border last:border-0"
                             >
                               <span className="font-bold">{p.name}</span>
                               <span className="text-xs text-muted-foreground ml-2">{p.phone || ''}</span>
@@ -1382,7 +1382,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   value={txnNote}
                   onChange={(e) => setTxnNote(e.target.value)}
                   placeholder="Add a note…"
-                  className="w-full px-4 py-2.5 text-sm bg-card border border-border/70 rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
+                  className="w-full px-4 py-2.5 text-sm bg-card border border-border rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
                 />
               </div>
 
@@ -1393,7 +1393,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote('');
                     setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
                   }}
-                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
+                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -1445,7 +1445,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             )}
 
             {/* Action Buttons & Time */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border/50 rounded-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border rounded-2xl">
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
@@ -1532,7 +1532,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
             {/* Customer + Payment Split */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+              <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</div>
                 <div className="font-bold text-sm text-foreground truncate">
                   {selectedInvoice.customer_name || 'Walk-in Customer'}
@@ -1544,7 +1544,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   <div className="text-[10px] text-muted-foreground font-mono">GSTIN: {selectedInvoice.customer_gstin}</div>
                 )}
               </div>
-              <div className="p-3.5 rounded-xl border border-border/60 bg-card space-y-1.5">
+              <div className="p-3.5 rounded-xl border border-border bg-card space-y-1.5">
                 <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</div>
                 <div className="flex items-center gap-2">
                   <PaymentBadge method={selectedInvoice.payment_method || 'PENDING'} />
@@ -1584,9 +1584,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold">{invoiceItems.length} item{invoiceItems.length !== 1 ? 's' : ''}</span>
               </div>
-              <div className="border border-border/60 rounded-xl overflow-hidden bg-card">
+              <div className="border border-border rounded-xl overflow-hidden bg-card">
                 {/* Table header */}
-                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border/40 text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                <div className="grid grid-cols-12 px-4 py-2 bg-muted/40 border-b border-border text-[10px] font-black uppercase tracking-widest text-muted-foreground">
                   <div className="col-span-5">Item</div>
                   <div className="col-span-2 text-center">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
@@ -1621,7 +1621,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
             {/* Totals */}
             <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
-              <div className="px-4 py-3 space-y-2 bg-card/50">
+              <div className="px-4 py-3 space-y-2 bg-card">
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground font-semibold">Subtotal</span>
                   <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
@@ -1650,3 +1650,4 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     </div>
   );
 }
+
