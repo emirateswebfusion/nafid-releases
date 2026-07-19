@@ -1714,6 +1714,30 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
 
     if (!response.ok) return { success: false, error: `Server returned ${response.status}`, offline: true };
     const data = await response.json();
+
+    // Sync local counter to server value so peek and header badge show the correct next number
+    const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    const countMatch = String(data.invoiceNumber).match(/(\d+)$/);
+    if (countMatch) {
+      const serverCounter = parseInt(countMatch[1], 10);
+      if (!isNaN(serverCounter)) {
+        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+        let localCounter = 1;
+        if (row) {
+          try { localCounter = JSON.parse(row.value).counter || 1; } catch { localCounter = 1; }
+        }
+        if (serverCounter >= localCounter) {
+          const newConfig = { prefix, counter: serverCounter + 1 };
+          db.prepare(`
+            INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+            VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+            ON CONFLICT(tenant_id, key) DO UPDATE SET
+              value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          `).run('global', configKey, JSON.stringify(newConfig));
+        }
+      }
+    }
+
     return { success: true, invoiceNumber: data.invoiceNumber };
   } catch (error: any) {
     console.error('[db:getNextServerInvoiceNumber]', error);
