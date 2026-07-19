@@ -342,11 +342,11 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (!tenantId) return [];
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate)) {
-      return db.prepare('SELECT p.*, pg.rate as grade_rate FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC').all(tenantId);
+      return db.prepare('SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC').all(tenantId);
     }
 
     const { limit, offset, search, sortBy, barcode, filterDate } = arg;
-    let query = 'SELECT p.*, pg.rate as grade_rate FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0';
+    let query = 'SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0';
     const params: any[] = [tenantId];
 
     if (barcode) {
@@ -689,9 +689,9 @@ ipcMain.handle('db:addGrade', safeHandler((event, g) => {
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, is_deleted, sync_status) 
-      VALUES (?, ?, ?, ?, ?, 0, 'PENDING')
-    `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate);
+      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, purchase_price, is_deleted, sync_status) 
+      VALUES (?, ?, ?, ?, ?, ?, 0, 'PENDING')
+    `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate, g.purchase_price || 0);
     return { success: true };
   } catch (error: any) {
     console.error('[db:addGrade]', error);
@@ -704,9 +704,9 @@ ipcMain.handle('db:updateGrade', safeHandler((event, g) => {
     const db = getDb();
     db.prepare(`
       UPDATE product_grades 
-      SET category = ?, grade_name = ?, rate = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+      SET category = ?, grade_name = ?, rate = ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
       WHERE grade_id = ?
-    `).run(g.category, g.grade_name, g.rate, g.grade_id);
+    `).run(g.category, g.grade_name, g.rate, g.purchase_price || 0, g.grade_id);
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateGrade]', error);
@@ -2042,7 +2042,7 @@ ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
     const db = getDb();
     if (!tenantId) return [];
     return db.prepare(`
-      SELECT p.*, pg.rate as grade_rate, pg.grade_name, pg.category as grade_category
+      SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price, pg.grade_name, pg.category as grade_category
       FROM products p 
       LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
       WHERE p.tenant_id = ? AND p.is_deleted = 0 

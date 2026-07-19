@@ -16,6 +16,7 @@ interface Grade {
   category: string;
   grade_name: string;
   rate: number;
+  purchase_price?: number;
 }
 
 export function SettingsGrades() {
@@ -23,8 +24,8 @@ export function SettingsGrades() {
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0 });
-  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0 });
+  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
+  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,6 +59,9 @@ export function SettingsGrades() {
   const avgRate = totalGrades > 0
     ? grades.reduce((sum, g) => sum + g.rate, 0) / totalGrades
     : 0;
+  const avgPurchasePrice = totalGrades > 0
+    ? grades.reduce((sum, g) => sum + (g.purchase_price || 0), 0) / totalGrades
+    : 0;
 
   const filteredGrades = useMemo(() =>
     grades.filter(g => {
@@ -80,8 +84,8 @@ export function SettingsGrades() {
   }, [filteredGrades]);
 
   const handleAdd = async () => {
-    if (!newForm.category.trim() || !newForm.grade_name.trim() || newForm.rate <= 0) {
-      setError('Please fill in all fields (ensure Category, Grade, and Rate > 0).');
+    if (!newForm.category.trim() || !newForm.grade_name.trim() || newForm.rate <= 0 || newForm.purchase_price <= 0) {
+      setError('Please fill in all fields (ensure Category, Grade, MRP > 0, and Purchase Price > 0).');
       return;
     }
     setError(null);
@@ -92,12 +96,13 @@ export function SettingsGrades() {
       tenant_id: tenantId || '',
       category: newForm.category.trim(),
       grade_name: newForm.grade_name.trim(),
-      rate: newForm.rate
+      rate: newForm.rate,
+      purchase_price: newForm.purchase_price
     };
     const res = await window.electronAPI.dbAddGrade(grade);
     if (res.success) {
       setIsAdding(false);
-      setNewForm({ category: '', grade_name: '', rate: 0 });
+      setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
       await loadGrades();
     } else {
       setError(res.error || 'Failed to add grade');
@@ -106,8 +111,8 @@ export function SettingsGrades() {
   };
 
   const handleUpdate = async (id: string) => {
-    if (!editForm.category.trim() || !editForm.grade_name.trim() || editForm.rate <= 0) {
-      setError('Please fill in all fields (ensure Category, Grade, and Rate > 0).');
+    if (!editForm.category.trim() || !editForm.grade_name.trim() || editForm.rate <= 0 || editForm.purchase_price <= 0) {
+      setError('Please fill in all fields (ensure Category, Grade, MRP > 0, and Purchase Price > 0).');
       return;
     }
     setError(null);
@@ -116,7 +121,8 @@ export function SettingsGrades() {
       grade_id: id,
       category: editForm.category.trim(),
       grade_name: editForm.grade_name.trim(),
-      rate: editForm.rate
+      rate: editForm.rate,
+      purchase_price: editForm.purchase_price
     });
     if (res.success) {
       setEditingId(null);
@@ -153,7 +159,8 @@ export function SettingsGrades() {
           grade_id: g.grade_id,
           category: newName,
           grade_name: g.grade_name,
-          rate: g.rate
+          rate: g.rate,
+          purchase_price: g.purchase_price || 0
         })
       )
     );
@@ -189,14 +196,15 @@ export function SettingsGrades() {
 
   const startEdit = (grade: Grade) => {
     setEditingId(grade.grade_id);
-    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate });
+    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate, purchase_price: grade.purchase_price || 0 });
   };
 
   const handleOpenAdd = () => {
     setNewForm({
       category: selectedCategory !== 'all' ? selectedCategory : '',
       grade_name: '',
-      rate: 0
+      rate: 0,
+      purchase_price: 0
     });
     setIsAdding(true);
     setError(null);
@@ -293,7 +301,7 @@ export function SettingsGrades() {
         /* View 1: Unified dashboard when "All Categories" is selected */
         <div className="space-y-6">
           {/* Dashboard Stats */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-5">
             <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
               <div className="p-3.5 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                 <Folder className="w-5 h-5" />
@@ -313,12 +321,21 @@ export function SettingsGrades() {
               </div>
             </div>
             <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+              <div className="p-3.5 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgPurchasePrice.toFixed(2)}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
+              </div>
+            </div>
+            <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
               <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
                 <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgRate.toFixed(2)}</p>
-                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base Rate</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base MRP</p>
               </div>
             </div>
           </div>
@@ -384,6 +401,7 @@ export function SettingsGrades() {
               {Object.entries(groupedGrades).map(([category, categoryGrades], index) => {
                 const colorClass = categoryColor(index);
                 const avgCatRate = categoryGrades.reduce((sum, g) => sum + g.rate, 0) / categoryGrades.length;
+                const avgCatPurchasePrice = categoryGrades.reduce((sum, g) => sum + (g.purchase_price || 0), 0) / categoryGrades.length;
                 const isRenaming = editingCategory === category;
                 return (
                   <div
@@ -457,12 +475,14 @@ export function SettingsGrades() {
                     {/* Quick Grades Preview */}
                     <div className="space-y-2 border-t border-b border-border/30 py-3.5 my-1.5 flex-1">
                       {categoryGrades.slice(0, 3).map((g) => (
-                        <div key={g.grade_id} className="flex justify-between items-center text-xs font-semibold text-muted-foreground/90">
+                        <div key={g.grade_id} className="flex justify-between items-center text-[11px] font-semibold text-muted-foreground/90">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
                             <span className="truncate text-foreground/80">{g.grade_name}</span>
                           </div>
-                          <span className="font-mono text-primary font-bold">₹{g.rate.toFixed(2)}</span>
+                          <span className="font-mono text-[10px] text-muted-foreground font-semibold">
+                            P: <span className="text-foreground/90 font-extrabold">₹{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">₹{g.rate.toFixed(1)}</span>
+                          </span>
                         </div>
                       ))}
                       {categoryGrades.length > 3 && (
@@ -475,8 +495,10 @@ export function SettingsGrades() {
                     {/* Bottom Action Footer */}
                     <div className="flex items-center justify-between mt-4 select-none">
                       <div className="leading-tight text-left">
-                        <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Average Rate</span>
-                        <span className="text-xs font-extrabold text-foreground font-mono">₹{avgCatRate.toFixed(2)}</span>
+                        <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Avg Price (P / M)</span>
+                        <span className="text-xs font-extrabold text-foreground font-mono">
+                          ₹{avgCatPurchasePrice.toFixed(1)} / ₹{avgCatRate.toFixed(1)}
+                        </span>
                       </div>
                       <button
                         onClick={() => setSelectedCategory(category)}
@@ -516,7 +538,12 @@ export function SettingsGrades() {
                   <p className="text-[10px] text-muted-foreground mt-1">
                     {filteredGrades.length} grade{filteredGrades.length !== 1 ? 's' : ''}
                     {filteredGrades.length > 0 && (
-                      <> · Average rate: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span></>
+                      <>
+                        {' '}
+                        · Avg Purchase: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
+                        {' '}
+                        · Avg MRP: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
+                      </>
                     )}
                   </p>
                 </div>
@@ -602,8 +629,9 @@ export function SettingsGrades() {
             <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] overflow-hidden backdrop-blur-sm shadow-sm">
               <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 select-none">
                 <div className="col-span-5">Grade Name</div>
-                <div className="col-span-3">Rate (₹/kg)</div>
-                <div className="col-span-4 text-right">Actions</div>
+                <div className="col-span-3">Purchase Price (₹/kg)</div>
+                <div className="col-span-2.5">MRP (₹/kg)</div>
+                <div className="col-span-1.5 text-right">Actions</div>
               </div>
               {filteredGrades.map((grade) => {
                 const isEditing = editingId === grade.grade_id;
@@ -626,7 +654,7 @@ export function SettingsGrades() {
                             ID: {grade.grade_id.slice(0, 8)}...
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
                               Grade Name
@@ -639,7 +667,21 @@ export function SettingsGrades() {
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Rate (₹)
+                              Purchase Price (₹)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                              <input
+                                type="number"
+                                value={editForm.purchase_price || ''}
+                                onChange={e => setEditForm({ ...editForm, purchase_price: parseFloat(e.target.value) || 0 })}
+                                className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                              MRP (₹)
                             </label>
                             <div className="relative">
                               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
@@ -675,34 +717,35 @@ export function SettingsGrades() {
                       </div>
                     ) : (
                       /* Standard Row View */
-                      <div className="px-6 py-4 flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className="px-6 py-4 grid grid-cols-12 items-center gap-3">
+                        <div className="col-span-5 flex items-center gap-3.5 min-w-0">
                           <div className="p-2 bg-muted/40 dark:bg-muted/10 rounded-xl border border-border/50 shrink-0 shadow-inner">
                             <Tag className="w-3.5 h-3.5 text-muted-foreground/75" />
                           </div>
                           <span className="text-xs font-bold text-foreground truncate">{grade.grade_name}</span>
                         </div>
-                        <div className="flex items-center gap-4 shrink-0">
-                          <div className="text-right min-w-[90px]">
-                            <span className="text-sm font-extrabold text-primary font-mono">₹{grade.rate.toFixed(2)}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 border-l border-border/60 pl-3">
-                            <button
-                              onClick={() => startEdit(grade)}
-                              className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer"
-                              title="Edit Grade"
-                            >
-                              <Edit2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(grade.grade_id)}
-                              disabled={operating}
-                              className="p-2 hover:bg-destructive/15 text-muted-foreground hover:text-destructive rounded-xl transition-all cursor-pointer"
-                              title="Delete Grade"
-                            >
-                              <Trash className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                        <div className="col-span-3 font-mono font-bold text-foreground/80 text-xs">
+                          ₹{(grade.purchase_price || 0).toFixed(2)}
+                        </div>
+                        <div className="col-span-2.5 font-mono font-extrabold text-primary text-xs">
+                          ₹{grade.rate.toFixed(2)}
+                        </div>
+                        <div className="col-span-1.5 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
+                          <button
+                            onClick={() => startEdit(grade)}
+                            className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer"
+                            title="Edit Grade"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(grade.grade_id)}
+                            disabled={operating}
+                            className="p-2 hover:bg-destructive/15 text-muted-foreground hover:text-destructive rounded-xl transition-all cursor-pointer"
+                            title="Delete Grade"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
                         </div>
                       </div>
                     )}
@@ -718,6 +761,7 @@ export function SettingsGrades() {
       <Modal
         isOpen={isAdding}
         onClose={() => !operating && setIsAdding(false)}
+        closeButton={null}
         title={
           <div className="flex items-center gap-2 select-none">
             <Tag className="w-5 h-5 text-primary" />
@@ -728,7 +772,7 @@ export function SettingsGrades() {
       >
         <div className="space-y-5">
           <p className="text-xs text-muted-foreground/80 leading-relaxed">
-            Define a product category, its grade variant, and set the base pricing rate per kilogram.
+            Define a product category, its grade variant, and set the base pricing MRP per kilogram.
           </p>
 
           <div className="space-y-4">
@@ -782,23 +826,37 @@ export function SettingsGrades() {
               </p>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
-                <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" /> Base Rate (Per Kg)
-              </label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
-                <input
-                  type="number"
-                  placeholder="0.00"
-                  value={newForm.rate || ''}
-                  onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
-                  className="w-full pl-8 pr-3 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-mono font-bold text-foreground"
-                />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" /> Base Purchase Price
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newForm.purchase_price || ''}
+                    onChange={e => setNewForm({ ...newForm, purchase_price: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-8 pr-3 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-mono font-bold text-foreground"
+                  />
+                </div>
               </div>
-              <p className="text-[10px] text-muted-foreground/60 mt-1 select-none">
-                Enter the base buying/selling rate per kilogram.
-              </p>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider flex items-center gap-1.5">
+                  <TrendingUp className="w-3.5 h-3.5 text-muted-foreground/50" /> Base MRP (Per Kg)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newForm.rate || ''}
+                    onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
+                    className="w-full pl-8 pr-3 h-10 text-xs bg-background/50 border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-mono font-bold text-foreground"
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -815,7 +873,7 @@ export function SettingsGrades() {
               size="sm"
               onClick={handleAdd}
               disabled={operating}
-              className="px-4 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2 cursor-pointer"
+              className="px-5 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2.5 cursor-pointer"
             >
               {operating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
@@ -832,6 +890,7 @@ export function SettingsGrades() {
       <Modal
         isOpen={confirmDeleteCategory !== null}
         onClose={() => !operating && setConfirmDeleteCategory(null)}
+        closeButton={null}
         title={
           <div className="flex items-center gap-2 text-destructive select-none">
             <Trash className="w-5 h-5" />
@@ -867,7 +926,7 @@ export function SettingsGrades() {
               variant="destructive"
               onClick={() => confirmDeleteCategory && handleDeleteCategory(confirmDeleteCategory)}
               disabled={operating}
-              className="px-4 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2 cursor-pointer"
+              className="px-5 rounded-xl shadow-md font-bold flex items-center gap-1.5 py-2.5 cursor-pointer"
             >
               {operating ? (
                 <Loader2 className="w-4 h-4 animate-spin" />

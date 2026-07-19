@@ -51,6 +51,10 @@ interface Product {
   current_stock: number;
   gst_purchase_quantity: number;
   gst_purchase_price: number;
+  grade_id?: string;
+  pricing_mode?: string;
+  grade_rate?: number;
+  grade_purchase_price?: number;
 }
 
 const formatDate = (d: string) => {
@@ -974,8 +978,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       product_id: product.product_id,
       name: product.name,
       quantity: '1',
-      purchase_price: String(product.gst_purchase_price || product.purchase_price || 0),
-      selling_price: String(product.base_price || 0),
+      purchase_price: String(
+        product.pricing_mode === 'GRADE_RATE' && product.grade_purchase_price !== undefined && product.grade_purchase_price !== null
+          ? Number(product.grade_purchase_price)
+          : (product.gst_purchase_price || product.purchase_price || 0)
+      ),
+      selling_price: String(
+        product.pricing_mode === 'GRADE_RATE' && product.grade_rate !== undefined && product.grade_rate !== null
+          ? Number(product.grade_rate)
+          : (product.base_price || 0)
+      ),
     }]);
     setProductSearch('');
     setProducts([]);

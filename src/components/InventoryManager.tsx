@@ -455,6 +455,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           const selectedGrade = grades.find(g => g.grade_id === value);
           if (selectedGrade) {
             next.base_price = Number(selectedGrade.rate);
+            next.purchase_price = Number(selectedGrade.purchase_price || 0);
           }
         }
       }
@@ -743,7 +744,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
         const headers = ['Name', 'Item Code', 'Barcode', 'Category', 'Brand', 'UOM', 'Purchase Price', 'MRP', 'Discount Percentage', 'Offer Price', 'Current Stock', 'Added Date'];
         const csvContent = [
           headers.join(','),
-          ...result.map(p => `"${(p.name || '').replace(/"/g, '""')}","${p.item_code || ''}","${p.sku_barcode || ''}","${p.category || ''}","${p.brand_manufacturer || ''}","${p.uom || ''}",${p.purchase_price || 0},${p.base_price || 0},${p.discount_percent || 0},${p.offer_price || 0},${p.current_stock || 0},"${p.created_at || ''}"`)
+          ...result.map(p => {
+            const appliedGrade = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+            const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined ? Number(appliedGrade.purchase_price) : Number(p.purchase_price);
+            const displayMrp = appliedGrade && p.pricing_mode === 'GRADE_RATE' ? Number(appliedGrade.rate) : Number(p.base_price);
+            return `"${(p.name || '').replace(/"/g, '""')}","${p.item_code || ''}","${p.sku_barcode || ''}","${p.category || ''}","${p.brand_manufacturer || ''}","${p.uom || ''}",${displayPurchasePrice || 0},${displayMrp || 0},${p.discount_percent || 0},${p.offer_price || 0},${p.current_stock || 0},"${p.created_at || ''}"`;
+          })
         ].join('\n');
         
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1058,6 +1064,9 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   const displayMrp = gradeRate !== null && p.pricing_mode === 'GRADE_RATE' 
                     ? gradeRate 
                     : Number(p.base_price);
+                  const displayPurchasePrice = appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined
+                    ? Number(appliedGrade.purchase_price)
+                    : Number(p.purchase_price);
 
                   if (p.offer_price) {
                     finalPrice = Number(p.offer_price);
@@ -1095,7 +1104,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                           </div>
                         </div>
                       </div>
-                      <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold">₹{Number(p.purchase_price).toFixed(2)}</div>
+                      <div className="col-span-1 text-right text-muted-foreground text-sm font-semibold flex flex-col items-end">
+                        <span>₹{displayPurchasePrice.toFixed(2)}</span>
+                        {appliedGrade && p.pricing_mode === 'GRADE_RATE' && appliedGrade.purchase_price !== undefined && (
+                          <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
+                        )}
+                      </div>
                       <div className="col-span-2 flex flex-col items-end justify-center">
                         <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
                           ₹{displayMrp.toFixed(2)}
@@ -1358,7 +1372,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   <div key={field} className="flex-1 min-w-0">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                       {label}
-                      {field === 'base_price' && formData.grade_id && (
+                      {(field === 'base_price' || field === 'purchase_price') && formData.grade_id && (
                         <span className="text-indigo-500 ml-1.5 font-normal normal-case">(from grade)</span>
                       )}
                     </label>
@@ -1369,12 +1383,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={(formData as any)[field]}
                         onChange={e => handleInputChange(field, e.target.value)}
-                        disabled={field === 'base_price' && !!formData.grade_id}
+                        disabled={(field === 'base_price' || field === 'purchase_price') && !!formData.grade_id}
                         className={clsx(
                           'w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
                           prefix && 'pl-8', 
                           field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold',
-                          field === 'base_price' && formData.grade_id && 'opacity-70 cursor-not-allowed'
+                          (field === 'base_price' || field === 'purchase_price') && formData.grade_id && 'opacity-70 cursor-not-allowed'
                         )}
                       />
                     </div>

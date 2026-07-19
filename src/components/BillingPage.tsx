@@ -660,7 +660,9 @@ export function BillingPage() {
       product_id: product.product_id,
       name: product.name,
       base_price: product.base_price,
-      purchase_price: product.purchase_price ?? 0,
+      purchase_price: product.pricing_mode === 'GRADE_RATE' && product.grade_purchase_price !== undefined && product.grade_purchase_price !== null
+        ? Number(product.grade_purchase_price)
+        : (product.purchase_price ?? 0),
       tax_rate_percent: product.tax_rate_percent ?? 0,
       billing_type: product.billing_type,
       pieces_per_kg: piecesPerKg,
