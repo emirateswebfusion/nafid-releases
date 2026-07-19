@@ -1211,7 +1211,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
 
             {/* Section 1: Core */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <PackagePlus className="w-4 h-4" />
@@ -1354,8 +1354,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
               </div>
             </section>
 
-            {/* Section 2: Inventory & Pricing */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+            {/* Section 2: Pricing */}
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                   <Tag className="w-4 h-4" />
@@ -1420,7 +1420,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             </section>
 
             {/* Section 3: Discount & Offers */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <Tag className="w-4 h-4" />
@@ -1483,8 +1483,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
               </div>
             </section>
 
-            {/* Section 4: Taxes & Config */}
-            <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+            {/* Section 4: Stock */}
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                 <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                   <Package className="w-4 h-4" />
@@ -1540,7 +1540,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
             {/* Section 4: Domain Attributes */}
             {shopDomain !== 'GENERAL' && (
-              <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+              <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
                     <Package className="w-4 h-4" />
@@ -1566,7 +1566,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
             {/* Section 5: GST Purchase Details — only in Add mode */}
             {view === 'add' && (
-              <section className="rounded-2xl overflow-hidden shadow-sm border border-purple-500/20" style={{background: 'linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--card) 96%, #a855f7) 100%)'}}>
+              <section className="rounded-[28px] overflow-hidden shadow-sm border border-purple-500/20" style={{background: 'linear-gradient(135deg, var(--card) 0%, color-mix(in srgb, var(--card) 96%, #a855f7) 100%)'}}>
                 {/* Section Header */}
                 <div className="flex items-center gap-3 px-5 py-3.5 border-b border-purple-500/15" style={{background: 'linear-gradient(90deg, color-mix(in srgb, #a855f7 12%, transparent), color-mix(in srgb, #a855f7 4%, transparent))'}}>
                   <div className="flex items-center justify-center w-7 h-7 rounded-xl bg-purple-500/15 text-purple-500 shrink-0">

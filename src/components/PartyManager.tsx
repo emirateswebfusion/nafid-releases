@@ -385,40 +385,43 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         <div className="flex flex-col flex-1 min-h-0">
 
           {/* Summary strip */}
-          <div className="shrink-0 px-5 py-3 border-b border-border/60 bg-background">
-            <div className="grid grid-cols-3 gap-3">
+          <div className="shrink-0 px-5 py-4 border-b border-border/60 bg-transparent">
+            <div className="grid grid-cols-3 gap-4">
 
               {/* Receivable */}
-              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#ef4444 0%,#dc2626 100%)'}}>
-                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
-                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
-                  <TrendingUp className="w-4 h-4 text-white" />
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-rose-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+                <div className="p-3.5 bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                  <TrendingUp className="w-5 h-5" />
                 </div>
-                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Receivable</p>
-                <p className="text-xl font-black text-white leading-none">₹{totalReceivable.toFixed(2)}</p>
-                <p className="text-[11px] text-white/60 mt-1.5 font-medium">Owed to you</p>
+                <div>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Receivable</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">Owed to you</p>
+                </div>
               </div>
 
               {/* Payable */}
-              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#10b981 0%,#059669 100%)'}}>
-                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
-                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
-                  <TrendingDown className="w-4 h-4 text-white" />
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-emerald-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+                <div className="p-3.5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                  <TrendingDown className="w-5 h-5" />
                 </div>
-                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Payable</p>
-                <p className="text-xl font-black text-white leading-none">₹{totalPayable.toFixed(2)}</p>
-                <p className="text-[11px] text-white/60 mt-1.5 font-medium">You owe</p>
+                <div>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Payable</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">You owe</p>
+                </div>
               </div>
 
               {/* Total parties */}
-              <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{background:'linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)'}}>
-                <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{background:'rgba(255,255,255,0.12)'}} />
-                <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{background:'rgba(255,255,255,0.22)'}}>
-                  <Activity className="w-4 h-4 text-white" />
+              <div className="bg-card/45 dark:bg-card/25 border border-border/50 p-4.5 rounded-[24px] flex items-center gap-4 hover:border-blue-500/25 hover:shadow-md hover:bg-card/65 transition-all duration-300 backdrop-blur-sm group select-none">
+                <div className="p-3.5 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-2xl group-hover:scale-105 transition-transform shadow-inner">
+                  <Activity className="w-5 h-5" />
                 </div>
-                <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Parties</p>
-                <p className="text-xl font-black text-white leading-none">{parties.length}</p>
-                <p className="text-[11px] text-white/60 mt-1.5 font-medium">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
+                <div>
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Total Parties</p>
+                  <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -483,7 +486,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   return (
                     <div
                       key={party.party_id}
-                      className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-border/60 bg-card hover:border-primary/30 hover:shadow-md hover:shadow-primary/5 transition-all duration-200 cursor-pointer"
+                      className="group flex items-center gap-3.5 p-4 rounded-2xl border border-border/50 bg-card/45 dark:bg-card/25 hover:border-primary/30 hover:bg-card/65 transition-all duration-300 backdrop-blur-sm shadow-sm hover:shadow-md cursor-pointer"
                       onClick={() => { setSelectedParty(party); setView('ledger'); loadLedger(party.party_id); }}
                     >
                       {/* Avatar */}
@@ -584,7 +587,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
             {/* Section: Identity */}
-            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <UserCircle className="w-4 h-4" />
@@ -651,7 +654,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
             {/* Section: Opening Balance (new party only) */}
             {!editingParty && (
-              <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+              <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-600">
                     <Banknote className="w-4 h-4" />
@@ -712,7 +715,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
             )}
 
             {/* Section: Notes */}
-            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                   <FileText className="w-4 h-4" />
@@ -864,8 +867,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     <div
                       key={entry.ledger_id}
                       className={clsx(
-                        'rounded-xl border bg-card shadow-sm overflow-hidden transition-all duration-200 hover:shadow-md',
-                        isCredit ? 'border-emerald-200 dark:border-emerald-900/50' : 'border-red-200 dark:border-red-900/50'
+                        'rounded-2xl border bg-card/45 dark:bg-card/25 shadow-sm overflow-hidden transition-all duration-300 backdrop-blur-sm hover:shadow-md hover:bg-card/65',
+                        isCredit ? 'border-emerald-500/20 dark:border-emerald-900/30' : 'border-rose-500/20 dark:border-rose-900/30'
                       )}
                     >
                       {/* Colored top bar */}
@@ -974,7 +977,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         <form onSubmit={handleSaveTx} className="flex flex-col flex-1 min-h-0 bg-background">
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
 
-            <section className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+            <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
               <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Activity className="w-4 h-4" />

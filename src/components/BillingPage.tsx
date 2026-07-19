@@ -2226,10 +2226,10 @@ export function BillingPage() {
         </div>
 
         {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
-        <div className="flex flex-col w-[42%] bg-card shadow-2xl z-25">
+        <div className="flex flex-col w-[42%] bg-card/65 dark:bg-card/45 shadow-2xl z-25 border-l border-border/50 backdrop-blur-md">
 
           {/* ── RIGHT PANEL HEADER ── */}
-          <div className="shrink-0 px-5 py-2.5 border-b border-border/60 bg-card">
+          <div className="shrink-0 px-5 py-2.5 border-b border-border/60 bg-transparent">
             <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Transaction Console</p>
           </div>
 
@@ -2820,7 +2820,7 @@ export function BillingPage() {
         <>
           <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
           <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-            <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+            <div className="w-full max-w-6xl bg-card/95 dark:bg-card/90 border border-border/50 rounded-[28px] shadow-2xl pointer-events-auto overflow-hidden backdrop-blur-md">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -2836,7 +2836,7 @@ export function BillingPage() {
               </div>
               <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
                 {/* 1. Basic Details */}
-                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                     <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                       <Package className="w-4 h-4" />
@@ -2912,7 +2912,7 @@ export function BillingPage() {
                 </section>
 
                 {/* 2. Inventory & Pricing */}
-                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                     <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
                       <Package className="w-4 h-4" />
@@ -2963,7 +2963,7 @@ export function BillingPage() {
                 </section>
 
                 {/* 3. Discount & Offers */}
-                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                     <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
                       <Package className="w-4 h-4" />
@@ -3044,7 +3044,7 @@ export function BillingPage() {
                 </section>
 
                 {/* 4. Taxes & Config */}
-                <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
+                <section className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 shadow-sm backdrop-blur-sm transition-all duration-300">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
                     <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
                       <Package className="w-4 h-4" />

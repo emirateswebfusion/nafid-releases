@@ -72,7 +72,7 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-border/60 bg-card shadow-sm group hover:shadow-md transition-all duration-200 min-w-0">
+    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-border/50 bg-card/45 dark:bg-card/25 shadow-sm group hover:shadow-md hover:border-primary/20 transition-all duration-300 min-w-0 backdrop-blur-sm">
       <div className={clsx('p-1.5 rounded-lg shrink-0', bgClass)}>
         <Icon className={clsx('w-3.5 h-3.5', colorClass)} />
       </div>
@@ -700,7 +700,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
               {/* Right Side: Graph / Chart */}
               {!loading && invoices.length > 1 && (
-                <div className="flex-1 bg-card rounded-xl border border-border/60 p-2 flex flex-col justify-between overflow-hidden">
+                <div className="flex-1 bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-4 flex flex-col justify-between overflow-hidden backdrop-blur-sm shadow-sm transition-all duration-300">
                   {/* Chart header inside block */}
                   <div className="flex items-center justify-between px-2 pb-1 shrink-0">
                     <div className="flex items-center gap-1.5">
