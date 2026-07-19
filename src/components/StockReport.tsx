@@ -443,7 +443,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           </div>
 
           {/* Low Stock Alerts */}
-          {!loading && lowStockItems.length > 0 && (
+          {!loading && stockFilter !== 'low_stock' && lowStockItems.length > 0 && (
             <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
               <div className="flex items-center gap-2 mb-3">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
@@ -470,9 +470,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   );
                 })}
                 {lowStockItems.length > 6 && (
-                  <div className="col-span-2 text-center text-xs text-muted-foreground pt-1">
+                  <button onClick={() => setStockFilter('low_stock')} className="col-span-2 text-center text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 pt-1 transition-colors cursor-pointer">
                     +{lowStockItems.length - 6} more low stock item{lowStockItems.length - 6 > 1 ? 's' : ''}
-                  </div>
+                  </button>
                 )}
               </div>
             </div>
