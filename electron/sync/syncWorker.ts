@@ -418,7 +418,26 @@ async function syncInvoices(token: string, tenantId: string) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const invoicesWithItems = batch.map((inv: any) => ({
       ...inv,
-      items: getItems.all(inv.invoice_id, tenantId),
+      subtotal: Number(inv.subtotal) || 0,
+      tax_total: Number(inv.tax_total) || 0,
+      grand_total: Number(inv.grand_total) || 0,
+      discount_total: inv.discount_total != null ? Number(inv.discount_total) : 0,
+      discount_value: inv.discount_value != null ? Number(inv.discount_value) : 0,
+      received_amount: inv.received_amount != null ? Number(inv.received_amount) : 0,
+      balance_amount: inv.balance_amount != null ? Number(inv.balance_amount) : 0,
+      scrap_deduction: inv.scrap_deduction != null ? Number(inv.scrap_deduction) : 0,
+      points_earned: inv.points_earned != null ? Number(inv.points_earned) : 0,
+      points_redeemed: inv.points_redeemed != null ? Number(inv.points_redeemed) : 0,
+      points_redeemed_discount: inv.points_redeemed_discount != null ? Number(inv.points_redeemed_discount) : 0,
+      previous_points_balance: inv.previous_points_balance != null ? Number(inv.previous_points_balance) : 0,
+      remaining_points_balance: inv.remaining_points_balance != null ? Number(inv.remaining_points_balance) : 0,
+      items: (getItems.all(inv.invoice_id, tenantId) as any[]).map((item: any) => ({
+        ...item,
+        quantity: Number(item.quantity) || 0,
+        unit_price: Number(item.unit_price) || 0,
+        total: Number(item.total) || 0,
+        tax_amount: item.tax_amount != null ? Number(item.tax_amount) : 0,
+      })),
     }));
 
     const synced = await pushBatch(

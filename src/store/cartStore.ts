@@ -129,7 +129,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: 'BILL_OF_SUPPLY', customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null }),
+      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null })),
     }),
     {
       name: 'vendora-cart-storage',

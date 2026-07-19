@@ -1364,7 +1364,7 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'unset', user_id: userId || 'unset', invoice_number,
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: adjustedGrandTotal, payment_method: paymentMethod,
+          grand_total: effectiveGrandTotal, payment_method: paymentMethod,
           received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
@@ -1766,7 +1766,8 @@ export function BillingPage() {
                               )}>
                                 Stock: {(() => {
                                   const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); return Number(d.pcs) || 0; } catch { return 0; } })() : 0;
-                                  return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${'Kg'}`;
+                                  const unit = p.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs';
+                                  return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${unit}`;
                                 })()}
                               </span>
                             </div>

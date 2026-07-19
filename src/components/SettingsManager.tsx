@@ -124,7 +124,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'products' : 'hardware');
+  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'store' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
   const [barcodePrinter, setBarcodePrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
