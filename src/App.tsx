@@ -521,9 +521,10 @@ function App() {
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
       {currentUserRole === 'OWNER' && <DomainWizard />}
-      {showPartyManager && <PartyManager onClose={() => setShowPartyManager(false)} />}
 
-      {showCashierSettlement ? (
+      {showPartyManager ? (
+        <PartyManager onClose={() => setShowPartyManager(false)} />
+      ) : showCashierSettlement ? (
         <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
       ) : showScrapManager ? (
         <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
