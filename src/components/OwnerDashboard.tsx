@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -140,6 +140,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-cyan-500',
             bgColor: 'bg-cyan-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
+        },
+        {
+            id: 'grades',
+            title: 'Categories & Grades',
+            desc: 'Configure category classifications, grade rules, purchase price, and MRP',
+            icon: Tags,
+            color: 'text-indigo-500',
+            bgColor: 'bg-indigo-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-settings-grades')),
         },
         {
             id: 'stock-print',

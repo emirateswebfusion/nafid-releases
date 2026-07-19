@@ -12,7 +12,7 @@ import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
-import { SettingsGrades } from './SettingsGrades';
+import { Button } from './ui/Button';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
 import { DEFAULT_BILL_SETTINGS, type BillSettings } from '../utils/receiptGenerator';
@@ -124,7 +124,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'store' : 'hardware');
+  const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'products' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
   const [barcodePrinter, setBarcodePrinter] = useState<any>({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' });
@@ -134,7 +134,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [osPrinters, setOsPrinters] = useState<any[]>([]);
   const { shopDomain } = useCartStore();
   const [activeHardwareTab, setActiveHardwareTab] = useState<'receipt' | 'barcode' | 'a4' | 'scale'>('receipt');
-  const [activeProductsTab, setActiveProductsTab] = useState<'grades' | 'coding' | 'bulk'>('grades');
+  const [activeProductsTab, setActiveProductsTab] = useState<'coding' | 'bulk'>('coding');
   const { fontScale, increaseFontScale, decreaseFontScale, setFontScale } = useThemeStore();
   const [updateStatus, setUpdateStatus] = useState<string | null>(null);
   const [updateInfo, setUpdateInfo] = useState<{ version: string; releaseDate?: string; releaseNotes?: string } | null>(null);
@@ -834,7 +834,6 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         );
       case 'products':
         const productTabs = [
-          { id: 'grades', label: 'Categories & Grades', icon: Tags, ownerOnly: false },
           { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
           { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
         ].filter(t => !t.ownerOnly || role === 'OWNER');
@@ -868,13 +867,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             )}
 
             {/* Content pane */}
-            {activeProductsTab === 'grades' && (
-              <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm backdrop-blur-sm">
-                <SettingsGrades />
-              </div>
-            )}
 
-            {activeProductsTab === 'coding' && role === 'OWNER' && (
+            {activeProductsTab === 'coding' && (
               <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
                 <div className="flex items-center gap-3 pb-4 border-b border-border/40">
                   <Key className="w-4.5 h-4.5 text-primary" />
@@ -885,17 +879,19 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                 </p>
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
                   {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-                    <div key={digit} className="flex items-center gap-3 bg-muted/20 dark:bg-muted/10 p-3.5 rounded-2xl border border-border/50 hover:border-primary/40 hover:bg-background/50 transition-all duration-300">
-                      <span className="flex items-center justify-center font-black text-sm w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
-                      <span className="text-muted-foreground/60 text-xs font-bold">=</span>
-                      <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="text-center font-black text-sm uppercase bg-background border-border/60 focus:ring-4 focus:ring-primary/10 rounded-xl py-1.5" />
+                    <div key={digit} className="flex items-center justify-between gap-3 bg-muted/40 dark:bg-muted/10 p-3 rounded-2xl border border-border/60 hover:border-primary/30 hover:bg-background/80 hover:shadow-sm transition-all duration-300 select-none">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center font-black text-xs w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
+                        <span className="text-muted-foreground/50 text-xs font-bold">=</span>
+                      </div>
+                      <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="w-12 h-10 text-center font-extrabold text-base uppercase bg-card dark:bg-background border border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl px-1 block shadow-sm transition-all duration-200" style={{ color: 'var(--foreground)' }} />
                     </div>
                   ))}
                 </div>
               </div>
             )}
 
-            {activeProductsTab === 'bulk' && role === 'OWNER' && (
+            {activeProductsTab === 'bulk' && (
               <div className="bg-card/45 dark:bg-card/25 border border-border/50 rounded-[28px] p-6 md:p-8 shadow-sm space-y-6 backdrop-blur-sm">
                 <div className="flex items-center gap-3 pb-4 border-b border-border/40">
                   <Upload className="w-4.5 h-4.5 text-primary" />
@@ -1491,7 +1487,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!(activeSection === 'products' && activeProductsTab === 'grades') && hasChanges && (
+          {hasChanges && (
             <button onClick={handleSave} disabled={saving}
               className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in border border-primary/20 hover:border-primary shadow-sm">
               {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
@@ -1533,7 +1529,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           onClick={() => {
                             setActiveSection(item.id);
                             if (item.id === 'hardware') setActiveHardwareTab('receipt');
-                            if (item.id === 'products') setActiveProductsTab('grades');
+                            if (item.id === 'products') setActiveProductsTab('coding');
                           }}
                           className={clsx(
                             "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer text-left border-l-2 group",
@@ -1565,7 +1561,12 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
               const ItemIcon = item.icon;
               const isActive = activeSection === item.id;
               return (
-                <button key={item.id} onClick={() => setActiveSection(item.id)}
+                <button key={item.id} 
+                  onClick={() => {
+                    setActiveSection(item.id);
+                    if (item.id === 'hardware') setActiveHardwareTab('receipt');
+                    if (item.id === 'products') setActiveProductsTab('coding');
+                  }}
                   className={clsx("flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-150 cursor-pointer border shrink-0 active:scale-95",
                     isActive ? "bg-primary/10 text-primary border-primary/20 shadow-sm" : "bg-card text-muted-foreground/80 border-border/60 hover:text-foreground hover:bg-muted"
                   )}>

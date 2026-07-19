@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { 
   ShoppingCart, Banknote, Package, TrendingUp, User, 
-  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store 
+  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags 
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -9,6 +9,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing', icon: ShoppingCart },
   CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
   INVENTORY: { label: 'Inventory', icon: Package },
+  GRADES: { label: 'Categories & Grades', icon: Tags },
   SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
   CUSTOMERS: { label: 'Customers', icon: User },
   SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
@@ -24,6 +25,7 @@ import { InventoryManager } from './components/InventoryManager';
 import { SalesHistory } from './components/SalesHistory';
 import { StaffManager } from './components/StaffManager';
 import { SettingsManager } from './components/SettingsManager';
+import { SettingsGrades } from './components/SettingsGrades';
 import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import SuperDashboard from './components/SuperDashboard';
@@ -105,6 +107,7 @@ function App() {
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
+  const [showSettingsGrades, setShowSettingsGrades] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
   const [showScrapManager, setShowScrapManager] = useState(false);
   const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
@@ -294,6 +297,7 @@ function App() {
     const handleOpenHistory = () => setShowSalesHistory(true);
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
+    const handleOpenSettingsGrades = () => setShowSettingsGrades(true);
     const handleOpenParties = () => setShowPartyManager(true);
     const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
@@ -308,6 +312,7 @@ function App() {
       setShowSalesHistory(false);
       setShowStaffManager(false);
       setShowSettingsManager(false);
+      setShowSettingsGrades(false);
       setShowPartyManager(false);
       setShowScrapManager(false);
       setShowWarrantyManager(false);
@@ -318,6 +323,7 @@ function App() {
     window.addEventListener('open-sales-history', handleOpenHistory);
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
+    window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
     window.addEventListener('open-parties-manager', handleOpenParties);
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
@@ -369,8 +375,9 @@ function App() {
       window.removeEventListener('open-sales-history', handleOpenHistory);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);
+      window.removeEventListener('open-settings-grades', handleOpenSettingsGrades);
       window.removeEventListener('open-parties-manager', handleOpenParties);
-        window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
+      window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
@@ -441,6 +448,8 @@ function App() {
           return <PurchaseBillManager onClose={() => {}} isRestricted={true} />;
         case 'STOCK_REPORT':
           return <StockReport onClose={() => {}} isRestricted={true} />;
+        case 'GRADES':
+          return <SettingsGrades onClose={() => {}} isRestricted={true} />;
         case 'SETTINGS':
           return <SettingsManager onClose={() => {}} isRestricted={true} />;
         default:
@@ -530,6 +539,8 @@ function App() {
         <StaffManager onClose={() => setShowStaffManager(false)} />
       ) : showSettingsManager ? (
         <SettingsManager onClose={() => setShowSettingsManager(false)} />
+      ) : showSettingsGrades ? (
+        <SettingsGrades onClose={() => setShowSettingsGrades(false)} />
       ) : showSalesHistory ? (
         <SalesHistory onClose={() => setShowSalesHistory(false)} />
       ) : showInventoryManager ? (
