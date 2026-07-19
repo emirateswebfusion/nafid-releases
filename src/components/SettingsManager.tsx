@@ -1327,7 +1327,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <p className="text-xs text-muted-foreground/75 mt-0.5">Scale the entire UI text size</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <button type="button" onClick={decreaseFontScale} disabled={fontScale <= 70} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"><Minus className="w-4 h-4" /></button>
+                    <button type="button" onClick={decreaseFontScale} disabled={fontScale <= 70} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 shadow-[0_0_6px_rgba(0,0,0,0.06)] dark:shadow-[0_0_6px_rgba(255,255,255,0.04)] hover:shadow-[0_0_12px_rgba(0,0,0,0.12)] dark:hover:shadow-[0_0_12px_rgba(255,255,255,0.08)] hover:border-foreground/20 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"><Minus className="w-4 h-4" /></button>
                     <div className="w-20 text-center select-none">
                       <span className="text-2xl font-black text-foreground font-mono">{fontScale}%</span>
                       <div className="flex items-center justify-center gap-1 mt-1">
@@ -1335,7 +1335,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                         <span className="text-[9px] font-bold text-muted-foreground/80">{fontScale <= 80 ? 'Small' : fontScale <= 100 ? 'Normal' : fontScale <= 120 ? 'Large' : 'X-Large'}</span>
                       </div>
                     </div>
-                    <button type="button" onClick={increaseFontScale} disabled={fontScale >= 140} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer shadow-sm"><Plus className="w-4 h-4" /></button>
+                    <button type="button" onClick={increaseFontScale} disabled={fontScale >= 140} className="w-11 h-11 flex items-center justify-center rounded-2xl bg-background border border-border/80 text-muted-foreground hover:text-foreground hover:bg-muted/40 shadow-[0_0_6px_rgba(0,0,0,0.06)] dark:shadow-[0_0_6px_rgba(255,255,255,0.04)] hover:shadow-[0_0_12px_rgba(0,0,0,0.12)] dark:hover:shadow-[0_0_12px_rgba(255,255,255,0.08)] hover:border-foreground/20 transition-all duration-200 active:scale-90 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"><Plus className="w-4 h-4" /></button>
                   </div>
                 </div>
                 <div className="p-5 bg-muted/20 dark:bg-muted/10 border border-border/50 rounded-2xl">
@@ -1496,7 +1496,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             </button>
           )}
           <button onClick={onClose}
-            className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/80 shadow-sm"
+            className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-destructive/5 hover:border-destructive/30 shadow-[0_0_6px_rgba(239,68,68,0.12)] hover:shadow-[0_0_12px_rgba(239,68,68,0.25)] border border-border/80 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Close">
             <X className="w-4.5 h-4.5 text-destructive" />
           </button>
