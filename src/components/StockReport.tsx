@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, LogOut } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, LogOut, Activity } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
@@ -249,193 +249,120 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     }
   };
 
-  if (loading && products.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col bg-background overflow-hidden">
-        <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-          <div className="flex items-center gap-3">
-            <Skeleton className="w-10 h-10 rounded-xl" />
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-3 w-20" />
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-9 w-28 rounded-xl" />
-            <Skeleton className="h-9 w-9 rounded-xl" />
-          </div>
-        </header>
-        <div className="flex-1 overflow-y-auto px-4 py-6">
-          <div className="space-y-6">
-            <div className="grid grid-cols-3 gap-4">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-card border border-border/80 border-l-4 rounded-xl p-4 shadow-sm space-y-3">
-                  <Skeleton className="h-4 w-4 rounded" />
-                  <Skeleton className="h-7 w-24" />
-                  <Skeleton className="h-3 w-20" />
-                </div>
-              ))}
-            </div>
-            <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-9 flex-1 max-w-xs rounded-lg" />
-                <Skeleton className="h-9 w-32 rounded-lg" />
-                <Skeleton className="h-9 w-28 rounded-lg" />
-              </div>
-            </div>
-            <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
-                <Skeleton className="h-4 w-40" />
-              </div>
-              <div className="p-4 space-y-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Skeleton className="h-4 w-32" />
-                      <Skeleton className="h-4 w-16" />
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <Skeleton className="h-3 w-28" />
-                      <Skeleton className="h-3 w-24" />
-                      <Skeleton className="h-3 w-28" />
-                    </div>
-                    <Skeleton className="h-2 w-full rounded-full" />
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
-                <Skeleton className="h-4 w-44" />
-              </div>
-              <div className="p-1">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/30 border-b border-border/60">
-                        {['Product', 'Category', 'Grade', 'Stock', 'Weight', 'Purchase', 'MRP', 'Selling'].map((_h, i) => (
-                          <th key={i} className="px-4 py-2.5">
-                            <Skeleton className={clsx('h-3', i < 3 ? 'w-14' : 'w-12')} />
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40">
-                      {Array.from({ length: 6 }).map((_, i) => (
-                        <tr key={i}>
-                          <td className="px-4 py-2.5">
-                            <div className="flex items-center gap-2">
-                              <Skeleton className="h-3 w-3 rounded-full" />
-                              <Skeleton className="h-4 w-32" />
-                            </div>
-                          </td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-20" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-16" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-10 ml-auto" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
-                          <td className="px-4 py-2.5"><Skeleton className="h-4 w-14 ml-auto" /></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden">
-      {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            <FileText className="w-5 h-5" />
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+
+      {/* ══════════════════════════════════════════
+          HEADER
+      ══════════════════════════════════════════ */}
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+
+          <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+            <FileText className="w-4 h-4" />
           </div>
-          <div className="min-w-0 leading-tight">
+
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">Stock Report</h1>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
-            <p className="text-xs text-muted-foreground font-semibold mt-0.5">
-              {products.length} products
-              {lastUpdated && (
+            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+              {loading ? <Skeleton className="h-3 w-16 inline-block align-middle" /> : products.length} products
+              {lastUpdated && !loading && (
                 <span className="ml-2 font-normal text-muted-foreground/60">&middot; {lastUpdated.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</span>
               )}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => loadData(true)}
-            disabled={refreshing}
-            className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 border border-border/60"
-            title="Refresh data"
-          >
-            <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
-          </button>
-          <button onClick={handlePrint} className="px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
-            <Printer className="w-3.5 h-3.5" /> Print Report
-          </button>
-          {isRestricted ? (
-            <button onClick={() => useAuthStore.getState().logout()} className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Logout">
-              <LogOut className="w-4 h-4 text-destructive" />
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => loadData(true)}
+              disabled={refreshing}
+              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 border border-border/60"
+              title="Refresh data"
+            >
+              <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
             </button>
-          ) : (
-            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
+            <button
+              onClick={handlePrint}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <Printer className="w-3.5 h-3.5" /> Print Report
+            </button>
+            <button
+              onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
               <X className="w-4 h-4 text-destructive" />
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      {/* ── Content ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-6">
+      {/* ══════════════════════════════════════════
+          CONTENT
+      ══════════════════════════════════════════ */}
+      <div className="flex-1 overflow-y-auto px-5 py-4">
         <div className="space-y-6">
-          {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: 'Total Products', value: totalProducts.toLocaleString('en-IN'), accent: 'border-l-blue-500', iconBg: 'bg-blue-500/10 text-blue-500' },
-              { label: 'Total Stock (Qty)', value: totalStock.toFixed(0), accent: 'border-l-violet-500', iconBg: 'bg-violet-500/10 text-violet-500' },
-              { label: 'Out of Stock', value: outOfStockCount.toLocaleString('en-IN'), accent: outOfStockCount > 0 ? 'border-l-amber-500' : 'border-l-emerald-500', iconBg: outOfStockCount > 0 ? 'bg-amber-500/10 text-amber-500' : 'bg-emerald-500/10 text-emerald-500' },
-              { label: 'Stock Value (Purchase)', value: formatCurrency(totalPurchaseValue), accent: 'border-l-rose-500', iconBg: 'bg-rose-500/10 text-rose-500' },
-              { label: 'Stock Value (MRP)', value: formatCurrency(totalMrpValue), accent: 'border-l-sky-500', iconBg: 'bg-sky-500/10 text-sky-500' },
-              { label: 'Stock Value (Selling)', value: formatCurrency(totalSellingValue), accent: 'border-l-emerald-500', iconBg: 'bg-emerald-500/10 text-emerald-500' },
-            ].map((card, i) => (
-              <div key={i} className={`bg-card border border-border/80 ${card.accent} border-l-4 rounded-xl p-4 shadow-sm`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`p-1.5 rounded-lg ${card.iconBg}`}>
-                    {i < 3 ? <Package className="w-4 h-4" /> : <TrendingUp className="w-4 h-4" />}
-                  </div>
-                </div>
-                <div className="text-2xl font-black tracking-tight text-foreground">{card.value}</div>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mt-0.5">{card.label}</div>
+
+          {/* Gradient Stats Cards */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)' }}>
+              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
+              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                <Package className="w-4 h-4 text-white" />
               </div>
-            ))}
+              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Total Products</p>
+              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-20" /> : totalProducts.toLocaleString('en-IN')}</p>
+              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-24" /> : `${products.length} total in system`}</p>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)' }}>
+              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
+              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                <TrendingUp className="w-4 h-4 text-white" />
+              </div>
+              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Stock Value</p>
+              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalSellingValue)}</p>
+              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-20" /> : 'At selling price'}</p>
+            </div>
+
+            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: loading ? 'linear-gradient(135deg,#6b7280 0%,#4b5563 100%)' : outOfStockCount > 0 ? 'linear-gradient(135deg,#f59e0b 0%,#d97706 100%)' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)' }}>
+              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
+              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
+                <Activity className="w-4 h-4 text-white" />
+              </div>
+              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Stock Health</p>
+              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-16" /> : totalStock.toFixed(0)}</p>
+              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-28" /> : (outOfStockCount > 0 ? `${outOfStockCount} out of stock` : 'All in stock')}</p>
+            </div>
           </div>
 
           {/* Filters */}
-          <div className="bg-card border border-border/80 rounded-xl p-3 shadow-sm">
+          <div className="bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search name, barcode, code..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border/80 rounded-lg py-2 pl-9 pr-3 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 transition-all placeholder:text-muted-foreground/50"
+                  className={clsx("w-full bg-background border border-border rounded-xl px-3.5 py-2.5 pl-10 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm")}
                 />
+                {searchQuery && (
+                  <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
               <select
                 value={categoryFilter}
                 onChange={e => setCategoryFilter(e.target.value)}
-                className="bg-background border border-border/80 rounded-lg py-2 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 appearance-none transition-all"
+                className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
               >
                 <option value="">All Categories</option>
                 {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -443,7 +370,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               <select
                 value={stockFilter}
                 onChange={e => setStockFilter(e.target.value as any)}
-                className="bg-background border border-border/80 rounded-lg py-2 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 appearance-none transition-all"
+                className="bg-background border border-border/80 rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer"
               >
                 <option value="all">All Stock</option>
                 <option value="in_stock">In Stock</option>
@@ -453,7 +380,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               {(searchQuery || categoryFilter || stockFilter !== 'all') && (
                 <button
                   onClick={() => { setSearchQuery(''); setCategoryFilter(''); setStockFilter('all'); }}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-95"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer"
                   title="Clear filters"
                 >
                   <X className="w-4 h-4" />
@@ -463,17 +390,28 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           </div>
 
           {/* Category Breakdown */}
-          {categoryStats.length > 0 && (
-            <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
-              <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
-                <div className="flex items-center gap-2">
-                  <div className="p-1 rounded-md bg-primary/10 text-primary">
-                    <Package className="w-3.5 h-3.5" />
-                  </div>
-                  <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Category Breakdown</h3>
-                </div>
+          <div className="bg-card border border-border/60 rounded-2xl p-5 shadow-sm">
+            <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border/50">
+              <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                <Package className="w-4 h-4" />
               </div>
-              <div className="p-4 space-y-3">
+              <span className="text-xs font-black uppercase tracking-wider text-primary">Category Breakdown</span>
+            </div>
+            {loading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-32" />
+                      <Skeleton className="h-3 w-12" />
+                    </div>
+                    <Skeleton className="h-3 w-60" />
+                    <Skeleton className="h-2 w-full rounded-full" />
+                  </div>
+                ))}
+              </div>
+            ) : categoryStats.length > 0 ? (
+              <div className="space-y-3">
                 {categoryStats.map(cat => (
                   <div key={cat.name} className="group">
                     <div className="flex items-center justify-between mb-1">
@@ -499,14 +437,16 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground text-center py-4">No category data available</p>
+            )}
+          </div>
 
           {/* Low Stock Alerts */}
-          {lowStockItems.length > 0 && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+          {!loading && lowStockItems.length > 0 && (
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5">
               <div className="flex items-center gap-2 mb-3">
-                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
                 <h3 className="text-xs font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">
                   Low Stock Alerts &mdash; {lowStockItems.length} item{lowStockItems.length > 1 ? 's' : ''}
                 </h3>
@@ -539,14 +479,14 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           )}
 
           {/* Detailed Table */}
-          <div className="bg-card border border-border/80 rounded-xl shadow-sm overflow-hidden">
-            <div className="px-4 py-2.5 bg-muted/20 border-b border-border/60">
-              <div className="flex items-center gap-2">
-                <div className="p-1 rounded-md bg-primary/10 text-primary">
+          <div className="bg-card border border-border/60 rounded-2xl shadow-sm overflow-hidden">
+            <div className="px-5 py-3 border-b border-border/50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Package className="w-3.5 h-3.5" />
                 </div>
-                <h3 className="text-xs font-black text-foreground uppercase tracking-widest">Product-wise Stock Details</h3>
-                <span className="text-xs text-muted-foreground ml-auto font-semibold">{products.length} products</span>
+                <span className="text-xs font-black uppercase tracking-wider text-primary">Product-wise Stock Details</span>
+                <span className="text-xs text-muted-foreground ml-auto font-semibold">{loading ? <Skeleton className="h-3 w-16 inline-block" /> : `${products.length} products`}</span>
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -564,65 +504,79 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {Object.entries(groupedByCategory).map(([cat, items]) => {
-                    const catTotalStock = items.reduce((s, p) => s + Number(p.current_stock), 0);
-                    return (
-                      <>
-                        <tr className="bg-primary/5" key={cat}>
-                          <td colSpan={8} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
-                            <div className="flex items-center gap-2">
-                              <span>{cat}</span>
-                              <span className="text-[10px] text-muted-foreground font-semibold">
-                                ({items.length} items &middot; {catTotalStock.toFixed(0)} stock)
-                              </span>
-                            </div>
-                          </td>
-                        </tr>
-                        {items.map(p => {
-                          const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
-                          const isOutOfStock = Number(p.current_stock) <= 0;
-                          const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
-                          const rate = calcMrp(p);
-                          const finalSellingPrice = calcSellingPrice(p);
-                          const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
-                          const unitWeightGrams = Number(da?.weight_grams) || 0;
-                          const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
-                          return (
-                            <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
-                              <td className="px-4 py-2.5">
-                                <div className="flex items-center gap-2">
-                                  <div className={clsx('w-2 h-2 rounded-full shrink-0', isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-emerald-500')} />
-                                  <span className="font-bold text-sm text-foreground">{p.name}</span>
-                                </div>
-                              </td>
-                              <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
-                              <td className="px-4 py-2.5 text-sm text-muted-foreground">{gr?.grade_name || '-'}</td>
-                              <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', isOutOfStock ? 'text-red-500' : isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' : '-'}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(rate)}</td>
-                              <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(finalSellingPrice)}</td>
-                            </tr>
-                          );
-                        })}
-                      </>
-                    );
-                  })}
-                  <tr className="bg-muted/30 border-t-2 border-border/70">
-                    <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
-                    <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
-                    <td className="px-4 py-3 text-right"></td>
-                    <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{formatCurrency(totalMrpValue)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-sm text-emerald-500">{formatCurrency(totalSellingValue)}</td>
-                  </tr>
+                  {loading ? (
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td className="px-4 py-3" colSpan={8}><Skeleton className="h-5 w-full rounded" /></td>
+                      </tr>
+                    ))
+                  ) : Object.entries(groupedByCategory).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
+                    </tr>
+                  ) : (
+                    Object.entries(groupedByCategory).map(([cat, items]) => {
+                      const catTotalStock = items.reduce((s, p) => s + Number(p.current_stock), 0);
+                      return (
+                        <>
+                          <tr className="bg-primary/5" key={cat}>
+                            <td colSpan={8} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
+                              <div className="flex items-center gap-2">
+                                <span>{cat}</span>
+                                <span className="text-[10px] text-muted-foreground font-semibold">
+                                  ({items.length} items &middot; {catTotalStock.toFixed(0)} stock)
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                          {items.map(p => {
+                            const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
+                            const isOutOfStock = Number(p.current_stock) <= 0;
+                            const gr = p.grade_id ? grades.find(g => g.grade_id === p.grade_id) : null;
+                            const rate = calcMrp(p);
+                            const finalSellingPrice = calcSellingPrice(p);
+                            const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+                            const unitWeightGrams = Number(da?.weight_grams) || 0;
+                            const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
+                            return (
+                              <tr key={p.product_id} className={clsx('hover:bg-muted/20 transition-colors', (isOutOfStock || isLowStock) && 'bg-amber-500/[0.02]')}>
+                                <td className="px-4 py-2.5">
+                                  <div className="flex items-center gap-2">
+                                    <div className={clsx('w-2 h-2 rounded-full shrink-0', isOutOfStock ? 'bg-red-500' : isLowStock ? 'bg-amber-500' : 'bg-emerald-500')} />
+                                    <span className="font-bold text-sm text-foreground">{p.name}</span>
+                                  </div>
+                                </td>
+                                <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
+                                <td className="px-4 py-2.5 text-sm text-muted-foreground">{gr?.grade_name || '-'}</td>
+                                <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', isOutOfStock ? 'text-red-500' : isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
+                                <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' : '-'}</td>
+                                <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
+                                <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(rate)}</td>
+                                <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(finalSellingPrice)}</td>
+                              </tr>
+                            );
+                          })}
+                        </>
+                      );
+                    })
+                  )}
+                  {!loading && (
+                    <tr className="bg-muted/30 border-t-2 border-border/70">
+                      <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
+                      <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
+                      <td className="px-4 py-3 text-right"></td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{formatCurrency(totalMrpValue)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-emerald-500">{formatCurrency(totalSellingValue)}</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
 
           <div className="text-center text-xs text-muted-foreground py-2">
-            Generated by Vendora POS &mdash; {new Date().toLocaleString('en-IN')} &middot; {totalProducts} products &middot; {Object.keys(groupedByCategory).length} categories
+            {loading ? <Skeleton className="h-3 w-48 mx-auto" /> : `Generated by Vendora POS &mdash; ${new Date().toLocaleString('en-IN')} &middot; ${totalProducts} products &middot; ${Object.keys(groupedByCategory).length} categories`}
           </div>
         </div>
       </div>

@@ -318,7 +318,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   // ── Loading ──────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center gap-4 bg-background">
+      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-background">
         <div className="relative">
           <div className="w-14 h-14 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
           <Banknote className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
@@ -333,121 +333,88 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const totalOut = transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden text-foreground">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
       {/* ══════════════════════════════════════════════════════════════════════
           HEADER
       ══════════════════════════════════════════════════════════════════════ */}
       {!showHist && (
-      <header className="relative shrink-0 z-30 border-b border-border/70">
-        {/* Top gradient accent strip */}
-        <div
-          className="absolute inset-x-0 top-0 h-0.5"
-          style={{ background: 'linear-gradient(90deg, var(--primary) 0%, transparent 100%)' }}
-        />
-        <div className="flex items-center justify-between px-6 py-3 bg-card shadow-sm gap-4">
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center justify-between px-5 py-3 gap-4">
           {/* Left: title + status */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2.5 rounded-xl bg-primary/10 shrink-0">
-              <Banknote className="w-5 h-5 text-primary" />
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <Banknote className="w-4 h-4" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-sm font-extrabold text-foreground tracking-tight">Cash Settlement</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                {/* Status pill */}
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Cash Settlement</h1>
                 <span className={clsx(
-                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black border',
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500'
+                )} />
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={clsx(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
                   drawerOpen   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
                   drawerClosed ? 'bg-muted text-muted-foreground border-border' :
                   yesterdayNotClosed ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
                                  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
                 )}>
-                  <span className={clsx(
-                    'w-1.5 h-1.5 rounded-full',
-                    drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500'
-                  )} />
                   {drawerOpen ? 'Open' : drawerClosed ? 'Closed' : yesterdayNotClosed ? 'Blocked' : 'Not Started'}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
                   {drawer?.business_date || todayStr()}
                 </span>
-                {yesterdayNotClosed && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25">
-                    <AlertTriangle className="w-2.5 h-2.5" />
-                    Close yesterday first
-                  </span>
-                )}
                 {drawerClosed && drawer?.actual_cash !== null && drawer?.actual_cash !== undefined && (
                   <span className={clsx(
-                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black border',
+                    'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border',
                     drawer.cash_short > 0 ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
                     drawer.cash_excess > 0 ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
                     'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
                   )}>
                     Actual: {formatCurrency(drawer.actual_cash)}
-                    {drawer.cash_short > 0 && ` (Short −${formatCurrency(drawer.cash_short)})`}
-                    {drawer.cash_excess > 0 && ` (Excess +${formatCurrency(drawer.cash_excess)})`}
-                    {drawer.cash_short === 0 && drawer.cash_excess === 0 && ' (Matched)'}
+                    {drawer.cash_short > 0 && ` Short −${formatCurrency(drawer.cash_short)}`}
+                    {drawer.cash_excess > 0 && ` Excess +${formatCurrency(drawer.cash_excess)}`}
+                    {drawer.cash_short === 0 && drawer.cash_excess === 0 && ' Matched'}
                   </span>
                 )}
               </div>
             </div>
           </div>
 
-          {/* Centre: balance hero (only when drawer exists) */}
-          {drawer && (
-            <div className="hidden md:flex flex-col items-center">
-              <span className="text-xl font-black text-foreground tabular-nums tracking-tight">
-                {formatCurrency(drawerClosed ? drawer.expected_closing : (drawer.current_cash || 0))}
-              </span>
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">
-                {drawerClosed ? 'Expected Closing' : 'Current Balance'}
-              </span>
-            </div>
-          )}
-
           {/* Right: action buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={openHistory}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-transparent hover:border-border/60 transition-all duration-200 active:scale-95 cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
             >
               <History className="w-3.5 h-3.5" /> History
             </button>
             {!drawerClosed && (
               <button
                 onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setOpeningBalError(''); setShowOpeningBal(true); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
               >
-                <DollarSign className="w-3.5 h-3.5" /> Opening Bal
+                <DollarSign className="w-3.5 h-3.5" /> Opening
               </button>
             )}
             {drawerOpen && !closeResult && (
               <button
                 onClick={() => { setActualCash(drawer?.expected_closing || 0); setCloseResult(null); setShowDayClose(true); }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/25 transition-all duration-200 active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-destructive hover:bg-destructive/10 border border-destructive/25 transition-all duration-200 active:scale-95 cursor-pointer"
               >
-                <AlertTriangle className="w-3.5 h-3.5" /> Close Day
+                <AlertTriangle className="w-3.5 h-3.5" /> Close
               </button>
             )}
-            <span className="w-px h-6 bg-border/40 mx-1" />
-            {isRestricted ? (
-              <button
-                onClick={() => useAuthStore.getState().logout()}
-                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4 text-destructive" />
-              </button>
-            ) : (
-              <button
-                onClick={onClose}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                title="Close"
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </button>
-            )}
+            <button
+              onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4 text-destructive" />
+            </button>
           </div>
         </div>
       </header>

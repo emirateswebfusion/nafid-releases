@@ -910,38 +910,38 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
   }, {});
 
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden">
-      {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            {view === 'list' ? <Package className="w-5 h-5" /> : view === 'add' ? <PackagePlus className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+      {/* ═══════════════════════════════════════════════════
+          HEADER
+      ═══════════════════════════════════════════════════ */}
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+            {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}
           </div>
-          <div className="min-w-0 leading-tight">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
                 {view === 'list' ? 'Inventory' : view === 'add' ? 'Add New Product' : `Edit: ${editingProduct?.name}`}
               </h1>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
-            {view === 'list' &&                <p className="text-xs text-muted-foreground font-semibold mt-0.5">{totalCount !== null ? totalCount : '...'} products in stock</p>}
+            {view === 'list' && <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{totalCount !== null ? totalCount : '...'} products in stock</p>}
             {view !== 'list' && (
-              <span className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
+              <span className="text-[11px] text-muted-foreground font-medium bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
                 {useAuthStore.getState().role === 'OWNER' ? 'Owner' : (useAuthStore.getState().userName || 'Staff')}
               </span>
             )}
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {view !== 'list' ? (
-            <button onClick={() => setView('list')} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={view !== 'list' ? () => setView('list') : onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
               <X className="w-4 h-4 text-destructive" />
             </button>
-          ) : (
-            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
-              <X className="w-4 h-4 text-destructive" />
-            </button>
-          )}
+          </div>
         </div>
       </header>
       

@@ -1463,7 +1463,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden font-sans">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background font-sans">
       {renderMessage()}
       {showBulkSheet && <BulkOnboardingSheet onClose={() => setShowBulkSheet(false)} />}
 

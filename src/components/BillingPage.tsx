@@ -1470,7 +1470,7 @@ export function BillingPage() {
   );
 
   return (
-    <div className="flex flex-col h-full w-full bg-background overflow-hidden text-foreground">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
       <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md pointer-events-none">
         {hardwareError && (
@@ -1494,16 +1494,17 @@ export function BillingPage() {
       </div>
 
       {/* ─── TOP HEADER ─── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            <Store className="w-5 h-5" />
-          </div>
-          <div className="min-w-0 leading-tight">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <Store className="w-4 h-4" />
             </div>
+            <div className="min-w-0 leading-tight">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={clsx(
                 'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
@@ -1619,24 +1620,15 @@ export function BillingPage() {
           >
             <Settings className="w-4 h-4" />
           </button>
-          <div className="h-5 w-px bg-border mx-1" />
-          {authRole === 'OWNER' ? (
-            <button
-              onClick={() => setRole('OWNER')}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-              title="Dashboard"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
-          ) : (
-            <button
-              onClick={logout}
-              className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
-          )}
+          <span className="w-px h-5 bg-border/40" />
+          <button
+            onClick={authRole === 'OWNER' ? () => setRole('OWNER') : logout}
+            className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+            title={authRole === 'OWNER' ? 'Dashboard' : 'Logout'}
+          >
+            {authRole === 'OWNER' ? <X className="w-4 h-4 text-destructive" /> : <LogOut className="w-4 h-4 text-destructive" />}
+          </button>
+        </div>
         </div>
       </header>
 

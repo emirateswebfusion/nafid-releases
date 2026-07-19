@@ -583,7 +583,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
      RENDER
   ═══════════════════════════════════════ */
   return (
-    <div className="flex flex-col h-full w-full bg-background overflow-hidden" style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
       {/* ─── TOAST ─── */}
       {reprintSuccess && (
@@ -607,59 +607,49 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       )}
 
       {/* ─── HEADER ─── */}
-      <header className="flex items-center justify-between px-5 py-3 border-b border-border bg-card shrink-0 gap-4 z-30">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Receipt className="w-4.5 h-4.5 text-primary" style={{ width: 18, height: 18 }} />
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <Receipt className="w-4 h-4" />
             </div>
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 border-2 border-card" />
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Sales History</h1>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">Billing records &amp; analytics</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-black text-foreground tracking-tight">Sales History</h1>
-            <p className="text-[10px] text-muted-foreground font-semibold mt-px">Billing records &amp; analytics</p>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <DateRangeFilter
+              startDate={filterDate}
+              endDate={filterDateEnd}
+              onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
+            />
+
+            <button
+              onClick={handleExportCSV}
+              disabled={isExporting}
+              title="Export filtered invoices to CSV"
+              className="h-8 px-3 rounded-xl text-[11px] font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 shrink-0"
+            >
+              {isExporting
+                ? <RefreshCw className="w-3 h-3 animate-spin" />
+                : <Download className="w-3 h-3" />
+              }
+              {isExporting ? 'Exporting…' : 'CSV'}
+            </button>
+
+            <button
+              onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4 text-destructive" />
+            </button>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Date Range */}
-          <DateRangeFilter
-            startDate={filterDate}
-            endDate={filterDateEnd}
-            onChange={(start, end) => { setFilterDate(start); setFilterDateEnd(end); }}
-          />
-
-          {/* Export Button */}
-          <button
-            onClick={handleExportCSV}
-            disabled={isExporting}
-            title="Export filtered invoices to CSV"
-            className="h-8 px-3 rounded-xl text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 shrink-0"
-          >
-            {isExporting
-              ? <RefreshCw className="w-3 h-3 animate-spin" />
-              : <Download className="w-3 h-3" />
-            }
-            {isExporting ? 'Exporting…' : 'Export CSV'}
-          </button>
-
-           {isRestricted ? (
-              <button
-                onClick={() => useAuthStore.getState().logout()}
-                className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
-                title="Logout"
-              >
-                <LogOut className="w-4 h-4 text-destructive" />
-              </button>
-            ) : (
-              <button
-                onClick={onClose}
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                title="Close"
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </button>
-            )}
         </div>
       </header>
 

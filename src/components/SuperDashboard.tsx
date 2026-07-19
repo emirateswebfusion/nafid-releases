@@ -478,53 +478,48 @@ export default function SuperDashboard() {
   };
 
   return (
-    <div className="min-h-screen w-screen bg-background text-foreground font-sans antialiased selection:bg-amber-500/30 transition-colors duration-200 overflow-y-auto">
+    <div className="fixed inset-0 z-40 flex flex-col bg-background text-foreground font-sans antialiased selection:bg-amber-500/30 transition-colors duration-200">
       {/* Header bar */}
-      <header className="border-b border-border bg-card/85 backdrop-blur sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500">
-              <Database className="h-5 w-5" />
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 shadow-inner shrink-0">
+              <Database className="w-4 h-4" />
             </div>
-            <div>
-              <span className="font-extrabold text-foreground tracking-wide text-sm sm:text-base flex items-center gap-1.5">
-                Vendora Console
-                <span className="text-[10px] font-mono uppercase bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Super Admin</span>
-              </span>
-              <span className="text-[10px] text-muted-foreground block font-mono">Registry Database & Schema Manager</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold text-foreground truncate">Vendora Console</span>
+                <span className="text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded shrink-0">Super Admin</span>
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">Registry Database & Schema Manager</p>
             </div>
           </div>
-          <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="text-right hidden sm:block">
-              <span className="text-xs font-semibold text-foreground block mb-0.5">{userName || 'Platform Admin'}</span>
-              <span className="inline-block text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                Platform Administrator
-              </span>
+              <span className="text-[11px] font-bold text-foreground block leading-tight">{userName || 'Platform Admin'}</span>
+              <span className="text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded">Platform Admin</span>
             </div>
-            <div className="w-px h-6 bg-border mx-1 hidden sm:block" />
-            
-            {/* Theme Switcher Button */}
+            <span className="w-px h-5 bg-border/40 hidden sm:block" />
             <button
               onClick={toggleTheme}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition duration-200 cursor-pointer"
+              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
               title="Toggle Theme"
             >
-              {theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-
             <button
               onClick={handleLogout}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition duration-200 cursor-pointer"
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Sign Out"
             >
-              <LogOut className="h-5 w-5" />
+              <LogOut className="w-4 h-4 text-destructive" />
             </button>
           </div>
         </div>
       </header>
 
       {/* Main Container */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="flex-1 overflow-y-auto max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
         
         {/* Statistics Hero Grid */}
         <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">

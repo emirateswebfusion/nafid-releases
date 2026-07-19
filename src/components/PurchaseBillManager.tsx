@@ -227,35 +227,35 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-background overflow-hidden">
-      {/* ── Header ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
-            {showAddForm ? <Receipt className="w-5 h-5" /> : <Receipt className="w-5 h-5" />}
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+      {/* ═══════════════════════════════════════════════════
+          HEADER
+      ═══════════════════════════════════════════════════ */}
+      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+            <Receipt className="w-4 h-4" />
           </div>
-          <div className="min-w-0 leading-tight">
+          <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
                 {showAddForm ? 'New Purchase Bill' : 'Purchase Bills'}
               </h1>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" title="Active" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
-            <p className="text-xs text-muted-foreground font-semibold mt-0.5">
+            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
               {showAddForm ? 'Record a purchase entry' : `${bills.length} purchase bills`}
             </p>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          {showAddForm ? (
-            <button onClick={() => setShowAddForm(false)} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Back to list">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={showAddForm ? () => setShowAddForm(false) : onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
               <X className="w-4 h-4 text-destructive" />
             </button>
-          ) : (
-            <button onClick={onClose} className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30" title="Close">
-              <X className="w-4 h-4 text-destructive" />
-            </button>
-          )}
+          </div>
         </div>
       </header>
 

@@ -234,42 +234,49 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     ];
 
     return (
-        <div className="flex-1 flex flex-col bg-background overflow-hidden relative">
-            {/* Header */}
-            <div className="px-8 py-5 border-b border-border bg-card relative z-10">
-                <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-40 flex flex-col bg-background">
+            {/* ═══════════════════════════════════════════════════
+                HEADER
+            ═══════════════════════════════════════════════════ */}
+            <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
+                <div className="flex items-center justify-between gap-4 px-5 py-3">
                     <div>
-                        <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-                            Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
-                        </h1>
-                        <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-sm font-bold text-foreground truncate">
+                                Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
+                            </h1>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                        </div>
+                        <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
                             {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
-                    <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
-                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                            <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Today</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <div className="hidden sm:flex items-center gap-2">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
+                                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                                <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">₹{totalSales.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Today</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                                <span className="w-2 h-2 rounded-full bg-amber-500" />
+                                <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
+                            </div>
+                            <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", isOnline ? "bg-primary/10 border-primary/20" : "bg-destructive/10 border-destructive/20")}>
+                                <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-primary animate-pulse" : "bg-destructive")} />
+                                <span className={clsx("text-[10px] font-bold tracking-wider", isOnline ? "text-primary" : "text-destructive")}>{isOnline ? 'CONNECTED' : 'DISCONNECTED'}</span>
+                            </div>
+                            <span className="w-px h-5 bg-border/40" />
                         </div>
-                        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                            <span className="w-2 h-2 rounded-full bg-amber-500" />
-                            <span className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">{invoiceCount} {invoiceCount === 1 ? 'Invoice' : 'Invoices'}</span>
-                        </div>
-                        <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", isOnline ? "bg-primary/10 border-primary/20" : "bg-destructive/10 border-destructive/20")}>
-                            <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-primary animate-pulse" : "bg-destructive")} />
-                            <span className={clsx("text-[10px] font-bold tracking-wider", isOnline ? "text-primary" : "text-destructive")}>{isOnline ? 'CONNECTED' : 'DISCONNECTED'}</span>
-                        </div>
-                        <div className="w-px h-6 bg-border mx-1" />
                         <button
                             onClick={toggleTheme}
-                            className="w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
                             title="Toggle Theme"
                         >
                             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </button>
                         <button
                             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
-                            className="w-9 h-9 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted flex items-center justify-center transition-colors"
+                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border/50 transition-all duration-200 active:scale-95 cursor-pointer"
                             title="Settings"
                         >
                             <Settings className="w-4 h-4" />
@@ -277,7 +284,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         <div className="relative" ref={menuRef}>
                             <button
                                 onClick={() => setMenuOpen(!menuOpen)}
-                                className="w-9 h-9 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-sm text-primary-foreground shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200"
+                                className="w-8 h-8 rounded-full bg-gradient-to-br from-primary to-primary/80 flex items-center justify-center font-bold text-xs text-primary-foreground shadow-sm hover:shadow-md hover:scale-105 transition-all duration-200 cursor-pointer"
                                 title="Profile"
                             >
                                 {(userName || shopName)?.[0].toUpperCase() || 'A'}
@@ -294,7 +301,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                                     <div className="p-1.5">
                                         <button
                                             onClick={() => useAuthStore.getState().logout()}
-                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left"
+                                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-destructive hover:bg-destructive/10 rounded-lg transition-colors text-left cursor-pointer"
                                         >
                                             <LogOut className="w-4 h-4" />
                                             <span>Logout</span>
@@ -305,7 +312,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         </div>
                     </div>
                 </div>
-            </div>
+            </header>
 
             {/* Grid Content */}
             <div className="flex-1 min-h-0 p-8 grid grid-cols-3 gap-4 relative z-0 items-stretch overflow-y-auto">
