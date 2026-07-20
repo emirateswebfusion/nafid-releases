@@ -34,6 +34,16 @@ module.exports = {
   extraResources: [
     '.env.production'
   ],
+  mac: {
+    target: [
+      {
+        target: 'dmg',
+        arch: ['x64', 'arm64']
+      }
+    ],
+    artifactName: '${productName}-${version}-mac.${ext}',
+    category: 'public.app-category.business'
+  },
   win: {
     target: [
       {

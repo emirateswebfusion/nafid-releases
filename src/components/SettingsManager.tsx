@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb,
@@ -375,6 +375,16 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   };
 
   const handleInstallUpdate = () => { setUpdateStatus('Restarting to install update...'); window.electronAPI?.appInstallUpdate(); };
+
+  const handleRetryDownload = () => {
+    if (!window.electronAPI) return;
+    setUpdateStatus(null);
+    setUpdateInfo(null);
+    setIsDownloading(false);
+    setDownloadProgress(null);
+    setUpdateReady(false);
+    window.electronAPI.appCheckForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
+  };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1398,10 +1408,22 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                         </div>
                       </div>
                       {updateStatus && (
-                        <div className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold border shrink-0 uppercase tracking-wider", updateStatus === 'Up to date' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : updateStatus === 'Update available' || updateStatus === 'Update ready to install' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 animate-bounce" : updateStatus === 'Downloading...' || isDownloading ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 border-border text-muted-foreground")}>
-                          {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
-                          {updateStatus}
-                        </div>
+                        updateStatus === 'Download failed'
+                          ? (
+                            <button
+                              type="button"
+                              onClick={handleRetryDownload}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold border shrink-0 uppercase tracking-wider bg-red-500/10 border-red-500/20 text-red-600 dark:text-red-400 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all duration-200 active:scale-95 cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Retry Download
+                            </button>
+                          ) : (
+                            <div className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-extrabold border shrink-0 uppercase tracking-wider", updateStatus === 'Up to date' ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400" : updateStatus === 'Update available' || updateStatus === 'Update ready to install' ? "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400 animate-bounce" : updateStatus === 'Downloading...' || isDownloading ? "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted/50 border-border text-muted-foreground")}>
+                              {isDownloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : updateStatus === 'Up to date' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />}
+                              {updateStatus}
+                            </div>
+                          )
                       )}
                     </div>
                   </div>
@@ -1451,6 +1473,24 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                         </button>
                       </div>
                     )}
+                  </div>
+                )}
+                {updateStatus === 'Download failed' && (
+                  <div className="rounded-2xl border border-red-500/20 bg-gradient-to-br from-red-500/[0.04] to-transparent overflow-hidden shadow-sm">
+                    <div className="flex items-center gap-4.5 px-5 py-4.5">
+                      <div className="p-2.5 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 shrink-0"><AlertCircle className="w-5 h-5" /></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground">Update Download Failed</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5">Check your internet connection and try again.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRetryDownload}
+                        className="flex items-center gap-2 px-4 py-2.5 text-xs font-bold bg-red-500/10 hover:bg-red-500 hover:text-white rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer border border-red-500/20 hover:border-red-500 shadow-sm shrink-0"
+                      >
+                        <RefreshCw className="w-4 h-4 shrink-0" /> Try Again
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

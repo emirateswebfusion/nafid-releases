@@ -210,14 +210,21 @@ app.whenReady().then(async () => {
   setupCSP();
   createWindow();
 
-  // Handle deep link when app is opened via protocol (Windows)
+  // Handle deep link when app is opened via protocol
+  // On Windows: command line arguments; on macOS: open-url event
   if (process.platform === 'win32') {
     const url = process.argv.find(arg => arg.startsWith(`${PROTOCOL}://`));
     if (url) {
-      // Small delay to ensure window is ready
       setTimeout(() => handleDeepLink(url), 1000);
     }
   }
+
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (url.startsWith(`${PROTOCOL}://`)) {
+      setTimeout(() => handleDeepLink(url), 1000);
+    }
+  });
 
   if (mainWindow) {
     initBarcodeScanner(mainWindow);
