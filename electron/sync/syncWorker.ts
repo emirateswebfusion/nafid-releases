@@ -122,9 +122,10 @@ function notifyOnlineStatus(online: boolean) {
   }
 }
 
-function toSqliteDate(iso: string | null | undefined): string {
+function toSqliteDate(iso: string | number | null | undefined): string {
   if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
-  return iso.replace('T', ' ').replace('Z', '');
+  const str = typeof iso === 'string' ? iso : String(iso);
+  return str.replace('T', ' ').replace('Z', '');
 }
 
 const SYNC_INTERVAL_MINS = parseInt(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1');
@@ -1443,6 +1444,8 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
         } else {
            if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
         }
+
+        if (typeof valueToSave !== 'string') valueToSave = String(valueToSave);
 
     upsert.run({
       tenant_id: s.tenant_id || tenantId,

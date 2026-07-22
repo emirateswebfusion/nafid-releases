@@ -2342,9 +2342,6 @@ export function BillingPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
-                        {item.billing_type === 'WEIGHT' && (
-                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">WT</span>
-                        )}
                         {item.sku_barcode && (
                           <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
                         )}

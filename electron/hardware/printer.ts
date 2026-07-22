@@ -48,6 +48,17 @@ let currentBulkPrintItems: any[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
 
+function getPrintFormatConfig(tenantId: string) {
+  try {
+    const db = getDb();
+    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'print_format'").get(tenantId || 'global', 'print_format');
+    if (row) return JSON.parse(row.value);
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 function getLabelCodeType(tenantId: string): string {
   try {
     const db = getDb();
@@ -102,7 +113,14 @@ export function initPrinter() {
   ipcMain.handle('hardware:printReceipt', async (event, { tenant_id, textData }: { tenant_id: string; textData: string }) => {
     console.log(`[Hardware] Received Print Request for tenant: ${tenant_id}`);
     const config = getPrinterConfig(tenant_id, 'receipt');
+    const printFmt = getPrintFormatConfig(tenant_id);
     
+    // Unified width: prefer print_format.width (mm) over receiptWidthCm (cm)
+    // This ensures the physical page size always matches the selected Bill Format
+    const widthMm = printFmt?.width
+      ? Number(printFmt.width)
+      : (config.receiptWidthCm || 5.8) * 10;
+
     try {
       const receiptText = textData + '\n\n\n\n\n';
       
@@ -115,7 +133,6 @@ export function initPrinter() {
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
       } else if (config.type === 'usb' && config.deviceName) {
         currentReceiptText = receiptText;
-        const widthMm = (config.receiptWidthCm || 5.8) * 10;
         await printReceiptUSB(config.deviceName, widthMm);
       } else if (config.type === 'usb') {
         throw new Error('USB printing requested but deviceName not configured');

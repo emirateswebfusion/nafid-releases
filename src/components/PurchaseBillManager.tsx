@@ -1,9 +1,9 @@
-﻿import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
+import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save, ChevronDown, ChevronUp,
-  Receipt, Tag, RefreshCw, Check, Eye, Download
+  Receipt, Tag, RefreshCw, Check, Eye, Download, Pencil
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
@@ -55,6 +55,9 @@ interface Product {
   pricing_mode?: string;
   grade_rate?: number;
   grade_purchase_price?: number;
+  is_gst_applicable?: number;
+  tax_rate_percent?: number;
+  hsn_sac_code?: string;
 }
 
 const formatDate = (d: string) => {
@@ -77,6 +80,8 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const [loadingViewingItems, setLoadingViewingItems] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [editingBill, setEditingBill] = useState<PurchaseBill | null>(null);
+  const [editHasItems, setEditHasItems] = useState(false);
 
   // derived — apply type and invoice filters on top of the server-side search results
   const filteredBills = useMemo(() => {
@@ -103,6 +108,8 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const estRef = useRef<PurchaseBillFormHandle>(null);
   const [supplierSearch, setSupplierSearch] = useState('');
   const [billType, setBillType] = useState<'GST' | 'ESTIMATE'>('GST');
+  const [gstHasItems, setGstHasItems] = useState(false);
+  const [estHasItems, setEstHasItems] = useState(false);
 
   const loadBills = async () => {
     if (!window.electronAPI || !tenantId) return;
@@ -142,6 +149,18 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
     setLoadingViewingItems(false);
   };
 
+  const handleEditBill = async (bill: PurchaseBill) => {
+    setEditingBill(bill);
+    setEditHasItems(false);
+    setSupplierName(bill.supplier_name);
+    setSupplierSearch('');
+    setSupplierId(bill.supplier_id);
+    setBillDate(bill.bill_date || new Date().toISOString().split('T')[0]);
+    setBillNotes(bill.notes || '');
+    setBillType(bill.bill_type as 'GST' | 'ESTIMATE');
+    setShowAddForm(true);
+  };
+
   const handleDelete = async (bill: PurchaseBill) => {
     if (!confirm(`Delete purchase bill "${bill.bill_number}" from ${bill.supplier_name}?`)) return;
     if (window.electronAPI) {
@@ -156,13 +175,31 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExportCSV = async () => {
     if (filteredBills.length === 0) return;
     setIsExporting(true);
     try {
+      const billGstMap: Record<string, { sgst: number; cgst: number }> = {};
+      const gstBills = filteredBills.filter(b => b.bill_type === 'GST');
+      if (gstBills.length > 0 && window.electronAPI) {
+        const results = await Promise.all(
+          gstBills.map(b => window.electronAPI!.dbGetPurchaseBillItems(b.purchase_bill_id))
+        );
+        gstBills.forEach((bill, idx) => {
+          const items: PurchaseBillItem[] = Array.isArray(results[idx]) ? results[idx] as PurchaseBillItem[] : [];
+          const totalGst = items.reduce((acc, item) => {
+            const rate = item.tax_rate_percent || 0;
+            if (item.is_gst_applicable === 1 && rate > 0) {
+              return acc + (Number(item.total_amount) * rate) / (100 + rate);
+            }
+            return acc;
+          }, 0);
+          billGstMap[bill.purchase_bill_id] = { sgst: totalGst / 2, cgst: totalGst / 2 };
+        });
+      }
       const headers = [
         'Bill No', 'Bill Date', 'Bill Type', 'Supplier Name', 'Supplier Phone',
-        'Invoice Number', 'Notes', 'Total Amount (₹)', 'Created At'
+        'Invoice Number', 'Notes', 'Total Amount (₹)', 'CGST Amount (₹)', 'SGST Amount (₹)', 'Created At'
       ];
       const escape = (val: any) => {
         const str = val == null ? '' : String(val);
@@ -170,17 +207,22 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           ? `"${str.replace(/"/g, '""')}"`
           : str;
       };
-      const rows = filteredBills.map(b => [
-        escape(b.bill_number),
-        escape(b.bill_date),
-        escape(b.bill_type),
-        escape(b.supplier_name),
-        escape(b.supplier_phone || ''),
-        escape(b.invoice_number || ''),
-        escape(b.notes || ''),
-        escape(b.total_amount.toFixed(2)),
-        escape(new Date(b.created_at).toLocaleString('en-IN')),
-      ]);
+      const rows = filteredBills.map(b => {
+        const { sgst = 0, cgst = 0 } = billGstMap[b.purchase_bill_id] || {};
+        return [
+          escape(b.bill_number),
+          escape(b.bill_date),
+          escape(b.bill_type),
+          escape(b.supplier_name),
+          escape(b.supplier_phone || ''),
+          escape(b.invoice_number || ''),
+          escape(b.notes || ''),
+          escape(b.total_amount.toFixed(2)),
+          escape(cgst.toFixed(2)),
+          escape(sgst.toFixed(2)),
+          escape(new Date(b.created_at).toLocaleString('en-IN')),
+        ];
+      });
 
       const typeLabel = filterType === 'ALL' ? 'All' : filterType;
       const searchLabel = searchQuery ? `_search-${searchQuery}` : '';
@@ -211,17 +253,28 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const handleSaveAll = async () => {
     setIsSavingAll(true);
     let savedCount = 0;
-    if (gstRef.current?.hasItems) {
-      const ok = await gstRef.current.save();
-      if (ok) savedCount++;
-    }
-    if (estRef.current?.hasItems) {
-      const ok = await estRef.current.save();
-      if (ok) savedCount++;
+    // When editing, save the matching bill type form
+    if (editingBill) {
+      const activeRef = editingBill.bill_type === 'GST' ? gstRef : estRef;
+      if (activeRef.current) {
+        const ok = await activeRef.current.save();
+        if (ok) savedCount++;
+      }
+    } else {
+      if (gstRef.current?.hasItems) {
+        const ok = await gstRef.current.save();
+        if (ok) savedCount++;
+      }
+      if (estRef.current?.hasItems) {
+        const ok = await estRef.current.save();
+        if (ok) savedCount++;
+      }
     }
     setIsSavingAll(false);
     if (savedCount > 0) {
       setShowAddForm(false);
+      setEditingBill(null);
+      setEditHasItems(false);
       loadBills();
     }
   };
@@ -239,7 +292,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {showAddForm ? 'New Purchase Bill' : 'Purchase Bills'}
+                {showAddForm ? (editingBill ? `Edit Purchase Bill - ${editingBill.bill_number}` : 'New Purchase Bill') : 'Purchase Bills'}
               </h1>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
@@ -249,7 +302,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={showAddForm ? () => setShowAddForm(false) : onClose}
+              onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); } : onClose}
               className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
             >
@@ -454,6 +507,13 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                       </div>
                       <div className="col-span-1 flex items-center justify-center gap-1">
                         <button
+                          onClick={e => { e.stopPropagation(); handleEditBill(bill); }}
+                          className="p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-colors cursor-pointer"
+                          title="Edit"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
                           onClick={e => { e.stopPropagation(); handleDelete(bill); }}
                           className="p-2 text-muted-foreground hover:text-destructive hover:bg-muted rounded-xl transition-colors cursor-pointer"
                           title="Delete"
@@ -582,7 +642,15 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 supplierId={supplierId}
                 notes={billNotes}
                 onStatusMessage={setStatusMessage}
-                onSaved={loadBills}
+                onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
+                onItemsLoaded={() => setEditHasItems(true)}
+                onItemsChange={setGstHasItems}
+                editingData={editingBill?.bill_type === 'GST' ? {
+                  purchase_bill_id: editingBill!.purchase_bill_id,
+                  bill_number: editingBill!.bill_number,
+                  invoice_number: editingBill?.invoice_number,
+                  payment_type: (editingBill as any)?.payment_type || 'CASH',
+                } : undefined}
               />
             </div>
             <div className={billType !== 'ESTIMATE' ? 'hidden' : ''}>
@@ -595,20 +663,36 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 supplierId={supplierId}
                 notes={billNotes}
                 onStatusMessage={setStatusMessage}
-                onSaved={loadBills}
+                onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
+                onItemsLoaded={() => setEditHasItems(true)}
+                onItemsChange={setEstHasItems}
+                editingData={editingBill?.bill_type === 'ESTIMATE' ? {
+                  purchase_bill_id: editingBill!.purchase_bill_id,
+                  bill_number: editingBill!.bill_number,
+                  invoice_number: editingBill?.invoice_number,
+                  payment_type: (editingBill as any)?.payment_type || 'CASH',
+                } : undefined}
               />
             </div>
           </div>
 
           {/* ── Save Button ── */}
           <div className="border-t border-border bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
+            {editingBill && (
+              <button
+                onClick={() => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); }}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer border border-border text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <X className="w-4 h-4" /> Cancel
+              </button>
+            )}
             <button
               onClick={handleSaveAll}
-              disabled={isSavingAll || (!gstRef.current?.hasItems && !estRef.current?.hasItems)}
+              disabled={isSavingAll || (editingBill ? !editHasItems : (!gstHasItems && !estHasItems))}
               className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
             >
               <Save className="w-4 h-4" />
-              {isSavingAll ? 'Saving...' : 'Save Purchase Bill'}
+              {isSavingAll ? 'Saving...' : editingBill ? 'Update Purchase Bill' : 'Save Purchase Bill'}
             </button>
           </div>
         </div>
@@ -663,6 +747,17 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const bill = viewingBill;
+                    setViewingBill(null);
+                    handleEditBill(bill);
+                  }}
+                  className="shrink-0 p-2 text-muted-foreground hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-amber-500/30"
+                  title="Edit"
+                >
+                  <Pencil className="w-4 h-4 text-amber-500" />
+                </button>
                 <button
                   onClick={async () => {
                     await handleDelete(viewingBill);
@@ -738,13 +833,14 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                   <div className={clsx(
                     "grid gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border bg-muted/30",
                     viewingBill.bill_type === 'GST'
-                      ? "grid-cols-[minmax(0,3fr)_80px_120px_100px_120px]"
+                      ? "grid-cols-[minmax(0,3fr)_80px_120px_70px_70px_120px]"
                       : "grid-cols-[minmax(0,3fr)_80px_120px_120px]"
                   )}>
                     <div>Product</div>
                     <div className="text-right">Qty</div>
                     <div className="text-right">Rate</div>
-                    {viewingBill.bill_type === 'GST' && <div className="text-right">GST</div>}
+                    {viewingBill.bill_type === 'GST' && <div className="text-right">CGST</div>}
+                    {viewingBill.bill_type === 'GST' && <div className="text-right">SGST</div>}
                     <div className="text-right">Total</div>
                   </div>
 
@@ -771,7 +867,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                           className={clsx(
                               "grid gap-3 px-5 py-3.5 items-center text-xs transition-colors hover:bg-muted/20",
                               viewingBill.bill_type === 'GST'
-                                ? "grid-cols-[minmax(0,3fr)_80px_120px_100px_120px]"
+                                ? "grid-cols-[minmax(0,3fr)_80px_120px_70px_70px_120px]"
                                 : "grid-cols-[minmax(0,3fr)_80px_120px_120px]"
                             )}
                           >
@@ -803,8 +899,20 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                               <div className="text-right">
                                 {hasGst ? (
                                   <div className="leading-tight">
-                                    <p className="font-bold text-foreground">₹{gstAmt.toFixed(2)}</p>
-                                    <p className="text-[9px] text-muted-foreground font-semibold">{taxRate}%</p>
+                                    <p className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</p>
+                                    <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
+                                  </div>
+                                ) : (
+                                  <span className="text-muted-foreground/50 font-semibold">—</span>
+                                )}
+                              </div>
+                            )}
+                            {viewingBill.bill_type === 'GST' && (
+                              <div className="text-right">
+                                {hasGst ? (
+                                  <div className="leading-tight">
+                                    <p className="font-bold text-foreground">₹{(gstAmt / 2).toFixed(2)}</p>
+                                    <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
                                   </div>
                                 ) : (
                                   <span className="text-muted-foreground/50 font-semibold">—</span>
@@ -861,13 +969,39 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                         }
                         return acc;
                       }, 0);
+                      const halfGst = totalGst / 2;
+                      const taxableValue = Number(viewingBill.total_amount) - totalGst;
                       return totalGst > 0 ? (
-                        <div className="flex justify-between text-xs">
-                          <span className="text-muted-foreground font-semibold">GST (Included)</span>
-                          <span className="font-bold text-foreground">₹{totalGst.toFixed(2)}</span>
-                        </div>
-                      ) : null;
+                        <>
+                          <div className="flex justify-between text-xs border-t border-border/30 pt-2">
+                            <span className="text-muted-foreground font-semibold">Taxable Value</span>
+                            <span className="font-bold text-foreground">₹{taxableValue.toFixed(2)}</span>
+                          </div>
+                          <div className="bg-emerald-500/5 border border-emerald-500/20 rounded-lg px-3 py-2.5 space-y-1.5 mt-0.5">
+                            <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 mb-1.5">GST Breakdown</p>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground font-semibold">CGST</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground font-semibold">SGST</span>
+                              <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs border-t border-emerald-500/20 pt-1.5">
+                              <span className="text-muted-foreground font-bold">Total GST</span>
+                              <span className="font-black text-emerald-600 dark:text-emerald-400">₹{totalGst.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[10px] text-muted-foreground/50 italic text-center py-1">No GST applicable on items</div>
+                      );
                     })()}
+                    {viewingBill.bill_type === 'ESTIMATE' && (
+                      <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold text-center py-1.5 bg-amber-500/5 border border-amber-500/20 rounded-lg px-2">
+                        Estimate — No GST Applicable
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center justify-between px-5 py-4 bg-primary/[0.06]">
                     <span className="text-xs font-black uppercase tracking-widest text-primary">Grand Total</span>
@@ -899,7 +1033,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   notes: string;
   onStatusMessage: (msg: { text: string; type: 'success' | 'error' } | null) => void;
   onSaved: () => void;
-}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved }, ref) => {
+  onItemsLoaded?: () => void;
+  onItemsChange?: (hasItems: boolean) => void;
+  editingData?: {
+    purchase_bill_id: string;
+    bill_number: string;
+    invoice_number?: string;
+    payment_type: string;
+  };
+}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, editingData }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -910,6 +1052,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     quantity: string;
     purchase_price: string;
     selling_price: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
   }>>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
@@ -925,7 +1070,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [newProductStock, setNewProductStock] = useState('');
   const [newProductReorderLevel, setNewProductReorderLevel] = useState('');
   const [newProductHsn, setNewProductHsn] = useState('');
-  const [newProductTaxRate, setNewProductTaxRate] = useState(0);
+  const [newProductTaxRate, setNewProductTaxRate] = useState(18);
   const [newProductDiscountPercent, setNewProductDiscountPercent] = useState('');
   const [newProductDiscountFlat, setNewProductDiscountFlat] = useState('');
   const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
@@ -936,15 +1081,45 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
 
   useEffect(() => {
+    if (editingData) {
+      setBillNumber(editingData.bill_number);
+      setInvoiceNumber(editingData.invoice_number || '');
+      setPaymentType((editingData.payment_type || 'CASH') as any);
+      setBillItems([]);
+      if (window.electronAPI && tenantId) {
+        window.electronAPI.dbGetPurchaseBillItems(editingData.purchase_bill_id)
+          .then(items => {
+            if (Array.isArray(items)) {
+              const mapped = items.map((item: any) => ({
+                product_id: item.product_id,
+                name: item.name,
+                quantity: String(item.quantity),
+                purchase_price: String(item.purchase_price),
+                selling_price: item.selling_price != null ? String(item.selling_price) : '',
+                is_gst_applicable: item.is_gst_applicable,
+                tax_rate_percent: item.tax_rate_percent,
+                hsn_sac_code: item.hsn_sac_code,
+              }));
+              setBillItems(mapped);
+              if (mapped.length > 0) onItemsLoaded?.();
+            }
+          })
+          .catch(console.error);
+      }
+    } else {
+      setBillItems([]);
+      if (window.electronAPI && tenantId) {
+        window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
+          .then(res => { if (res.success && res.billNumber) setBillNumber(res.billNumber); })
+          .catch(console.error);
+      }
+    }
     if (window.electronAPI && tenantId) {
-      window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
-        .then(res => { if (res.success && res.billNumber) setBillNumber(res.billNumber); })
-        .catch(console.error);
       window.electronAPI.settingsGet({ tenant_id: tenantId, key: 'price_coding' })
         .then(res => { if (res) setPriceCoding(res); })
         .catch(console.error);
     }
-  }, [tenantId]);
+  }, [tenantId, editingData]);
 
   useEffect(() => {
     if (window.electronAPI && tenantId && showProductCreateForm) {
@@ -988,6 +1163,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           ? Number(product.grade_rate)
           : (product.base_price || 0)
       ),
+      is_gst_applicable: product.is_gst_applicable,
+      tax_rate_percent: product.tax_rate_percent,
+      hsn_sac_code: product.hsn_sac_code,
     }]);
     setProductSearch('');
     setProducts([]);
@@ -1096,7 +1274,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductStock('');
     setNewProductReorderLevel('');
     setNewProductHsn('');
-    setNewProductTaxRate(0);
+    setNewProductTaxRate(18);
     setNewProductDiscountPercent('');
     setNewProductDiscountFlat('');
     setNewProductOfferPrice('');
@@ -1106,12 +1284,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setPaymentType('CASH');
   };
 
-  const handleCreateAndAddProduct = async () => {
+  const handleCreateAndAddProduct = async (retries = 3) => {
     if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
     const productId = uuidv4();
     let finalBarcode = newProductBarcode;
     if (!finalBarcode) {
-      const gen = await window.electronAPI?.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
       const priceCode = getPriceCode();
       finalBarcode = ((gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`) + priceCode;
     }
@@ -1148,10 +1326,20 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         quantity: '1',
         purchase_price: String(purchasePrice),
         selling_price: String(basePrice),
+        is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
+        tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
+        hsn_sac_code: newProductIsGstApplicable ? newProductHsn : '',
       }]);
       setProductSearch('');
       setProducts([]);
       resetProductForm();
+    } else if (res.error?.includes('sku_barcode') && retries > 0 && !newProductBarcode) {
+      const match = finalBarcode.match(/(\d+)(\D*)$/);
+      const suffix = match ? match[2] || '' : '';
+      const numPart = match ? match[1] : '001';
+      const nextNum = String(parseInt(numPart, 10) + 1).padStart(numPart.length, '0');
+      setNewProductBarcode(finalBarcode.replace(/(\d+)(\D*)$/, nextNum + suffix));
+      setTimeout(() => handleCreateAndAddProduct(retries - 1), 100);
     } else {
       onStatusMessage({ text: 'Failed to create product: ' + (res.error || ''), type: 'error' });
       setTimeout(() => onStatusMessage(null), 3000);
@@ -1168,10 +1356,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
     setIsSaving(true);
     const totalAmount = getBillTotal();
-    const billId = uuidv4();
+    const billId = editingData?.purchase_bill_id || uuidv4();
 
     if (window.electronAPI) {
-      const res = await window.electronAPI.dbAddPurchaseBill({
+      const payload = {
         purchase_bill_id: billId,
         tenant_id: tenantId,
         bill_number: billNumber || `AUTO-${Date.now()}`,
@@ -1191,20 +1379,24 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           purchase_price: Number(item.purchase_price) || 0,
           total_amount: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0),
           selling_price: item.selling_price ? Number(item.selling_price) || null : null,
-          is_gst_applicable: type === 'GST' ? 1 : 0,
-          tax_rate_percent: 0,
-          hsn_sac_code: null,
+          is_gst_applicable: type === 'GST' ? (item.is_gst_applicable ?? 1) : 0,
+          tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
+          hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
         })),
-      });
+      };
+
+      const res = editingData
+        ? await window.electronAPI.dbUpdatePurchaseBill(payload)
+        : await window.electronAPI.dbAddPurchaseBill(payload);
 
       if (res.success) {
-        onStatusMessage({ text: `${type} purchase bill saved successfully!`, type: 'success' });
+        onStatusMessage({ text: `${type} purchase bill ${editingData ? 'updated' : 'saved'} successfully!`, type: 'success' });
         onSaved();
         setIsSaving(false);
         setTimeout(() => onStatusMessage(null), 3000);
         return true;
       } else {
-        onStatusMessage({ text: 'Save failed: ' + (res.error || ''), type: 'error' });
+        onStatusMessage({ text: `Save failed: ${res.error || ''}`, type: 'error' });
         setIsSaving(false);
         setTimeout(() => onStatusMessage(null), 3000);
         return false;
@@ -1218,6 +1410,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     save: handleSave,
     get hasItems() { return billItems.length > 0; },
   }));
+
+  useEffect(() => {
+    onItemsChange?.(billItems.length > 0);
+  }, [billItems.length, onItemsChange]);
 
   const isEstimate = type === 'ESTIMATE';
 
@@ -1602,50 +1798,158 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           </div>
         ) : (
           <div className="space-y-1.5">
-            <div className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
-              <span>Product</span>
-              <span className="text-right">Qty</span>
-              <span className="text-right">Purchase</span>
-              <span className="text-right">Selling</span>
-              <span className="text-right"></span>
-            </div>
-            {billItems.map(item => (
-              <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
-                <span className="text-xs font-medium text-foreground truncate">{item.name}</span>
-                <input
-                  type="number" step="0.01" min="0"
-                  value={item.quantity}
-                  onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
-                />
-                <input
-                  type="number" step="0.01" min="0"
-                  value={item.purchase_price}
-                  onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
-                />
-                <input
-                  type="number" step="0.01" min="0"
-                  value={item.selling_price}
-                  onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
-                  className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
-                />
-                <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
+            {isEstimate ? (
+              <>
+                <div className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span>Product</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Purchase</span>
+                  <span className="text-right">Selling</span>
+                  <span className="text-right"></span>
+                </div>
+                {billItems.map(item => (
+                  <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
+                    <span className="text-xs font-medium text-foreground truncate">{item.name}</span>
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={item.quantity}
+                      onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
+                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                    />
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={item.purchase_price}
+                      onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
+                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                    />
+                    <input
+                      type="number" step="0.01" min="0"
+                      value={item.selling_price}
+                      onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
+                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                    />
+                    <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </>
+            ) : (
+              <>
+                <div className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span>Product</span>
+                  <span className="text-right">Qty</span>
+                  <span className="text-right">Rate</span>
+                  <span className="text-right">CGST</span>
+                  <span className="text-right">SGST</span>
+                  <span className="text-right">Total</span>
+                  <span className="text-right"></span>
+                </div>
+                {billItems.map(item => {
+                  const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+                  const taxRate = item.tax_rate_percent || 0;
+                  const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
+                  const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
+                  return (
+                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
+                      <span className="text-xs font-medium text-foreground truncate leading-tight">
+                        {item.name}
+                        {item.hsn_sac_code && <span className="block text-[9px] text-muted-foreground font-mono">HSN: {item.hsn_sac_code}</span>}
+                      </span>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.quantity}
+                        onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
+                        className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.purchase_price}
+                        onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
+                        className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                      />
+                      <div className="text-right">
+                        {hasGst ? (
+                          <div className="leading-tight">
+                            <p className="font-bold text-foreground text-xs">₹{(gstAmt / 2).toFixed(2)}</p>
+                            <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/50 font-semibold text-xs">—</span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {hasGst ? (
+                          <div className="leading-tight">
+                            <p className="font-bold text-foreground text-xs">₹{(gstAmt / 2).toFixed(2)}</p>
+                            <p className="text-[9px] text-muted-foreground font-semibold">{(taxRate / 2).toFixed(1)}%</p>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground/50 font-semibold text-xs">—</span>
+                        )}
+                      </div>
+                      <div className="text-right font-bold text-foreground text-xs">
+                        ₹{itemTotal.toFixed(2)}
+                      </div>
+                      <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </>
+            )}
           </div>
         )}
 
-        {billItems.length > 0 && (
+        {billItems.length > 0 && !isEstimate && (() => {
+          const total = getBillTotal();
+          const totalGst = billItems.reduce((acc, item) => {
+            const rate = item.tax_rate_percent || 0;
+            const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+            if ((item.is_gst_applicable ?? 1) === 1 && rate > 0) {
+              return acc + (itemTotal * rate) / (100 + rate);
+            }
+            return acc;
+          }, 0);
+          const halfGst = totalGst / 2;
+          const taxableValue = total - totalGst;
+          return (
+            <div className="flex justify-end mt-3 pt-2.5 border-t border-border">
+              <div className="w-64 space-y-1.5">
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground font-semibold">Taxable Value</span>
+                  <span className="font-bold text-foreground">₹{taxableValue.toFixed(2)}</span>
+                </div>
+                {totalGst > 0 && (
+                  <>
+                    <div className="flex justify-between text-xs pl-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">CGST @ ½</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs pl-3">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">SGST @ ½</span>
+                      <span className="font-bold text-emerald-600 dark:text-emerald-400">₹{halfGst.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-xs border-t border-border/40 pt-1">
+                      <span className="text-muted-foreground font-bold">Total GST</span>
+                      <span className="font-black text-emerald-600 dark:text-emerald-400">₹{totalGst.toFixed(2)}</span>
+                    </div>
+                  </>
+                )}
+                <div className="flex justify-between text-sm border-t-2 border-emerald-500/40 pt-1.5">
+                  <span className="font-black uppercase tracking-wider text-foreground">Grand Total</span>
+                  <span className="text-base font-black text-emerald-600">₹{total.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+        {billItems.length > 0 && isEstimate && (
           <div className="flex justify-end mt-3 pt-2.5 border-t border-border">
             <div className="text-right">
               <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total</span>
-              <p className={clsx(
-                "text-base font-black",
-                isEstimate ? "text-amber-600" : "text-emerald-600"
-              )}>₹{getBillTotal().toFixed(2)}</p>
+              <p className="text-base font-black text-amber-600">₹{getBillTotal().toFixed(2)}</p>
             </div>
           </div>
         )}

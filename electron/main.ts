@@ -481,8 +481,9 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
     );
     return { success: true };
   } catch (error: any) {
-    console.error('[db:addProduct]', error);
-    return { success: false, error: 'Operation failed' };
+    const msg = error?.message || 'Operation failed';
+    console.error('[db:addProduct]', msg);
+    return { success: false, error: msg };
   }
 }));
 
@@ -2482,6 +2483,82 @@ ipcMain.handle('db:getPurchaseBillItems', (event, purchase_bill_id: string) => {
     return { error: 'Operation failed' };
   }
 });
+
+ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
+  purchase_bill_id: string;
+  tenant_id: string;
+  bill_number: string;
+  supplier_id?: string;
+  supplier_name: string;
+  bill_date?: string;
+  invoice_number?: string;
+  notes?: string;
+  total_amount: number;
+  bill_type?: string;
+  payment_type?: string;
+  items: Array<{
+    item_id: string;
+    product_id: string;
+    name: string;
+    quantity: number;
+    purchase_price: number;
+    total_amount: number;
+    selling_price?: number | null;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+  }>;
+}) => {
+  try {
+    const db = getDb();
+    const billType = payload.bill_type || 'GST';
+    const paymentType = payload.payment_type || 'CASH';
+    const result = db.transaction(() => {
+      const { items, ...bill } = payload;
+      db.prepare(`
+        UPDATE purchase_bills SET supplier_id = ?, supplier_name = ?, bill_date = ?, invoice_number = ?, notes = ?, total_amount = ?, bill_type = ?, payment_type = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE purchase_bill_id = ?
+      `).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
+
+      db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(bill.purchase_bill_id);
+
+      const stmt = db.prepare(`
+        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+      const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
+      for (const item of items) {
+        const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        if (item.selling_price != null) {
+          updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+        }
+      }
+
+      if (paymentType === 'CREDIT' && bill.supplier_id) {
+        const party = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
+        if (party) {
+          const currentBalance = parseFloat(party.balance) || 0;
+          const ledgerId = crypto.randomUUID();
+          const debitAmount = bill.total_amount;
+          const newBalance = currentBalance - debitAmount;
+          db.prepare(`
+            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || new Date().toISOString(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
+          db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+            .run(newBalance, bill.bill_date || new Date().toISOString(), bill.supplier_id);
+        }
+      }
+
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:updatePurchaseBill]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
 
 ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
   try {
