@@ -50,6 +50,9 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
+  updateItemDiscount: (productId: string, type: 'PERCENT' | 'FLAT', value: number) => void;
+  removeItemDiscount: (productId: string) => void;
+  updateItemOfferPrice: (productId: string, price: number | null) => void;
   setDiscount: (value: number, type: 'FIXED' | 'PERCENTAGE') => void;
   setInvoiceType: (type: InvoiceType) => void;
   setCustomerState: (state: string) => void;
@@ -116,6 +119,35 @@ export const useCartStore = create<CartState>()(
           ),
         })),
 
+      updateItemDiscount: (productId, type, value) =>
+        set((state) => ({
+          items: state.items.map(i =>
+            i.product_id === productId
+              ? {
+                  ...i,
+                  discount_percent: type === 'PERCENT' ? value : null,
+                  discount_flat: type === 'FLAT' ? value : null,
+                  offer_price: null,
+                }
+              : i
+          ),
+        })),
+      removeItemDiscount: (productId) =>
+        set((state) => ({
+          items: state.items.map(i =>
+            i.product_id === productId
+              ? { ...i, discount_percent: null, discount_flat: null, offer_price: null }
+              : i
+          ),
+        })),
+      updateItemOfferPrice: (productId, price) =>
+        set((state) => ({
+          items: state.items.map(i =>
+            i.product_id === productId
+              ? { ...i, offer_price: price, discount_percent: null, discount_flat: null }
+              : i
+          ),
+        })),
       setDiscount: (value, type) => set({ discountValue: value, discountType: type }),
       setInvoiceType: (invoiceType) => set({ invoiceType }),
       setCustomerState: (customerState) => set({ customerState }),

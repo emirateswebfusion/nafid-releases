@@ -21,9 +21,9 @@ module.exports = {
   appId: 'com.vendora.pos',
   productName: 'Vendora',
   copyright: 'Copyright © 2026 Vendora',
-  npmRebuild: false,
+  npmRebuild: true,
   directories: {
-    output: 'D:/vendora-release',
+    output: 'dist/release',
     buildResources: 'build'
   },
   files: [
@@ -42,7 +42,11 @@ module.exports = {
       }
     ],
     artifactName: '${productName}-${version}-mac.${ext}',
-    category: 'public.app-category.business'
+    category: 'public.app-category.business',
+    entitlements: 'build/entitlements.mac.plist',
+    entitlementsInherit: 'build/entitlements.mac.plist',
+    hardenedRuntime: true,
+    gatekeeperAssess: false
   },
   win: {
     target: [

@@ -1,10 +1,10 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -57,11 +57,13 @@ export function BillingPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const discRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const discFlatRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
-    addItem, updateQuantity, removeItem,
+    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice,
     customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
@@ -70,6 +72,51 @@ export function BillingPage() {
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
   const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
+
+  // Local state for per-item two-way discount binding (like CashierSettlement)
+  const [localDiscPcts, setLocalDiscPcts] = useState<Record<string, number>>({});
+  const [localDiscFlats, setLocalDiscFlats] = useState<Record<string, number>>({});
+
+  // Sync local discount state when items are added/removed (but NOT overwrite on every store change)
+  useEffect(() => {
+    setLocalDiscPcts(prev => {
+      const ids = new Set(items.map(i => i.product_id));
+      const next = { ...prev };
+      let changed = false;
+      items.forEach(item => {
+        if (!(item.product_id in prev)) {
+          next[item.product_id] = item.discount_percent ?? 0;
+          changed = true;
+        }
+      });
+      Object.keys(next).forEach(id => {
+        if (!ids.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+    setLocalDiscFlats(prev => {
+      const ids = new Set(items.map(i => i.product_id));
+      const next = { ...prev };
+      let changed = false;
+      items.forEach(item => {
+        if (!(item.product_id in prev)) {
+          next[item.product_id] = item.discount_flat ?? 0;
+          changed = true;
+        }
+      });
+      Object.keys(next).forEach(id => {
+        if (!ids.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
+
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
@@ -127,6 +174,7 @@ export function BillingPage() {
   }>({ customerId: null, pointsBalance: 0 });
   const [showLoyaltyRedemption, setShowLoyaltyRedemption] = useState(false);
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
+
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
@@ -1058,6 +1106,21 @@ export function BillingPage() {
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
   };
 
+  const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const discInput = discRefs.current[productId];
+      if (discInput) { discInput.focus(); discInput.select(); }
+    }
+  };
+
+  const handleDiscKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      searchRef.current?.focus();
+    }
+  };
+
   const handleCheckout = async () => {
     if (items.length === 0) return;
     if (!window.electronAPI) return;
@@ -1289,6 +1352,11 @@ export function BillingPage() {
       // Adjust grand total for points redemption discount
       const effectiveGrandTotal = Math.max(0, displayGrandTotal - pointsRedeemedDiscount);
 
+      // Pass grand total BEFORE scrap deduction so the receipt can properly show
+      // the scrap deduction line and compute the correct final grand total.
+      // Without this fix, scrap deduction was subtracted twice (here and in receiptGenerator).
+      const grandTotalBeforeScrap = Math.max(0, grandTotal - pointsRedeemedDiscount);
+
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -1306,14 +1374,14 @@ export function BillingPage() {
         sgst: invoiceType === 'GST' ? sgst : (billSettings.showBosTaxBreakup ? sgst : undefined),
         igst: invoiceType === 'GST' ? igst : (billSettings.showBosTaxBreakup ? igst : undefined),
         discount, discountType: state.discountType,
-        discountValue: state.discountValue, grandTotal: effectiveGrandTotal,
+        discountValue: state.discountValue, grandTotal: grandTotalBeforeScrap,
         pointsEarned: pointsEarned > 0 ? pointsEarned : undefined,
         previousPointsBalance: previousPointsBalance > 0 ? previousPointsBalance : undefined,
         pointsRedeemed: pointsRedeemed > 0 ? pointsRedeemed : undefined,
         pointsRedeemedDiscount: pointsRedeemedDiscount > 0 ? pointsRedeemedDiscount : undefined,
         remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
         scrapedDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
-        ...(isPaymentPending ? {} : { receivedAmount: effectiveReceivedAmount, balanceAmount: effectiveBalanceAmount }),
+        ...(paymentMethod === 'CASH' && !isPaymentPending ? { receivedAmount: effectiveReceivedAmount, balanceAmount: effectiveBalanceAmount } : {}),
         invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
@@ -2038,46 +2106,29 @@ export function BillingPage() {
                   const weight = Number(item.quantity) || 0;
                   const total = rate * weight;
                   return (
-                    <div
-                      key={item.product_id}
-                      className="flex items-center gap-3 px-4 py-3 bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group"
-                    >
+                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
-                          <span className="text-[10px] font-bold text-orange-600 bg-orange-500/15 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                            Scrap
-                          </span>
+                          <span className="text-[9px] font-bold text-orange-600 bg-orange-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Scrap</span>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                          <span className="text-orange-600 font-semibold text-xs">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
+                        <div className="text-[10px] text-muted-foreground/70 mt-0.5">
+                          <span className="text-orange-600 font-semibold">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
                         </div>
                       </div>
-
-                      {/* Weight (KG) input for scrap */}
-                      <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg p-0.5 shrink-0">
-                        <input
-                          type="number"
-                          step="0.001"
-                          min="0"
+                      <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg py-0.5 shrink-0">
+                        <input type="number" step="0.001" min="0"
                           ref={(el) => { qtyRefs.current[item.product_id] = el; }}
-                          className="w-16 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
+                          onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
                           placeholder="Kg"
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
                       </div>
-
-                      <div className="text-right min-w-[80px] shrink-0">
-                        <div className="font-black text-sm text-orange-600 dark:text-orange-400">{formatCurrency(total)}</div>
-                      </div>
-
-                      <button
-                        onClick={() => removeItem(item.product_id)}
-                        className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                        title="Remove Item"
-                      >
+                      <div className="font-black text-sm text-orange-600 dark:text-orange-400 shrink-0 min-w-[65px] text-right">{formatCurrency(total)}</div>
+                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0" title="Remove Item">
                         <Trash className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -2090,125 +2141,181 @@ export function BillingPage() {
                 const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;
                 const qty = weightKg;
 
-                // Apply per-item discount
+                // Explicit discount flag — avoids floating-point comparison bugs
+                const hasItemDiscount = !!(item.offer_price || item.discount_flat || item.discount_percent);
                 let effectivePrice = rate;
-                if (item.offer_price) {
-                  effectivePrice = Number(item.offer_price);
-                } else if (item.discount_flat) {
-                  effectivePrice = rate - Number(item.discount_flat);
-                } else if (item.discount_percent) {
-                  effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
-                }
+                if (item.offer_price) { effectivePrice = Number(item.offer_price); }
+                else if (item.discount_flat) { effectivePrice = rate - Number(item.discount_flat); }
+                else if (item.discount_percent) { effectivePrice = rate * (1 - Number(item.discount_percent) / 100); }
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
                 const handlePcsChange = (pcsVal: number) => {
-                  const newKg = pcsVal / item.pieces_per_kg!;
-                  updateQuantity(item.product_id, +newKg.toFixed(3));
+                  updateQuantity(item.product_id, +(pcsVal / item.pieces_per_kg!).toFixed(3));
                 };
 
                 return (
-                  <div
-                    key={item.product_id}
-                    className="flex items-center gap-3 px-4 py-3 bg-card border border-border hover:border-primary/30 rounded-xl transition-all duration-200 hover:shadow-sm group"
-                  >
+                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-card border border-border/80 hover:border-primary/40 rounded-xl transition-all duration-200 hover:shadow-sm group">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                         {item.billing_type === 'WEIGHT' && (
-                          <span className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase tracking-wider">
-                            By Weight
-                          </span>
+                          <span className="text-[9px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">WT</span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground">
                         {item.sku_barcode && (
-                          <span className="font-mono bg-muted/70 px-1 py-0.5 rounded">{item.sku_barcode}</span>
+                          <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
                         )}
-                        {item.brand_manufacturer && (
-                          <span className="font-semibold text-muted-foreground/80">{item.brand_manufacturer}</span>
-                        )}
-                        {!item.sku_barcode && !item.brand_manufacturer && (
-                          <span className="text-muted-foreground/50 italic">No barcode</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 truncate">
+                        {item.brand_manufacturer && <span className="font-medium">{item.brand_manufacturer}</span>}
+                        {!item.sku_barcode && !item.brand_manufacturer && <span className="italic">No barcode</span>}
+                      </div>
+                    </div>
+
+                    {isPiecesWeight ? (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                          <span className="text-[8px] text-muted-foreground font-bold uppercase">P</span>
+                          <input type="number" min="1" step="1"
+                            className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={pieces}
+                            onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                            onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                          />
+                        </div>
+                        <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
+                          <span className="text-[8px] text-muted-foreground font-bold uppercase">K</span>
+                          <input type="number" min="0" step="0.001"
+                            className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={weightKg}
+                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                            onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border/80 rounded-lg overflow-hidden">
+                        <button onClick={() => { const q = Number(item.quantity); const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3)); else removeItem(item.product_id); }}
+                          className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                        ><Minus className="w-3 h-3" /></button>
+                        <input type="number" min={item.billing_type === 'WEIGHT' ? '0' : '1'} step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
+                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                          className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={item.quantity}
+                          onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
+                          onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                        />
+                        <button onClick={() => { const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3)); }}
+                          className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
+                        ><Plus className="w-3 h-3" /></button>
+                        <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
+                      </div>
+                    )}
+
+                    <div className="flex items-center shrink-0">
+                      <div className="flex items-center border border-border/60 rounded-lg overflow-hidden focus-within:border-primary/60 transition-all bg-muted/10">
+                        <input
+                          type="number" min="0" max="100" step="any" inputMode="decimal"
+                          ref={el => { discRefs.current[item.product_id] = el; }}
+                          className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={localDiscPcts[item.product_id] !== undefined
+                            ? (localDiscPcts[item.product_id] || '')
+                            : (item.discount_percent ?? '')
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '') {
+                              setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                              setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                              removeItemDiscount(item.product_id);
+                            } else {
+                              const pct = parseFloat(val);
+                              const flat = rate > 0 && !isNaN(pct) ? Math.round(rate * pct / 100 * 100) / 100 : 0;
+                              setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
+                              setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
+                              if (!isNaN(pct) && pct > 0) {
+                                updateItemDiscount(item.product_id, 'PERCENT', pct);
+                              }
+                            }
+                          }}
+                          onFocus={e => e.target.select()}
+                          onKeyDown={e => {
+                            handleDiscKeyDown(e, item.product_id);
+                          }}
+                          placeholder="%"
+                        />
+                        <span className="w-px h-4 bg-border/40 shrink-0" />
+                        <input
+                          type="number" min="0" step="any" inputMode="decimal"
+                          ref={el => { discFlatRefs.current[item.product_id] = el; }}
+                          className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          value={localDiscFlats[item.product_id] !== undefined
+                            ? (localDiscFlats[item.product_id] || '')
+                            : (item.discount_flat ?? '')
+                          }
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '') {
+                              setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                              setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                              removeItemDiscount(item.product_id);
+                            } else {
+                              const flat = parseFloat(val);
+                              const pct = rate > 0 && !isNaN(flat) ? Math.round(flat / rate * 100 * 100) / 100 : 0;
+                              setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
+                              setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
+                              if (!isNaN(flat) && flat > 0) {
+                                updateItemDiscount(item.product_id, 'FLAT', flat);
+                              }
+                            }
+                          }}
+                          onFocus={e => e.target.select()}
+                          onKeyDown={e => {
+                            handleDiscKeyDown(e, item.product_id);
+                          }}
+                          placeholder="₹"
+                        />
+                        {hasItemDiscount && (
+                          <button onClick={() => {
+                            removeItemDiscount(item.product_id);
+                            setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                            setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                          }} className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0" title="Clear item discount">✕</button>
                         )}
                       </div>
                     </div>
 
-                    {/* Quantity Adjusters — Pcs or Kg based on billing type */}
-                    <div className="flex flex-col items-center gap-1">
-                      {isPiecesWeight ? (
-                        <>
-                          <div className="flex items-center gap-1 bg-muted/40 border border-border rounded-lg px-1.5 py-0.5">
-                            <span className="text-[10px] text-muted-foreground font-bold uppercase">Pcs</span>
-                            <input
-                              type="number" min="1" step="1"
-                              className="w-12 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={pieces}
-                              onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
-                            />
-                          </div>
-                          <div className="flex items-center gap-1 bg-muted/40 border border-border rounded-lg px-1.5 py-0.5">
-                            <span className="text-[10px] text-muted-foreground font-bold uppercase">Kg</span>
-                            <input
-                              type="number" min="0" step="0.001"
-                              className="w-12 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                              value={weightKg}
-                              onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex items-center gap-0.5 shrink-0 bg-muted/40 border border-border rounded-lg p-0.5">
-                          <button
-                            onClick={() => {
-                              const q = Number(item.quantity);
-                              const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
-                              if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3));
-                              else removeItem(item.product_id);
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                          >
-                            <Minus className="w-3.5 h-3.5" />
-                          </button>
-                          <input
-                            type="number"
-                            min={item.billing_type === 'WEIGHT' ? '0' : '1'}
-                            step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
-                            ref={(el) => { qtyRefs.current[item.product_id] = el; }}
-                            className="w-14 text-center h-8 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.quantity}
-                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                          />
-                          <button
-                            onClick={() => {
-                              const step = item.billing_type === 'WEIGHT' ? 0.1 : 1;
-                              updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3));
-                            }}
-                            className="w-8 h-8 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                          </button>
-                          <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">{item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs'}</span>
-                        </div>
-                      )}
+                    <div className="text-right shrink-0 min-w-[70px]">
+                      <input type="number" min="0" step="any" inputMode="decimal"
+                        className={`w-16 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${effectivePrice !== rate ? 'text-emerald-500' : 'text-foreground'}`}
+                        value={effectivePrice}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '' || Number(val) <= 0) {
+                            updateItemOfferPrice(item.product_id, null);
+                          } else {
+                            const newPrice = parseFloat(val);
+                            if (Math.abs(newPrice - rate) < 0.001) {
+                              updateItemOfferPrice(item.product_id, null);
+                            } else {
+                              updateItemOfferPrice(item.product_id, newPrice);
+                            }
+                          }
+                          setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                          setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                        }}
+                        onFocus={e => e.target.select()}
+                        onKeyDown={e => handleDiscKeyDown(e, item.product_id)}
+                      />
+                      <div className="text-[9px] text-muted-foreground/50 mt-0.5 text-right whitespace-nowrap">
+                        {formatCurrency(total)}
+                        {effectivePrice !== rate && (
+                          <span className="line-through ml-1">{formatCurrency(rate * qty)}</span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="text-right min-w-[80px] shrink-0">
-                      {effectivePrice !== rate ? (
-                        <>
-                          <div className="font-black text-sm text-emerald-500">{formatCurrency(total)}</div>
-                          <div className="text-[10px] text-muted-foreground/60 line-through font-semibold -mt-0.5">MRP: {formatCurrency(rate)}</div>
-                        </>
-                      ) : (
-                        <div className="font-black text-sm text-primary">{formatCurrency(total)}</div>
-                      )}
-                    </div>
-
-                    <button
-                      onClick={() => removeItem(item.product_id)}
-                      className="p-1.5 rounded-lg text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
-                      title="Remove Item"
-                    >
+                    <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
                       <Trash className="w-3.5 h-3.5" />
                     </button>
                   </div>
@@ -2411,8 +2518,27 @@ export function BillingPage() {
                     type="number"
                     min="0"
                     max={discountType === 'PERCENTAGE' ? '100' : undefined}
-                    value={discountValue || ''}
-                    onChange={e => setDiscount(e.target.value === '' ? 0 : Number(e.target.value), discountType)}
+                    value={discountValue > 0 ? discountValue : ''}
+                    onChange={e => {
+                      const raw = e.target.value;
+                      if (raw === '' || raw === null) {
+                        setDiscount(0, discountType);
+                      } else {
+                        const parsed = Number(raw);
+                        if (!isNaN(parsed) && parsed >= 0) {
+                          setDiscount(parsed, discountType);
+                        }
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Delete' || e.key === 'Backspace') {
+                        const input = e.target as HTMLInputElement;
+                        // If selection covers all, clear on next tick
+                        if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
+                          setDiscount(0, discountType);
+                        }
+                      }
+                    }}
                     placeholder="0"
                     inputMode="decimal"
                     className="w-24 h-9 bg-transparent border-0 text-base text-right pr-3 font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

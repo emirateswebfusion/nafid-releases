@@ -8,6 +8,7 @@ dist-electron/
 dist-ssr/
 out/
 release/
+dist/release/
 # build/ (Electron build resources like icons should be tracked)
 *.exe
 *.dmg
