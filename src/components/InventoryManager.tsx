@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check } from 'lucide-react';
@@ -816,7 +816,17 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       current_stock: Number(formData.current_stock) || 0,
       reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
-      domain_attributes: JSON.stringify(formData.domain_attributes),
+      domain_attributes: (() => {
+        const da = { ...formData.domain_attributes };
+        const rawPcs = Number(da?.pcs) || 0;
+        const rawStock = Number(formData.current_stock) || 0;
+        if (rawPcs > 0 && rawStock > 0) {
+          da.pcs_per_kg = rawPcs / rawStock;
+        } else if (!rawPcs) {
+          delete da.pcs_per_kg;
+        }
+        return JSON.stringify(da);
+      })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
       discount_flat: formData.discount_flat === '' ? null : Number(formData.discount_flat),
       offer_price: formData.offer_price === '' ? null : Number(formData.offer_price),
@@ -1078,7 +1088,8 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   if (finalPrice !== null && isNaN(finalPrice)) finalPrice = null;
 
                   const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
-                  const totalPcs = Number(da.pcs) || 0;
+                  const pcsPerKg = Number(da.pcs_per_kg) || 0;
+                  const totalPcs = pcsPerKg > 0 ? Math.round(Number(p.current_stock) * pcsPerKg) : (Number(da.pcs) || 0);
                   const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom);
                   const formattedStock = isWeightUom 
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`

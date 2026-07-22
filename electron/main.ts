@@ -1026,6 +1026,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
+    const getDaStmt = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
+    const updDaStmt = db.prepare('UPDATE products SET domain_attributes = ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
 
     for (const item of items) {
       itemStmt.run(
@@ -1040,6 +1042,18 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         item.total
       );
       stockStmt.run(item.quantity, item.product_id);
+      if (item.pieces_sold) {
+        const row = getDaStmt.get(item.product_id) as any;
+        if (row?.domain_attributes) {
+          try {
+            const da = JSON.parse(row.domain_attributes);
+            if (da.pcs !== undefined) {
+              da.pcs = Math.max(0, Number(da.pcs) - item.pieces_sold);
+              updDaStmt.run(JSON.stringify(da), item.product_id);
+            }
+          } catch {}
+        }
+      }
     }
 
     // 3. Handle scrap items — create scrap transactions and update scrap stock

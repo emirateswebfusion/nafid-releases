@@ -36,6 +36,7 @@ interface EnrichedProduct extends Product {
   rate: number;
   finalSellingPrice: number;
   totalWeight: number;
+  totalPcs: number;
   isLowStock: boolean;
   isOutOfStock: boolean;
   gradeName: string;
@@ -159,11 +160,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
       const unitWeightGrams = Number(da?.weight_grams) || 0;
       const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
+      const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : Number(p.current_stock);
       const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
       const isOutOfStock = Number(p.current_stock) <= 0;
       const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
 
-      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-' };
+      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, totalPcs, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-' };
 
       const cs = Number(p.current_stock);
       tStock += cs;
@@ -237,9 +239,14 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         const grRate = gr ? Number(gr.rate) : null;
         const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
         const value = rate * Number(p.current_stock);
-        return `<tr>\n          <td style="padding:6px;border:1px solid #ddd;">${p.name}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${p.category || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${gr?.grade_name || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${Number(p.current_stock).toFixed(0)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${formatCurrency(rate)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${formatCurrency(value)}</td>\n        </tr>`;
+        const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+        const unitWeightGrams = Number(da?.weight_grams) || 0;
+        const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
+        const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : 0;
+        const weightStr = totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' + (totalPcs > 0 ? ' (' + totalPcs + ' pcs)' : '') : '-';
+        return `<tr>\n          <td style="padding:6px;border:1px solid #ddd;">${p.name}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${p.category || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${gr?.grade_name || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${Number(p.current_stock).toFixed(0)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${weightStr}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${formatCurrency(rate)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${formatCurrency(value)}</td>\n        </tr>`;
       }).join('');
-      return `<tr style="background:#e8f0fe;font-weight:bold;">\n        <td colspan="6" style="padding:8px 6px;border:1px solid #ddd;color:#2563eb;">${cat}</td>\n      </tr>${detailRows}`;
+      return `<tr style="background:#e8f0fe;font-weight:bold;">\n        <td colspan="7" style="padding:8px 6px;border:1px solid #ddd;color:#2563eb;">${cat}</td>\n      </tr>${detailRows}`;
     }).join('');
 
     const html = `<!DOCTYPE html>
@@ -284,6 +291,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <th>Category</th>
                 <th>Grade</th>
                 <th class="text-right">Stock</th>
+                <th class="text-right">Weight</th>
                 <th class="text-right">Rate</th>
                 <th class="text-right">Value</th>
               </tr>
@@ -628,7 +636,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.gradeName}</td>
                               <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', p.isOutOfStock ? 'text-red-500' : p.isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
-                              <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' : '-'}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-'}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(p.rate)}</td>
                               <td className="px-4 py-2.5 text-right text-sm font-bold text-emerald-500">{formatCurrency(p.finalSellingPrice)}</td>

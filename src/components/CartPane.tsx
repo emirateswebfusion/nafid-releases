@@ -59,7 +59,11 @@ export function CartPane() {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes)
           : product.domain_attributes;
-        piecesPerKg = Number(da.pcs) || undefined;
+        const storedPpk = Number(da.pcs_per_kg) || 0;
+        const totalPcs = Number(da.pcs) || 0;
+        const stockKg = Number(product.current_stock) || 0;
+        // Prefer stored ratio; fall back to computing from original pcs/stock
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
       } catch {}
     }
     addItem({
@@ -174,8 +178,8 @@ export function CartPane() {
                       </div>
                       <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                         Stock: {(() => {
-                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); return Number(d.pcs) || 0; } catch { return 0; } })() : 0;
-                          return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
+                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : 0); } catch { return 0; } })() : 0;
+                          return Number(p.current_stock) > 0 && ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
                         })()}
                       </div>
                     </div>
@@ -267,10 +271,10 @@ export function CartPane() {
                         <div className="flex items-center gap-1">
                           <span className="text-[10px] text-muted-foreground font-bold uppercase w-5">Pcs</span>
                           <Input
-                            type="number" min="1" step="1"
-                            className="w-14 text-center h-7 px-1 text-xs"
-                            value={pieces}
-                            onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                             type="number" min="1" step="1"
+                             className="w-14 text-center h-7 px-1 text-xs"
+                             value={pieces}
+                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
                           />
                         </div>
                         <div className="flex items-center gap-1">

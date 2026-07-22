@@ -57,13 +57,14 @@ export function BillingPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
   const qtyRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const kRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discFlatRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   const {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
-    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice,
+    addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice, updatePiecesOverride,
     customerState, setCustomerState,
     scrapDeduction: storeScrapDeduction, scrapInvoiceNumber: storeScrapInvoiceNumber,
     setScrapDeduction, clearScrapDeduction,
@@ -117,10 +118,11 @@ export function BillingPage() {
     });
   }, [items]);
 
-  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
+  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal, extraBonus } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const totalItemSavings = items.reduce((sum, item) => {
+    if (item.isScrap) return sum;
     const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
     const qty = Number(item.quantity) || 0;
     const rawTotal = rate * qty;
@@ -334,7 +336,7 @@ export function BillingPage() {
     : 0;
 
   const displayGrandTotal = isScrapMode
-    ? scrapTotal
+    ? scrapTotal + extraBonus
     : Math.max(0, grandTotal - (storeScrapDeduction || 0));
   const balanceAmount = (receivedAmount - displayGrandTotal) + scrapLeftoverAmount;
 
@@ -701,7 +703,11 @@ export function BillingPage() {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes)
           : product.domain_attributes;
-        piecesPerKg = Number(da.pcs) || undefined;
+        const storedPpk = Number(da.pcs_per_kg) || 0;
+        const totalPcs = Number(da.pcs) || 0;
+        const stockKg = Number(product.current_stock) || 0;
+        // Prefer stored ratio; fall back to computing from original pcs/stock
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
       } catch {}
     }
     addItem({
@@ -1140,14 +1146,27 @@ export function BillingPage() {
 
         // Save each scrap item as an individual PURCHASE transaction
         for (const item of items) {
+          const rawRate = item.base_price;
+          let effectiveRate = rawRate;
+          if (item.offer_price !== null && item.offer_price !== undefined) {
+            effectiveRate = Number(item.offer_price);
+          } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
+            effectiveRate = rawRate + Number(item.discount_flat);
+          } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
+            effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+          }
+          effectiveRate = Math.max(effectiveRate, 0);
+          const qty = Number(item.quantity) || 0;
+          const totalAmount = effectiveRate * qty;
+
           const result = await window.electronAPI.dbAddScrapTransaction({
             transaction_id: uuidv4(),
             tenant_id: tenantId || 'unset',
             type: 'PURCHASE',
             scrap_category_id: item.scrap_category_id,
-            quantity: Number(item.quantity) || 0,
-            rate: item.base_price,
-            total_amount: item.base_price * (Number(item.quantity) || 0),
+            quantity: qty,
+            rate: effectiveRate,
+            total_amount: totalAmount,
             party_name: customerName || null,
             customer_phone: customerPhone || null,
             customer_address: customerAddress || null,
@@ -1171,11 +1190,26 @@ export function BillingPage() {
         // Group scrap items by category for receipt
         const scrapGrouped = items.reduce((acc, item) => {
           const key = item.scrap_category_id || item.product_id;
-          if (!acc[key]) {
-            acc[key] = { name: item.name, quantity: 0, unit_price: item.base_price, total: 0 };
+          const rawRate = item.base_price;
+          let effectiveRate = rawRate;
+          if (item.offer_price !== null && item.offer_price !== undefined) {
+            effectiveRate = Number(item.offer_price);
+          } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
+            effectiveRate = rawRate + Number(item.discount_flat);
+          } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
+            effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
           }
-          acc[key].quantity += Number(item.quantity) || 0;
-          acc[key].total = acc[key].unit_price * acc[key].quantity;
+          effectiveRate = Math.max(effectiveRate, 0);
+          const qty = Number(item.quantity) || 0;
+
+          if (!acc[key]) {
+            acc[key] = { name: item.name, quantity: 0, unit_price: effectiveRate, total: 0 };
+          }
+          acc[key].quantity += qty;
+          acc[key].total += effectiveRate * qty;
+          if (acc[key].quantity > 0) {
+            acc[key].unit_price = acc[key].total / acc[key].quantity;
+          }
           return acc;
         }, {} as Record<string, { name: string; quantity: number; unit_price: number; total: number }>);
         const scrapReceiptItems = Object.values(scrapGrouped).map(item => ({
@@ -1186,6 +1220,8 @@ export function BillingPage() {
         }));
 
         const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
+        const cartState = useCartStore.getState();
+        const finalScrapGrandTotal = scrapTotal + extraBonus;
         const receiptData: ReceiptData = {
           shopName: scrapBillSettings.showShopName ? (shopName || 'My Shop') : '',
           shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -1201,8 +1237,11 @@ export function BillingPage() {
           items: scrapReceiptItems,
           subtotal: scrapTotal,
           tax: 0,
-          discount: 0,
-          grandTotal: scrapTotal,
+          discount: discount,
+          discountType: cartState.discountType,
+          discountValue: cartState.discountValue,
+          grandTotal: finalScrapGrandTotal,
+          extraBonus: extraBonus,
           customerName: scrapBillSettings.showCustomerName ? (customerName || undefined) : undefined,
           billSettings: scrapBillSettings,
         };
@@ -1215,7 +1254,7 @@ export function BillingPage() {
           await window.electronAPI.dbCashierAddTransaction({
             tenant_id: tenantId || 'unset',
             type: 'CASH_OUT',
-            amount: scrapTotal,
+            amount: finalScrapGrandTotal,
             category: 'Scrap Purchase',
             notes: `Scrap purchase ${scrapInvoiceNum}`,
             user_id: userId || 'unset',
@@ -1295,7 +1334,8 @@ export function BillingPage() {
         : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
           ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
           : 0);
-      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: itemTax, total };
+      const pieces_sold = item.pieces_override ?? (item.pieces_per_kg ? Math.round(qty * item.pieces_per_kg) : undefined);
+      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: itemTax, total, pieces_sold };
     });
 
     // Build receipt display items
@@ -1517,7 +1557,7 @@ export function BillingPage() {
 
   useKeyboardShortcuts({
     'F2': () => searchRef.current?.focus(),
-    'F8': () => { if (!isScrapMode) discountRef.current?.focus(); },
+    'F8': () => { discountRef.current?.focus(); },
     'F12': () => {
       if (isScrapMode) {
         handleCheckout();
@@ -1833,9 +1873,9 @@ export function BillingPage() {
                                 p.current_stock <= 0 ? 'text-destructive' : p.current_stock < 10 ? 'text-amber-500' : 'text-emerald-500'
                               )}>
                                 Stock: {(() => {
-                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); return Number(d.pcs) || 0; } catch { return 0; } })() : 0;
+                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : 0); } catch { return 0; } })() : 0;
                                   const unit = p.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs';
-                                  return ppk > 0 ? `${p.current_stock} Kg (~${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${unit}`;
+                                  return ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${unit}`;
                                 })()}
                               </span>
                             </div>
@@ -2095,7 +2135,7 @@ export function BillingPage() {
                 </div>
                 <div className="flex gap-1.5 mt-1">
                   <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F2: Search</kbd>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F8: Discount</kbd>
+                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F8: {isScrapMode ? 'Extra' : 'Discount'}</kbd>
                   <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F12: Print</kbd>
                 </div>
               </div>
@@ -2103,8 +2143,29 @@ export function BillingPage() {
               items.map(item => {
                 if (item.isScrap) {
                   const rate = item.base_price;
-                  const weight = Number(item.quantity) || 0;
-                  const total = rate * weight;
+                  const qty = Number(item.quantity) || 0;
+
+                  const hasItemBonus = !!(
+                    (item.offer_price !== null && item.offer_price !== undefined) ||
+                    (item.discount_flat !== null && item.discount_flat !== undefined) ||
+                    (item.discount_percent !== null && item.discount_percent !== undefined)
+                  );
+
+                  const hasAdHocBonus = !!(
+                    (localDiscPcts[item.product_id] && localDiscPcts[item.product_id] > 0) ||
+                    (localDiscFlats[item.product_id] && localDiscFlats[item.product_id] > 0) ||
+                    (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
+                    (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
+                    (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
+                  );
+
+                  let effectivePrice = rate;
+                  if (item.offer_price !== null && item.offer_price !== undefined) { effectivePrice = Number(item.offer_price); }
+                  else if (item.discount_flat !== null && item.discount_flat !== undefined) { effectivePrice = rate + Number(item.discount_flat); }
+                  else if (item.discount_percent !== null && item.discount_percent !== undefined) { effectivePrice = rate * (1 + Number(item.discount_percent) / 100); }
+                  effectivePrice = Math.max(effectivePrice, 0);
+                  const total = effectivePrice * qty;
+
                   return (
                     <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group">
                       <div className="flex-1 min-w-0">
@@ -2127,8 +2188,116 @@ export function BillingPage() {
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
                       </div>
-                      <div className="font-black text-sm text-orange-600 dark:text-orange-400 shrink-0 min-w-[65px] text-right">{formatCurrency(total)}</div>
-                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0" title="Remove Item">
+
+                      <div className="flex items-center shrink-0">
+                        <div className="flex items-center border border-emerald-500/30 rounded-lg overflow-hidden focus-within:border-emerald-500/60 transition-all bg-emerald-500/5">
+                          <input
+                            type="number" min="0" max="100" step="any" inputMode="decimal"
+                            ref={el => { discRefs.current[item.product_id] = el; }}
+                            className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={localDiscPcts[item.product_id] !== undefined
+                              ? (localDiscPcts[item.product_id] || '')
+                              : (item.discount_percent ?? '')
+                            }
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
+                                setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                                setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                                removeItemDiscount(item.product_id);
+                              } else {
+                                const pct = parseFloat(val);
+                                const flat = rate > 0 ? Math.round(rate * pct / 100 * 100) / 100 : 0;
+                                setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
+                                setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
+                                updateItemDiscount(item.product_id, 'PERCENT', pct);
+                              }
+                              syncActiveSnapshot();
+                            }}
+                            onFocus={e => e.target.select()}
+                            onKeyDown={e => {
+                              handleDiscKeyDown(e, item.product_id);
+                            }}
+                            placeholder="+%"
+                          />
+                          <span className="w-px h-4 bg-emerald-500/30 shrink-0" />
+                          <input
+                            type="number" min="0" step="any" inputMode="decimal"
+                            ref={el => { discFlatRefs.current[item.product_id] = el; }}
+                            className="w-10 h-7 text-center bg-transparent border-0 text-xs font-bold text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            value={localDiscFlats[item.product_id] !== undefined
+                              ? (localDiscFlats[item.product_id] || '')
+                              : (item.discount_flat ?? '')
+                            }
+                            onChange={e => {
+                              const val = e.target.value;
+                              if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
+                                setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                                setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                                removeItemDiscount(item.product_id);
+                              } else {
+                                const flat = parseFloat(val);
+                                const pct = rate > 0 ? Math.round(flat / rate * 100 * 100) / 100 : 0;
+                                setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
+                                setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
+                                updateItemDiscount(item.product_id, 'FLAT', flat);
+                              }
+                              syncActiveSnapshot();
+                            }}
+                            onFocus={e => e.target.select()}
+                            onKeyDown={e => {
+                              handleDiscKeyDown(e, item.product_id);
+                            }}
+                            placeholder="+₹"
+                          />
+                          {hasAdHocBonus && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                removeItemDiscount(item.product_id);
+                                setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                                setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                                syncActiveSnapshot();
+                              }}
+                              className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                              title="Clear item extra"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0 min-w-[70px]">
+                        <input type="number" min="0" step="any" inputMode="decimal"
+                          className={`w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${hasItemBonus ? 'text-emerald-500' : 'text-orange-600 dark:text-orange-400'}`}
+                          value={total}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0 || qty <= 0) {
+                              removeItemDiscount(item.product_id);
+                            } else {
+                              const newTotal = parseFloat(val);
+                              const newUnitPrice = newTotal / qty;
+                              if (Math.abs(newUnitPrice - rate) < 0.001) {
+                                removeItemDiscount(item.product_id);
+                              } else {
+                                updateItemOfferPrice(item.product_id, newUnitPrice);
+                              }
+                            }
+                            setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                            setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                            syncActiveSnapshot();
+                          }}
+                          onFocus={e => e.target.select()}
+                          onKeyDown={e => handleDiscKeyDown(e, item.product_id)}
+                        />
+                        {hasItemBonus && (
+                          <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>
+                        )}
+                      </div>
+
+                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
                         <Trash className="w-3.5 h-3.5" />
                       </button>
                     </div>
@@ -2138,7 +2307,7 @@ export function BillingPage() {
                 const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
                 const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
                 const weightKg = Number(item.quantity) || 0;
-                const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;
+                const pieces = isPiecesWeight ? (item.pieces_override ?? Math.round(weightKg * item.pieces_per_kg!)) : 0;
                 const qty = weightKg;
 
                 // Explicit discount flag — avoids floating-point comparison bugs
@@ -2163,8 +2332,9 @@ export function BillingPage() {
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
+                const ppk = item.pieces_per_kg!;
                 const handlePcsChange = (pcsVal: number) => {
-                  updateQuantity(item.product_id, +(pcsVal / item.pieces_per_kg!).toFixed(3));
+                  updatePiecesOverride(item.product_id, pcsVal > 0 ? pcsVal : undefined);
                 };
 
                 return (
@@ -2188,17 +2358,19 @@ export function BillingPage() {
                     {isPiecesWeight ? (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
-                          <span className="text-[8px] text-muted-foreground font-bold uppercase">P</span>
+                          <span className="text-[8px] text-muted-foreground font-bold uppercase">Pcs</span>
                           <input type="number" min="1" step="1"
+                            ref={(el) => { qtyRefs.current[item.product_id] = el; }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={pieces}
                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
-                            onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                            onKeyDown={e => { if (e.key === 'Enter') { kRefs.current[item.product_id]?.focus(); e.preventDefault(); } else { handleQtyKeyDown(e, item.product_id); } }}
                           />
                         </div>
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
-                          <span className="text-[8px] text-muted-foreground font-bold uppercase">K</span>
+                          <span className="text-[8px] text-muted-foreground font-bold uppercase">Kgs</span>
                           <input type="number" min="0" step="0.001"
+                            ref={(el) => { kRefs.current[item.product_id] = el; }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={weightKg}
                             onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
@@ -2503,18 +2675,33 @@ export function BillingPage() {
                 </>
               )}
 
-              {/* Discount row — hidden in scrap mode */}
-              <div className={clsx('overflow-hidden transition-all duration-300 ease-in-out', isScrapMode ? 'max-h-0 opacity-0' : 'max-h-[60px] opacity-100')}>
+              {/* Discount row / Extra Bonus in scrap mode */}
+              <div className="overflow-hidden transition-all duration-300 ease-in-out max-h-[60px] opacity-100">
               <div className="flex items-center justify-between pt-1 border-t border-border/30">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-muted-foreground font-semibold text-sm">Discount</span>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
-                  {discount > 0 && (
-                    <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
+                  {isScrapMode ? (
+                    <>
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold text-sm flex items-center gap-1">
+                        <span className="text-[10px] px-1 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded font-bold leading-none">+</span>
+                        Extra / Bonus
+                      </span>
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
+                      {extraBonus > 0 && (
+                        <span className="text-xs font-black text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">+{formatCurrency(extraBonus)}</span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-muted-foreground font-semibold text-sm">Discount</span>
+                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
+                      {discount > 0 && (
+                        <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
+                      )}
+                    </>
                   )}
                 </div>
-                {/* Inline discount input */}
-                <div className="flex items-center bg-muted/50 border border-border rounded-xl p-0.5 shadow-sm">
+                {/* Inline discount/extra input */}
+                <div className={clsx("flex items-center border rounded-xl p-0.5 shadow-sm", isScrapMode ? "bg-emerald-500/10 border-emerald-500/30" : "bg-muted/50 border-border")}>
                   <div className="flex bg-card rounded-lg mr-1 border border-border/30">
                     <button
                       onClick={() => setDiscount(discountValue || 0, 'FIXED')}

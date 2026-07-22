@@ -80,6 +80,7 @@ export interface ReceiptData {
   pointsRedeemed?: number;
   pointsRedeemedDiscount?: number;
   remainingPointsBalance?: number;
+  extraBonus?: number;
 }
 
 /**
@@ -265,7 +266,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%)` : 'DISCOUNT';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
@@ -286,15 +289,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += LIGHT + '\n';
     }
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`++ You Saved ₹${totalSaved.toFixed(2)} ++`, charsPerLine) + '\n';
-      text += LIGHT + '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`++ You Saved ₹${totalSaved.toFixed(2)} ++`, charsPerLine) + '\n';
+        text += LIGHT + '\n';
+      }
     }
 
     // ── UPI ──
@@ -374,7 +379,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
       }
     }
-    if (data.discount > 0) text += `${padRight('Discount', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('Extra / Bonus', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) text += `${padRight('Discount', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
 
     const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
@@ -394,15 +401,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
 
-    // ── You Saved ──
-    const perProductSavings: number = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += ` ** SAVED ₹${totalSaved.toFixed(2)} **\n`;
-      text += DASH + '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings: number = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += ` ** SAVED ₹${totalSaved.toFixed(2)} **\n`;
+        text += DASH + '\n';
+      }
     }
 
     // ── UPI ──
@@ -487,7 +496,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%)` : 'DISCOUNT';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
@@ -508,15 +519,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += THIN + '\n';
     }
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`✦ Saved ${totalSaved.toFixed(2)} ✦`, charsPerLine) + '\n';
-      text += THIN + '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`✦ Saved ${totalSaved.toFixed(2)} ✦`, charsPerLine) + '\n';
+        text += THIN + '\n';
+      }
     }
 
     // ── UPI ──
@@ -616,7 +629,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST :', labelW)}  ${padLeft(`₹${data.sgst.toFixed(2)}`, totalW)}\n`;
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('EXTRA / BONUS :', labelW)}  ${padLeft(`₹+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%) :` : 'DISCOUNT :';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`₹-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
@@ -640,15 +655,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     text += '\n';
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
-      text += '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
+        text += '\n';
+      }
     }
 
     // ── UPI ──
@@ -747,7 +764,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST @2.5%:', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('Extra / Bonus:', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%):` : 'Discount:';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
@@ -768,15 +787,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += LIGHT + '\n';
     }
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`*** YOU SAVED ₹${totalSaved.toFixed(2)} ***`, charsPerLine) + '\n';
-      text += LIGHT + '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`*** YOU SAVED ₹${totalSaved.toFixed(2)} ***`, charsPerLine) + '\n';
+        text += LIGHT + '\n';
+      }
     }
 
     // ── UPI ──
@@ -871,7 +892,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) dotLine('SGST', data.sgst.toFixed(2));
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      dotLine('EXTRA / BONUS', `+${data.extraBonus.toFixed(2)}`);
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%)` : 'DISCOUNT';
       dotLine(dLabel, `-${data.discount.toFixed(2)}`);
     }
@@ -887,15 +910,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += DASH + '\n';
     }
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
-      text += DASH + '\n';
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine) + '\n';
+        text += DASH + '\n';
+      }
     }
 
     // ── UPI ──
@@ -955,7 +980,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(data.sgst.toFixed(2), totalW)}\n`;
       }
     }
-    if (data.discount > 0) text += `${padRight('DISCOUNT', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) text += `${padRight('DISCOUNT', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) text += `${padRight('SCRAP', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     text += `${padRight('GRAND TOTAL', labelW)}  ${padLeft(Math.max(0, finalGrandTotal).toFixed(2), totalW)}\n`;
@@ -966,14 +993,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('CHANGE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
     }
 
-    // ── You Saved ──
-    const perProductSavings = data.items.reduce((sum, item) => {
-      if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-      return sum;
-    }, 0);
-    const totalSaved = perProductSavings + data.discount;
-    if (totalSaved > 0) {
-      text += `\nYOU SAVED ₹${totalSaved.toFixed(2)}\n`;
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += `\nYOU SAVED ₹${totalSaved.toFixed(2)}\n`;
+      }
     }
 
     // ── UPI ──
@@ -1058,7 +1087,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         if (data.sgst && data.sgst > 0) text += `${padRight('SGST', labelW)}  ${padLeft(`\u20B9${data.sgst.toFixed(2)}`, totalW)}\n`;
       }
     }
-    if (data.discount > 0) {
+    if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
+      text += `${padRight('Extra / Bonus', labelW)}  ${padLeft(`+\u20B9${data.extraBonus.toFixed(2)}`, totalW)}\n`;
+    } else if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%)` : 'Discount';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-\u20B9${data.discount.toFixed(2)}`, totalW)}\n`;
     }

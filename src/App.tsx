@@ -348,7 +348,11 @@ function App() {
           if (match.billing_type === 'WEIGHT' && match.domain_attributes) {
             try {
               const da = typeof match.domain_attributes === 'string' ? JSON.parse(match.domain_attributes) : match.domain_attributes;
-              piecesPerKg = Number(da.pcs) || undefined;
+              const storedPpk = Number(da.pcs_per_kg) || 0;
+              const totalPcs = Number(da.pcs) || 0;
+              const stockKg = Number(match.current_stock) || 0;
+              // Prefer stored ratio; fall back to computing from original pcs/stock
+              piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
             } catch {}
           }
           addItem({

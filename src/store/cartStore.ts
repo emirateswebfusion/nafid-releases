@@ -24,6 +24,7 @@ export interface CartItem {
   brand_manufacturer?: string | null;
   isScrap?: boolean;
   scrap_category_id?: string;
+  pieces_override?: number;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -53,6 +54,7 @@ interface CartState {
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number | string) => void;
+  updatePiecesOverride: (productId: string, pieces: number | undefined) => void;
   updateItemDiscount: (productId: string, type: 'PERCENT' | 'FLAT', value: number) => void;
   removeItemDiscount: (productId: string) => void;
   updateItemOfferPrice: (productId: string, price: number | null) => void;
@@ -136,6 +138,12 @@ export const useCartStore = create<CartState>()(
           ),
         })),
 
+      updatePiecesOverride: (productId, pieces) =>
+        set((state) => ({
+          items: state.items.map(i =>
+            i.product_id === productId ? { ...i, pieces_override: pieces } : i
+          ),
+        })),
       updateItemDiscount: (productId, type, value) =>
         set((state) => ({
           items: state.items.map(i =>
@@ -212,12 +220,6 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   let scrapTotal = 0;
 
   items.forEach(item => {
-    if (item.isScrap) {
-      const scrapAmount = item.base_price * (Number(item.quantity) || 0);
-      scrapTotal += scrapAmount;
-      return;
-    }
-
     const rawRate = item.pricing_mode === 'GRADE_RATE' 
       ? (item.grade_rate || 0) 
       : item.base_price;
@@ -226,14 +228,19 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     if (item.offer_price !== null && item.offer_price !== undefined) {
       effectiveRate = Number(item.offer_price);
     } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-      effectiveRate = rawRate - Number(item.discount_flat);
+      effectiveRate = item.isScrap ? rawRate + Number(item.discount_flat) : rawRate - Number(item.discount_flat);
     } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-      effectiveRate = rawRate * (1 - Number(item.discount_percent) / 100);
+      effectiveRate = item.isScrap ? rawRate * (1 + Number(item.discount_percent) / 100) : rawRate * (1 - Number(item.discount_percent) / 100);
     }
     effectiveRate = Math.max(effectiveRate, 0);
 
     const qty = Number(item.quantity) || 0;
     const itemTotal = effectiveRate * qty;
+
+    if (item.isScrap) {
+      scrapTotal += itemTotal;
+      return;
+    }
     
     subtotal += itemTotal;
 
@@ -251,11 +258,12 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     }
   });
 
+  const baseForDiscount = subtotal > 0 ? subtotal : scrapTotal;
   const calculatedDiscount = discountType === 'PERCENTAGE'
-    ? (subtotal * discountValue) / 100
+    ? (baseForDiscount * discountValue) / 100
     : discountValue;
 
-  const effectiveDiscount = Math.min(calculatedDiscount, subtotal);
+  const effectiveDiscount = subtotal > 0 ? Math.min(calculatedDiscount, subtotal) : calculatedDiscount;
   const taxableAmount = subtotal - effectiveDiscount;
 
   const effectiveTaxRate = subtotal > 0 ? totalTax / subtotal : 0;
@@ -271,5 +279,7 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
 
   const grandTotal = taxableAmount + adjustedTax;
 
-  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount, scrapTotal };
+  const extraBonus = subtotal > 0 ? 0 : effectiveDiscount;
+
+  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount, scrapTotal, extraBonus };
 };

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import {
@@ -643,7 +643,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                               <Package className="w-3 h-3" />{stock.toFixed(1)} {cat.unit}
                             </span>
                             <span className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />Buy: {formatCurrency(cat.purchase_price)}
+                              <TrendingUp className="w-3 h-3" />Sell: {formatCurrency(cat.selling_price)}
                             </span>
                           </div>
                         </div>
@@ -653,16 +653,13 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                             'text-base font-black leading-none',
                             outOfStock ? 'text-muted-foreground' : 'text-emerald-600 dark:text-emerald-400'
                           )}>
-                            {formatCurrency(cat.selling_price)}
+                            {formatCurrency(cat.purchase_price)}
                           </p>
-                          <span className={clsx(
-                            'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md',
-                            outOfStock
-                              ? 'bg-muted text-muted-foreground'
-                              : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                          )}>
-                            {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
-                          </span>
+                          {outOfStock && (
+                            <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
+                              Out of Stock
+                            </span>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
@@ -858,9 +855,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border px-2 py-0.5 rounded-lg">
-                      <Package className="w-3 h-3" /> {Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}
-                    </span>
                     <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
                       <TrendingUp className="w-3 h-3" /> Buy: {formatCurrency(selectedCategory.purchase_price)}
                     </span>
