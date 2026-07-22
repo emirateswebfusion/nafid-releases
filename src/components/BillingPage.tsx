@@ -2142,11 +2142,24 @@ export function BillingPage() {
                 const qty = weightKg;
 
                 // Explicit discount flag — avoids floating-point comparison bugs
-                const hasItemDiscount = !!(item.offer_price || item.discount_flat || item.discount_percent);
+                const hasItemDiscount = !!(
+                  (item.offer_price !== null && item.offer_price !== undefined) ||
+                  (item.discount_flat !== null && item.discount_flat !== undefined) ||
+                  (item.discount_percent !== null && item.discount_percent !== undefined)
+                );
+
+                const hasAdHocDiscount = !!(
+                  (localDiscPcts[item.product_id] && localDiscPcts[item.product_id] > 0) ||
+                  (localDiscFlats[item.product_id] && localDiscFlats[item.product_id] > 0) ||
+                  (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
+                  (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
+                  (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
+                );
+
                 let effectivePrice = rate;
-                if (item.offer_price) { effectivePrice = Number(item.offer_price); }
-                else if (item.discount_flat) { effectivePrice = rate - Number(item.discount_flat); }
-                else if (item.discount_percent) { effectivePrice = rate * (1 - Number(item.discount_percent) / 100); }
+                if (item.offer_price !== null && item.offer_price !== undefined) { effectivePrice = Number(item.offer_price); }
+                else if (item.discount_flat !== null && item.discount_flat !== undefined) { effectivePrice = rate - Number(item.discount_flat); }
+                else if (item.discount_percent !== null && item.discount_percent !== undefined) { effectivePrice = rate * (1 - Number(item.discount_percent) / 100); }
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
@@ -2224,19 +2237,18 @@ export function BillingPage() {
                           }
                           onChange={e => {
                             const val = e.target.value;
-                            if (val === '') {
+                            if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                               removeItemDiscount(item.product_id);
                             } else {
                               const pct = parseFloat(val);
-                              const flat = rate > 0 && !isNaN(pct) ? Math.round(rate * pct / 100 * 100) / 100 : 0;
+                              const flat = rate > 0 ? Math.round(rate * pct / 100 * 100) / 100 : 0;
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
-                              if (!isNaN(pct) && pct > 0) {
-                                updateItemDiscount(item.product_id, 'PERCENT', pct);
-                              }
+                              updateItemDiscount(item.product_id, 'PERCENT', pct);
                             }
+                            syncActiveSnapshot();
                           }}
                           onFocus={e => e.target.select()}
                           onKeyDown={e => {
@@ -2255,19 +2267,18 @@ export function BillingPage() {
                           }
                           onChange={e => {
                             const val = e.target.value;
-                            if (val === '') {
+                            if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                               removeItemDiscount(item.product_id);
                             } else {
                               const flat = parseFloat(val);
-                              const pct = rate > 0 && !isNaN(flat) ? Math.round(flat / rate * 100 * 100) / 100 : 0;
+                              const pct = rate > 0 ? Math.round(flat / rate * 100 * 100) / 100 : 0;
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
-                              if (!isNaN(flat) && flat > 0) {
-                                updateItemDiscount(item.product_id, 'FLAT', flat);
-                              }
+                              updateItemDiscount(item.product_id, 'FLAT', flat);
                             }
+                            syncActiveSnapshot();
                           }}
                           onFocus={e => e.target.select()}
                           onKeyDown={e => {
@@ -2275,44 +2286,51 @@ export function BillingPage() {
                           }}
                           placeholder="₹"
                         />
-                        {hasItemDiscount && (
-                          <button onClick={() => {
-                            removeItemDiscount(item.product_id);
-                            setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
-                            setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
-                          }} className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0" title="Clear item discount">✕</button>
+                        {hasAdHocDiscount && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeItemDiscount(item.product_id);
+                              setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
+                              setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                              syncActiveSnapshot();
+                            }}
+                            className="h-7 w-6 flex items-center justify-center text-[9px] font-bold text-destructive/70 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0"
+                            title="Clear ad-hoc billing discount"
+                          >
+                            ✕
+                          </button>
                         )}
                       </div>
                     </div>
 
                     <div className="text-right shrink-0 min-w-[70px]">
                       <input type="number" min="0" step="any" inputMode="decimal"
-                        className={`w-16 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${effectivePrice !== rate ? 'text-emerald-500' : 'text-foreground'}`}
-                        value={effectivePrice}
+                        className={`w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${hasItemDiscount ? 'text-emerald-500' : 'text-foreground'}`}
+                        value={total}
                         onChange={e => {
                           const val = e.target.value;
-                          if (val === '' || Number(val) <= 0) {
-                            updateItemOfferPrice(item.product_id, null);
+                          if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0 || qty <= 0) {
+                            removeItemDiscount(item.product_id);
                           } else {
-                            const newPrice = parseFloat(val);
-                            if (Math.abs(newPrice - rate) < 0.001) {
-                              updateItemOfferPrice(item.product_id, null);
+                            const newTotal = parseFloat(val);
+                            const newUnitPrice = newTotal / qty;
+                            if (Math.abs(newUnitPrice - rate) < 0.001) {
+                              removeItemDiscount(item.product_id);
                             } else {
-                              updateItemOfferPrice(item.product_id, newPrice);
+                              updateItemOfferPrice(item.product_id, newUnitPrice);
                             }
                           }
                           setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                           setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
+                          syncActiveSnapshot();
                         }}
                         onFocus={e => e.target.select()}
                         onKeyDown={e => handleDiscKeyDown(e, item.product_id)}
                       />
-                      <div className="text-[9px] text-muted-foreground/50 mt-0.5 text-right whitespace-nowrap">
-                        {formatCurrency(total)}
-                        {effectivePrice !== rate && (
-                          <span className="line-through ml-1">{formatCurrency(rate * qty)}</span>
-                        )}
-                      </div>
+                      {hasItemDiscount && (
+                        <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>
+                      )}
                     </div>
 
                     <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">

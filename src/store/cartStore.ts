@@ -17,6 +17,9 @@ export interface CartItem {
   discount_percent?: number | null;
   discount_flat?: number | null;
   offer_price?: number | null;
+  catalog_discount_percent?: number | null;
+  catalog_discount_flat?: number | null;
+  catalog_offer_price?: number | null;
   sku_barcode?: string | null;
   brand_manufacturer?: string | null;
   isScrap?: boolean;
@@ -104,7 +107,21 @@ export const useCartStore = create<CartState>()(
               }),
             };
           }
-          return { items: [...state.items, { ...newItem, quantity: newItem.quantity ?? 1 }] };
+          const catalogDiscPct = newItem.catalog_discount_percent !== undefined ? newItem.catalog_discount_percent : (newItem.discount_percent ?? null);
+          const catalogDiscFlat = newItem.catalog_discount_flat !== undefined ? newItem.catalog_discount_flat : (newItem.discount_flat ?? null);
+          const catalogOfferPrice = newItem.catalog_offer_price !== undefined ? newItem.catalog_offer_price : (newItem.offer_price ?? null);
+          return {
+            items: [
+              ...state.items,
+              {
+                ...newItem,
+                catalog_discount_percent: catalogDiscPct,
+                catalog_discount_flat: catalogDiscFlat,
+                catalog_offer_price: catalogOfferPrice,
+                quantity: newItem.quantity ?? 1,
+              },
+            ],
+          };
         }),
 
       removeItem: (productId) =>
@@ -136,7 +153,12 @@ export const useCartStore = create<CartState>()(
         set((state) => ({
           items: state.items.map(i =>
             i.product_id === productId
-              ? { ...i, discount_percent: null, discount_flat: null, offer_price: null }
+              ? {
+                  ...i,
+                  discount_percent: i.catalog_discount_percent ?? null,
+                  discount_flat: i.catalog_discount_flat ?? null,
+                  offer_price: i.catalog_offer_price ?? null,
+                }
               : i
           ),
         })),
@@ -201,11 +223,11 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
       : item.base_price;
 
     let effectiveRate = rawRate;
-    if (item.offer_price) {
+    if (item.offer_price !== null && item.offer_price !== undefined) {
       effectiveRate = Number(item.offer_price);
-    } else if (item.discount_flat) {
+    } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
       effectiveRate = rawRate - Number(item.discount_flat);
-    } else if (item.discount_percent) {
+    } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
       effectiveRate = rawRate * (1 - Number(item.discount_percent) / 100);
     }
     effectiveRate = Math.max(effectiveRate, 0);

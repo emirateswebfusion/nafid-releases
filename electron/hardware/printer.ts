@@ -19,7 +19,8 @@ const ESC_POS_HEADER = Buffer.concat([ESC_INIT, ESC_FONT_A, ESC_DEFAULT_LINE_SPA
 
 // For ESC/POS network printers: strip non-ASCII chars that would print as garbage
 function sanitizeForEscPos(text: string): string {
-  return text.replace(/[\u{0080}-\u{FFFF}]/gu, (ch) => {
+  const withoutQrMarkers = text.replace(/\[\[QR:[^\]]+\]\]\s*/g, '');
+  return withoutQrMarkers.replace(/[\u{0080}-\u{FFFF}]/gu, (ch) => {
     if (ch === '₹') return 'Rs ';
     if (ch === '\u2588') return '#';  // █ full block
     if (ch === '\u2580') return '^';  // ▀ upper half

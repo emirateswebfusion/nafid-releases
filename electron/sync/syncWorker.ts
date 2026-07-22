@@ -459,7 +459,7 @@ async function syncInvoices(token: string, tenantId: string) {
 // ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
 async function syncSettings(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ? AND key IN ('price_coding', 'barcode_printer_config', 'receipt_printer_config')`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
@@ -1393,8 +1393,18 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     const cloudSettings: any[] = await response.json();
     if (!Array.isArray(cloudSettings) || cloudSettings.length === 0) return false;
 
-    const whitelistedKeys = ['price_coding', 'barcode_printer_config', 'receipt_printer_config'];
-    const validSettings = cloudSettings.filter(s => whitelistedKeys.includes(s.key));
+    const allowedKeys = [
+      'shop_name', 'shop_phone', 'shop_address', 'shop_gstin', 'shop_state',
+      'upi_id', 'show_upi_qr', 'show_product_offers',
+      'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
+      'price_coding', 'barcode_printer_config', 'receipt_printer_config',
+      'a4_printer_config', 'scale_config',
+      'print_format', 'label_code_type',
+      'terminal_code', 'invoice_counter_config',
+      'three_invoice_series', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
+      'isDomainConfirmed',
+    ];
+    const validSettings = cloudSettings.filter(s => allowedKeys.includes(s.key));
 
     if (validSettings.length === 0) return false;
 

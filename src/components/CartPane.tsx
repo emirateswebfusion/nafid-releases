@@ -221,9 +221,16 @@ export function CartPane() {
         ) : (
           <div className="divide-y divide-border">
             {items.map((item) => {
-              const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+              const rawRate = item.pricing_mode === 'GRADE_RATE' 
                 ? (item.grade_rate || 0) 
                 : item.base_price;
+              const effectiveRate = item.offer_price !== null && item.offer_price !== undefined
+                ? Number(item.offer_price)
+                : item.discount_flat !== null && item.discount_flat !== undefined
+                ? Math.max(0, rawRate - Number(item.discount_flat))
+                : item.discount_percent !== null && item.discount_percent !== undefined
+                ? Math.max(0, rawRate * (1 - Number(item.discount_percent) / 100))
+                : rawRate;
 
               const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
               const weightKg = Number(item.quantity) || 0;

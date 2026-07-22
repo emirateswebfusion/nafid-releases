@@ -1,4 +1,4 @@
-﻿import { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
@@ -204,7 +204,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
               <pre
                 className="font-mono whitespace-pre overflow-hidden select-text"
                 style={{
-                  margin: 0,
+                  margin: '0 auto',
                   padding: '10px 8px',
                   fontSize: '12px',
                   fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
@@ -213,6 +213,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                   lineHeight: 1.3,
                   background: '#fff',
                   minHeight: '200px',
+                  textAlign: 'center',
                 }}
               >
                 {content || ' '}
