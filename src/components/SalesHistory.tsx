@@ -992,6 +992,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       <Modal
         isOpen={drawerOpen}
         onClose={closeDrawer}
+        className="max-w-4xl"
         title={
           selectedInvoice && (
             <div className="flex items-center gap-2 flex-wrap">
@@ -1028,13 +1029,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 )}
               </div>
               <div className="flex gap-2">
-                {selectedInvoice.payment_method === 'PENDING' && (
-                  <button onClick={openCollectPayment}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
-                  >
-                    <CreditCard className="w-3.5 h-3.5" />Collect Payment
-                  </button>
-                )}
                 {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
                   <>
                     <button onClick={handleEditBill}
@@ -1048,6 +1042,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <Trash2 className="w-3.5 h-3.5" />Delete
                     </button>
                   </>
+                )}
+                {selectedInvoice.payment_method === 'PENDING' && (
+                  <button onClick={openCollectPayment}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
+                  >
+                    <CreditCard className="w-3.5 h-3.5" />Collect Payment
+                  </button>
                 )}
                 <button onClick={handleReprint}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"

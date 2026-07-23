@@ -118,8 +118,55 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
+function DefaultStockReportViewSelector({ tenantId }: { tenantId: string | null }) {
+  const [view, setView] = useState('combined');
+
+  useEffect(() => {
+    if (window.electronAPI) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
+        .then((val: any) => { if (val === 'estimate' || val === 'gst' || val === 'combined') setView(val); })
+        .catch(() => {});
+    }
+  }, [tenantId]);
+
+  const handleChange = (val: string) => {
+    setView(val);
+    if (window.electronAPI) {
+      window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: val })
+        .catch(() => {});
+    }
+  };
+
+  const options = [
+    { id: 'estimate', label: 'Estimate Only', desc: 'Non-GST products' },
+    { id: 'gst', label: 'GST Only', desc: 'GST enabled products' },
+    { id: 'combined', label: 'Estimate & GST', desc: 'All products combined' },
+  ] as const;
+
+  return (
+    <div className="grid grid-cols-3 gap-x-3">
+      {options.map(opt => (
+        <button
+          key={opt.id}
+          type="button"
+          onClick={() => handleChange(opt.id)}
+          className={clsx(
+            'flex flex-col items-center justify-center p-3 text-center rounded-xl border transition-all cursor-pointer',
+            view === opt.id
+              ? 'bg-primary/10 border-primary text-primary font-extrabold shadow-sm'
+              : 'bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
+          )}
+        >
+          <span className="text-xs font-bold">{opt.label}</span>
+          <span className="text-[10px] opacity-75 mt-0.5">{opt.desc}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function SettingsManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { role, updateDomain } = useAuthStore();
+  const { role, updateDomain, tenantId } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
@@ -168,6 +215,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
   const [enableScrap, setEnableScrap] = useState(false);
+  const [showCashRegister, setShowCashRegister] = useState(false);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
   const [loyaltyEarningRate, setLoyaltyEarningRate] = useState(100);
   const [loyaltyRedemptionRate, setLoyaltyRedemptionRate] = useState(1);
@@ -259,6 +307,9 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
     const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
     if (scrapEnabled !== null && scrapEnabled !== undefined) setEnableScrap(Boolean(scrapEnabled));
 
+    const cashReg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' });
+    if (cashReg !== null && cashReg !== undefined) setShowCashRegister(Boolean(cashReg));
+
     const loyaltyCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' });
     if (loyaltyCfg) {
       setLoyaltyEnabled(Boolean(loyaltyCfg.enabled));
@@ -343,6 +394,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: showCashRegister }), name: 'show_cash_register' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
@@ -623,6 +675,17 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                   </div>
                   <button type="button" onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableScrap ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableScrap ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                {/* Cash Register Toggle */}
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowCashRegister(!showCashRegister)}>Show Cash Register on Billing Page</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a Cash Register button appears on the billing page for quick cash-in/cash-out entries.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowCashRegister(!showCashRegister)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showCashRegister ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showCashRegister ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
 
@@ -1497,6 +1560,21 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     </div>
                   </div>
                 )}
+              </div>
+            </div>
+
+            {/* Card 4: Stock Report Default View */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <FileText className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Stock Report</span>
+              </div>
+              <div className="space-y-4">
+                <label className="text-sm font-bold text-foreground">Default View</label>
+                <p className="text-xs text-muted-foreground">Choose which tab opens by default when you open the stock report.</p>
+                <DefaultStockReportViewSelector tenantId={tenantId} />
               </div>
             </div>
           </div>

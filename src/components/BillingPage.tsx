@@ -16,6 +16,7 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '..
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
+import { CashRegisterPanel } from './CashRegisterPanel';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -190,6 +191,8 @@ export function BillingPage() {
   // Scrap mode (moved before displayGrandTotal which depends on it)
   const [isScrapMode, setIsScrapMode] = useState(false);
   const [enableScrap, setEnableScrap] = useState(false);
+  const [showCashRegister, setShowCashRegister] = useState(false);
+  const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const prevScrapMode = useRef(isScrapMode);
   // Clean up incompatible items when scrap mode changes (handles indirect toggles like quotation mode)
   useEffect(() => {
@@ -373,6 +376,9 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
+      if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
     });
     window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
@@ -1729,6 +1735,16 @@ export function BillingPage() {
             <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
             <span>Quotation</span>
           </button>
+          {showCashRegister && (
+            <button
+              onClick={() => setCashRegisterOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Cash Register"
+            >
+              <Banknote className="w-4 h-4 text-primary" />
+              <span>Register</span>
+            </button>
+          )}
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -3440,6 +3456,9 @@ export function BillingPage() {
         </>
       )}
 
+      {cashRegisterOpen && (
+        <CashRegisterPanel onClose={() => setCashRegisterOpen(false)} />
+      )}
     </div>
   );
 }

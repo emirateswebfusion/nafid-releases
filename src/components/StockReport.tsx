@@ -1,6 +1,6 @@
-﻿import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, LogOut, Activity } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3 } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
@@ -116,8 +116,18 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
-        .then((val: any) => { if (val === 'estimate' || val === 'gst') setViewMode(val); })
-        .catch(() => {});
+        .then((val: any) => {
+          if (val === 'estimate' || val === 'gst' || val === 'combined') { setViewMode(val); return; }
+          // Fallback: if GSTIN is set, default to GST tab; otherwise Estimate
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
+            .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
+            .catch(() => {});
+        })
+        .catch(() => {
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' })
+            .then((gstin: any) => setViewMode(gstin && String(gstin).trim() ? 'gst' : 'estimate'))
+            .catch(() => {});
+        });
     }
   }, [tenantId]);
 
@@ -139,6 +149,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   const filteredProducts = useMemo(() =>
     products.filter(p => {
+      // Per-tab GST applicability filter
+      if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
+      if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
+      // combined → no GST filter
       if (deferredSearch) {
         const q = deferredSearch.toLowerCase();
         if (!p.name.toLowerCase().includes(q) &&
@@ -152,7 +166,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       if (deferredStock === 'out_of_stock' && Number(p.current_stock) > 0) return false;
       return true;
     }),
-    [products, deferredSearch, deferredCategory, deferredStock]
+    [products, deferredSearch, deferredCategory, deferredStock, viewMode]
   );
 
   const {
@@ -424,19 +438,24 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
             </p>
           </div>
 
-          <div className="flex items-center gap-1 bg-muted/50 rounded-xl p-0.5 shrink-0">
-            {(['estimate', 'gst', 'combined'] as const).map(mode => (
+          <div className="flex items-center gap-x-0.5 bg-muted/50 rounded-xl p-0.5 shrink-0">
+            {([
+              { mode: 'estimate', label: 'Estimate', icon: Receipt, color: 'text-amber-500' },
+              { mode: 'gst',      label: 'GST',      icon: FileText, color: 'text-sky-500' },
+              { mode: 'combined', label: 'All',      icon: BarChart3, color: 'text-primary' },
+            ] as const).map(({ mode, label, icon: Icon, color }) => (
               <button
                 key={mode}
                 onClick={() => setViewMode(mode)}
                 className={clsx(
-                  'px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer',
+                  'flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer',
                   viewMode === mode
                     ? 'bg-primary text-primary-foreground shadow-sm'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
-                {mode === 'estimate' ? 'Estimate' : mode === 'gst' ? 'GST' : 'All'}
+                <Icon className={clsx('w-3 h-3', viewMode === mode ? 'text-primary-foreground' : color)} />
+                {label}
               </button>
             ))}
           </div>
