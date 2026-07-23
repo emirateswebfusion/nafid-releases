@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save, ChevronDown, ChevronUp,
-  Receipt, Tag, RefreshCw, Check, Eye, Download, Pencil
+  Receipt, Tag, RefreshCw, Check, Eye, Download, Pencil, Send
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
@@ -618,14 +618,52 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
               )}
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold border border-emerald-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                GST Bill
-              </span>
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold border border-amber-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                Estimate Bill
-              </span>
+              {/* Tab: GST */}
+              <button
+                type="button"
+                onClick={() => setBillType('GST')}
+                className={clsx(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                  billType === 'GST'
+                    ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
+                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                )}
+              >
+                <span className={clsx(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  billType === 'GST' ? "bg-white" : "bg-emerald-500"
+                )} />
+                GST
+                {gstHasItems && (
+                  <span className={clsx(
+                    "text-[10px] px-1.5 py-0.5 rounded-md font-black",
+                    billType === 'GST' ? "bg-white/20 text-white" : "bg-emerald-500/20"
+                  )}>✓</span>
+                )}
+              </button>
+              {/* Tab: Estimate */}
+              <button
+                type="button"
+                onClick={() => setBillType('ESTIMATE')}
+                className={clsx(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                  billType === 'ESTIMATE'
+                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
+                )}
+              >
+                <span className={clsx(
+                  "w-1.5 h-1.5 rounded-full shrink-0",
+                  billType === 'ESTIMATE' ? "bg-white" : "bg-amber-500"
+                )} />
+                Estimate
+                {estHasItems && (
+                  <span className={clsx(
+                    "text-[10px] px-1.5 py-0.5 rounded-md font-black",
+                    billType === 'ESTIMATE' ? "bg-white/20 text-white" : "bg-amber-500/20"
+                  )}>✓</span>
+                )}
+              </button>
             </div>
           </div>
 
@@ -650,9 +688,9 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             )}
           </div>
 
-          {/* ── Two Sections — both visible so user can add items to GST and Estimate simultaneously ── */}
+          {/* ── Both sections mounted, only active tab visible (preserves state & refs) ── */}
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div>
+            <div className={billType === 'GST' ? 'block' : 'hidden'}>
               <PurchaseBillFormSection
                 ref={gstRef}
                 type="GST"
@@ -665,6 +703,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setGstHasItems}
+                otherSectionAddItem={(item) => estRef.current?.addItem(item)}
                 editingData={editingBill?.bill_type === 'GST' ? {
                   purchase_bill_id: editingBill!.purchase_bill_id,
                   bill_number: editingBill!.bill_number,
@@ -673,7 +712,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 } : undefined}
               />
             </div>
-            <div>
+            <div className={billType === 'ESTIMATE' ? 'block' : 'hidden'}>
               <PurchaseBillFormSection
                 ref={estRef}
                 type="ESTIMATE"
@@ -686,6 +725,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setEstHasItems}
+                otherSectionAddItem={(item) => gstRef.current?.addItem(item)}
                 editingData={editingBill?.bill_type === 'ESTIMATE' ? {
                   purchase_bill_id: editingBill!.purchase_bill_id,
                   bill_number: editingBill!.bill_number,
@@ -1042,6 +1082,18 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
 interface PurchaseBillFormHandle {
   save: () => Promise<boolean>;
   hasItems: boolean;
+  addItem: (item: {
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+    selling_price: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+    sku_barcode?: string;
+    item_code?: string;
+  }) => void;
 }
 
 const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
@@ -1055,13 +1107,25 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   onSaved: () => void;
   onItemsLoaded?: () => void;
   onItemsChange?: (hasItems: boolean) => void;
+  otherSectionAddItem?: (item: {
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+    selling_price: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+    sku_barcode?: string;
+    item_code?: string;
+  }) => void;
   editingData?: {
     purchase_bill_id: string;
     bill_number: string;
     invoice_number?: string;
     payment_type: string;
   };
-}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, editingData }, ref) => {
+}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, otherSectionAddItem, editingData }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -1428,9 +1492,26 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     return false;
   };
 
+  const addItemToSection = (item: {
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+    selling_price: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+  }) => {
+    setBillItems(prev => {
+      if (prev.some(i => i.product_id === item.product_id)) return prev;
+      return [...prev, { ...item }];
+    });
+  };
+
   useImperativeHandle(ref, () => ({
     save: handleSave,
     get hasItems() { return billItems.length > 0; },
+    addItem: addItemToSection,
   }));
 
   useEffect(() => {
@@ -1818,31 +1899,46 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span className="text-right">Selling</span>
                   <span></span>
                 </div>
-                {billItems.map(item => (
-                  <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
-                    <span className="text-xs font-semibold text-foreground truncate">{item.name}</span>
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={item.quantity}
-                      onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
-                    />
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={item.purchase_price}
-                      onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
-                    />
-                    <input
-                      type="number" step="0.01" min="0"
-                      value={item.selling_price}
-                      onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
-                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
-                    />
-                    <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
-                      <Trash className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                {billItems.map(item => (                    <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="text-xs font-semibold text-foreground truncate">{item.name}</span>
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.quantity}
+                        onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.purchase_price}
+                        onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.selling_price}
+                        onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                      />
+                      <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => otherSectionAddItem?.({
+                          product_id: item.product_id,
+                          name: item.name,
+                          quantity: item.quantity,
+                          purchase_price: item.purchase_price,
+                          selling_price: item.selling_price,
+                          is_gst_applicable: item.is_gst_applicable,
+                          tax_rate_percent: item.tax_rate_percent,
+                          hsn_sac_code: item.hsn_sac_code,
+                        })}
+                        className="p-1.5 rounded-lg text-amber-500/50 hover:text-amber-500 hover:bg-amber-500/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
+                        title="Send to GST Bill"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                 ))}
               </>
             ) : (
@@ -1862,7 +1958,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
                   const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
                   return (
-                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                       <span className="text-xs font-semibold text-foreground truncate leading-tight">
                         {item.name}
                         {item.hsn_sac_code && <span className="block text-[9px] text-muted-foreground font-mono">HSN: {item.hsn_sac_code}</span>}
@@ -1904,6 +2000,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       </div>
                       <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
                         <Trash className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => otherSectionAddItem?.({
+                          product_id: item.product_id,
+                          name: item.name,
+                          quantity: item.quantity,
+                          purchase_price: item.purchase_price,
+                          selling_price: item.selling_price,
+                          is_gst_applicable: item.is_gst_applicable,
+                          tax_rate_percent: item.tax_rate_percent,
+                          hsn_sac_code: item.hsn_sac_code,
+                        })}
+                        className="p-1.5 rounded-lg text-emerald-500/50 hover:text-emerald-500 hover:bg-emerald-500/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100"
+                        title="Send to Estimate Bill"
+                      >
+                        <Send className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   );

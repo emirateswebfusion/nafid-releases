@@ -128,7 +128,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     <>
       {/* ── REGISTER PANEL ── */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
-        <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[480px] max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+        <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[480px] h-[560px] max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
           {/* Header */}
           <div className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-border/60">
             <div className="flex items-center gap-2.5">
@@ -209,7 +209,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Transaction feed */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="flex-1 overflow-y-auto pb-6">
                 {transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
                     <Banknote className="w-10 h-10 text-muted-foreground/30" />
