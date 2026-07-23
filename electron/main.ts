@@ -2100,6 +2100,25 @@ ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
   }
 });
 
+ipcMain.handle('db:getProductBillQuantities', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare(`
+      SELECT ii.product_id,
+             COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
+             COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' THEN ii.quantity ELSE 0 END), 0) as estimate_qty
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.invoice_id
+      WHERE ii.tenant_id = ?
+      GROUP BY ii.product_id
+    `).all(tenantId);
+  } catch (error: any) {
+    console.error('[db:getProductBillQuantities]', error);
+    return [];
+  }
+});
+
 // ── Quotations IPC ─────────────────────────────────────────────
 ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: string }) => {
   try {
@@ -2448,7 +2467,7 @@ ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset
     const db = getDb();
     if (!tenant_id) return [];
 
-    let query = 'SELECT pb.*, p.name as supplier_phone FROM purchase_bills pb LEFT JOIN parties p ON pb.supplier_id = p.party_id WHERE pb.tenant_id = ?';
+    let query = 'SELECT pb.*, p.phone as supplier_phone, p.gstin as supplier_gstin FROM purchase_bills pb LEFT JOIN parties p ON pb.supplier_id = p.party_id WHERE pb.tenant_id = ?';
     const params: any[] = [tenant_id];
 
     if (search) {

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
@@ -187,6 +187,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [showDayClose, setShowDayClose] = useState(false);
   const [actualCash, setActualCash] = useState<number>(0);
   const [closeRemarks, setCloseRemarks] = useState('');
+  const closeRemarksRef = useRef<HTMLTextAreaElement>(null);
   const [closeResult, setCloseResult] = useState<any>(null);
   const [closeSubmitting, setCloseSubmitting] = useState(false);
 
@@ -289,6 +290,19 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     });
     setCloseSubmitting(false);
     if (r.success) { setCloseResult(r); await load(); }
+  };
+
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
 
   const openHistory = async () => {
@@ -1119,14 +1133,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         onChange={(e) => setActualCash(e.target.value === '' ? 0 : Number(e.target.value))}
                         className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
                         step="0.01" min="0" placeholder="Enter physical cash count" autoFocus
+                        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); closeRemarksRef.current?.focus(); } }}
                       />
                     </div>
                   </div>
                   <textarea
+                    ref={closeRemarksRef}
                     value={closeRemarks}
                     onChange={(e) => setCloseRemarks(e.target.value)}
                     placeholder="Closing remarks (optional)"
                     className="w-full px-4 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
+                    onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleDayClose(); } }}
                   />
                   <div className="flex gap-3">
                     <button
@@ -1183,6 +1200,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   onChange={(e) => setOpeningBalInput(e.target.value === '' ? 0 : Number(e.target.value))}
                   className="w-full pl-10 pr-4 py-3 text-lg font-black bg-card border-2 border-primary/25 rounded-2xl outline-none focus:border-primary text-foreground tabular-nums shadow-sm transition-all"
                   step="0.01" min="0" placeholder="Enter opening balance" autoFocus
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleSetOpening(); } }}
                 />
               </div>
               {openingBalError && (
@@ -1250,7 +1268,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               </div>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
               {/* Toggle */}
               <div className="flex rounded-xl bg-muted/40 border border-border p-1 gap-1">
                 <button

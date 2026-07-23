@@ -10,6 +10,7 @@ import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 
 interface PurchaseBill {
   purchase_bill_id: string;
@@ -75,6 +76,8 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<'ALL' | 'GST' | 'ESTIMATE'>('ALL');
   const [filterInvoice, setFilterInvoice] = useState<'ALL' | 'WITH' | 'WITHOUT'>('ALL');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [viewingBill, setViewingBill] = useState<PurchaseBill | null>(null);
   const [viewingBillItems, setViewingBillItems] = useState<PurchaseBillItem[]>([]);
   const [loadingViewingItems, setLoadingViewingItems] = useState(false);
@@ -83,7 +86,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const [editingBill, setEditingBill] = useState<PurchaseBill | null>(null);
   const [editHasItems, setEditHasItems] = useState(false);
 
-  // derived — apply type and invoice filters on top of the server-side search results
+  // derived — apply type, invoice, and date filters on top of the server-side search results
   const filteredBills = useMemo(() => {
     let res = bills;
     if (filterType !== 'ALL') {
@@ -94,8 +97,18 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
     } else if (filterInvoice === 'WITHOUT') {
       res = res.filter(b => !b.invoice_number);
     }
+    if (dateFrom) {
+      const from = new Date(dateFrom);
+      from.setHours(0, 0, 0, 0);
+      res = res.filter(b => new Date(b.bill_date) >= from);
+    }
+    if (dateTo) {
+      const to = new Date(dateTo);
+      to.setHours(23, 59, 59, 999);
+      res = res.filter(b => new Date(b.bill_date) <= to);
+    }
     return res;
-  }, [bills, filterType, filterInvoice]);
+  }, [bills, filterType, filterInvoice, dateFrom, dateTo]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [supplierName, setSupplierName] = useState('');
@@ -198,8 +211,9 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
         });
       }
       const headers = [
-        'Bill No', 'Bill Date', 'Bill Type', 'Supplier Name', 'Supplier Phone',
-        'Invoice Number', 'Notes', 'Total Amount (₹)', 'CGST Amount (₹)', 'SGST Amount (₹)', 'Created At'
+        'Bill No', 'Date', 'Supplier Name', 'GSTIN',
+        'Bill Amount', 'Taxable Amount', 'CGST Amount', 'SGST Amount',
+        'IGST Amount', 'CESS Amount', 'Other Amount'
       ];
       const escape = (val: any) => {
         const str = val == null ? '' : String(val);
@@ -209,18 +223,18 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
       };
       const rows = filteredBills.map(b => {
         const { sgst = 0, cgst = 0 } = billGstMap[b.purchase_bill_id] || {};
+        const totalGst = cgst + sgst;
+        const taxableAmount = b.total_amount - totalGst;
         return [
           escape(b.bill_number),
-          escape(b.bill_date),
-          escape(b.bill_type),
+          escape(new Date(b.bill_date).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/\//g, '-')),
           escape(b.supplier_name),
-          escape(b.supplier_phone || ''),
-          escape(b.invoice_number || ''),
-          escape(b.notes || ''),
+          escape((b as any).supplier_gstin || ''),
           escape(b.total_amount.toFixed(2)),
+          escape(taxableAmount.toFixed(2)),
           escape(cgst.toFixed(2)),
           escape(sgst.toFixed(2)),
-          escape(new Date(b.created_at).toLocaleString('en-IN')),
+          '0.00', '0.00', '0.00',
         ];
       });
 
@@ -385,6 +399,8 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                   );
                 })}
               </div>
+
+              <DateRangeFilter startDate={dateFrom} endDate={dateTo} onChange={(s, e) => { setDateFrom(s); setDateTo(e); }} />
 
             </div>
 
@@ -1074,6 +1090,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   }>>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [searchDropdownPos, setSearchDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
@@ -1431,71 +1449,60 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     onItemsChange?.(billItems.length > 0);
   }, [billItems.length, onItemsChange]);
 
+  useEffect(() => {
+    if (searchRef.current && (products.length > 0 || (productSearch.length >= 2 && products.length === 0 && !showProductCreateForm))) {
+      const rect = searchRef.current.getBoundingClientRect();
+      setSearchDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    } else {
+      setSearchDropdownPos(null);
+    }
+  }, [products, productSearch, showProductCreateForm]);
+
   const isEstimate = type === 'ESTIMATE';
 
   return (
-    <section className={clsx(
-      "border rounded-xl shadow-sm overflow-hidden",
-      isEstimate ? "border-amber-500/30 bg-amber-500/[0.02]" : "border-emerald-500/30 bg-emerald-500/[0.02]"
-    )}>
-      {/* Section Header */}
-      <div className={clsx(
-        "flex items-center justify-between px-4 py-2.5 border-b",
-        isEstimate ? "bg-amber-500/5 border-amber-500/20" : "bg-emerald-500/5 border-emerald-500/20"
-      )}>
-        <div className="flex items-center gap-2">
-          <div className={clsx(
-            "p-1.5 rounded-lg",
-            isEstimate ? "bg-amber-500/10 text-amber-500" : "bg-emerald-500/10 text-emerald-500"
-          )}>
-            <FileText className="w-4 h-4" />
-          </div>
-          <span className={clsx(
-            "text-xs font-black uppercase tracking-wider",
-            isEstimate ? "text-amber-500" : "text-emerald-500"
-          )}>
-            {isEstimate ? 'Estimate Purchase' : 'GST Purchase'}
-          </span>
+    <>
+      {/* Bill Info Bar */}
+      <div className={clsx("flex items-center gap-3 px-4 py-3 rounded-xl border-l-4", isEstimate ? "border-amber-500 bg-amber-500/[0.03]" : "border-emerald-500 bg-emerald-500/[0.03]")}>
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">
+            Bill No {isEstimate ? '(Estimate)' : '(GST)'}
+          </label>
+          <input
+            type="text" value={billNumber}
+            onChange={e => setBillNumber(e.target.value)}
+            className="w-36 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+          />
         </div>
-        <div className="flex items-center gap-3">
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Bill No</label>
-            <input
-              type="text" value={billNumber}
-              onChange={e => setBillNumber(e.target.value)}
-              className="w-40 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Invoice No</label>
-            <input
-              type="text" value={invoiceNumber}
-              onChange={e => setInvoiceNumber(e.target.value)}
-              placeholder="Supplier inv #"
-              className="w-40 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Payment</label>
-            <Select
-              value={paymentType}
-              onChange={v => setPaymentType(v as any)}
-              options={[
-                { value: 'CASH', label: 'Cash' },
-                { value: 'CREDIT', label: 'Credit' },
-                { value: 'UPI', label: 'UPI' },
-                { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
-              ]}
-              triggerClassName="w-32 bg-background border border-border rounded-lg px-2.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shadow-none"
-              size="sm"
-            />
-          </div>
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Invoice No</label>
+          <input
+            type="text" value={invoiceNumber}
+            onChange={e => setInvoiceNumber(e.target.value)}
+            placeholder="Supplier inv #"
+            className="w-36 bg-background border border-border rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Payment</label>
+          <Select
+            value={paymentType}
+            onChange={v => setPaymentType(v as any)}
+            options={[
+              { value: 'CASH', label: 'Cash' },
+              { value: 'CREDIT', label: 'Credit' },
+              { value: 'UPI', label: 'UPI' },
+              { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
+            ]}
+            triggerClassName="w-28 bg-background border border-border rounded-lg px-2.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shadow-none"
+            size="sm"
+          />
         </div>
       </div>
 
       {/* Products Section */}
       <div className="p-4">
-        <div className="relative mb-4">
+        <div ref={searchRef} className="relative mb-4">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <input
             type="text"
@@ -1504,8 +1511,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             onChange={e => searchProducts(e.target.value)}
             className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
           />
-          {products.length > 0 && !showProductCreateForm && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+          {searchDropdownPos && products.length > 0 && !showProductCreateForm && (
+            <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border rounded-xl shadow-xl max-h-48 overflow-y-auto">
               {products.map(p => (
                 <button
                   key={p.product_id} type="button"
@@ -1525,8 +1532,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               ))}
             </div>
           )}
-          {productSearch.length >= 2 && products.length === 0 && !showProductCreateForm && (
-            <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden">
+          {searchDropdownPos && productSearch.length >= 2 && products.length === 0 && !showProductCreateForm && (
+            <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border rounded-xl shadow-xl overflow-hidden">
               <button
                 type="button"
                 onMouseDown={() => { setShowProductCreateForm(true); setNewProductName(productSearch); }}
@@ -1816,50 +1823,50 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           <div className="space-y-1.5">
             {isEstimate ? (
               <>
-                <div className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[1fr_80px_100px_100px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   <span>Product</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Purchase</span>
                   <span className="text-right">Selling</span>
-                  <span className="text-right"></span>
+                  <span></span>
                 </div>
                 {billItems.map(item => (
-                  <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_40px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
-                    <span className="text-xs font-medium text-foreground truncate">{item.name}</span>
+                  <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                    <span className="text-xs font-semibold text-foreground truncate">{item.name}</span>
                     <input
                       type="number" step="0.01" min="0"
                       value={item.quantity}
                       onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                     />
                     <input
                       type="number" step="0.01" min="0"
                       value={item.purchase_price}
                       onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                     />
                     <input
                       type="number" step="0.01" min="0"
                       value={item.selling_price}
                       onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
-                      className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                      className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                     />
-                    <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
-                      <X className="w-3 h-3" />
+                    <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                      <Trash className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 ))}
               </>
             ) : (
               <>
-                <div className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-2 px-2.5 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   <span>Product</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Rate</span>
                   <span className="text-right">CGST</span>
                   <span className="text-right">SGST</span>
                   <span className="text-right">Total</span>
-                  <span className="text-right"></span>
+                  <span></span>
                 </div>
                 {billItems.map(item => {
                   const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
@@ -1867,8 +1874,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
                   const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
                   return (
-                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-2 px-2.5 py-1.5 bg-card border border-border rounded-lg items-center">
-                      <span className="text-xs font-medium text-foreground truncate leading-tight">
+                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_75px_65px_65px_80px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="text-xs font-semibold text-foreground truncate leading-tight">
                         {item.name}
                         {item.hsn_sac_code && <span className="block text-[9px] text-muted-foreground font-mono">HSN: {item.hsn_sac_code}</span>}
                       </span>
@@ -1876,13 +1883,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         type="number" step="0.01" min="0"
                         value={item.quantity}
                         onChange={e => updateBillItem(item.product_id, 'quantity', e.target.value)}
-                        className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                       />
                       <input
                         type="number" step="0.01" min="0"
                         value={item.purchase_price}
                         onChange={e => updateBillItem(item.product_id, 'purchase_price', e.target.value)}
-                        className="w-full bg-background border border-border rounded-md p-1 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners"
+                        className="w-full bg-background border border-border rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
                       />
                       <div className="text-right">
                         {hasGst ? (
@@ -1907,8 +1914,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       <div className="text-right font-bold text-foreground text-xs">
                         ₹{itemTotal.toFixed(2)}
                       </div>
-                      <button onClick={() => removeBillItem(item.product_id)} className="p-1 text-muted-foreground hover:text-destructive rounded-md transition-colors cursor-pointer">
-                        <X className="w-3 h-3" />
+                      <button onClick={() => removeBillItem(item.product_id)} className="p-1.5 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                        <Trash className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   );
@@ -1970,7 +1977,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           </div>
         )}
       </div>
-    </section>
+    </>
   );
 });
 

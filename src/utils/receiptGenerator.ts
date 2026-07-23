@@ -250,6 +250,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${item.unit_price.toFixed(2)}`;
         const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
         text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
+      } else if (data.invoiceType === 'SCRAP') {
+        text += `  ${padLeft(item.unit_price.toFixed(2), 7)} ${padLeft(String(item.quantity), 5)} ${padLeft(item.total.toFixed(2), 8)}\n`;
       }
     });
 

@@ -40,6 +40,14 @@ interface EnrichedProduct extends Product {
   isLowStock: boolean;
   isOutOfStock: boolean;
   gradeName: string;
+  gstQty: number;
+  estimateQty: number;
+}
+
+interface ProductBillQty {
+  product_id: string;
+  gst_qty: number;
+  estimate_qty: number;
 }
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -49,6 +57,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const { shopName, tenantId } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
+  const [billQuantities, setBillQuantities] = useState<ProductBillQty[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -86,6 +95,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         reportCache.set(cacheKey, { products: prodRes, grades: gradeRes, timestamp: Date.now() });
         setLastUpdated(new Date());
       }
+      window.electronAPI.dbGetProductBillQuantities(cacheKey)
+        .then(res => setBillQuantities(Array.isArray(res) ? res : []))
+        .catch(() => {});
     }
 
     setLoading(false);
@@ -99,6 +111,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
 
   const gradeMap = useMemo(() => new Map(grades.map(g => [g.grade_id, g])), [grades]);
+  const billQtyMap = useMemo(() => new Map(billQuantities.map(b => [b.product_id, b])), [billQuantities]);
 
   const getMrp = useCallback((p: Product) => {
     const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
@@ -164,8 +177,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
       const isOutOfStock = Number(p.current_stock) <= 0;
       const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
+      const bq = billQtyMap.get(p.product_id);
 
-      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, totalPcs, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-' };
+      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, totalPcs, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-', gstQty: bq ? Number(bq.gst_qty) : 0, estimateQty: bq ? Number(bq.estimate_qty) : 0 };
 
       const cs = Number(p.current_stock);
       tStock += cs;
@@ -217,6 +231,36 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     };
   }, [filteredProducts, getMrp, gradeMap]);
 
+  const handleDownloadCsv = () => {
+    const rows: string[][] = [];
+    rows.push(['Product', 'Category', 'Grade', 'Stock', 'GST Qty', 'Est Qty', 'Weight', 'Purchase Price', 'MRP', 'Selling Price']);
+    for (const p of filteredProducts) {
+      const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
+      const bq = billQtyMap.get(p.product_id);
+      const weightStr = p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-';
+      rows.push([
+        p.name,
+        p.category || '-',
+        gr?.grade_name || '-',
+        Number(p.current_stock).toFixed(0),
+        bq ? Number(bq.gst_qty).toFixed(0) : '0',
+        bq ? Number(bq.estimate_qty).toFixed(0) : '0',
+        weightStr,
+        formatCurrency(Number(p.purchase_price) || 0),
+        formatCurrency(getMrp(p)),
+        formatCurrency(p.finalSellingPrice ?? getMrp(p)),
+      ]);
+    }
+    const csvContent = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `StockReport_${shopName || 'Shop'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handlePrint = async () => {
     const repGroupedByCategory = filteredProducts.reduce<Record<string, typeof filteredProducts>>((acc, p) => {
       const cat = p.category || 'Uncategorized';
@@ -233,6 +277,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     const totalProductsVal = filteredProducts.length;
     const outOfStockVal = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
 
+    const totalGstQty = billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0);
+    const totalEstQty = billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0);
+
     const categoryRows = Object.entries(repGroupedByCategory).map(([cat, items]) => {
       const detailRows = items.map(p => {
         const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
@@ -244,9 +291,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
         const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : 0;
         const weightStr = totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' + (totalPcs > 0 ? ' (' + totalPcs + ' pcs)' : '') : '-';
-        return `<tr>\n          <td style="padding:6px;border:1px solid #ddd;">${p.name}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${p.category || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${gr?.grade_name || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${Number(p.current_stock).toFixed(0)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${weightStr}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${formatCurrency(rate)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${formatCurrency(value)}</td>\n        </tr>`;
+        const bq = billQtyMap.get(p.product_id);
+        const gstQty = bq ? Number(bq.gst_qty).toFixed(0) : '0';
+        const estQty = bq ? Number(bq.estimate_qty).toFixed(0) : '0';
+        return `<tr>\n          <td style="padding:6px;border:1px solid #ddd;">${p.name}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${p.category || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;color:#666;">${gr?.grade_name || '-'}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${Number(p.current_stock).toFixed(0)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${gstQty}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${estQty}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${weightStr}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;">${formatCurrency(rate)}</td>\n          <td style="padding:6px;border:1px solid #ddd;text-align:right;font-weight:bold;">${formatCurrency(value)}</td>\n        </tr>`;
       }).join('');
-      return `<tr style="background:#e8f0fe;font-weight:bold;">\n        <td colspan="7" style="padding:8px 6px;border:1px solid #ddd;color:#2563eb;">${cat}</td>\n      </tr>${detailRows}`;
+      return `<tr style="background:#e8f0fe;font-weight:bold;">\n        <td colspan="9" style="padding:8px 6px;border:1px solid #ddd;color:#2563eb;">${cat}</td>\n      </tr>${detailRows}`;
     }).join('');
 
     const html = `<!DOCTYPE html>
@@ -291,6 +341,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <th>Category</th>
                 <th>Grade</th>
                 <th class="text-right">Stock</th>
+                <th class="text-right">GST Qty</th>
+                <th class="text-right">Est Qty</th>
                 <th class="text-right">Weight</th>
                 <th class="text-right">Rate</th>
                 <th class="text-right">Value</th>
@@ -301,6 +353,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               <tr class="total-row">
                 <td colspan="3">Grand Total</td>
                 <td class="text-right">${totalStockVal.toFixed(0)}</td>
+                <td class="text-right">${totalGstQty.toFixed(0)}</td>
+                <td class="text-right">${totalEstQty.toFixed(0)}</td>
                 <td class="text-right"></td>
                 <td class="text-right"></td>
                 <td class="text-right" style="color:#059669;">${formatCurrency(totalValueVal)}</td>
@@ -358,6 +412,13 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               title="Refresh data"
             >
               <RefreshCw className={clsx('w-4 h-4', refreshing && 'animate-spin')} />
+            </button>
+            <button
+              onClick={handleDownloadCsv}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            >
+              <FileText className="w-3.5 h-3.5" /> CSV
             </button>
             <button
               onClick={handlePrint}
@@ -593,6 +654,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Category</th>
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Stock</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Qty</th>
+                    <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Est Qty</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Weight</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Purchase</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">MRP</th>
@@ -603,12 +666,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-3" colSpan={8}><Skeleton className="h-5 w-full rounded" /></td>
+                        <td className="px-4 py-3" colSpan={10}><Skeleton className="h-5 w-full rounded" /></td>
                       </tr>
                     ))
                   ) : Object.entries(groupedByCategory).length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
+                      <td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
                     </tr>
                     ) : (
                     Object.entries(groupedByCategory).map(([cat, items]) => {
@@ -616,7 +679,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       return (
                         <React.Fragment key={cat}>
                           <tr className="bg-primary/5">
-                            <td colSpan={8} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
+                            <td colSpan={10} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
                               <div className="flex items-center gap-2">
                                 <span>{cat}</span>
                                 <span className="text-[10px] text-muted-foreground font-semibold">
@@ -636,6 +699,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.gradeName}</td>
                               <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', p.isOutOfStock ? 'text-red-500' : p.isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-sky-600 dark:text-sky-400">{p.gstQty.toFixed(0)}</td>
+                              <td className="px-4 py-2.5 text-right text-sm text-amber-600 dark:text-amber-400">{p.estimateQty.toFixed(0)}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-'}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(p.rate)}</td>
@@ -650,6 +715,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <tr className="bg-muted/30 border-t-2 border-border">
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                       <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>
+                      <td className="px-4 py-3 text-right font-bold text-sm text-amber-500">{billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0).toFixed(0)}</td>
                       <td className="px-4 py-3 text-right"></td>
                       <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>
                       <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{formatCurrency(totalMrpValue)}</td>

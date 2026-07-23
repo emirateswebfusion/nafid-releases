@@ -139,6 +139,19 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     }, 100);
   };
 
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+  };
+
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
     return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -305,8 +318,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           </div>
         </>
       ) : (
-        <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
+        <div className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown}>
+          <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full" data-enter-nav>
 
             <section className="bg-card border border-border rounded-xl p-4 shadow-sm">
               <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">

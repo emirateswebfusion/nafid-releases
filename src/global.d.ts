@@ -93,6 +93,7 @@ export interface IElectronAPI {
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;
+  dbGetProductBillQuantities: (tenant_id: string) => Promise<{ product_id: string; gst_qty: number; estimate_qty: number }[]>;
 
   // Quotations
   dbGetNextQuotationNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; quotationNumber?: string; error?: string }>;

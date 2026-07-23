@@ -1123,6 +1123,14 @@ export function BillingPage() {
   const handleDiscKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
+      const flatInput = discFlatRefs.current[productId];
+      if (flatInput) { flatInput.focus(); flatInput.select(); }
+    }
+  };
+
+  const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
       searchRef.current?.focus();
     }
   };
@@ -2246,7 +2254,7 @@ export function BillingPage() {
                             }}
                             onFocus={e => e.target.select()}
                             onKeyDown={e => {
-                              handleDiscKeyDown(e, item.product_id);
+                              handleDiscFlatKeyDown(e, item.product_id);
                             }}
                             placeholder="+₹"
                           />
@@ -2451,7 +2459,7 @@ export function BillingPage() {
                           }}
                           onFocus={e => e.target.select()}
                           onKeyDown={e => {
-                            handleDiscKeyDown(e, item.product_id);
+                            handleDiscFlatKeyDown(e, item.product_id);
                           }}
                           placeholder="₹"
                         />
@@ -2495,7 +2503,7 @@ export function BillingPage() {
                           syncActiveSnapshot();
                         }}
                         onFocus={e => e.target.select()}
-                        onKeyDown={e => handleDiscKeyDown(e, item.product_id)}
+                        onKeyDown={e => handleDiscFlatKeyDown(e, item.product_id)}
                       />
                       {hasItemDiscount && (
                         <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>
