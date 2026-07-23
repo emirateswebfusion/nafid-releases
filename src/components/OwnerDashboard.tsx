@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2 } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -185,6 +185,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-violet-500',
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
+        },
+        {
+            id: 'returns',
+            title: 'Returns',
+            desc: 'View returned items, manage refunds, and restore stock',
+            icon: Undo2,
+            color: 'text-orange-500',
+            bgColor: 'bg-orange-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-returns-manager')),
         },
         ...(enableScrap ? [{
             id: 'scrap',

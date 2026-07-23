@@ -3,7 +3,7 @@ import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
-import { CreditCard, FileText, Settings, XCircle, LogOut, Store, Users, Sun, Moon, TrendingUp } from 'lucide-react';
+import { CreditCard, FileText, Settings, XCircle, LogOut, Store, Users, Sun, Moon, TrendingUp, Undo2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
@@ -282,6 +282,13 @@ export function ActionPane() {
             title="Sales History"
           >
             <TrendingUp className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-returns-manager'))}
+            className="p-1.5 text-muted-foreground hover:text-orange-500 hover:bg-muted rounded-lg transition-colors"
+            title="Returns"
+          >
+            <Undo2 className="w-4 h-4" />
           </button>
           <button onClick={clearCart} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-colors" title="Clear Cart">
             <XCircle className="w-4 h-4" />

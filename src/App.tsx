@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { 
   ShoppingCart, Banknote, Package, TrendingUp, User, 
-  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags 
+  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags, Undo2 
 } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -15,6 +15,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
   QUOTATIONS: { label: 'Quotations', icon: FileText },
   WARRANTIES: { label: 'Warranties', icon: Shield },
+  RETURNS: { label: 'Returns', icon: Undo2 },
   PURCHASE_BILLS: { label: 'Purchase Bills', icon: BookOpen },
   STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
   SETTINGS: { label: 'Settings', icon: Settings },
@@ -40,6 +41,7 @@ import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
 import { ScrapManager } from './components/ScrapManager';
 import { QuotationManager } from './components/QuotationManager';
 import { WarrantyManager } from './components/WarrantyManager';
+import { ReturnManager } from './components/ReturnManager';
 import { PrintA4View } from './components/PrintA4View';
 import { StockReport } from './components/StockReport';
 import { PurchaseBillManager } from './components/PurchaseBillManager';
@@ -116,6 +118,7 @@ function App() {
   enableScrapRef.current = enableScrap;
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
+  const [showReturnManager, setShowReturnManager] = useState(false);
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
@@ -302,6 +305,7 @@ function App() {
     const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
     const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
+    const handleOpenReturnManager = () => setShowReturnManager(true);
     const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
     const handleOpenCustomersPage = () => setShowCustomersPage(true);
@@ -316,6 +320,7 @@ function App() {
       setShowPartyManager(false);
       setShowScrapManager(false);
       setShowWarrantyManager(false);
+      setShowReturnManager(false);
     };
 
     window.addEventListener('open-inventory-manager', handleOpenInv);
@@ -328,6 +333,7 @@ function App() {
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
     window.addEventListener('open-warranty-manager', handleOpenWarrantyManager);
+    window.addEventListener('open-returns-manager', handleOpenReturnManager);
     window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
     window.addEventListener('open-customers-page', handleOpenCustomersPage);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
@@ -384,6 +390,7 @@ function App() {
       window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
       window.removeEventListener('open-warranty-manager', handleOpenWarrantyManager);
+      window.removeEventListener('open-returns-manager', handleOpenReturnManager);
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
       window.removeEventListener('open-customers-page', handleOpenCustomersPage);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
@@ -446,6 +453,8 @@ function App() {
           return <ScrapManager onClose={() => {}} isRestricted={true} />;
         case 'QUOTATIONS':
           return <QuotationManager onClose={() => {}} isRestricted={true} />;
+        case 'RETURNS':
+          return <ReturnManager onClose={() => {}} isRestricted={true} />;
         case 'WARRANTIES':
           return <WarrantyManager onClose={() => {}} isRestricted={true} />;
         case 'PURCHASE_BILLS':
@@ -534,6 +543,8 @@ function App() {
         <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
       ) : showQuotationManager ? (
         <QuotationManager onClose={() => setShowQuotationManager(false)} />
+      ) : showReturnManager ? (
+        <ReturnManager onClose={() => setShowReturnManager(false)} />
       ) : showWarrantyManager ? (
         <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
       ) : showPurchaseBillManager ? (

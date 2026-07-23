@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3 } from 'lucide-react';
+import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2 } from 'lucide-react';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
@@ -64,13 +64,44 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [partyFilter, setPartyFilter] = useState('');
+  const [parties, setParties] = useState<any[]>([]);
+  const [productSupplierMap, setProductSupplierMap] = useState<Map<string, Set<string>>>(new Map());
   const [viewMode, setViewMode] = useState<'estimate' | 'gst' | 'combined'>('combined');
 
   const deferredSearch = useDeferredValue(searchQuery);
   const deferredCategory = useDeferredValue(categoryFilter);
   const deferredStock = useDeferredValue(stockFilter);
+  const deferredParty = useDeferredValue(partyFilter);
 
   const cacheKey = tenantId || 'global';
+
+  const buildProductSupplierMap = useCallback(async () => {
+    if (!window.electronAPI) return;
+    try {
+      const bills = await window.electronAPI.dbGetPurchaseBills({ tenant_id: cacheKey, limit: 2000 });
+      if (!Array.isArray(bills)) return;
+      const map = new Map<string, Set<string>>();
+      const itemPromises = bills.map(bill =>
+        window.electronAPI!.dbGetPurchaseBillItems(bill.purchase_bill_id)
+          .then(items => {
+            if (!Array.isArray(items)) return;
+            const supplier = bill.supplier_name || 'Unknown';
+            items.forEach((item: any) => {
+              const pid = item.product_id;
+              if (!pid) return;
+              if (!map.has(pid)) map.set(pid, new Set());
+              map.get(pid)!.add(supplier);
+            });
+          })
+          .catch(() => {})
+      );
+      await Promise.all(itemPromises);
+      setProductSupplierMap(map);
+    } catch (e) {
+      console.error('[StockReport] buildProductSupplierMap error:', e);
+    }
+  }, [cacheKey]);
 
   const loadData = useCallback(async (forceRefresh = false) => {
     const cached = reportCache.get(cacheKey);
@@ -87,9 +118,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
     try {
       if (window.electronAPI) {
-        const [prodRes, gradeRes] = await Promise.all([
+        const [prodRes, gradeRes, partiesRes] = await Promise.all([
           window.electronAPI.dbGetProducts({ tenant_id: cacheKey, limit: 100000 }).catch(() => null),
           window.electronAPI.dbGetGrades(cacheKey).catch(() => null),
+          window.electronAPI.dbGetParties(cacheKey).catch(() => null),
         ]);
         if (Array.isArray(prodRes) && Array.isArray(gradeRes)) {
           setProducts(prodRes);
@@ -97,9 +129,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           reportCache.set(cacheKey, { products: prodRes, grades: gradeRes, timestamp: Date.now() });
           setLastUpdated(new Date());
         }
+        if (Array.isArray(partiesRes)) setParties(partiesRes);
         window.electronAPI.dbGetProductBillQuantities(cacheKey)
           .then(res => setBillQuantities(Array.isArray(res) ? res : []))
           .catch(() => {});
+        // Build product-supplier map in the background
+        buildProductSupplierMap();
       }
     } catch (e) {
       console.error('[StockReport] loadData error:', e);
@@ -107,7 +142,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
     setLoading(false);
     setRefreshing(false);
-  }, [cacheKey]);
+  }, [cacheKey, buildProductSupplierMap]);
 
   useEffect(() => {
     loadData();
@@ -164,9 +199,14 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       if (deferredStock === 'low_stock' &&
           !(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
       if (deferredStock === 'out_of_stock' && Number(p.current_stock) > 0) return false;
+      // Party filter: only show products that have been purchased from the selected party
+      if (deferredParty) {
+        const suppliers = productSupplierMap.get(p.product_id);
+        if (!suppliers || !suppliers.has(deferredParty)) return false;
+      }
       return true;
     }),
-    [products, deferredSearch, deferredCategory, deferredStock, viewMode]
+    [products, deferredSearch, deferredCategory, deferredStock, viewMode, deferredParty, productSupplierMap]
   );
 
   const {
@@ -568,8 +608,18 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <option value="low_stock">Low Stock</option>
                 <option value="out_of_stock">Out of Stock</option>
               </select>
+              <select
+                value={partyFilter}
+                onChange={e => setPartyFilter(e.target.value)}
+                className="bg-background border border-border rounded-xl py-2.5 px-3 pr-8 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 appearance-none transition-all cursor-pointer min-w-[160px]"
+              >
+                <option value="">All Suppliers</option>
+                {parties.filter(p => p.name).map(p => (
+                  <option key={p.party_id} value={p.name}>{p.name}</option>
+                ))}
+              </select>
             </div>
-            {searchQuery || categoryFilter || stockFilter !== 'all' ? (
+            {searchQuery || categoryFilter || stockFilter !== 'all' || partyFilter ? (
               <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border">
                 <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0">
                   {searchQuery && (
@@ -590,9 +640,16 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       <button onClick={() => setStockFilter('all')} className="hover:bg-amber-500/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
                     </span>
                   )}
+                  {partyFilter && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 text-[11px] font-bold">
+                      <Building2 className="w-3 h-3" />
+                      {partyFilter}
+                      <button onClick={() => setPartyFilter('')} className="hover:bg-violet-500/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
+                    </span>
+                  )}
                 </div>
                 <button
-                  onClick={() => { setSearchQuery(''); setCategoryFilter(''); setStockFilter('all'); }}
+                  onClick={() => { setSearchQuery(''); setCategoryFilter(''); setStockFilter('all'); setPartyFilter(''); }}
                   className="flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold text-destructive hover:bg-destructive/10 rounded-lg transition-all active:scale-95 cursor-pointer shrink-0"
                 >
                   <X className="w-3.5 h-3.5" /> Clear all

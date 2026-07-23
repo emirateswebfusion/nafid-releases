@@ -245,7 +245,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
-  const [showReturnManager, setShowReturnManager] = useState(false);
   const [showCreateReturn, setShowCreateReturn] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
@@ -1055,12 +1054,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     </button>
                   </>
                 )}
-                <button onClick={() => setShowReturnManager(true)}
-                  className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 rounded-xl transition-all text-xs font-bold border border-orange-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
-                >
-                  <Undo2 className="w-3.5 h-3.5 shrink-0" />
-                  <span>View Returns</span>
-                </button>
                 {selectedInvoice.payment_method === 'PENDING' && (
                   <button onClick={openCollectPayment}
                     className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
@@ -1537,11 +1530,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
         </div>
       </Modal>
-
-      {/* Return Manager */}
-      {showReturnManager && (
-        <ReturnManager onClose={() => { setShowReturnManager(false); setSelectedInvoice(null); }} />
-      )}
 
       {/* Create Return */}
       {showCreateReturn && selectedInvoice && (
