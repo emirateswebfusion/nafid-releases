@@ -324,6 +324,17 @@ export function initDb() {
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS cash_categories (
+        category_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('CASH_IN', 'CASH_OUT')),
+        sort_order INTEGER DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS purchase_bill_items (
         item_id TEXT PRIMARY KEY,
         purchase_bill_id TEXT NOT NULL,

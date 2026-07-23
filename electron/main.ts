@@ -2963,6 +2963,54 @@ ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset
   }
 });
 
+// ── Cash Categories IPC Handlers ─────────────────────────────────────────────
+
+ipcMain.handle('db:cashier:getCategories', (event, { tenant_id, type }: { tenant_id: string; type?: 'CASH_IN' | 'CASH_OUT' }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    let query = `SELECT * FROM cash_categories WHERE tenant_id = ?`;
+    const params: any[] = [tenant_id];
+    if (type) { query += ` AND type = ?`; params.push(type); }
+    query += ` ORDER BY sort_order ASC, name ASC`;
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    console.error('[db:cashier:getCategories]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:cashier:addCategory', safeHandler((event, { tenant_id, name, type }: { tenant_id: string; name: string; type: 'CASH_IN' | 'CASH_OUT' }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id || !name || !type) return { success: false, error: 'Missing required fields' };
+    if (!['CASH_IN', 'CASH_OUT'].includes(type)) return { success: false, error: 'Type must be CASH_IN or CASH_OUT' };
+    const category_id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO cash_categories (category_id, tenant_id, name, type, sort_order, is_default, sync_status)
+      VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sort_order), 0) + 1 FROM cash_categories WHERE tenant_id = ? AND type = ?), 0, 'PENDING')
+    `).run(category_id, tenant_id, name.trim(), type, tenant_id, type);
+    return { success: true, category: { category_id, tenant_id, name: name.trim(), type } };
+  } catch (error: any) {
+    console.error('[db:cashier:addCategory]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:cashier:deleteCategory', safeHandler((event, { category_id, tenant_id }: { category_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const cat = db.prepare(`SELECT * FROM cash_categories WHERE category_id = ? AND tenant_id = ?`).get(category_id, tenant_id) as any;
+    if (!cat) return { success: false, error: 'Category not found' };
+    if (cat.is_default === 1) return { success: false, error: 'Cannot delete default category' };
+    db.prepare(`DELETE FROM cash_categories WHERE category_id = ? AND tenant_id = ?`).run(category_id, tenant_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:cashier:deleteCategory]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
 // ── Customer / Loyalty Points IPC Handlers ──
 
 ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) => {
@@ -3013,6 +3061,25 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
   } catch (error: any) {
     console.error('[db:getCustomerInvoices]', error);
     return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
+  try {
+    const db = getDb();
+    db.transaction(() => {
+      const items = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(invoice_id) as any[];
+      const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+      for (const item of items) {
+        stockStmt.run(item.quantity, item.product_id);
+      }
+      db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);
+      db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(invoice_id);
+    })();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:deleteInvoice]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 

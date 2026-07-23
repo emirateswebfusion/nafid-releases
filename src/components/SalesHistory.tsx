@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
-  Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, X,
+  Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
   BookOpen, IndianRupee, Percent, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
@@ -241,6 +241,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && selectedInvoiceIds.has(i.invoice_id)),
@@ -432,8 +434,28 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (!currentItems.length) return;
     localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
-    if (useAuthStore.getState().role === 'OWNER') useCartStore.getState().setRole('BILLER');
+    if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!window.electronAPI || !selectedInvoice) return;
+    setDeleteSaving(true);
+    try {
+      const result = await window.electronAPI.dbDeleteInvoice(selectedInvoice.invoice_id);
+      if (result.success) {
+        setDeleteConfirmOpen(false);
+        setDrawerOpen(false);
+        setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
+        loadInvoices(true);
+      } else {
+        alert('Delete failed: ' + (result.error || 'Unknown error'));
+      }
+    } catch (err: any) {
+      alert('Delete failed: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setDeleteSaving(false);
+    }
   };
 
   const openCollectPayment = () => {
@@ -836,7 +858,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
               {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
             </div>
-            {useAuthStore.getState().role === 'OWNER' && (
+            {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
               <button
                 onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) { setSelectedInvoiceIds(new Set()); } }}
                 className={clsx(
@@ -1013,12 +1035,19 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <CreditCard className="w-3.5 h-3.5" />Collect Payment
                   </button>
                 )}
-                {useAuthStore.getState().role === 'OWNER' && (
-                  <button onClick={handleEditBill}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
-                  >
-                     <Edit3 className="w-3.5 h-3.5" />Edit Bill
-                  </button>
+                {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
+                  <>
+                    <button onClick={handleEditBill}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />Edit Bill
+                    </button>
+                    <button onClick={() => setDeleteConfirmOpen(true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />Delete
+                    </button>
+                  </>
                 )}
                 <button onClick={handleReprint}
                   className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"
@@ -1438,6 +1467,53 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </div>
             </>
           )}
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) setDeleteConfirmOpen(false); }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Invoice</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete invoice <strong>{selectedInvoice?.invoice_number}</strong> 
+              {selectedInvoice?.customer_name && <> for <strong>{selectedInvoice.customer_name}</strong></>}.
+              Stock quantities will be restored.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteInvoice}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Invoice</>
+              )}
+            </button>
+          </div>
         </div>
       </Modal>
 

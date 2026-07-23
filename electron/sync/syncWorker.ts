@@ -44,7 +44,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log'];
+  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -246,20 +246,21 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
         notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
+        notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
 
-        notifyProgress(12, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(13, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(14, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(15, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(16, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(17, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(18, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(18.1, sender, undefined, totalRecords); if (await pullCustomers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(18.2, sender, undefined, totalRecords); if (await pullLoyaltyTransactions(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(19, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(20, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(21, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(22, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(13, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(14, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(15, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(16, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(17, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(18, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(19, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(19.1, sender, undefined, totalRecords); if (await pullCustomers(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(19.2, sender, undefined, totalRecords); if (await pullLoyaltyTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(20, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(21, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(22, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(23, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -1660,6 +1661,29 @@ async function syncCashTransactions(token: string, tenantId: string) {
     const synced = await pushBatch(
       `${getCloudApiBase()}/api/sync/cash_transactions`,
       token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Cash Categories Sync (Edge → Cloud) ─────────────────────────────────────────
+async function syncCashCategories(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM cash_categories WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} cash categories to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE cash_categories SET sync_status = 'SYNCED' WHERE category_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/cash_categories`,
+      token, batch, 'cash_categories', `Cash Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });

@@ -132,6 +132,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [txnPartyId, setTxnPartyId] = useState('');
   const [txnPartyName, setTxnPartyName] = useState('');
   const [partySearch, setPartySearch] = useState('');
+  const [customCategories, setCustomCategories] = useState<any[]>([]);
+  const [showAddCatForm, setShowAddCatForm] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [addingCat, setAddingCat] = useState(false);
 
   // Invoice details preview modal states
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
@@ -276,7 +280,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       });
     }
     setTxnSubmitting(false);
-    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowTxnModal(false); await load(); }
+    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
   };
 
   const handleDayClose = async () => {
@@ -915,12 +919,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               <button
                 onClick={async () => {
                   setTxnAmt(0); setTxnCat(''); setTxnNote('');
-                  setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
+                  setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
                   setShowTxnModal(true);
                   if (!parties.length) {
                     const p = await window.electronAPI!.dbGetParties(tenantId!);
                     if (Array.isArray(p)) setParties(p);
                   }
+                  const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId! });
+                  if (Array.isArray(cats)) setCustomCategories(cats);
                 }}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
               >
@@ -1239,6 +1245,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             if (!txnSubmitting) {
               setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote('');
               setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
+              setShowAddCatForm(false); setNewCatName('');
             }
           }}
         >
@@ -1314,31 +1321,88 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               {/* Category */}
               <div>
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Category</label>
-                <Select
-                  value={txnCat}
-                  onChange={setTxnCat}
-                  placeholder="Select category"
-                  options={
-                    txnType === 'CASH_IN'
-                      ? [
-                          { value: 'Cash Deposit',      label: 'Cash Deposit'      },
-                          { value: 'Petty Cash Return', label: 'Petty Cash Return' },
-                          { value: 'Loan Repayment',    label: 'Loan Repayment'    },
-                          { value: 'Customer Payment',  label: 'Customer Payment'  },
-                          { value: 'Other Income',      label: 'Other Income'      },
-                        ]
-                      : [
-                          { value: 'Petty Cash',   label: 'Petty Cash'   },
-                          { value: 'Electricity',  label: 'Electricity'  },
-                          { value: 'Rent',         label: 'Rent'         },
-                          { value: 'Salary',       label: 'Salary'       },
-                          { value: 'Transport',    label: 'Transport'    },
-                          { value: 'Stationery',   label: 'Stationery'   },
-                          { value: 'Maintenance',  label: 'Maintenance'  },
-                          { value: 'Other',        label: 'Other'        },
-                        ]
-                  }
-                />
+                {showAddCatForm ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newCatName}
+                      onChange={e => setNewCatName(e.target.value)}
+                      placeholder={`New ${txnType === 'CASH_IN' ? 'income' : 'expense'} category...`}
+                      className="flex-1 bg-background border border-border rounded-xl px-3 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary transition-all"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && newCatName.trim()) {
+                          (e.target as HTMLInputElement).blur();
+                          const btn = (e.target as HTMLInputElement).closest('div')?.querySelector('button');
+                          btn?.click();
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={async () => {
+                        if (!newCatName.trim() || !tenantId) return;
+                        setAddingCat(true);
+                        const r = await window.electronAPI!.dbCashierAddCategory({ tenant_id: tenantId, name: newCatName.trim(), type: txnType });
+                        if (r.success) {
+                          const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId });
+                          if (Array.isArray(cats)) setCustomCategories(cats);
+                          setTxnCat(newCatName.trim());
+                          setShowAddCatForm(false);
+                          setNewCatName('');
+                        }
+                        setAddingCat(false);
+                      }}
+                      disabled={addingCat || !newCatName.trim()}
+                      className="px-3.5 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      {addingCat ? '...' : 'Add'}
+                    </button>
+                    <button
+                      onClick={() => { setShowAddCatForm(false); setNewCatName(''); }}
+                      className="px-3 py-2.5 text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={txnCat}
+                        onChange={v => {
+                          if (v === '__ADD_NEW__') { setShowAddCatForm(true); setNewCatName(''); }
+                          else setTxnCat(v);
+                        }}
+                        placeholder="Select category"
+                        options={(() => {
+                          const defaults = txnType === 'CASH_IN'
+                            ? [
+                                { value: 'Cash Deposit',      label: 'Cash Deposit'      },
+                                { value: 'Petty Cash Return', label: 'Petty Cash Return' },
+                                { value: 'Loan Repayment',    label: 'Loan Repayment'    },
+                                { value: 'Customer Payment',  label: 'Customer Payment'  },
+                                { value: 'Other Income',      label: 'Other Income'      },
+                              ]
+                            : [
+                                { value: 'Petty Cash',   label: 'Petty Cash'   },
+                                { value: 'Electricity',  label: 'Electricity'  },
+                                { value: 'Rent',         label: 'Rent'         },
+                                { value: 'Salary',       label: 'Salary'       },
+                                { value: 'Transport',    label: 'Transport'    },
+                                { value: 'Stationery',   label: 'Stationery'   },
+                                { value: 'Maintenance',  label: 'Maintenance'  },
+                                { value: 'Other',        label: 'Other'        },
+                              ];
+                          const defaultValues = new Set(defaults.map(d => d.value));
+                          const custom = customCategories
+                            .filter(c => c.type === txnType && !defaultValues.has(c.name))
+                            .map(c => ({ value: c.name, label: c.name }));
+                          return [...defaults, ...custom, { value: '__ADD_NEW__', label: '+ Add New Category' }];
+                        })()}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Link to Party */}
@@ -1409,7 +1473,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 <button
                   onClick={() => {
                     setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote('');
-                    setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
+                    setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
                   }}
                   className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
