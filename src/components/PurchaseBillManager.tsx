@@ -312,6 +312,21 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
         </div>
       </header>
 
+      {/* ─── FLOATING TOASTS ─── */}
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md pointer-events-none">
+        {statusMessage && (
+          <div className={clsx(
+            "px-5 py-3 rounded-xl flex items-center gap-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto",
+            statusMessage.type === 'success'
+              ? "bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+              : "bg-destructive/10 border border-destructive/20 text-destructive"
+          )}>
+            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+            <span className="flex-1">{statusMessage.text}</span>
+          </div>
+        )}
+      </div>
+
       {/* ── LIST VIEW ── */}
       {!showAddForm && (
         <>
@@ -555,6 +570,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             />
             <div className="relative flex-1">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-red-500 font-bold text-sm">*</span>
               <input
                 type="text" placeholder="Supplier Name"
                 value={supplierSearch || supplierName}
@@ -565,7 +581,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                   const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
                   if (match) { setSupplierName(match.name); setSupplierId(match.party_id); }
                 }}
-                className="w-full pl-10 pr-4 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300"
+                className="w-full pl-10 pr-8 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300"
               />
               {supplierSearch && filteredSuppliers.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">

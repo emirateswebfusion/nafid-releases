@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, StoreIcon, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
@@ -14,6 +14,11 @@ export function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const forgotEmailRef = useRef<HTMLInputElement>(null);
+  const resetPasswordRef = useRef<HTMLInputElement>(null);
 
   // Login fields
   const [email, setEmail] = useState('');
@@ -158,12 +163,14 @@ export function LoginScreen() {
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
+                      ref={emailRef}
                       id="login-email"
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
                       placeholder="you@yourshop.com"
                       className={clsx("pl-9", fieldErrors.email && "border-destructive ring-1 ring-destructive")}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); passwordRef.current?.focus(); } }}
                     />
                   </div>
                   {fieldErrors.email && <p className="text-destructive text-xs mt-1">{fieldErrors.email}</p>}
@@ -173,12 +180,14 @@ export function LoginScreen() {
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     <Input
+                      ref={passwordRef}
                       id="login-password"
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
                       placeholder="Your password"
                       className={clsx("pl-9 pr-10", fieldErrors.password && "border-destructive ring-1 ring-destructive")}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const form = (e.target as HTMLInputElement).form; form?.requestSubmit(); } }}
                     />
                     <button
                       type="button"
@@ -244,12 +253,14 @@ export function LoginScreen() {
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
+                    ref={forgotEmailRef}
                     id="forgot-email"
                     type="email"
                     value={email}
                     onChange={e => setEmail(e.target.value)}
                     placeholder="you@yourshop.com"
                     className={clsx("pl-9", fieldErrors.email && "border-destructive ring-1 ring-destructive")}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const form = (e.target as HTMLInputElement).form; form?.requestSubmit(); } }}
                   />
                 </div>
                 {fieldErrors.email && <p className="text-destructive text-xs mt-1">{fieldErrors.email}</p>}
@@ -301,12 +312,14 @@ export function LoginScreen() {
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                   <Input
+                    ref={resetPasswordRef}
                     id="reset-password"
                     type={showPassword ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="Enter your new password"
                     className={clsx("pl-9 pr-10", fieldErrors.password && "border-destructive ring-1 ring-destructive")}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); const form = (e.target as HTMLInputElement).form; form?.requestSubmit(); } }}
                   />
                   <button
                     type="button"

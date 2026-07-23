@@ -278,8 +278,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('SCRAP DEDUCTION', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
+    text += '\n';
     text += FRAME + '\n';
-    text += centerText('GRAND TOTAL', charsPerLine) + '\n';
+    text += centerText('** GRAND TOTAL **', charsPerLine) + '\n';
     text += centerText(`₹ ${Math.max(0, finalGrandTotal).toFixed(2)}`, charsPerLine) + '\n';
     text += FRAME + '\n';
 
@@ -388,8 +389,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('Scrap', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
+    text += '\n';
     text += DASH + '\n';
-    text += `${padRight('GRAND TOTAL', labelW)}  ${padLeft(Math.max(0, finalGrandTotal).toFixed(2), totalW)}\n`;
+    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(Math.max(0, finalGrandTotal).toFixed(2), totalW)}\n`;
 
     if (data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
@@ -508,8 +510,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('SCRAP', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
+    text += '\n';
     text += THIN + '\n';
-    text += centerText('>> GRAND TOTAL <<', charsPerLine) + '\n';
+    text += centerText('>> ** GRAND TOTAL ** <<', charsPerLine) + '\n';
     text += centerText(`₹ ${Math.max(0, finalGrandTotal).toFixed(2)}`, charsPerLine) + '\n';
     text += THIN + '\n';
 
@@ -558,6 +561,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
   //  CLEAN — Follows lines, table with RATE col, Amount in Words, traditional invoice
   // ══════════════════════════════════════════════════════════════════════════════
   else if (style === 'clean') {
+    const DASH = '-'.repeat(charsPerLine);
     const totalW = 10;
     const labelW = charsPerLine - totalW - 2;
 
@@ -641,8 +645,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('SCRAP DEDUCTION :', labelW)}  ${padLeft(`₹-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
-    text += `${padRight('NET PAYABLE :', labelW)}  ${padLeft(`₹${Math.max(0, finalGrandTotal).toFixed(2)}`, totalW)}\n`;
     text += '\n';
+    text += DASH + '\n';
+    text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(`₹${Math.max(0, finalGrandTotal).toFixed(2)}`, totalW)}\n`;
+    text += DASH + '\n';
 
     // ── Amount in Words ──
     text += `Amount In Words: \n${numberToIndianWords(Math.max(0, finalGrandTotal))} Only.\n`;
@@ -776,8 +782,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('Scrap Deduction:', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
+    text += '\n';
     text += FRAME + '\n';
-    text += centerText('*** GRAND TOTAL ***', charsPerLine) + '\n';
+    text += centerText('***** GRAND TOTAL *****', charsPerLine) + '\n';
     text += centerText(`₹ ${Math.max(0, finalGrandTotal).toFixed(2)}`, charsPerLine) + '\n';
     text += FRAME + '\n';
 
@@ -900,7 +907,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) dotLine('SCRAP DEDUCTION', `-${data.scrapDeduction.toFixed(2)}`);
-    dotLine('GRAND TOTAL', Math.max(0, finalGrandTotal).toFixed(2));
+    text += '\n';
+    text += DASH + '\n';
+    text += centerText('** GRAND TOTAL **', charsPerLine) + '\n';
+    text += centerText(`₹ ${Math.max(0, finalGrandTotal).toFixed(2)}`, charsPerLine) + '\n';
     text += DASH + '\n';
 
     // ── Payment ──
@@ -982,10 +992,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
       text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
-    } else if (data.discount > 0) text += `${padRight('DISCOUNT', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
+    } else     if (data.discount > 0) text += `${padRight('DISCOUNT', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) text += `${padRight('SCRAP', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
-    text += `${padRight('GRAND TOTAL', labelW)}  ${padLeft(Math.max(0, finalGrandTotal).toFixed(2), totalW)}\n`;
+    text += '\n';
+    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(Math.max(0, finalGrandTotal).toFixed(2), totalW)}\n`;
+    text += '\n';
 
     // ── Payment ──
     if (data.receivedAmount != null && data.balanceAmount != null) {
@@ -1097,8 +1109,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Deduction', labelW)}  ${padLeft(`-\u20B9${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
+    text += '\n';
     text += THICK + '\n';
-    text += centerText('GRAND TOTAL', charsPerLine) + '\n';
+    text += centerText('* * * GRAND TOTAL * * *', charsPerLine) + '\n';
     text += centerText(`\u20B9 ${Math.max(0, finalGrandTotal).toFixed(2)}`, charsPerLine) + '\n';
     text += THICK + '\n';
 
