@@ -1141,7 +1141,7 @@ export function BillingPage() {
     }
   };
 
-  const handleCheckout = async () => {
+  const handleCheckout = async (saveOnly = false) => {
     if (items.length === 0) return;
     if (!window.electronAPI) return;
 
@@ -1445,26 +1445,28 @@ export function BillingPage() {
         isB2B,
       };
 
-      if (useA4) {
-        const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
-        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-        if (!printResult.success && printResult.useDefaultDialog) {
-          const pw = window.open('', '_blank');
-          if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+      if (!saveOnly) {
+        if (useA4) {
+          const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+          if (!printResult.success && printResult.useDefaultDialog) {
+            const pw = window.open('', '_blank');
+            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+          }
+        } else {
+          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
+          const thermalStyle = printFmt?.style || 'standard';
+          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+          if (!printResult.success) {
+            setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+            setIsCheckingOut(false); return;
+          }
         }
-      } else {
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
-        const thermalStyle = printFmt?.style || 'standard';
-        const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-        if (!printResult.success) {
-          setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
-          setIsCheckingOut(false); return;
-        }
-      }
 
-      if (!isPaymentPending || openCashDrawerOnPending) {
-        await window.electronAPI.openCashDrawer(tenantId || 'global');
+        if (!isPaymentPending || openCashDrawerOnPending) {
+          await window.electronAPI.openCashDrawer(tenantId || 'global');
+        }
       }
 
       let result: any;
@@ -2998,9 +3000,17 @@ export function BillingPage() {
                   <button
                     onClick={handleHoldBill}
                     disabled={items.length === 0}
-                    className="w-[30%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[20%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
                   >
                     Hold
+                  </button>
+                  <button
+                    onClick={() => handleCheckout(true)}
+                    disabled={isCheckingOut || items.length === 0}
+                    className="w-[20%] py-3 rounded-xl border-2 border-amber-400/60 text-amber-600 dark:text-amber-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-amber-500/10 hover:border-amber-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                  >
+                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <span>Save</span>
                   </button>
                   <button
                     onClick={handleCheckout}
