@@ -276,6 +276,19 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+  };
+
   const filteredParties = parties.filter(p =>
     !searchQuery || p.name.toLowerCase().includes(searchQuery.toLowerCase()) || (p.phone || '').includes(searchQuery)
   );
@@ -583,8 +596,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           PARTY FORM VIEW
       ══════════════════════════════════════════ */}
       {view === 'party_form' && (
-        <div className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <div className="flex flex-col flex-1 min-h-0 bg-background" onKeyDown={handleFormKeyDown}>
+          <div className="flex-1 overflow-y-auto p-5 space-y-4" data-enter-nav>
 
             {/* Section: Identity */}
             <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
@@ -974,8 +987,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           TX FORM VIEW
       ══════════════════════════════════════════ */}
       {view === 'tx_form' && selectedParty && (
-        <form onSubmit={handleSaveTx} className="flex flex-col flex-1 min-h-0 bg-background">
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
+        <form onSubmit={handleSaveTx} onKeyDown={handleFormKeyDown} className="flex flex-col flex-1 min-h-0 bg-background">
+          <div className="flex-1 overflow-y-auto p-5 space-y-4" data-enter-nav>
 
             <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
               <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">

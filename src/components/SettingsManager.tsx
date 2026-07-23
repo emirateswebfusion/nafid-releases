@@ -1005,7 +1005,11 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
                           { id: 'compact', name: 'Compact', color: 'from-violet-500/10 to-violet-500/5' },
                           { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
-                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
+                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' },
+                          { id: 'clean', name: 'Clean', color: 'from-emerald-500/10 to-emerald-500/5' },
+                          { id: 'dot', name: 'Dot', color: 'from-cyan-500/10 to-cyan-500/5' },
+                          { id: 'slim', name: 'Slim', color: 'from-gray-500/10 to-gray-500/5' },
+                          { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' }
                         ].map((style) => {
                           const isActive = thermalStyle === style.id;
                           return (

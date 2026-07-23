@@ -184,6 +184,19 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     }
   };
 
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+  };
+
   // Filtered staff list
   const filteredStaff = useMemo(() => {
     return staff.filter(member => {
@@ -447,10 +460,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         {/* Add View */}
         {view === 'add' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <form onSubmit={handleAddStaff} className="flex flex-col flex-1 min-h-0">
+            <form onSubmit={handleAddStaff} onKeyDown={handleFormKeyDown} className="flex flex-col flex-1 min-h-0">
               
               {/* Form Content Area */}
-              <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full">
+              <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3 max-w-full mx-auto w-full" data-enter-nav>
 
                 {/* Section 1: Basic Details */}
                 <section className="bg-card border border-border/80 rounded-xl p-4 shadow-sm">
