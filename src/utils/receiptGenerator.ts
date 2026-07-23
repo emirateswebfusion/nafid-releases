@@ -21,6 +21,7 @@ export interface BillSettings {
   showBosTaxBreakup: boolean;
   bosTaxRatePercent: number;
   bosTaxInclusive: boolean;
+  instructions?: string;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -37,6 +38,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showBosTaxBreakup: false,
   bosTaxRatePercent: 0,
   bosTaxInclusive: false,
+  instructions: '',
 };
 
 export interface ReceiptData {
@@ -155,6 +157,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
   const padLeft = (text: string, width: number): string => {
     return text.length > width ? text.substring(0, width) : text.padStart(width, ' ');
+  };
+
+  const appendInstructions = (t: string): string => {
+    const instr = data.billSettings?.instructions;
+    if (!instr) return t;
+    const lines = instr.split('\n').filter(l => l.trim());
+    if (lines.length === 0) return t;
+    const dash = '-'.repeat(charsPerLine);
+    let out = t + '\n' + dash + '\n';
+    out += centerText('INSTRUCTIONS', charsPerLine) + '\n';
+    for (const line of lines) {
+      out += centerText(line.trim(), charsPerLine) + '\n';
+    }
+    out += dash + '\n';
+    return out;
   };
 
   const appendLoyaltyBlock = (t: string): string => {
@@ -319,6 +336,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += LIGHT + '\n';
     }
 
+    // ── Instructions ──
+    text = appendInstructions(text);
+
     // ── Footer ──
     text += centerText('Thank you for your visit!', charsPerLine) + '\n';
     text += centerText('Have a great day!', charsPerLine) + '\n';
@@ -423,6 +443,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `UPI: ${data.upiId}\n`;
       text += DASH + '\n';
     }
+
+    // ── Instructions ──
+    text = appendInstructions(text);
 
     // ── Footer ──
     text += centerText('THANK YOU', charsPerLine) + '\n';
@@ -553,6 +576,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
+
+    // ── Instructions ──
+    text = appendInstructions(text);
 
     // ── Footer ──
     text += centerText('✦ Thank You! ✦', charsPerLine) + '\n';
@@ -692,6 +718,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
 
+    // ── Instructions ──
+    text = appendInstructions(text);
+
     // ── Footer ──
     text += centerText('Thank You, Visit Again!', charsPerLine) + '\n';
     text += '\n';
@@ -826,6 +855,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
 
+    // ── Instructions ──
+    text = appendInstructions(text);
+
     // ── Footer ──
     text += centerText('* Thank you, visit again! *', charsPerLine) + '\n';
     text += FRAME + '\n';
@@ -944,6 +976,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
 
+    // ── Instructions ──
+    text = appendInstructions(text);
+
     // ── Footer ──
     text += centerText('Thank you, visit again!', charsPerLine) + '\n';
   }
@@ -1026,6 +1061,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
+
+    // ── Instructions ──
+    text = appendInstructions(text);
 
     // ── Footer ──
     text += `\nThank You\n`;
@@ -1151,6 +1189,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Loyalty Points ──
     text = appendLoyaltyBlock(text);
+
+    // ── Instructions ──
+    text = appendInstructions(text);
 
     // ── Footer ──
     text += centerText('Thank You, Visit Again!', charsPerLine) + '\n';

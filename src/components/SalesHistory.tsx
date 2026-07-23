@@ -1,10 +1,10 @@
-﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
   BookOpen, IndianRupee, Percent, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut, Undo2
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -17,6 +17,8 @@ import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { ReturnManager } from './ReturnManager';
+import { CreateReturn } from './CreateReturn';
 
 const PAYMENT_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -243,6 +245,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [showReturnManager, setShowReturnManager] = useState(false);
+  const [showCreateReturn, setShowCreateReturn] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && selectedInvoiceIds.has(i.invoice_id)),
@@ -1032,28 +1036,44 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
                   <>
                     <button onClick={handleEditBill}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl transition-all text-xs font-bold border border-amber-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
                     >
-                      <Edit3 className="w-3.5 h-3.5" />Edit Bill
+                      <Edit3 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Edit Bill</span>
                     </button>
                     <button onClick={() => setDeleteConfirmOpen(true)}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95"
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
                     >
-                      <Trash2 className="w-3.5 h-3.5" />Delete
+                      <Trash2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>Delete</span>
+                    </button>
+                    <button onClick={() => setShowCreateReturn(true)}
+                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                    >
+                      <Package className="w-3.5 h-3.5 shrink-0" />
+                      <span>Return</span>
                     </button>
                   </>
                 )}
+                <button onClick={() => setShowReturnManager(true)}
+                  className="flex items-center justify-center gap-1.5 px-2.5 h-8 bg-orange-500/10 text-orange-600 dark:text-orange-400 hover:bg-orange-500/20 rounded-xl transition-all text-xs font-bold border border-orange-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                >
+                  <Undo2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>View Returns</span>
+                </button>
                 {selectedInvoice.payment_method === 'PENDING' && (
                   <button onClick={openCollectPayment}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 rounded-xl transition-all text-xs font-bold border border-emerald-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
                   >
-                    <CreditCard className="w-3.5 h-3.5" />Collect Payment
+                    <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                    <span>Collect Payment</span>
                   </button>
                 )}
                 <button onClick={handleReprint}
-                  className="flex-1 flex items-center justify-center gap-1.5 px-3 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95"
+                  className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-xs font-bold border border-primary/20 cursor-pointer active:scale-95 whitespace-nowrap"
                 >
-                  <Printer className="w-3.5 h-3.5" />Reprint
+                  <Printer className="w-3.5 h-3.5 shrink-0" />
+                  <span>Reprint</span>
                 </button>
               </div>
             </div>
@@ -1517,6 +1537,23 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
         </div>
       </Modal>
+
+      {/* Return Manager */}
+      {showReturnManager && (
+        <ReturnManager onClose={() => { setShowReturnManager(false); setSelectedInvoice(null); }} />
+      )}
+
+      {/* Create Return */}
+      {showCreateReturn && selectedInvoice && (
+        <CreateReturn
+          invoice={selectedInvoice}
+          onClose={() => setShowCreateReturn(false)}
+          onSuccess={() => {
+            loadInvoices();
+            setSelectedInvoice(null);
+          }}
+        />
+      )}
 
       <style>{`
         @keyframes slideDown {

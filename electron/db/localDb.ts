@@ -354,6 +354,43 @@ export function initDb() {
         FOREIGN KEY (product_id) REFERENCES products(product_id)
     );
 
+    CREATE TABLE IF NOT EXISTS returns (
+        return_id TEXT PRIMARY KEY,
+        invoice_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        user_id TEXT,
+        return_number TEXT NOT NULL,
+        customer_name TEXT,
+        customer_phone TEXT,
+        subtotal REAL NOT NULL DEFAULT 0,
+        tax_total REAL NOT NULL DEFAULT 0,
+        grand_total REAL NOT NULL DEFAULT 0,
+        reason TEXT,
+        return_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        sync_status TEXT DEFAULT 'PENDING',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, return_number),
+        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS return_items (
+        return_item_id TEXT PRIMARY KEY,
+        return_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        invoice_item_id TEXT,
+        product_id TEXT NOT NULL,
+        name TEXT,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        tax_amount REAL NOT NULL DEFAULT 0,
+        total REAL NOT NULL,
+        sync_status TEXT DEFAULT 'PENDING',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (return_id) REFERENCES returns(return_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+    );
+
     CREATE TABLE IF NOT EXISTS customers (
         customer_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,
@@ -460,6 +497,14 @@ export function initDb() {
     customers: [
         'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
         'current_points_balance', 'last_purchase_date', 'sync_status', 'created_at', 'updated_at'
+    ],
+    returns: [
+        'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',
+        'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at'
+    ],
+    return_items: [
+        'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity',
+        'unit_price', 'tax_amount', 'total', 'sync_status', 'created_at'
     ],
     loyalty_transactions: [
         'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',

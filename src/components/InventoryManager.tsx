@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef, useCallback, Fragment } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3 } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -93,6 +93,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
+  const [viewMode, setViewMode] = useState<'estimate' | 'gst' | 'combined'>('combined');
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
@@ -137,6 +138,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
   useEffect(() => {
     if (window.electronAPI) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
+        .then((val: any) => {
+          if (val === 'estimate' || val === 'gst' || val === 'combined') setViewMode(val);
+        })
+        .catch(console.error);
+
       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' })
         .then(res => {
           if (res) setPriceCoding(res);
@@ -912,7 +919,14 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     setLoading(false);
   };
 
-  const filtered = products;
+  const filtered = useMemo(() =>
+    products.filter(p => {
+      if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
+      if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
+      return true;
+    }),
+    [products, viewMode]
+  );
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -990,6 +1004,30 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 </button>
               )}
             </div>
+          </div>
+          <div className="flex items-center gap-1.5 bg-muted/50 rounded-xl p-0.5 shrink-0">
+            {([
+              { mode: 'estimate' as const, label: 'Estimate', icon: Receipt, color: 'text-amber-500' },
+              { mode: 'gst' as const,      label: 'GST',      icon: FileText, color: 'text-sky-500' },
+              { mode: 'combined' as const, label: 'All',      icon: BarChart3, color: 'text-primary' },
+            ]).map(({ mode, label, icon: Icon, color }) => (
+              <button
+                key={mode}
+                onClick={() => {
+                  setViewMode(mode);
+                  window.electronAPI?.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: mode }).catch(console.error);
+                }}
+                className={clsx(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer',
+                  viewMode === mode
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <Icon className={clsx('w-3 h-3', viewMode === mode ? 'text-primary-foreground' : color)} />
+                {label}
+              </button>
+            ))}
           </div>
           <div className="flex items-center gap-2">
             <DateRangeFilter

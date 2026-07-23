@@ -118,25 +118,7 @@ function formatBytes(bytes: number): string {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
-function DefaultStockReportViewSelector({ tenantId }: { tenantId: string | null }) {
-  const [view, setView] = useState('combined');
-
-  useEffect(() => {
-    if (window.electronAPI) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' })
-        .then((val: any) => { if (val === 'estimate' || val === 'gst' || val === 'combined') setView(val); })
-        .catch(() => {});
-    }
-  }, [tenantId]);
-
-  const handleChange = (val: string) => {
-    setView(val);
-    if (window.electronAPI) {
-      window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: val })
-        .catch(() => {});
-    }
-  };
-
+function DefaultStockReportViewSelector({ value, onChange }: { value: string; onChange: (val: string) => void }) {
   const options = [
     { id: 'estimate', label: 'Estimate Only', desc: 'Non-GST products' },
     { id: 'gst', label: 'GST Only', desc: 'GST enabled products' },
@@ -149,10 +131,10 @@ function DefaultStockReportViewSelector({ tenantId }: { tenantId: string | null 
         <button
           key={opt.id}
           type="button"
-          onClick={() => handleChange(opt.id)}
+          onClick={() => onChange(opt.id)}
           className={clsx(
             'flex flex-col items-center justify-center p-3 text-center rounded-xl border transition-all cursor-pointer',
-            view === opt.id
+            value === opt.id
               ? 'bg-primary/10 border-primary text-primary font-extrabold shadow-sm'
               : 'bg-background border-border text-muted-foreground hover:border-primary/30 hover:text-foreground'
           )}
@@ -227,13 +209,15 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [b2cPrefix, setB2cPrefix] = useState('');
   const [b2cStartNumber, setB2cStartNumber] = useState<number | string>(1);
   const [gstProfitPercentage, setGstProfitPercentage] = useState<number>(30);
+  const [stockReportDefaultView, setStockReportDefaultView] = useState('combined');
+  const [inventoryDefaultView, setInventoryDefaultView] = useState('combined');
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -267,7 +251,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView });
     }
   }, [loading]);
 
@@ -317,6 +301,10 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
       if (loyaltyCfg.redemptionRate) setLoyaltyRedemptionRate(Number(loyaltyCfg.redemptionRate));
     }
     if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType])     setLabelCodeType(labelType as CodeType);
+    const srdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' });
+    if (srdv === 'estimate' || srdv === 'gst' || srdv === 'combined') setStockReportDefaultView(srdv);
+    const invdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' });
+    if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') setInventoryDefaultView(invdv);
     if (printFmt) {
       if (printFmt.format === 'a4') {
         setPrintFormat('a4');
@@ -406,6 +394,8 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
           { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: Number(b2bStartNumber) || 1 } }), name: 'gst_b2b_invoice' },
           { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: Number(b2cStartNumber) || 1 } }), name: 'gst_b2c_invoice' },
         ] : []),
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
       ];
 
       for (const { promise, name } of checks) {
@@ -415,7 +405,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, inventoryDefaultView });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -1220,6 +1210,18 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     </div>
 
                     <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                      <label className="text-xs font-bold text-foreground mb-3 block">Bill Instructions (T&amp;C)</label>
+                      <textarea
+                        value={billSettings.instructions || ''}
+                        onChange={e => setBillSettings(s => ({ ...s, instructions: e.target.value }))}
+                        placeholder="e.g. 1. Goods once sold will not be taken back.&#10;2. Subject to local jurisdiction.&#10;3. E. &amp; O. E."
+                        rows={4}
+                        className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
+                      />
+                      <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of both thermal receipts and A4 invoices.</p>
+                    </div>
+
+                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                       <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
                       <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                         {[
@@ -1574,7 +1576,22 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
               <div className="space-y-4">
                 <label className="text-sm font-bold text-foreground">Default View</label>
                 <p className="text-xs text-muted-foreground">Choose which tab opens by default when you open the stock report.</p>
-                <DefaultStockReportViewSelector tenantId={tenantId} />
+                <DefaultStockReportViewSelector value={stockReportDefaultView} onChange={setStockReportDefaultView} />
+              </div>
+            </div>
+
+            {/* Card 5: Inventory Default View */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Package className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Inventory</span>
+              </div>
+              <div className="space-y-4">
+                <label className="text-sm font-bold text-foreground">Default View</label>
+                <p className="text-xs text-muted-foreground">Choose which tab opens by default when you open the inventory manager.</p>
+                <DefaultStockReportViewSelector value={inventoryDefaultView} onChange={setInventoryDefaultView} />
               </div>
             </div>
           </div>

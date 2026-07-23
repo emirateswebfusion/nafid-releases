@@ -617,27 +617,15 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 border border-border shrink-0">
-              <button
-                type="button"
-                onClick={() => setBillType('GST')}
-                className={clsx(
-                  "px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer",
-                  billType === 'GST' ? "bg-emerald-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                GST
-              </button>
-              <button
-                type="button"
-                onClick={() => setBillType('ESTIMATE')}
-                className={clsx(
-                  "px-4 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-all cursor-pointer",
-                  billType === 'ESTIMATE' ? "bg-amber-500 text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                Estimate
-              </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold border border-emerald-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                GST Bill
+              </span>
+              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold border border-amber-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                Estimate Bill
+              </span>
             </div>
           </div>
 
@@ -662,9 +650,9 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
             )}
           </div>
 
-          {/* ── Two Sections (both mounted to preserve state) ── */}
+          {/* ── Two Sections — both visible so user can add items to GST and Estimate simultaneously ── */}
           <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-            <div className={billType !== 'GST' ? 'hidden' : ''}>
+            <div>
               <PurchaseBillFormSection
                 ref={gstRef}
                 type="GST"
@@ -685,7 +673,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
                 } : undefined}
               />
             </div>
-            <div className={billType !== 'ESTIMATE' ? 'hidden' : ''}>
+            <div>
               <PurchaseBillFormSection
                 ref={estRef}
                 type="ESTIMATE"

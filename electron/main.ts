@@ -1355,6 +1355,144 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
   }
 });
 
+// ── Return Handlers ─────────────────────────────────────────────────────
+ipcMain.handle('db:createReturn', safeHandler((event, payload: {
+  return_id: string;
+  invoice_id: string;
+  tenant_id: string;
+  user_id?: string;
+  return_number: string;
+  customer_name?: string;
+  customer_phone?: string;
+  subtotal: number;
+  tax_total: number;
+  grand_total: number;
+  reason?: string;
+  items: Array<{
+    return_item_id: string;
+    product_id: string;
+    invoice_item_id?: string;
+    name: string;
+    quantity: number;
+    unit_price: number;
+    tax_amount: number;
+    total: number;
+  }>;
+}) => {
+  const { items, ...returnData } = payload;
+  const db = getDb();
+  const transaction = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(
+      returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
+      returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
+      returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null
+    );
+
+    const itemStmt = db.prepare(`
+      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+    `);
+    const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+
+    for (const item of items) {
+      itemStmt.run(
+        item.return_item_id, returnData.return_id, returnData.tenant_id,
+        item.invoice_item_id || null, item.product_id, item.name,
+        item.quantity, item.unit_price, item.tax_amount, item.total
+      );
+      stockStmt.run(item.quantity, item.product_id);
+    }
+  });
+
+  try {
+    transaction();
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Return sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:createReturn]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:getReturns', (event, filters?: {
+  tenant_id?: string;
+  invoice_id?: string;
+  limit?: number;
+  offset?: number;
+  search?: string;
+}) => {
+  try {
+    const db = getDb();
+    const { tenant_id, invoice_id, limit, offset, search } = filters || {};
+    if (!tenant_id) return [];
+
+    let query = `SELECT r.* FROM returns r WHERE r.tenant_id = ?`;
+    const params: any[] = [tenant_id];
+
+    if (invoice_id) {
+      query += ' AND r.invoice_id = ?';
+      params.push(invoice_id);
+    }
+
+    if (search) {
+      query += ' AND (r.return_number LIKE ? OR r.customer_name LIKE ? OR r.customer_phone LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    query += ' ORDER BY r.created_at DESC';
+
+    if (limit) { query += ' LIMIT ?'; params.push(limit); }
+    if (offset) { query += ' OFFSET ?'; params.push(offset); }
+
+    return db.prepare(query).all(...params);
+  } catch (error: any) {
+    console.error('[db:getReturns]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:getReturnItems', (event, return_id: string) => {
+  try {
+    const db = getDb();
+    return db.prepare('SELECT ri.*, p.sku_barcode, p.item_code FROM return_items ri LEFT JOIN products p ON ri.product_id = p.product_id WHERE ri.return_id = ?').all(return_id);
+  } catch (error: any) {
+    console.error('[db:getReturnItems]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:deleteReturn', (event, return_id: string) => {
+  try {
+    const db = getDb();
+    const transaction = db.transaction(() => {
+      const items = db.prepare('SELECT product_id, quantity FROM return_items WHERE return_id = ?').all(return_id) as any[];
+      for (const item of items) {
+        db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?').run(item.quantity, item.product_id);
+      }
+      db.prepare('DELETE FROM return_items WHERE return_id = ?').run(return_id);
+      db.prepare('DELETE FROM returns WHERE return_id = ?').run(return_id);
+    });
+    transaction();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:deleteReturn]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_id: string; prefix?: string }) => {
+  const db = getDb();
+  const prefix = (payload.prefix || 'RTN-').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || 'RTN-';
+  const row = db.prepare('SELECT MAX(CAST(SUBSTR(return_number, ?) AS INTEGER)) as max_num FROM returns WHERE tenant_id = ? AND return_number LIKE ?').get(prefix.length + 1, payload.tenant_id, prefix + '%') as any;
+  const nextNum = (row?.max_num || 0) + 1;
+  return { returnNumber: `${prefix}${String(nextNum).padStart(3, '0')}` };
+}));
+
 ipcMain.handle('db:convertBosToGst', (event, payload: {
   invoice_ids: string[];
   tenant_id: string;

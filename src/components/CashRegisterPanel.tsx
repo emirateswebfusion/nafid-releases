@@ -210,7 +210,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
 
               {/* Transaction feed */}
               <div className="flex-1 overflow-y-auto">
-                {transactions.length === 0 ? (
+                {transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
                     <Banknote className="w-10 h-10 text-muted-foreground/30" />
                     <p className="text-sm font-bold">No entries</p>
@@ -218,7 +218,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   </div>
                 ) : (
                   <div className="divide-y divide-border/30">
-                    {drawer && drawer.opening_balance >= 0 && (
+                    {drawer && drawer.opening_balance != null && drawer.opening_balance >= 0 && (
                       <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2 border-l-primary/50">
                         <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
                           <Clock className="w-2.5 h-2.5 shrink-0" /> {drawer.opened_at ? formatTime(drawer.opened_at) : '—'}

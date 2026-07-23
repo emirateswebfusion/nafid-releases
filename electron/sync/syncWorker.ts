@@ -44,7 +44,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories'];
+  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -74,6 +74,8 @@ const SYNC_PHASES = [
   'Updating scrap transactions...',
   'Updating purchase bills...',
   'Updating cash drawer...',
+  'Uploading returns...',
+  'Updating returns...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -247,6 +249,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
         notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
+        notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
 
         notifyProgress(13, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(14, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
@@ -261,6 +264,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(21, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(22, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(23, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(23.1, sender, undefined, totalRecords); if (await pullReturns(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -1870,6 +1874,117 @@ async function pullLoyaltyTransactions(token: string, tenantId: string): Promise
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull loyalty transactions failed:', err.message);
+    return false;
+  }
+}
+
+// ── Sync Returns (Edge → Cloud) ──────────────────────────────────────────
+async function syncReturns(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM returns WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} returns to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE returns SET sync_status = 'SYNCED' WHERE return_id = ? AND tenant_id = ?`);
+  const itemsUpdateStmt = db.prepare(`UPDATE return_items SET sync_status = 'SYNCED' WHERE return_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const enriched = batch.map((r: any) => {
+      const items = db.prepare(`SELECT * FROM return_items WHERE return_id = ? AND tenant_id = ?`).all(r.return_id, tenantId);
+      return { ...r, items };
+    });
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/returns`,
+      token, enriched, 'returns', `Returns batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          updateStmt.run(id, tenantId);
+          itemsUpdateStmt.run(id, tenantId);
+        }
+      });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Returns (Cloud → Edge) ──────────────────────────────────────────
+async function pullReturns(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/returns`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull returns failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudReturns: any[] = await response.json();
+    if (!Array.isArray(cloudReturns) || cloudReturns.length === 0) return false;
+
+    const upsertReturn = db.prepare(`
+      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, sync_status, created_at, updated_at)
+      VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, 'SYNCED', @created_at, @updated_at)
+      ON CONFLICT(return_id) DO UPDATE SET
+        customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
+        subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
+        reason = excluded.reason, return_date = excluded.return_date, updated_at = excluded.updated_at,
+        sync_status = 'SYNCED'
+      WHERE returns.sync_status != 'PENDING'
+    `);
+
+    const upsertItem = db.prepare(`
+      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
+      VALUES (@return_item_id, @return_id, @tenant_id, @invoice_item_id, @product_id, @name, @quantity, @unit_price, @tax_amount, @total, 'SYNCED', @created_at)
+      ON CONFLICT(return_item_id) DO UPDATE SET
+        name = excluded.name, quantity = excluded.quantity, unit_price = excluded.unit_price,
+        tax_amount = excluded.tax_amount, total = excluded.total, sync_status = 'SYNCED'
+      WHERE return_items.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((returns: any[]) => {
+      for (const r of returns) {
+        try {
+          upsertReturn.run({
+            return_id: r.return_id, invoice_id: r.invoice_id, tenant_id: tenantId,
+            user_id: r.user_id || null, return_number: r.return_number,
+            customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
+            subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
+            reason: r.reason || null, return_date: toSqliteDate(r.return_date),
+            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+          });
+          if (Array.isArray(r.items)) {
+            for (const item of r.items) {
+              upsertItem.run({
+                return_item_id: item.return_item_id, return_id: r.return_id, tenant_id: tenantId,
+                invoice_item_id: item.invoice_item_id || null, product_id: item.product_id,
+                name: item.name, quantity: item.quantity, unit_price: item.unit_price,
+                tax_amount: item.tax_amount ?? 0, total: item.total,
+                created_at: toSqliteDate(item.created_at),
+              });
+            }
+          }
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling return:', e.message);
+        }
+      }
+    });
+
+    tx(cloudReturns);
+
+    const reconciled = reconcilePending(db, 'returns', 'return_id', cloudReturns);
+    console.log(`[SyncWorker] Pulled ${cloudReturns.length} returns from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull returns failed:', err.message);
     return false;
   }
 }
