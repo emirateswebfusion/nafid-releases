@@ -232,7 +232,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           amount: parsedAmount,
           transaction_type: txForm.transaction_type,
           description: txForm.description.trim(),
-          transaction_date: txForm.transaction_date || new Date().toISOString(),
+          transaction_date: txForm.transaction_date || new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T'),
           reference_number: txForm.reference_number.trim() || null,
           created_by: userId,
           created_by_name: userName || undefined,
@@ -371,7 +371,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => {
                   setEditingTx(null);
-                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '', payment_method: 'CASH' });
+                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', payment_method: 'CASH' });
                   setView('tx_form');
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -862,7 +862,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <button
                     onClick={() => {
                       setEditingTx(null);
-                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: new Date().toISOString().slice(0, 16), reference_number: '', payment_method: 'CASH' });
+                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', payment_method: 'CASH' });
                       setView('tx_form');
                     }}
                     className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"

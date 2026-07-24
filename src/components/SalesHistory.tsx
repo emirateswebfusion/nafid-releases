@@ -579,7 +579,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       if (paymentFilter) parts.push(paymentFilter.toLowerCase());
       if (filterDate) parts.push(filterDate);
       if (filterDateEnd && filterDateEnd !== filterDate) parts.push(`to-${filterDateEnd}`);
-      parts.push(new Date().toISOString().split('T')[0]);
+      parts.push(new Date().toLocaleDateString('en-CA'));
       const filename = parts.join('_') + '.csv';
 
       const csvContent = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');

@@ -103,9 +103,10 @@ interface PaperPreviewModalProps {
   showProductOffers: boolean;
   receiptFont?: string;
   billSettings?: BillSettings;
+  onSelectStyle?: (style: string) => void;
 }
 
-export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier', billSettings }: PaperPreviewModalProps) {
+export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier', billSettings, onSelectStyle }: PaperPreviewModalProps) {
   const [zoom, setZoom] = useState(1);
 
   const style = format === 'thermal' ? thermalStyle : a4Style;
@@ -169,6 +170,15 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
               <Maximize2 className="w-4 h-4" />
             </button>
           </div>
+          {onSelectStyle && (
+            <button
+              onClick={() => { onSelectStyle(style); onClose(); }}
+              className="px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-bold hover:bg-primary/90 transition-all duration-200 active:scale-95 cursor-pointer shadow-lg shadow-primary/20 flex items-center gap-1.5"
+              title="Select this style"
+            >
+              Select Style
+            </button>
+          )}
           <button
             onClick={onClose}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"

@@ -69,7 +69,7 @@ const DEFAULT_FORM = {
   gst_supplier_id: '',
   gst_supplier_name: '',
   gst_bill_number: '',
-  gst_bill_date: new Date().toISOString().split('T')[0],
+  gst_bill_date: new Date().toLocaleDateString('en-CA'),
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -828,7 +828,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     setLoading(true);
 
     const payload = {
-      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toISOString() }),
+      ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T') }),
       ...formData,
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
@@ -876,7 +876,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
             bill_number: formData.gst_bill_number || `TEMP-${Date.now()}`,
             supplier_id: formData.gst_supplier_id || null,
             supplier_name: supplierName,
-            bill_date: formData.gst_bill_date || new Date().toISOString().split('T')[0],
+            bill_date: formData.gst_bill_date || new Date().toLocaleDateString('en-CA'),
             invoice_number: null,
             notes: `Auto-created from product: ${formData.name}`,
             total_amount: gstTotal,

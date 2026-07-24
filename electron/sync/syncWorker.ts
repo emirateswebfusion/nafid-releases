@@ -3,6 +3,16 @@ import path from 'path';
 import { app, BrowserWindow, safeStorage, type WebContents } from 'electron';
 import { getDb } from '../db/localDb.js';
 
+// ── Local Time Helpers ────────────────────────────────────────────────────
+function localTimestamp(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+function localDate(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 
@@ -125,7 +135,7 @@ function notifyOnlineStatus(online: boolean) {
 }
 
 function toSqliteDate(iso: string | number | null | undefined): string {
-  if (!iso) return new Date().toISOString().replace('T', ' ').replace('Z', '');
+  if (!iso) return localTimestamp();
   const str = typeof iso === 'string' ? iso : String(iso);
   return str.replace('T', ' ').replace('Z', '');
 }

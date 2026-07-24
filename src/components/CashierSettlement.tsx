@@ -43,7 +43,7 @@ function formatTime(d: string): string {
 }
 
 function todayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date().toLocaleDateString('en-CA');
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -233,7 +233,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       window.electronAPI?.dbCashierGetHistory({ tenant_id: tenantId, limit: 2 }).then(history => {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
         const entry = Array.isArray(history) ? history.find(h => h.business_date === yesterdayStr) : null;
         if (entry && entry.status === 'OPEN') {
           setYesterdayNotClosed(true);

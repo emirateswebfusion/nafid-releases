@@ -169,7 +169,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           email: formData.email,
           role: formData.role,
           restricted_page: payload.restricted_page || null,
-          created_at: new Date().toISOString()
+          created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T')
         }]);
         setView('list');
         setFormData({ name: '', email: '', password: '', role: 'BILLER' });

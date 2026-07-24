@@ -34,7 +34,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     customer_phone: '',
     product_name: '',
     product_details: '',
-    purchase_date: new Date().toISOString().split('T')[0],
+    purchase_date: new Date().toLocaleDateString('en-CA'),
     warranty_period_days: 365,
     notes: '',
   });
@@ -42,7 +42,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   const printRef = useRef<HTMLDivElement>(null);
 
   const expiryDate = form.purchase_date && form.warranty_period_days
-    ? new Date(new Date(form.purchase_date).getTime() + form.warranty_period_days * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    ? new Date(new Date(form.purchase_date).getTime() + form.warranty_period_days * 24 * 60 * 60 * 1000).toLocaleDateString('en-CA')
     : '';
 
   useEffect(() => { loadWarranties(); }, []);
@@ -76,7 +76,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       if (res.success) {
         setStatusMessage({ text: 'Warranty saved!', type: 'success' });
         setShowCreate(false);
-        setForm({ customer_name: '', customer_phone: '', product_name: '', product_details: '', purchase_date: new Date().toISOString().split('T')[0], warranty_period_days: 365, notes: '' });
+        setForm({ customer_name: '', customer_phone: '', product_name: '', product_details: '', purchase_date: new Date().toLocaleDateString('en-CA'), warranty_period_days: 365, notes: '' });
         loadWarranties();
       } else {
         setStatusMessage({ text: res.error || 'Failed', type: 'error' });

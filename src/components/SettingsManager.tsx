@@ -196,6 +196,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
+  const [previewStyle, setPreviewStyle] = useState<string | null>(null);
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [loyaltyEnabled, setLoyaltyEnabled] = useState(false);
@@ -1188,7 +1189,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           return (
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
+                              <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
                                 <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
@@ -1198,7 +1199,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                                   <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
                                   </div>
-                                  <button type="button" onClick={() => { setThermalStyle(style.id as any); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                                 </div>
                               </div>
                             </div>
@@ -1408,7 +1409,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           return (
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
+                              <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
                                 <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
@@ -1418,7 +1419,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                                   <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
                                   </div>
-                                  <button type="button" onClick={() => { setA4Style(style.id as any); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
+                                  <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                                 </div>
                               </div>
                             </div>
@@ -1876,11 +1877,12 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
       <PaperPreviewModal
         isOpen={previewFormat !== null}
-        onClose={() => setPreviewFormat(null)}
+        onClose={() => { setPreviewFormat(null); setPreviewStyle(null); }}
         format={previewFormat || 'thermal'}
-        thermalStyle={thermalStyle}
-        a4Style={a4Style}
+        thermalStyle={(previewStyle as any) || thermalStyle}
+        a4Style={(previewStyle as any) || a4Style}
         paperWidth={printWidth}
+        onSelectStyle={(s) => { if (previewFormat === 'thermal') setThermalStyle(s as any); else setA4Style(s as any); }}
         showProductOffers={showProductOffers}
         receiptFont={receiptFont}
         billSettings={billSettings}

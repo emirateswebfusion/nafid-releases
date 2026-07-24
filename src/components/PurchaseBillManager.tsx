@@ -113,7 +113,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
   const [showAddForm, setShowAddForm] = useState(false);
   const [supplierName, setSupplierName] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [billDate, setBillDate] = useState(new Date().toISOString().split('T')[0]);
+  const [billDate, setBillDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [billNotes, setBillNotes] = useState('');
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -247,7 +247,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
     setSupplierName(bill.supplier_name);
     setSupplierSearch('');
     setSupplierId(bill.supplier_id);
-    setBillDate(bill.bill_date || new Date().toISOString().split('T')[0]);
+    setBillDate(bill.bill_date || new Date().toLocaleDateString('en-CA'));
     setBillNotes(bill.notes || '');
     setBillType(bill.bill_type as 'GST' | 'ESTIMATE');
     setShowAddForm(true);
@@ -319,7 +319,7 @@ export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => 
 
       const typeLabel = filterType === 'ALL' ? 'All' : filterType;
       const searchLabel = searchQuery ? `_search-${searchQuery}` : '';
-      const dateStr = new Date().toISOString().split('T')[0];
+      const dateStr = new Date().toLocaleDateString('en-CA');
       const filename = `purchase-bills_${typeLabel}${searchLabel}_${dateStr}.csv`;
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');

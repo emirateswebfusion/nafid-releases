@@ -2134,7 +2134,7 @@ export function BillingPage() {
     if (isScrapMode || isReturnMode || isQuotationMode) return;
     if (!window.electronAPI) {
       // Fallback for non-electron: save to localStorage
-      const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items, invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
+      const bill = { id: uuidv4(), heldAt: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T'), items, invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       stored.push(bill);
       localStorage.setItem('vendora-held-bills', JSON.stringify(stored));

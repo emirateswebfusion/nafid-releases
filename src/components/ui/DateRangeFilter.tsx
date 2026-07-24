@@ -271,7 +271,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                 day.dateStr < tempEndDate;
               const isRangeSelected = tempStartDate && tempEndDate && tempStartDate !== tempEndDate;
               
-              const todayStr = new Date().toISOString().split('T')[0];
+              const todayStr = new Date().toLocaleDateString('en-CA');
               const isToday = day.dateStr === todayStr;
 
               return (

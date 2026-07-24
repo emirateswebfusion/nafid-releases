@@ -325,7 +325,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `StockReport_${shopName || 'Shop'}_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `StockReport_${shopName || 'Shop'}_${new Date().toLocaleDateString('en-CA')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };

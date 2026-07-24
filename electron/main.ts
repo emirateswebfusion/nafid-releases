@@ -77,6 +77,18 @@ if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)
     console.log('[Main] GH_TOKEN loaded manually from env file');
   }
 }
+// ── Local Time Helpers ────────────────────────────────────────────────────
+/** Returns local timestamp: YYYY-MM-DD HH:mm:ss */
+function localTimestamp(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+/** Returns local date: YYYY-MM-DD */
+function localDate(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+
 import { initDb, getDb } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
@@ -635,7 +647,7 @@ ipcMain.handle('db:bulkImportProducts', safeHandler((event, products: any[]) => 
       const now = new Date();
       for (const p of prods) {
         now.setMilliseconds(now.getMilliseconds() + 1);
-        const timestamp = now.toISOString().replace('T', ' ').replace('Z', '');
+        const timestamp = localTimestamp(now);
         
         stmt.run(
           p.product_id,
@@ -946,7 +958,7 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
       entry.ledger_id,
       entry.party_id,
       entry.tenant_id,
-      entry.transaction_date || new Date().toISOString(),
+      entry.transaction_date || localTimestamp(),
       entry.description,
       creditAmount,
       debitAmount,
@@ -957,7 +969,7 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
     );
 
     db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(newBalance, entry.transaction_date || new Date().toISOString(), entry.party_id);
+      .run(newBalance, entry.transaction_date || localTimestamp(), entry.party_id);
 
     return { success: true };
   } catch (error: any) {
@@ -3085,9 +3097,9 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
           db.prepare(`
             INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || new Date().toISOString(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
           db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-            .run(newBalance, bill.bill_date || new Date().toISOString(), bill.supplier_id);
+            .run(newBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
         }
       }
 
@@ -3202,9 +3214,9 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
           db.prepare(`
             INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || new Date().toISOString(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
           db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-            .run(newBalance, bill.bill_date || new Date().toISOString(), bill.supplier_id);
+            .run(newBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
         }
       }
 
@@ -3299,7 +3311,7 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_
 ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { tenant_id: string; business_date?: string }) => {
   try {
     const db = getDb();
-    const date = business_date || new Date().toISOString().split('T')[0];
+    const date = business_date || localDate();
     const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
     return drawer || null;
   } catch (error: any) {
@@ -3311,12 +3323,12 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
 ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => {
   try {
     const db = getDb();
-    const date = new Date().toISOString().split('T')[0];
+    const date = localDate();
 
     // Block setting opening balance if yesterday is still open
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    const yesterdayStr = localDate(yesterday);
     const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
     if (prevDrawer && prevDrawer.status === 'OPEN') {
       console.log(`[Cashier] setOpeningBalance BLOCKED: yesterday ${yesterdayStr} is still OPEN`);
@@ -3414,7 +3426,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       `).run(payment_method, received, discount, invoice_id, tenant_id);
       
       if (payment_method === 'CASH') {
-        const date = new Date().toISOString().split('T')[0];
+        const date = localDate();
         const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
         if (drawer) {
           const newCashSales = Number(drawer.cash_sales) + received;
@@ -3453,7 +3465,7 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
   
   try {
     const tx = db.transaction(() => {
-      const date = new Date().toISOString().split('T')[0];
+      const date = localDate();
       const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
       
@@ -3506,7 +3518,7 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
   const db = getDb();
   try {
     const tx = db.transaction(() => {
-      const date = business_date || new Date().toISOString().split('T')[0];
+      const date = business_date || localDate();
       const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
@@ -3542,7 +3554,7 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
 ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const date = new Date().toISOString().split('T')[0];
+    const date = localDate();
     const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
     if (!drawer) return [];
     

@@ -3,6 +3,12 @@ import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
 
+// ── Local Time Helpers ────────────────────────────────────────────────────
+function localTimestamp(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 let db: Database.Database;
 
 export function initDb() {
@@ -766,7 +772,7 @@ export function initDb() {
             db.prepare(`
               INSERT INTO scrap_categories (scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted, sync_status, created_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', ?, ?)
-            `).run(item.scrap_item_id, item.tenant_id, item.name, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs', item.created_at || new Date().toISOString(), item.updated_at || new Date().toISOString());
+            `).run(item.scrap_item_id, item.tenant_id, item.name, item.purchase_price || 0, item.selling_price || 0, item.current_stock || 0, item.unit || 'Kgs', item.created_at || localTimestamp(), item.updated_at || localTimestamp());
           }
         }
       }
