@@ -140,6 +140,7 @@ export interface IElectronAPI {
   dbGetReturnItems: (return_id: string) => Promise<any[]>;
   dbDeleteReturn: (return_id: string) => Promise<{ success: boolean; error?: string }>;
   dbGetNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
+  dbPeekNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
   dbGetAlreadyReturnedQuantities: (invoiceId: string) => Promise<any[]>;
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<any[]>;

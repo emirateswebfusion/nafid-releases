@@ -248,7 +248,7 @@ export function BillingPage() {
     const currentMode = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
     if (prevReserveMode.current !== currentMode) {
       prevReserveMode.current = currentMode;
-      updateActiveTab({ reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
     }
   }, [isScrapMode, isReturnMode, isQuotationMode]);
 
@@ -317,6 +317,7 @@ export function BillingPage() {
   const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
   const nextScrapInvoiceNumber = activeTab?.reservedScrapInvoiceNumber ?? '';
   const nextQuotationNumber = activeTab?.reservedQuotationNumber ?? '';
+  const nextReturnNumber = activeTab?.reservedReturnNumber ?? '';
 
   const reserveInvoiceNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
@@ -381,6 +382,20 @@ export function BillingPage() {
     }
   }, [getActiveTab, updateActiveTab]);
 
+  const reserveReturnNumberForTab = useCallback(async () => {
+    if (!window.electronAPI) return;
+    const tab = getActiveTab();
+    if (!tab || tab.reservedReturnNumber) return;
+    try {
+      const result = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+      if (result.success && result.returnNumber) {
+        updateActiveTab({ reservedReturnNumber: result.returnNumber, title: result.returnNumber });
+      }
+    } catch (e) {
+      console.error('Failed to reserve return number', e);
+    }
+  }, [getActiveTab, updateActiveTab, tenantId]);
+
   const scrapLeftoverAmount = !isScrapMode && storeScrapDeduction > grandTotal
     ? (storeScrapDeduction - grandTotal)
     : 0;
@@ -394,6 +409,7 @@ export function BillingPage() {
       ? returnTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
   const balanceAmount = (receivedAmount - displayGrandTotal) + scrapLeftoverAmount;
+  const bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
   useEffect(() => {
     if (initialized.current) return;
@@ -482,15 +498,17 @@ export function BillingPage() {
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
 
-  // Reserve invoice/scrap/quotation number when tab becomes active without a reservation
+  // Reserve invoice/scrap/quotation/return number when tab becomes active without a reservation
   useEffect(() => {
     reserveInvoiceNumberForTab();
     if (isScrapMode) {
       reserveScrapInvoiceNumberForTab();
     } else if (isQuotationMode) {
       reserveQuotationNumberForTab();
+    } else if (isReturnMode) {
+      reserveReturnNumberForTab();
     }
-  }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, isScrapMode, isQuotationMode]);
+  }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
 
   useEffect(() => {
     // In scrap mode, return mode, or past bill mode, skip product search
@@ -749,6 +767,36 @@ export function BillingPage() {
             item.grade_rate = p.grade_rate || null;
             item.uom = p.uom || 'PCS';
             item.hsn = p.hsn || '';
+
+            // Recover MRP, offer, and discount from product data + sold price
+            const mrp = Number(p.base_price) || 0;
+            const soldPrice = Number(item.unit_price) || 0;
+            item.base_price = Math.max(mrp, soldPrice);
+
+            if (item.pricing_mode === 'GRADE_RATE' && item.grade_rate) {
+              const rawRate = Number(item.grade_rate) || 0;
+              if (soldPrice < rawRate) {
+                const currentOffer = p.offer_price ? Number(p.offer_price) : null;
+                if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
+                  item.offer_price = currentOffer;
+                } else {
+                  item.discount_flat = Number((rawRate - soldPrice).toFixed(2));
+                }
+              }
+            } else {
+              if (soldPrice < mrp) {
+                const currentOffer = p.offer_price ? Number(p.offer_price) : null;
+                if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
+                  item.offer_price = currentOffer;
+                } else {
+                  item.discount_flat = Number((mrp - soldPrice).toFixed(2));
+                }
+              } else if (soldPrice > mrp) {
+                item.offer_price = soldPrice;
+              }
+            }
+          } else {
+            item.base_price = Number(item.unit_price) || 0;
           }
         }
 
@@ -772,7 +820,7 @@ export function BillingPage() {
             item_id: item.item_id,
             product_id: productId,
             name: item.name || 'Product',
-            base_price: Number(item.unit_price) || 0,
+            base_price: Number(item.base_price) || 0,
             purchase_price: Number(item.purchase_price) || 0,
             tax_rate_percent: Number(item.tax_rate_percent) || 0,
       billing_type: item.billing_type,
@@ -1204,8 +1252,9 @@ export function BillingPage() {
       setSearchQuery('');
       setPastBillResults([]);
       setIsPastBillMode(false);
-      setReturnMode(true);
       clearCart();
+      setReturnMode(true);
+      reserveReturnNumberForTab();
       const cartItems = enriched.map((item: any) => {
         const p = productMap[item.product_id];
         return {
@@ -1904,7 +1953,7 @@ export function BillingPage() {
       clearCart();
       clearScrapDeduction();
       clearReturnDeduction();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
       syncActiveSnapshot();
       setCheckoutSuccess(false);
       await reserveInvoiceNumberForTab();
@@ -1924,8 +1973,11 @@ export function BillingPage() {
     setReturnProcessing(true);
     try {
       const tid = tenantId || 'global';
-      const numRes = await window.electronAPI.dbGetNextReturnNumber({ tenant_id: tid, prefix: 'RET' });
-      const returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RET-${Date.now()}`;
+      let returnNumber = nextReturnNumber;
+      if (!returnNumber) {
+        const numRes = await window.electronAPI.dbGetNextReturnNumber({ tenant_id: tid });
+        returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
+      }
       const returnSubtotal = returnCartItems.reduce((s, item) => s + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0), 0);
       const returnTaxTotal = returnCartItems.reduce((s, item) => {
         const origQty = Number(item.originalQuantity) || 1;
@@ -2092,16 +2144,25 @@ export function BillingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               </div>
             <div className="flex items-center gap-2 mt-0.5">
-              <span className={clsx(
-                'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
-                isScrapMode
-                  ? 'text-orange-600 bg-orange-500/10 border-orange-500/20'
-                  : isQuotationMode
-                    ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
-                    : 'text-primary bg-primary/10 border-primary/20'
-              )}>
-                {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
-              </span>
+              {isReturnMode ? (
+                <input
+                  type="text"
+                  value={nextReturnNumber}
+                  onChange={e => updateActiveTab({ reservedReturnNumber: e.target.value.toUpperCase(), title: e.target.value.toUpperCase() })}
+                  className="text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center bg-rose-500/10 text-rose-600 border-rose-500/20 outline-none focus:ring-2 focus:ring-rose-500/30"
+                />
+              ) : (
+                <span className={clsx(
+                  'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
+                  isScrapMode
+                    ? 'text-orange-600 bg-orange-500/10 border-orange-500/20'
+                    : isQuotationMode
+                      ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
+                      : 'text-primary bg-primary/10 border-primary/20'
+                )}>
+                  {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
+                </span>
+              )}
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
               </span>
@@ -2207,6 +2268,7 @@ export function BillingPage() {
               setReturnMode(next);
               if (next && isScrapMode) setIsScrapMode(false);
               if (next && isQuotationMode) setQuotationMode(false);
+              if (next) reserveReturnNumberForTab();
               if (!next) { setSelectedReturnInvoice(null); }
             }}
             className={clsx(
@@ -3441,103 +3503,260 @@ export function BillingPage() {
             <div className={clsx(
               'transition-all duration-400 ease-in-out',
               !isScrapMode && !isQuotationMode && !isReturnMode && (storeScrapDeduction > 0 || storeReturnDeduction > 0 || enableScrap)
-                ? 'max-h-[200px] opacity-100 scale-100'
+                ? 'max-h-[350px] opacity-100 scale-100'
                 : 'max-h-0 opacity-0 scale-95'
             )}>
-              {(storeScrapDeduction > 0 || storeReturnDeduction > 0) ? (
-                <div className="px-0 py-0 mt-1 bg-orange-500/5 border border-orange-500/20 rounded-2xl">
-                  <div className="flex items-start gap-1 px-2 pt-2 pb-1.5">
-                    <div className="flex-1 min-w-0 space-y-0.5">
-                      <p className="text-[10px] font-extrabold text-orange-600 uppercase tracking-wider">Adjustments</p>
-                      {storeScrapDeduction > 0 && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-orange-600/80 truncate">Scrap: {storeScrapInvoiceNumber}</span>
-                          <span className="font-bold text-orange-600 shrink-0 ml-2">-{formatCurrency(storeScrapDeduction)}</span>
-                        </div>
-                      )}
-                      {storeReturnDeduction > 0 && (
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-rose-600/80 truncate">Return: {storeReturnInvoiceNumber}</span>
-                          <span className="font-bold text-rose-600 shrink-0 ml-2">-{formatCurrency(storeReturnDeduction)}</span>
-                        </div>
-                      )}
+              <div className={clsx(
+                "px-0 py-0 mt-1 border rounded-2xl overflow-hidden transition-all duration-300 shadow-sm",
+                storeScrapDeduction > 0 && storeReturnDeduction > 0
+                  ? "border-primary/20 bg-muted/5"
+                  : storeScrapDeduction > 0
+                    ? "border-orange-500/25 bg-orange-500/[0.01]"
+                    : storeReturnDeduction > 0
+                      ? "border-rose-500/25 bg-rose-500/[0.01]"
+                      : "border-orange-500/20 bg-orange-500/[0.01]"
+              )}>
+                {(storeScrapDeduction > 0 || storeReturnDeduction > 0) ? (
+                  <div className="p-2 space-y-1.5 bg-muted/40 border-b border-border/50">
+                    <div className="flex items-center justify-between px-1 mb-0.5">
+                      <p className="text-[9px] font-black text-muted-foreground uppercase tracking-widest">Applied Credits</p>
                       {(storeScrapDeduction > 0 && storeReturnDeduction > 0) && (
-                        <div className="flex items-center justify-between pt-0.5 border-t border-orange-500/20 text-xs">
-                          <span className="font-extrabold text-muted-foreground">Total Adjustment</span>
-                          <span className="font-black text-foreground">-{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0))}</span>
+                        <span className="text-[9px] font-bold text-foreground bg-primary/10 px-2 py-0.5 rounded-full">
+                          Total Adj: -{formatCurrency((storeScrapDeduction || 0) + (storeReturnDeduction || 0))}
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-1.5 items-center">
+                      {/* Column 1: Scrap Card OR Scrap Input (if Return is applied but Scrap is not) */}
+                      {storeScrapDeduction > 0 ? (
+                        <div className="flex items-center justify-between p-1.5 bg-orange-500/5 hover:bg-orange-500/10 border border-orange-500/10 rounded-xl transition-all duration-200 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div className="p-1 bg-orange-500/10 text-orange-600 rounded-lg shrink-0">
+                              <Recycle className="w-3.5 h-3.5" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[8px] font-black text-orange-600 uppercase tracking-wider leading-none">Scrap Credit</p>
+                              <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeScrapInvoiceNumber}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
+                            <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
+                            <button
+                              onClick={async () => {
+                                const invNum = storeScrapInvoiceNumber;
+                                clearScrapDeduction();
+                                if (invNum && window.electronAPI) {
+                                  await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
+                                    tenant_id: tenantId || '',
+                                    scrap_invoice_number: invNum,
+                                    payment_status: 'PENDING',
+                                  });
+                                }
+                              }}
+                              title="Remove Scrap Credit"
+                              className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            ref={scrapDeductionInputRef}
+                            type="text"
+                            placeholder="Type scrap # & Enter..."
+                            value={scrapDeductionSearchQuery}
+                            onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter') {
+                                const q = scrapDeductionSearchQuery.trim();
+                                if (!q) return;
+                                try {
+                                  const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                  if (res && res.totalAmount) {
+                                    setScrapDeduction(res.totalAmount, q);
+                                    setScrapDeductionSearchQuery('');
+                                    setScrapDeductionResults([]);
+                                    setScrapDeductionDropdownStyle(null);
+                                    if (window.electronAPI) {
+                                      await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
+                                    }
+                                  } else {
+                                    setHardwareError(`Scrap invoice "${q}" not found`);
+                                  }
+                                } catch (e) {
+                                  setHardwareError('Failed to fetch scrap invoice');
+                                }
+                              }
+                              if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                            }}
+                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                          />
+                        </div>
+                      )}
+
+                      {/* Column 2: Return Card OR Return Input (if Scrap is applied but Return is not) */}
+                      {storeReturnDeduction > 0 ? (
+                        <div className="flex items-center justify-between p-1.5 bg-rose-500/5 hover:bg-rose-500/10 border border-rose-500/10 rounded-xl transition-all duration-200 min-w-0">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                            <div className="p-1 bg-rose-500/10 text-rose-600 rounded-lg shrink-0">
+                              <ArrowLeftRight className="w-3.5 h-3.5 text-rose-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[8px] font-black text-rose-600 uppercase tracking-wider leading-none">Return Credit</p>
+                              <p className="text-[10px] font-mono font-bold text-foreground truncate mt-0.5">{storeReturnInvoiceNumber}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0 ml-1">
+                            <span className="text-[11px] font-black text-rose-600">-{formatCurrency(storeReturnDeduction)}</span>
+                            <button
+                              onClick={() => {
+                                clearReturnDeduction();
+                              }}
+                              title="Remove Return Credit"
+                              className="p-0.5 text-rose-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <input
+                            ref={returnDeductionInputRef}
+                            type="text"
+                            placeholder="Type return # & Enter..."
+                            value={returnDeductionSearchQuery}
+                            onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter') {
+                                const q = returnDeductionSearchQuery.trim();
+                                if (!q) return;
+                                try {
+                                  const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                  if (res && res.grand_total) {
+                                    const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                    if (remaining > 0) {
+                                      setReturnDeduction(remaining, q);
+                                      setReturnDeductionSearchQuery('');
+                                      setReturnDeductionResults([]);
+                                      setReturnDeductionDropdownStyle(null);
+                                    } else {
+                                      setHardwareError('Return already fully adjusted');
+                                    }
+                                  } else {
+                                    setHardwareError(`Return "${q}" not found`);
+                                  }
+                                } catch (e) {
+                                  setHardwareError('Failed to fetch return');
+                                }
+                              }
+                              if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                            }}
+                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                          />
                         </div>
                       )}
                     </div>
-                    <button
-                      onClick={() => {
-                        const invNum = storeScrapInvoiceNumber;
-                        clearScrapDeduction();
-                        clearReturnDeduction();
-                        if (invNum && window.electronAPI) {
-                          window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
-                            tenant_id: tenantId || '',
-                            scrap_invoice_number: invNum,
-                            payment_status: 'PENDING',
-                          });
-                        }
-                      }}
-                      className="p-1 mt-1 text-muted-foreground hover:text-destructive rounded-lg transition-colors cursor-pointer shrink-0"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
                   </div>
-                </div>
-              ) : (enableScrap || true) ? (
-                <div className="px-0 py-0 mt-1 border border-orange-500/20 rounded-2xl overflow-hidden">
-                  <div className="flex">
-                    <button
-                      onClick={() => setReturnDeductionSearchMode(false)}
-                      className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-colors cursor-pointer',
-                        !returnDeductionSearchMode
-                          ? 'bg-orange-500/10 text-orange-600'
-                          : 'bg-transparent text-muted-foreground hover:text-foreground'
-                      )}
-                    >Scrap</button>
-                    <button
-                      onClick={() => setReturnDeductionSearchMode(true)}
-                      className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-colors cursor-pointer',
-                        returnDeductionSearchMode
-                          ? 'bg-rose-500/10 text-rose-600'
-                          : 'bg-transparent text-muted-foreground hover:text-foreground'
-                      )}
-                    >Return</button>
-                  </div>
-                  <div className="flex items-center gap-1 px-2 py-1.5 border-t border-orange-500/20">
-                    <div className="flex-1 relative">
-                      {!returnDeductionSearchMode ? (
-                        <input
-                          ref={scrapDeductionInputRef}
-                          type="text"
-                          placeholder="Search scrap invoice..."
-                          value={scrapDeductionSearchQuery}
-                          onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
-                          onKeyDown={e => {
-                            if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
-                          }}
-                          className="w-full pl-2 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase"
-                        />
-                      ) : (
-                        <input
-                          ref={returnDeductionInputRef}
-                          type="text"
-                          placeholder="Search return number..."
-                          value={returnDeductionSearchQuery}
-                          onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
-                          onKeyDown={e => {
-                            if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
-                          }}
-                          className="w-full pl-2 pr-2 py-1.5 bg-background border border-border rounded-lg text-xs font-mono text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase"
-                        />
-                      )}
+                ) : (
+                  /* Neither is applied: show standard selector tabs and full-width input */
+                  <div>
+                    <div className="flex bg-muted/20 p-0.5 border-b border-border/40">
+                      <button
+                        onClick={() => setReturnDeductionSearchMode(false)}
+                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg',
+                          !returnDeductionSearchMode
+                            ? 'bg-orange-500/10 text-orange-600 shadow-sm'
+                            : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                        )}
+                      >Scrap</button>
+                      <button
+                        onClick={() => setReturnDeductionSearchMode(true)}
+                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg',
+                          returnDeductionSearchMode
+                            ? 'bg-rose-500/10 text-rose-600 shadow-sm'
+                            : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
+                        )}
+                      >Return</button>
+                    </div>
+
+                    <div className="flex items-center gap-1 px-2 py-1.5">
+                      <div className="flex-1 relative">
+                        {!returnDeductionSearchMode ? (
+                          <input
+                            ref={scrapDeductionInputRef}
+                            type="text"
+                            placeholder="Type scrap invoice number & Enter..."
+                            value={scrapDeductionSearchQuery}
+                            onChange={e => setScrapDeductionSearchQuery(e.target.value.toUpperCase())}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter') {
+                                const q = scrapDeductionSearchQuery.trim();
+                                if (!q) return;
+                                try {
+                                  const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
+                                  if (res && res.totalAmount) {
+                                    setScrapDeduction(res.totalAmount, q);
+                                    setScrapDeductionSearchQuery('');
+                                    setScrapDeductionResults([]);
+                                    setScrapDeductionDropdownStyle(null);
+                                    if (window.electronAPI) {
+                                      await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
+                                    }
+                                  } else {
+                                    setHardwareError(`Scrap invoice "${q}" not found`);
+                                  }
+                                } catch (e) {
+                                  setHardwareError('Failed to fetch scrap invoice');
+                                }
+                              }
+                              if (e.key === 'Escape') { setScrapDeductionResults([]); setScrapDeductionSearchQuery(''); setScrapDeductionDropdownStyle(null); }
+                            }}
+                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-orange-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 uppercase transition-all duration-200"
+                          />
+                        ) : (
+                          <input
+                            ref={returnDeductionInputRef}
+                            type="text"
+                            placeholder="Type return number & Enter..."
+                            value={returnDeductionSearchQuery}
+                            onChange={e => setReturnDeductionSearchQuery(e.target.value.toUpperCase())}
+                            onKeyDown={async e => {
+                              if (e.key === 'Enter') {
+                                const q = returnDeductionSearchQuery.trim();
+                                if (!q) return;
+                                try {
+                                  const res = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: q });
+                                  if (res && res.grand_total) {
+                                    const remaining = res.grand_total - (res.adjusted_amount || 0);
+                                    if (remaining > 0) {
+                                      setReturnDeduction(remaining, q);
+                                      setReturnDeductionSearchQuery('');
+                                      setReturnDeductionResults([]);
+                                      setReturnDeductionDropdownStyle(null);
+                                    } else {
+                                      setHardwareError('Return already fully adjusted');
+                                    }
+                                  } else {
+                                    setHardwareError(`Return "${q}" not found`);
+                                  }
+                                } catch (e) {
+                                  setHardwareError('Failed to fetch return');
+                                }
+                              }
+                              if (e.key === 'Escape') { setReturnDeductionResults([]); setReturnDeductionSearchQuery(''); setReturnDeductionDropdownStyle(null); }
+                            }}
+                            className="w-full pl-2.5 pr-2.5 py-1.5 bg-background border border-border hover:border-rose-500/40 rounded-xl text-xs font-mono text-foreground placeholder:text-muted-foreground/30 focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 uppercase transition-all duration-200"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ) : null}
+                )}
+              </div>
             </div>
 
             {/* Scrap items row — shown in scrap mode with scrap cart items */}

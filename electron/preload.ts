@@ -168,6 +168,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetReturnItems: (return_id: string) => ipcRenderer.invoke('db:getReturnItems', return_id),
   dbDeleteReturn: (return_id: string) => ipcRenderer.invoke('db:deleteReturn', return_id),
   dbGetNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextReturnNumber', payload),
+  dbPeekNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:peekNextReturnNumber', payload),
   dbGetAlreadyReturnedQuantities: (invoiceId: string) => ipcRenderer.invoke('db:getAlreadyReturnedQuantities', invoiceId),
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => ipcRenderer.invoke('db:getReturnInvoiceByNumber', payload),
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPendingReturnInvoices', payload),

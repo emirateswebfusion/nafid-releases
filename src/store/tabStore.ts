@@ -26,6 +26,7 @@ export interface Tab {
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
   reservedQuotationNumber: string;
+  reservedReturnNumber: string;
   scrapPaymentStatus: 'CASH' | 'PENDING';
 }
 
@@ -62,6 +63,7 @@ function createDefaultTab(): Tab {
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',
     reservedQuotationNumber: '',
+    reservedReturnNumber: '',
     scrapPaymentStatus: 'PENDING',
   };
 }
@@ -176,7 +178,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
       'paymentMethod', 'receivedAmount', 'reservedInvoiceNumber',
-      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'scrapPaymentStatus'
+      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber', 'scrapPaymentStatus'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
