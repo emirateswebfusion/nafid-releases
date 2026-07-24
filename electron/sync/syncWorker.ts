@@ -1436,7 +1436,13 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
              try {
                const localObj = JSON.parse(localData.value);
                if (typeof valueToSave === 'string') {
-                 const cloudObj = JSON.parse(valueToSave);
+                 let cloudObj: any;
+                 try {
+                   cloudObj = JSON.parse(valueToSave);
+                 } catch {
+                   // Cloud value is a plain string (e.g. "barcode") — wrap as type field
+                   cloudObj = { type: valueToSave };
+                 }
                  if (localObj.deviceName) cloudObj.deviceName = localObj.deviceName;
                  valueToSave = JSON.stringify(cloudObj);
                } else if (typeof valueToSave === 'object') {

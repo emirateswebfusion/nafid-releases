@@ -38,9 +38,9 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
     
     // Fallback to legacy printer_config
     const legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tenantId || 'global');
-    return legacyRow ? JSON.parse(legacyRow.value) : { type: 'usb', ip: '192.168.1.100', port: 9100 };
+    return legacyRow ? JSON.parse(legacyRow.value) : { type: 'none' };
   } catch {
-    return { type: 'usb', ip: '192.168.1.100', port: 9100 };
+    return { type: 'none' };
   }
 }
 
@@ -122,6 +122,12 @@ export function initPrinter() {
       : (config.receiptWidthCm || 5.8) * 10;
 
     try {
+      // Gracefully skip if no printer configured
+      if (config.type === 'none' || !config.type) {
+        console.log('[Hardware] No receipt printer configured — skipping print');
+        return { success: true, skipped: true };
+      }
+
       const receiptText = textData + '\n\n\n\n\n';
       
       if (config.type === 'network') {
@@ -226,26 +232,9 @@ export function initPrinter() {
   console.log('[Hardware] Printer service initialized');
 }
 
-function isPrivateIp(host: string): boolean {
-  // Block empty, localhost, and loopback
-  if (!host || host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '0.0.0.0') return true;
-  // Try parsing as IPv4
-  const parts = host.split('.');
-  if (parts.length === 4 && parts.every(p => /^\d{1,3}$/.test(p) && parseInt(p) <= 255)) {
-    const first = parseInt(parts[0]);
-    if (first === 10) return true;
-    if (first === 127) return true;
-    if (first === 169 && parseInt(parts[1]) === 254) return true;
-    if (first === 172 && parseInt(parts[1]) >= 16 && parseInt(parts[1]) <= 31) return true;
-    if (first === 192 && parseInt(parts[1]) === 168) return true;
-  }
-  return false;
-}
-
 function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise<void> {
-  if (isPrivateIp(host)) {
-    return Promise.reject(new Error('Cannot connect to private or internal IP address'));
-  }
+  // Network printers are always on local networks (192.168.x.x, 10.x.x.x, etc.)
+  // We skip the isPrivateIp check here because this is a printer connection, not an outbound HTTP request
   return new Promise((resolve, reject) => {
     const client = new net.Socket();
     client.setTimeout(3000);

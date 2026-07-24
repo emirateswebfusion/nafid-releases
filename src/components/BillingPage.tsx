@@ -189,7 +189,7 @@ export function BillingPage() {
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
-  const [checkoutSuccess, setCheckoutSuccess] = useState(false);
+  const [checkoutSuccess, setCheckoutSuccess] = useState<'saved' | 'printed' | false>(false);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -1680,13 +1680,13 @@ export function BillingPage() {
           }).catch(() => {});
         }
 
-        setCheckoutSuccess(true);
+        setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
         setIsCheckingOut(false);
         setTimeout(async () => {
           clearCart();
       updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
           syncActiveSnapshot();
-          setCheckoutSuccess(false);
+          setCheckoutSuccess(false); // scrap mode reset
           await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
           const tab = getActiveTab();
           if (tab?.reservedScrapInvoiceNumber) {
@@ -1859,30 +1859,6 @@ export function BillingPage() {
         isB2B,
       };
 
-      if (!saveOnly) {
-        if (useA4) {
-          const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
-          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-          if (!printResult.success && printResult.useDefaultDialog) {
-            const pw = window.open('', '_blank');
-            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
-          }
-        } else {
-          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
-          const thermalStyle = printFmt?.style || 'standard';
-          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-          if (!printResult.success) {
-            setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
-            setIsCheckingOut(false); return;
-          }
-        }
-
-        if (!isPaymentPending || openCashDrawerOnPending) {
-          await window.electronAPI.openCashDrawer(tenantId || 'global');
-        }
-      }
-
       let result: any;
       const wantsLoyalty = loyaltyEnabled && !!customerName.trim() && (!!customerPhone.trim() || !!customerAddress.trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
@@ -1956,11 +1932,40 @@ export function BillingPage() {
           console.error('Failed to update quotation status', e);
         }
       }
+
+      // ── Print receipt AFTER successful save (non-fatal) ──
+      if (!saveOnly) {
+        try {
+          if (useA4) {
+            const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+            const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+            if (!printResult.success && printResult.useDefaultDialog) {
+              const pw = window.open('', '_blank');
+              if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+            }
+          } else {
+            const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
+            const thermalStyle = printFmt?.style || 'standard';
+            const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+            const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+            if (!printResult.success) {
+              console.warn('[Checkout] Print failed (invoice saved):', printResult.error);
+              setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+            }
+          }
+          if (!isPaymentPending || openCashDrawerOnPending) {
+            await window.electronAPI.openCashDrawer(tenantId || 'global');
+          }
+        } catch (printErr: any) {
+          console.warn('[Checkout] Print error (invoice already saved):', printErr);
+          setHardwareError(`Print warning: ${printErr.message || 'check printer'}`);
+        }
+      }
     } catch {
       setHardwareError('Hardware communication error.'); setIsCheckingOut(false); return;
     }
 
-    setCheckoutSuccess(true);
+    setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
     setIsCheckingOut(false);
     setTimeout(async () => {
       clearCart();
@@ -1968,7 +1973,7 @@ export function BillingPage() {
       clearReturnDeduction();
       updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
       syncActiveSnapshot();
-      setCheckoutSuccess(false);
+      setCheckoutSuccess(false); // normal mode reset
       await reserveInvoiceNumberForTab();
       const tab = getActiveTab();
       if (tab?.reservedInvoiceNumber) {
@@ -2328,7 +2333,7 @@ export function BillingPage() {
         {checkoutSuccess && (
           <div className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
             <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
-            <span>Invoice completed & Receipt printed!</span>
+            <span>{checkoutSuccess === 'printed' ? 'Invoice completed & Receipt printed!' : 'Invoice saved successfully!'}</span>
           </div>
         )}
         {quotationSuccess && (
@@ -4102,7 +4107,7 @@ export function BillingPage() {
                     {quotationSaving ? 'Saving...' : 'Save Draft'}
                   </button>
                   <button
-                    onClick={handleCheckout}
+                    onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-white font-black text-sm shadow-md hover:bg-emerald-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
@@ -4162,7 +4167,7 @@ export function BillingPage() {
                     <span>Save</span>
                   </button>
                   <button
-                    onClick={handleCheckout}
+                    onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-orange-500 text-white font-black text-sm shadow-md hover:bg-orange-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
@@ -4198,7 +4203,7 @@ export function BillingPage() {
                     <span>Save</span>
                   </button>
                   <button
-                    onClick={handleCheckout}
+                    onClick={() => handleCheckout()}
                     disabled={isCheckingOut || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-primary text-primary-foreground font-black text-sm shadow-md hover:bg-primary/90 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >

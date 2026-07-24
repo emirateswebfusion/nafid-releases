@@ -2159,7 +2159,15 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
   try {
     const db = getDb();
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', key);
-    return row ? JSON.parse(row.value) : null;
+    if (row) {
+      try {
+        return JSON.parse(row.value);
+      } catch {
+        console.warn(`[settings:get] Non-JSON value for key "${key}", returning empty object`);
+        return {};
+      }
+    }
+    return null;
   } catch (error: any) {
     console.error('[settings:get]', error);
     return { error: 'Operation failed' };
