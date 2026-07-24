@@ -1256,8 +1256,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const boxSep = (segments: number[]) => {
       let s = '├';
       for (const w of segments) s += '─'.repeat(w) + '┼';
-      return s.slice(0, -1) + '┤
-';
+      return s.slice(0, -1) + '┤\n';
     };
     const boxRow = (cells: string[], widths: number[]) => {
       let line = '│';
