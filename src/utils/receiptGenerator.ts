@@ -1254,33 +1254,35 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const INNER = charsPerLine - 2; // usable width inside │ ... │
 
     // ── Helpers ──────────────────────────────────────────────────────────────
-    // B_LINE: always pads/clips content to INNER so every line is exactly charsPerLine
+
+    // B_LINE: always pads/clips content to exactly INNER columns
     const B_LINE = (content: string): string => {
       const c = content.length > INNER ? content.substring(0, INNER) : content.padEnd(INNER);
       return '│' + c + '│\n';
     };
 
-    // B_TOP / B_MID / B_BOT: full-width horizontal rules
+    // B_TOP / B_MID / B_BOT: full-width solid single-line rules
     const B_TOP = () => '┌' + '─'.repeat(INNER) + '┐\n';
     const B_MID = () => '├' + '─'.repeat(INNER) + '┤\n';
     const B_BOT = () => '└' + '─'.repeat(INNER) + '┘\n';
 
-    // B_ROW: builds a table row from cells+widths. The rule:
-    //   line = │ cell0 │ cell1 │ … │ cellN │
-    //   length = 1 + sum(widths) + N_cols + 1  (opening+closing pipes + inner pipes)
-    //   So: sum(widths) must equal INNER - N_cols
+    // B_ROW: builds a table row from cells+widths.
+    //   sum(widths) must equal INNER - N_cols so total line = exactly charsPerLine
     const B_ROW = (cells: string[], widths: number[]): string => {
       let line = '│';
       cells.forEach((c, i) => {
         const w = widths[i];
-        line += (c.length > w ? c.substring(0, w) : c.padEnd(w)) + '│';
+        const paddedCell = c.length > w ? c.substring(0, w) : c.padEnd(w);
+        line += paddedCell + '│';
       });
-      // Pad / clip to full charsPerLine before newline
-      return (line.length > charsPerLine ? line.substring(0, charsPerLine) : line.padEnd(charsPerLine)) + '\n';
+      // Final safety clamp
+      return (line.length > charsPerLine
+        ? line.substring(0, charsPerLine)
+        : line.padEnd(charsPerLine)) + '\n';
     };
 
-    // B_SEP: separator row between table header and rows
-    //   ├─cell0─┼─cell1─┼…┤
+    // B_SEP: solid single-line separator row between table header and data rows
+    //   ├──┼──┼──┤
     const B_SEP = (widths: number[]): string => {
       let s = '├';
       widths.forEach((w, i) => {
@@ -1293,14 +1295,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const bs = data.billSettings;
     text += B_TOP();
 
-    // GSTIN left + phone right on same row
+    // GSTIN on line 1, phone on line 2 (separate lines)
     if (bs?.showShopGstin && data.shopGstin) {
-      const gstPart = `GSTIN: ${data.shopGstin}`;
-      const phonePart = bs?.showPhone && data.shopPhone ? `\u260E ${data.shopPhone}` : '';
-      const gap = Math.max(1, INNER - gstPart.length - phonePart.length);
-      text += B_LINE(gstPart + ' '.repeat(gap) + phonePart);
-    } else if (bs?.showPhone && data.shopPhone) {
-      text += B_LINE(centerText(`\u260E ${data.shopPhone}`, INNER));
+      text += B_LINE(centerText(`GSTIN: ${data.shopGstin}`, INNER));
+    }
+    if (bs?.showPhone && data.shopPhone) {
+      text += B_LINE(centerText(`Ph: ${data.shopPhone}`, INNER));
     }
 
     // Shop name — UPPERCASE, centered
@@ -1411,14 +1411,28 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         : [idx, name, qty, rate, amt];
       text += B_ROW(cells, colWidths);
 
-      // MRP offer note — show only if there's a discount, truncated to fit
+      // MRP offer note — aligned under the Product column with Sr. column divider intact
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        const offerNote = ` MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
-        text += B_LINE(offerNote);
+        const offerWidths = [idxW, INNER - idxW - 1];
+        // 1. Add a small gap row before the offer note (45% line-height) - no extra column dividers
+        text += '[[LH:0.45]]' + B_ROW(['', ''], offerWidths);
+
+        const offerLabel = ` MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
+        // 2. Print as 2-column row: empty Sr. column, offer label in remaining space
+        text += B_ROW(['', offerLabel], offerWidths);
+
+        // 3. Add a small gap row after the offer note (45% line-height) - no extra column dividers
+        text += '[[LH:0.45]]' + B_ROW(['', ''], offerWidths);
+      }
+
+      // Add separator line after each item (except the last one)
+      if (i < data.items.length - 1) {
+        text += B_SEP(colWidths);
       }
     });
 
-    text += B_SEP(colWidths);
+    // Close item table with a clean horizontal line (no extra column dividers)
+    text += B_MID();
 
     // ── Totals ────────────────────────────────────────────────────────────────
     // Format: │ Label                    |   123.00│
@@ -1427,12 +1441,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const roundOff = Math.round(finalGT) - finalGT;
     const netTotal = Math.round(finalGT);
 
-    const VAL_W = 8;                        // width of value field (right-aligned)
-    const LAB_W = INNER - VAL_W - 1;       // label fills rest; label + '|' + val = INNER
+    // Align totals vertical separator exactly with the table's Amount column divider
+    const VAL_W = amtW;                     // width of value field aligns with Amount col
+    const LAB_W = INNER - VAL_W - 1;        // label fills rest; label + '│' + val = INNER
     const tRow = (label: string, val: string) => {
       const l = label.length > LAB_W ? label.substring(0, LAB_W) : label.padEnd(LAB_W);
       const v = val.length > VAL_W ? val.substring(0, VAL_W) : val.padStart(VAL_W);
-      return B_LINE(l + '|' + v);
+      return B_LINE(l + '│' + v);
     };
 
     text += tRow('Total', data.subtotal.toFixed(2));
@@ -1452,7 +1467,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const totalSaved = perSaved + data.discount;
       if (totalSaved > 0) {
         text += B_MID();
-        text += B_LINE(` YOU SAVED \u20B9${totalSaved.toFixed(2)}`);
+        const savedMsg = centerText(`* * * YOU SAVED \u20B9${totalSaved.toFixed(2)} * * *`, INNER);
+        text += B_LINE(savedMsg);
       }
     }
 
@@ -1520,10 +1536,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       (data.pointsRedeemed != null && data.pointsRedeemed > 0) ||
       (data.remainingPointsBalance != null && data.remainingPointsBalance > 0);
     if (hasPoints) {
-      const ptLW = Math.floor(INNER * 0.6);
-      const ptVW = INNER - ptLW - 1;
+      // Align loyalty vertical separator with the Amount column divider
+      const ptLW = INNER - amtW - 1;
+      const ptVW = amtW;
       const ptRow = (l: string, v: string) =>
-        B_LINE((l.length > ptLW ? l.substring(0, ptLW) : l.padEnd(ptLW)) + '|' + (v.length > ptVW ? v.substring(0, ptVW) : v.padStart(ptVW)));
+        B_LINE((l.length > ptLW ? l.substring(0, ptLW) : l.padEnd(ptLW)) + '│' + (v.length > ptVW ? v.substring(0, ptVW) : v.padStart(ptVW)));
       text += ptRow('Bill Points', (data.pointsEarned || 0).toFixed(2));
       text += ptRow('Used Point', String(data.pointsRedeemed || 0));
       text += ptRow('Used Amt', data.pointsRedeemedDiscount ? data.pointsRedeemedDiscount.toFixed(2) : '0');

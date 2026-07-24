@@ -97,6 +97,12 @@
     border-color: var(--primary) !important;
     box-shadow: 0 0 0 4px var(--input-focus-ring) !important;
   }
+
+  /* Search bar: keep dynamic mode color on focus */
+  input.search-dynamic:focus {
+    border-color: var(--search-focus-color, var(--primary)) !important;
+    box-shadow: 0 0 0 3px var(--search-focus-shadow, var(--input-focus-ring)) !important;
+  }
 }
 
 @layer base {

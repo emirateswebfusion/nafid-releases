@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import QRCode from 'qrcode';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
 
@@ -95,6 +96,41 @@ const FONT_MAP: Record<string, string> = {
   monospace: 'monospace',
 };
 
+type ReceiptRow =
+  | { type: 'text'; value: string; lhMultiplier: number }
+  | { type: 'qr'; payload: string };
+
+function parseReceiptToRows(input: string): ReceiptRow[] {
+  const lines = input.split('\n');
+  const rows: ReceiptRow[] = [];
+
+  lines.forEach((line) => {
+    if (line === '' && rows.length === lines.length - 1) return;
+
+    if (line.includes('[[QR:')) {
+      const match = line.match(/\[\[QR:([^\]]+)\]\]/);
+      if (match) {
+        rows.push({ type: 'qr', payload: match[1] });
+        return;
+      }
+    }
+
+    let lhMultiplier = 1.0;
+    let cleanLine = line;
+    if (line.startsWith('[[LH:')) {
+      const match = line.match(/^\[\[LH:([^\]]+)\]\]/);
+      if (match) {
+        lhMultiplier = Number(match[1]) || 1.0;
+        cleanLine = line.substring(match[0].length);
+      }
+    }
+
+    rows.push({ type: 'text', value: cleanLine, lhMultiplier });
+  });
+
+  return rows;
+}
+
 interface PaperPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -123,6 +159,46 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
       return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
     }
   }, [isOpen, format, style, paperWidth, showProductOffers, billSettings]);
+
+  const rows = useMemo(() => {
+    if (format !== 'thermal') return [];
+    return parseReceiptToRows(content);
+  }, [content, format]);
+
+  const [qrImages, setQrImages] = useState<Record<string, string>>({});
+  const qrPayloads = useMemo(() => {
+    if (format !== 'thermal') return [];
+    return Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as any).payload)));
+  }, [rows, format]);
+
+  useEffect(() => {
+    if (qrPayloads.length === 0) {
+      setQrImages({});
+      return;
+    }
+
+    Promise.all(
+      qrPayloads.map(async (payload) => {
+        const url = await QRCode.toDataURL(payload, {
+          width: 360,
+          margin: 2,
+          errorCorrectionLevel: 'M',
+          color: { dark: '#000000', light: '#ffffff' },
+        });
+        return [payload, url] as const;
+      })
+    )
+      .then((pairs) => {
+        const map: Record<string, string> = {};
+        pairs.forEach(([payload, url]) => {
+          map[payload] = url;
+        });
+        setQrImages(map);
+      })
+      .catch(() => {
+        setQrImages({});
+      });
+  }, [qrPayloads]);
 
   if (!isOpen) return null;
 
@@ -213,23 +289,84 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                 <div className="w-2 h-2 rounded-full bg-green-400" />
                 <span className="text-[10px] text-gray-400 ml-2 font-mono">thermal-receipt</span>
               </div>
-              <pre
-                className="font-mono whitespace-pre overflow-hidden select-text"
+              <div
                 style={{
                   margin: '0 auto',
                   padding: '10px 8px',
-                  fontSize: '12px',
-                  fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
-                  color: '#000',
-                  fontWeight: 700,
-                  lineHeight: 1.3,
                   background: '#fff',
                   minHeight: '200px',
-                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'stretch'
                 }}
               >
-                {content || ' '}
-              </pre>
+                {rows.map((row, index) => {
+                  if (row.type === 'text') {
+                    return (
+                      <pre
+                        key={`text-${index}`}
+                        className="font-mono whitespace-pre overflow-hidden select-text"
+                        style={{
+                          margin: '0 auto',
+                          padding: 0,
+                          fontSize: '12px',
+                          fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
+                          color: '#000',
+                          fontWeight: 700,
+                          lineHeight: thermalStyle === 'bill' ? 1.05 * row.lhMultiplier : 1.3,
+                          textAlign: 'left',
+                        }}
+                      >
+                        {row.value}
+                      </pre>
+                    );
+                  }
+
+                  const qrSrc = qrImages[row.payload];
+                  return qrSrc ? (
+                    <div
+                      key={`qr-${index}`}
+                      style={{
+                        width: '100%',
+                        padding: '4px 0 6px',
+                        textAlign: 'center',
+                        display: 'flex',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <img
+                        src={qrSrc}
+                        alt="UPI QR"
+                        style={{
+                          width: '92%',
+                          maxWidth: '220px',
+                          height: 'auto',
+                          imageRendering: 'pixelated',
+                          display: 'block',
+                          margin: '0 auto',
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <pre
+                      key={`qr-fallback-${index}`}
+                      className="font-mono whitespace-pre overflow-hidden select-text"
+                      style={{
+                        margin: '0 auto',
+                        padding: 0,
+                        fontSize: '12px',
+                        fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
+                        color: '#000',
+                        fontWeight: 700,
+                        lineHeight: thermalStyle === 'bill' ? 1.05 : 1.3,
+                        textAlign: 'left',
+                      }}
+                    >
+                      [QR LOADING]
+                    </pre>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <div

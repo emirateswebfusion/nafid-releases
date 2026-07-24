@@ -31,39 +31,52 @@ const printStyles = `
   }
 `;
 
-const QR_MARKER_REGEX = /\[\[QR:([^\]]+)\]\]/g;
-
-type ReceiptSegment =
-  | { type: 'text'; value: string }
+type ReceiptRow =
+  | { type: 'text'; value: string; lhMultiplier: number }
   | { type: 'qr'; payload: string };
 
-function splitReceiptByQrMarkers(input: string): ReceiptSegment[] {
-  const segments: ReceiptSegment[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
+function parseReceiptToRows(input: string): ReceiptRow[] {
+  const lines = input.split('\n');
+  const rows: ReceiptRow[] = [];
 
-  while ((match = QR_MARKER_REGEX.exec(input)) !== null) {
-    if (match.index > lastIndex) {
-      segments.push({ type: 'text', value: input.slice(lastIndex, match.index) });
+  lines.forEach((line) => {
+    // If line is empty and it's the last line, skip it
+    if (line === '' && rows.length === lines.length - 1) return;
+
+    if (line.includes('[[QR:')) {
+      const match = line.match(/\[\[QR:([^\]]+)\]\]/);
+      if (match) {
+        rows.push({ type: 'qr', payload: match[1] });
+        return;
+      }
     }
-    segments.push({ type: 'qr', payload: match[1] });
-    lastIndex = match.index + match[0].length;
-  }
 
-  if (lastIndex < input.length) {
-    segments.push({ type: 'text', value: input.slice(lastIndex) });
-  }
+    let lhMultiplier = 1.0;
+    let cleanLine = line;
+    if (line.startsWith('[[LH:')) {
+      const match = line.match(/^\[\[LH:([^\]]+)\]\]/);
+      if (match) {
+        lhMultiplier = Number(match[1]) || 1.0;
+        cleanLine = line.substring(match[0].length);
+      }
+    }
 
-  return segments.length ? segments : [{ type: 'text', value: input }];
+    rows.push({ type: 'text', value: cleanLine, lhMultiplier });
+  });
+
+  return rows;
 }
 
 export function PrintReceiptView({ text }: { text: string }) {
   const [receiptText, setReceiptText] = useState(text || '');
   const [fontFamily, setFontFamily] = useState('"Courier New", monospace');
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
+
+  const rows = useMemo(() => parseReceiptToRows(receiptText), [receiptText]);
+
   const qrPayloads = useMemo(
-    () => Array.from(new Set([...receiptText.matchAll(QR_MARKER_REGEX)].map((m) => m[1]).filter(Boolean))),
-    [receiptText]
+    () => Array.from(new Set(rows.filter(r => r.type === 'qr').map(r => (r as any).payload))),
+    [rows]
   );
   const isQrReady = qrPayloads.length === 0 || qrPayloads.every((payload) => Boolean(qrImages[payload]));
 
@@ -130,14 +143,15 @@ export function PrintReceiptView({ text }: { text: string }) {
 
   if (!receiptText) return null;
 
-  const segments = splitReceiptByQrMarkers(receiptText);
+  const isBillStyle = receiptText.includes('│') || receiptText.includes('┌');
+  const lh = isBillStyle ? 1.05 : 1.2;
 
   return (
     <div style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <style>{printStyles}</style>
-      <div style={{ padding: '4px 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        {segments.map((segment, index) => {
-          if (segment.type === 'text') {
+      <div style={{ padding: '4px 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+        {rows.map((row, index) => {
+          if (row.type === 'text') {
             return (
               <pre key={`text-${index}`} style={{
                 margin: '0 auto',
@@ -147,15 +161,15 @@ export function PrintReceiptView({ text }: { text: string }) {
                 whiteSpace: 'pre',
                 color: 'black',
                 fontWeight: 700,
-                lineHeight: 1.2,
-                textAlign: 'center',
+                lineHeight: lh * row.lhMultiplier,
+                textAlign: 'left',
               }}>
-                {segment.value}
+                {row.value}
               </pre>
             );
           }
 
-          const qrSrc = qrImages[segment.payload];
+          const qrSrc = qrImages[row.payload];
           return qrSrc ? (
             <div key={`qr-${index}`} style={{ width: '100%', padding: '4px 0 6px', textAlign: 'center', display: 'flex', justifyContent: 'center' }}>
               <img
@@ -173,8 +187,8 @@ export function PrintReceiptView({ text }: { text: string }) {
               whiteSpace: 'pre',
               color: 'black',
               fontWeight: 700,
-              lineHeight: 1.2,
-              textAlign: 'center',
+              lineHeight: lh,
+              textAlign: 'left',
             }}>
               [QR LOADING]
             </pre>

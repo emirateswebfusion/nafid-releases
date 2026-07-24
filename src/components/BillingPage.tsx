@@ -2436,6 +2436,7 @@ export function BillingPage() {
                 if (next && isQuotationMode) setQuotationMode(false);
                 if (next && isReturnMode) setReturnMode(false);
                 if (next) reserveScrapInvoiceNumberForTab();
+                setTimeout(() => searchRef.current?.focus(), 100);
               }}
               className={clsx(
                 "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
@@ -2456,6 +2457,7 @@ export function BillingPage() {
                 if (next && isScrapMode) setIsScrapMode(false);
                 if (next && isReturnMode) setReturnMode(false);
                 if (next) reserveQuotationNumberForTab();
+                setTimeout(() => searchRef.current?.focus(), 100);
               }}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
@@ -2476,6 +2478,7 @@ export function BillingPage() {
               if (next && isScrapMode) setIsScrapMode(false);
               if (next && isQuotationMode) setQuotationMode(false);
               if (!next) { setSelectedReturnInvoice(null); }
+              setTimeout(() => searchRef.current?.focus(), 100);
             }}
             className={clsx(
               "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
@@ -2533,7 +2536,14 @@ export function BillingPage() {
             <div ref={searchContainerRef} className="relative">
               <div className="flex gap-2">
                 <div className="relative flex-1">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Search className={clsx(
+                    "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
+                    isScrapMode ? "text-orange-500" :
+                    isReturnMode ? "text-rose-500" :
+                    isQuotationMode ? "text-blue-500" :
+                    isPastBillMode ? "text-teal-500" :
+                    "text-muted-foreground"
+                  )} />
                   <input
                     ref={searchRef}
                     type="text"
@@ -2542,7 +2552,47 @@ export function BillingPage() {
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
-                    className="w-full pl-10 pr-9 py-2.5 bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                    className="search-dynamic w-full pl-10 pr-9 py-2.5 bg-background rounded-xl text-sm font-medium text-foreground transition-all duration-300 placeholder:text-muted-foreground/50 focus:outline-none"
+                    style={{
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      borderColor: isScrapMode
+                        ? 'rgb(249,115,22)'
+                        : isReturnMode
+                        ? 'rgb(244,63,94)'
+                        : isQuotationMode
+                        ? 'rgb(59,130,246)'
+                        : isPastBillMode
+                        ? 'rgb(20,184,166)'
+                        : 'hsl(var(--border))',
+                      boxShadow: isScrapMode
+                        ? '0 0 0 3px rgba(249,115,22,0.15)'
+                        : isReturnMode
+                        ? '0 0 0 3px rgba(244,63,94,0.15)'
+                        : isQuotationMode
+                        ? '0 0 0 3px rgba(59,130,246,0.15)'
+                        : isPastBillMode
+                        ? '0 0 0 3px rgba(20,184,166,0.15)'
+                        : undefined,
+                      '--search-focus-color': isScrapMode
+                        ? 'rgb(249,115,22)'
+                        : isReturnMode
+                        ? 'rgb(244,63,94)'
+                        : isQuotationMode
+                        ? 'rgb(59,130,246)'
+                        : isPastBillMode
+                        ? 'rgb(20,184,166)'
+                        : undefined,
+                      '--search-focus-shadow': isScrapMode
+                        ? 'rgba(249,115,22,0.2)'
+                        : isReturnMode
+                        ? 'rgba(244,63,94,0.2)'
+                        : isQuotationMode
+                        ? 'rgba(59,130,246,0.2)'
+                        : isPastBillMode
+                        ? 'rgba(20,184,166,0.2)'
+                        : undefined,
+                    } as React.CSSProperties}
                   />
                   {searchQuery && (
                     <button
