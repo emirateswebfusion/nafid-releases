@@ -279,28 +279,22 @@ export function BillingPage() {
     let billNumber = '';
     let scrapNumber = '';
     let quotationNumber = '';
+    let returnNumber = '';
     if (window.electronAPI) {
-      try {
-        const series = enableThreeInvoiceSeries ? 'normal' : undefined;
-        const [r1, r2, r3] = await Promise.all([
-          window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }),
-          window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' }),
-          window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' }),
-        ]);
-        if (r1?.success && r1.invoiceNumber) billNumber = r1.invoiceNumber;
-        if (r2?.success && r2.invoiceNumber) scrapNumber = r2.invoiceNumber;
-        if (r3?.success && r3.quotationNumber) quotationNumber = r3.quotationNumber;
-      } catch (e) {
-        console.error('Failed to peek numbers', e);
-      }
+      const series = enableThreeInvoiceSeries ? 'normal' : undefined;
+      try { const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }); if (r?.success && r.invoiceNumber) billNumber = r.invoiceNumber; } catch { }
+      try { const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' }); if (r?.success && r.invoiceNumber) scrapNumber = r.invoiceNumber; } catch { }
+      try { const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' }); if (r?.success && r.quotationNumber) quotationNumber = r.quotationNumber; } catch { }
+      try { const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' }); if (r?.success && r.returnNumber) returnNumber = r.returnNumber; } catch { }
     }
     tabCounter.current++;
-    const title = billNumber || scrapNumber || quotationNumber || `Bill ${tabCounter.current}`;
+    const title = billNumber || scrapNumber || quotationNumber || returnNumber || `Bill ${tabCounter.current}`;
     addTab(undefined, title);
     const updates: Record<string, string> = {};
     if (billNumber) updates.reservedInvoiceNumber = billNumber;
     if (scrapNumber) updates.reservedScrapInvoiceNumber = scrapNumber;
     if (quotationNumber) updates.reservedQuotationNumber = quotationNumber;
+    if (returnNumber) updates.reservedReturnNumber = returnNumber;
     if (Object.keys(updates).length) updateActiveTab(updates as any);
   };
 
@@ -322,17 +316,22 @@ export function BillingPage() {
   const reserveInvoiceNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
-    if (!tab || tab.reservedInvoiceNumber) return;
+    if (!tab) return;
+    if (isScrapMode || isQuotationMode || isReturnMode) return;
+    if (tab.reservedInvoiceNumber) {
+      updateActiveTab({ title: tab.reservedInvoiceNumber });
+      return;
+    }
     try {
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
-        updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber });
+        updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
       }
     } catch (e) {
       console.error('Failed to peek invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
     setInvoiceType(type);
@@ -357,11 +356,15 @@ export function BillingPage() {
   const reserveScrapInvoiceNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
-    if (!tab || tab.reservedScrapInvoiceNumber) return;
+    if (!tab) return;
+    if (tab.reservedScrapInvoiceNumber) {
+      updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
+      return;
+    }
     try {
       const result = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (result.success && result.invoiceNumber) {
-        updateActiveTab({ reservedScrapInvoiceNumber: result.invoiceNumber });
+        updateActiveTab({ reservedScrapInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
       }
     } catch (e) {
       console.error('Failed to reserve scrap invoice number', e);
@@ -371,11 +374,15 @@ export function BillingPage() {
   const reserveQuotationNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
-    if (!tab || tab.reservedQuotationNumber) return;
+    if (!tab) return;
+    if (tab.reservedQuotationNumber) {
+      updateActiveTab({ title: tab.reservedQuotationNumber });
+      return;
+    }
     try {
       const result = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
       if (result.success && result.quotationNumber) {
-        updateActiveTab({ reservedQuotationNumber: result.quotationNumber });
+        updateActiveTab({ reservedQuotationNumber: result.quotationNumber, title: result.quotationNumber });
       }
     } catch (e) {
       console.error('Failed to reserve quotation number', e);
@@ -385,7 +392,11 @@ export function BillingPage() {
   const reserveReturnNumberForTab = useCallback(async () => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
-    if (!tab || tab.reservedReturnNumber) return;
+    if (!tab) return;
+    if (tab.reservedReturnNumber) {
+      updateActiveTab({ title: tab.reservedReturnNumber });
+      return;
+    }
     try {
       const result = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
       if (result.success && result.returnNumber) {
@@ -396,8 +407,9 @@ export function BillingPage() {
     }
   }, [getActiveTab, updateActiveTab, tenantId]);
 
-  const scrapLeftoverAmount = !isScrapMode && storeScrapDeduction > grandTotal
-    ? (storeScrapDeduction - grandTotal)
+  const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
+  const refundAmount = !isScrapMode && totalDeductions > grandTotal
+    ? totalDeductions - grandTotal
     : 0;
 
   const returnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
@@ -408,7 +420,7 @@ export function BillingPage() {
     : isReturnMode
       ? returnTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
-  const balanceAmount = (receivedAmount - displayGrandTotal) + scrapLeftoverAmount;
+  const balanceAmount = receivedAmount - displayGrandTotal;
   const bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
   useEffect(() => {
@@ -912,6 +924,7 @@ export function BillingPage() {
 
         // Clear cart and activate return mode
         clearCart();
+        await reserveReturnNumberForTab();
         setReturnMode(true);
 
         // Load returnable items into cart
@@ -1253,8 +1266,8 @@ export function BillingPage() {
       setPastBillResults([]);
       setIsPastBillMode(false);
       clearCart();
+      await reserveReturnNumberForTab();
       setReturnMode(true);
-      reserveReturnNumberForTab();
       const cartItems = enriched.map((item: any) => {
         const p = productMap[item.product_id];
         return {
@@ -1697,7 +1710,7 @@ export function BillingPage() {
 
     const isPaymentPending = paymentMethod === 'PENDING';
     const effectiveReceivedAmount = isPaymentPending ? 0 : receivedAmount;
-    const effectiveBalanceAmount = isPaymentPending ? 0 : (scrapLeftoverAmount > 0 ? 0 : balanceAmount);
+    const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
     const invoice_id = isEditing ? editingInvoiceId : uuidv4();
     const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
@@ -1911,14 +1924,14 @@ export function BillingPage() {
       if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
 
       // Auto-record cash out if there was a leftover refund amount and payment method is CASH
-      if (scrapLeftoverAmount > 0 && paymentMethod === 'CASH' && window.electronAPI) {
+      if (refundAmount > 0 && paymentMethod === 'CASH' && window.electronAPI) {
         try {
           await window.electronAPI.dbCashierAddTransaction({
             tenant_id: tenantId || 'global',
             type: 'CASH_OUT',
-            amount: scrapLeftoverAmount,
-            category: 'SCRAP_REFUND',
-            notes: `Refund leftover scrap deduction for invoice ${invoice_number}`,
+            amount: refundAmount,
+            category: 'CREDIT_REFUND',
+            notes: `Refund leftover credits for invoice ${invoice_number}`,
             user_id: userId,
             user_name: useAuthStore.getState().userName || undefined
           });
@@ -2144,25 +2157,18 @@ export function BillingPage() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
               </div>
             <div className="flex items-center gap-2 mt-0.5">
-              {isReturnMode ? (
-                <input
-                  type="text"
-                  value={nextReturnNumber}
-                  onChange={e => updateActiveTab({ reservedReturnNumber: e.target.value.toUpperCase(), title: e.target.value.toUpperCase() })}
-                  className="text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center bg-rose-500/10 text-rose-600 border-rose-500/20 outline-none focus:ring-2 focus:ring-rose-500/30"
-                />
-              ) : (
-                <span className={clsx(
-                  'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
-                  isScrapMode
+              <span className={clsx(
+                'text-xs font-bold font-mono px-2 py-0.5 rounded-md border shrink-0 min-w-[90px] text-center',
+                isReturnMode
+                  ? 'text-rose-600 bg-rose-500/10 border-rose-500/20'
+                  : isScrapMode
                     ? 'text-orange-600 bg-orange-500/10 border-orange-500/20'
                     : isQuotationMode
                       ? 'text-blue-600 bg-blue-500/10 border-blue-500/20'
                       : 'text-primary bg-primary/10 border-primary/20'
-                )}>
-                  {isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
-                </span>
-              )}
+              )}>
+                {isReturnMode ? (nextReturnNumber || '') : isScrapMode ? (nextScrapInvoiceNumber || '') : isQuotationMode ? (nextQuotationNumber || '') : (editingActive ? (editingInvoiceNumber || '') : `${(invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : ''}${nextInvoiceNumber || ''}`)}
+              </span>
               <span              className="text-xs text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1">
                 {authRole === 'OWNER' ? 'Owner' : (userName || currentUserRole || 'Staff')}
               </span>
@@ -2263,12 +2269,12 @@ export function BillingPage() {
             <span>Quotation</span>
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
               const next = !isReturnMode;
+              if (next) await reserveReturnNumberForTab();
               setReturnMode(next);
               if (next && isScrapMode) setIsScrapMode(false);
               if (next && isQuotationMode) setQuotationMode(false);
-              if (next) reserveReturnNumberForTab();
               if (!next) { setSelectedReturnInvoice(null); }
             }}
             className={clsx(
@@ -3800,9 +3806,9 @@ export function BillingPage() {
                   {isReturnMode ? 'Return Total' : isScrapMode ? 'Scrap Total' : (storeScrapDeduction > 0 || storeReturnDeduction > 0) ? 'After Adj.' : 'Total'}
                 </p>
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
-                {scrapLeftoverAmount > 0 && (
+                {refundAmount > 0 && (
                   <p className="text-[10px] font-black text-orange-600 mt-1">
-                    Refund: {formatCurrency(scrapLeftoverAmount)}
+                    Refund: {formatCurrency(refundAmount)}
                   </p>
                 )}
               </div>

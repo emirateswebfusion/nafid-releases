@@ -24,7 +24,11 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
     if (enableThreeInvoiceSeries) {
       return tab.title;
     }
-    return isGst && !tab.title.startsWith('GST-') ? `GST-${tab.title}` : tab.title;
+    const isModeNumber = tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber;
+    if (isGst && !tab.title.startsWith('GST-') && !isModeNumber) {
+      return `GST-${tab.title}`;
+    }
+    return tab.title;
   };
 
   return (
