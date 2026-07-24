@@ -44,6 +44,8 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
     receivedAmount: 950.00,
     balanceAmount: 950.00 - SAMPLE_GRAND_TOTAL,
     invoiceType: 'GST',
+    customerName: bs.showCustomerName ? 'Cash' : undefined,
+    customerPhone: bs.showCustomerName ? '1234567890' : undefined,
     customerGstin: bs.showCustomerGstin ? '32AAAAA1111A1Z1' : undefined,
     isB2B: true,
     billSettings: bs,

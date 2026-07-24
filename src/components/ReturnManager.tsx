@@ -157,8 +157,8 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
                 <LogOut className="w-4 h-4" /> Logout
               </button>
             ) : (
-              <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/60 flex items-center justify-center shadow-sm" title="Close">
-                <X className="w-4 h-4" />
+              <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Close">
+                <X className="w-4 h-4 text-destructive" />
               </button>
             )}
           </div>
@@ -194,7 +194,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       <div className="flex-1 flex flex-col overflow-hidden bg-card/10">
         {/* Search */}
         <div className="shrink-0 p-4 border-b border-border bg-card">
-          <div className="max-w-md relative">
+          <div className="relative">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <input
               type="text"
@@ -207,7 +207,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         </div>
 
         {/* List Grid */}
-        <div className="flex-1 overflow-y-auto p-5 max-w-5xl w-full mx-auto">
+        <div className="flex-1 overflow-y-auto p-5">
           {loading ? (
             <div className="flex flex-col gap-2">
               {Array.from({ length: 6 }).map((_, i) => (

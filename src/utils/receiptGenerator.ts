@@ -1248,250 +1248,291 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
   }
 
   // ══════════════════════════════════════════════════════════════════════════════
-  //  BILL — Boxed receipt with +--+ borders, product table, tax breakup, round-off
+  //  BILL — Boxed receipt matching reference: strict alignment, columnar table
   // ══════════════════════════════════════════════════════════════════════════════
   else if (style === 'bill') {
-    // ── Helpers ──
-    const boxLine = (content: string) => '│' + content + '│\n';
-    const boxSep = (segments: number[]) => {
-      let s = '├';
-      for (const w of segments) s += '─'.repeat(w) + '┼';
-      return s.slice(0, -1) + '┤\n';
+    const INNER = charsPerLine - 2; // usable width inside │ ... │
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    // B_LINE: always pads/clips content to INNER so every line is exactly charsPerLine
+    const B_LINE = (content: string): string => {
+      const c = content.length > INNER ? content.substring(0, INNER) : content.padEnd(INNER);
+      return '│' + c + '│\n';
     };
-    const boxRow = (cells: string[], widths: number[]) => {
+
+    // B_TOP / B_MID / B_BOT: full-width horizontal rules
+    const B_TOP = () => '┌' + '─'.repeat(INNER) + '┐\n';
+    const B_MID = () => '├' + '─'.repeat(INNER) + '┤\n';
+    const B_BOT = () => '└' + '─'.repeat(INNER) + '┘\n';
+
+    // B_ROW: builds a table row from cells+widths. The rule:
+    //   line = │ cell0 │ cell1 │ … │ cellN │
+    //   length = 1 + sum(widths) + N_cols + 1  (opening+closing pipes + inner pipes)
+    //   So: sum(widths) must equal INNER - N_cols
+    const B_ROW = (cells: string[], widths: number[]): string => {
       let line = '│';
       cells.forEach((c, i) => {
-        line += (c.length > widths[i] ? c.substring(0, widths[i]) : c.padEnd(widths[i])) + '│';
+        const w = widths[i];
+        line += (c.length > w ? c.substring(0, w) : c.padEnd(w)) + '│';
       });
-      return line + '\n';
+      // Pad / clip to full charsPerLine before newline
+      return (line.length > charsPerLine ? line.substring(0, charsPerLine) : line.padEnd(charsPerLine)) + '\n';
     };
 
-    const topBox = () => `┌${'─'.repeat(charsPerLine - 2)}┐\n`;
-    const botBox = () => `└${'─'.repeat(charsPerLine - 2)}┘\n`;
-    const midBox = () => `├${'─'.repeat(charsPerLine - 2)}┤\n`;
+    // B_SEP: separator row between table header and rows
+    //   ├─cell0─┼─cell1─┼…┤
+    const B_SEP = (widths: number[]): string => {
+      let s = '├';
+      widths.forEach((w, i) => {
+        s += '─'.repeat(w) + (i < widths.length - 1 ? '┼' : '┤');
+      });
+      return s + '\n';
+    };
 
-    // ── Header ──
+    // ── Header ───────────────────────────────────────────────────────────────
     const bs = data.billSettings;
-    text += topBox();
+    text += B_TOP();
+
+    // GSTIN left + phone right on same row
     if (bs?.showShopGstin && data.shopGstin) {
-      const gstLine = ` GSTIN: ${data.shopGstin}`;
-      const phoneLine = data.shopPhone ? `Ph: ${data.shopPhone}` : '';
-      const avail = charsPerLine - 2 - gstLine.length;
-      text += boxLine(gstLine + (phoneLine ? ' '.repeat(Math.max(2, avail - phoneLine.length)) + phoneLine : ' '.repeat(avail)));
+      const gstPart = `GSTIN: ${data.shopGstin}`;
+      const phonePart = bs?.showPhone && data.shopPhone ? `\u260E ${data.shopPhone}` : '';
+      const gap = Math.max(1, INNER - gstPart.length - phonePart.length);
+      text += B_LINE(gstPart + ' '.repeat(gap) + phonePart);
+    } else if (bs?.showPhone && data.shopPhone) {
+      text += B_LINE(centerText(`\u260E ${data.shopPhone}`, INNER));
     }
-    if (bs?.showShopName) text += boxLine(centerText(data.shopName, charsPerLine - 2)) + '\n';
-    if (bs?.showShopAddress && data.shopAddress) text += boxLine(centerText(data.shopAddress, charsPerLine - 2));
-    text += midBox();
 
-    // ── Document Title ──
-    const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-    if (bs?.showTitle || showScrap) {
+    // Shop name — UPPERCASE, centered
+    if (bs?.showShopName) text += B_LINE(centerText(data.shopName.toUpperCase(), INNER));
+
+    // Address — centered, split on comma if needed
+    if (bs?.showShopAddress && data.shopAddress) {
+      const addr = data.shopAddress;
+      if (addr.length <= INNER) {
+        text += B_LINE(centerText(addr, INNER));
+      } else {
+        const mid = addr.lastIndexOf(',', Math.floor(addr.length / 2) + 10);
+        if (mid > 0) {
+          text += B_LINE(centerText(addr.substring(0, mid + 1).trim(), INNER));
+          text += B_LINE(centerText(addr.substring(mid + 1).trim(), INNER));
+        } else {
+          text += B_LINE(centerText(addr.substring(0, INNER), INNER));
+        }
+      }
+    }
+
+    text += B_MID();
+
+    // ── Document Title ────────────────────────────────────────────────────────
+    const showScrapT = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+    if (bs?.showTitle || showScrapT) {
       const docTitle = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B);
-      text += boxLine(centerText(docTitle, charsPerLine - 2));
-      text += midBox();
+      text += B_LINE(centerText(docTitle, INNER));
+      text += B_MID();
     }
 
-    // ── Bill Info ──
+    // ── Bill Info ─────────────────────────────────────────────────────────────
     const invLabel = data.invoiceType === 'RETURN' ? 'RET No' : 'Bill No';
-    const dateStr = `${data.date}`;
-    const billInfoLine = `${invLabel} : ${data.invoiceNumber}`;
-    const spaceAvail = charsPerLine - 2 - billInfoLine.length;
-    const datePart = `Date : ${dateStr}`;
-    text += boxLine(billInfoLine + ' '.repeat(Math.max(1, spaceAvail - datePart.length)) + datePart);
-    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
-      text += boxLine(`Ref Inv: ${data.referenceInvoiceNumber}`);
-    }
-    if (data.invoiceType === 'RETURN' && data.refundMethod) {
-      text += boxLine(`Refund: ${data.refundMethod}`);
-    }
-    if (data.billerName) text += boxLine(`Staff: ${data.billerName}`);
+    const billPart = `${invLabel}: ${data.invoiceNumber}`;
+    const datePart = `Date: ${data.date}`;
+    const billGap = Math.max(1, INNER - billPart.length - datePart.length);
+    text += B_LINE(billPart + ' '.repeat(billGap) + datePart);
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) text += B_LINE(` Ref Inv: ${data.referenceInvoiceNumber}`);
+    if (data.invoiceType === 'RETURN' && data.refundMethod) text += B_LINE(` Refund: ${data.refundMethod}`);
+    if (data.billerName) text += B_LINE(` Staff: ${data.billerName}`);
 
-    // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin) || data.customerAddress) {
-      text += midBox();
-      text += boxLine(` Customer Details:`);
-      if (data.customerName) text += boxLine(` Name    : ${data.customerName}`);
-      if (data.customerAddress) text += boxLine(` Address : ${data.customerAddress}`);
-      if (data.customerPhone) text += boxLine(` Contact : ${data.customerPhone}`);
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += boxLine(` GSTIN   : ${data.customerGstin}`);
+    // ── Customer Details ──────────────────────────────────────────────────────
+    const showCN = data.customerName && bs?.showCustomerName;
+    if (showCN || data.customerPhone || (data.customerGstin && bs?.showCustomerGstin) || data.customerAddress) {
+      text += B_MID();
+      text += B_LINE(' Customer Details:');
+      if (data.customerName && showCN) text += B_LINE(` Name    : ${data.customerName}`);
+      if (data.customerAddress) text += B_LINE(` Address : ${data.customerAddress}`);
+      if (data.customerPhone) text += B_LINE(` Contact : ${data.customerPhone}`);
+      if (data.customerGstin && bs?.showCustomerGstin) text += B_LINE(` GSTIN   : ${data.customerGstin}`);
     }
 
-    // ── Item Table ──
-    // Column layout adapts to width
-    const sepW = 1;
-    const idxW = 3;  // "Sr#" or "Sr"
-    let qtyW = 6;    // adjust
-    let mrpW: number | null = null;
-    let rateW = 6;
-    let amtW = 6;
+    // ── Item Table ────────────────────────────────────────────────────────────
+    // Correct formula: sum(colWidths) = INNER - N_cols
+    // so every B_ROW line = │ + sum(widths) + N pipes = 1+sum+N = charsPerLine ✓
+
+    let colWidths: number[];
+    let colLabels: string[];
     let nameW: number;
+    let idxW: number;
+    let qtyW: number;
+    let rateW: number;
+    let amtW: number;
+    let mrpW: number | null;
 
     if (charsPerLine >= 42) {
-      // Full table with MRP
-      mrpW = 6;
-      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - mrpW - sepW - rateW - sepW - amtW - sepW * 5;
-      if (nameW < 5) { nameW = 8; mrpW = 0; }
+      // 6 cols: Sr(2) Product Qty(4) MRP(6) Rate(6) Amt(7)
+      // B_ROW: 1 + sum + 6 = charsPerLine  =>  sum = charsPerLine - 7
+      idxW = 2; qtyW = 4; mrpW = 6; rateW = 6; amtW = 7;
+      nameW = (charsPerLine - 7) - (idxW + qtyW + mrpW + rateW + amtW);
+      colWidths = [idxW, nameW, qtyW, mrpW, rateW, amtW];
+      colLabels = ['Sr', 'Product', 'Qty', 'MRP', 'Rate', 'Amount'];
     } else if (charsPerLine >= 36) {
-      // With MRP
-      mrpW = 6;
-      qtyW = 5;
-      rateW = 6;
-      amtW = 6;
-      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - mrpW - sepW - rateW - sepW - amtW - sepW * 5;
-      if (nameW < 5) { nameW = 7; mrpW = 0; }
+      // 5 cols: Sr(2) Product Qty(3) Rate(6) Amt(7)
+      // B_ROW: 1 + sum + 5 = charsPerLine  =>  sum = charsPerLine - 6
+      idxW = 2; qtyW = 3; mrpW = null; rateW = 6; amtW = 7;
+      nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
+      colWidths = [idxW, nameW, qtyW, rateW, amtW];
+      colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
     } else {
-      // No MRP, compact
-      mrpW = null;
-      qtyW = 5;
-      rateW = 5;
-      amtW = 6;
-      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - rateW - sepW - amtW - sepW * 4;
-      if (nameW < 4) { nameW = 4; amtW = 5; rateW = 4; qtyW = 4; }
+      // 5 cols: Sr(2) Product Qty(3) Rate(5) Amt(5)
+      // B_ROW: 1 + sum + 5 = charsPerLine  =>  sum = charsPerLine - 6
+      idxW = 2; qtyW = 3; mrpW = null; rateW = 5; amtW = 5;
+      nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
+      if (nameW < 4) { nameW = 4; }
+      colWidths = [idxW, nameW, qtyW, rateW, amtW];
+      colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
     }
 
-    // Build column widths array
-    const colWidths: number[] = [idxW];
-    const colLabels: string[] = ['Sr#'];
-    colWidths.push(nameW); colLabels.push('Product');
-    colWidths.push(qtyW); colLabels.push('Qty');
-    if (mrpW && mrpW > 0) { colWidths.push(mrpW); colLabels.push('MRP'); }
-    colWidths.push(rateW); colLabels.push('Rate');
-    colWidths.push(amtW); colLabels.push('Amt');
+    text += B_MID();
+    text += B_ROW(colLabels, colWidths);
+    text += B_SEP(colWidths);
 
-    // Header separator
-    text += midBox();
-    text += boxRow(colLabels, colWidths);
-    text += boxSep(colWidths);
-
-    // Items
     data.items.forEach((item, i) => {
       const idx = String(i + 1);
-      const name = item.name;
       const qty = String(item.quantity);
       const rate = item.unit_price.toFixed(2);
       const amt = item.total.toFixed(2);
-      const mrpStr = item.originalRate ? item.originalRate.toFixed(2) : '';
+      const mrpStr = mrpW && item.originalRate ? item.originalRate.toFixed(2) : '';
 
-      const cells = [idx, name, qty];
-      if (mrpW && mrpW > 0) cells.push(mrpStr);
-      cells.push(rate, amt);
-      text += boxRow(cells, colWidths);
+      // Truncate name to nameW (clean, no wrapping)
+      const name = item.name.length > nameW
+        ? item.name.substring(0, nameW - 2) + '..'
+        : item.name;
 
-      // Show MRP savings or pack info
+      const cells = mrpW
+        ? [idx, name, qty, mrpStr, rate, amt]
+        : [idx, name, qty, rate, amt];
+      text += B_ROW(cells, colWidths);
+
+      // MRP offer note — show only if there's a discount, truncated to fit
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        const savings = `MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}`;
-        const info = `${savings}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
-        text += boxLine(` ${info.substring(0, charsPerLine - 4)}`);
+        const offerNote = ` MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
+        text += B_LINE(offerNote);
       }
     });
 
-    // Table footer
-    text += boxSep(colWidths);
+    text += B_SEP(colWidths);
 
-    // ── Totals ──
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
-    const totalLabel = 'Total';
-    const totalAmt = data.subtotal.toFixed(2);
-    text += boxLine(` ${padRight(totalLabel, charsPerLine - 4 - totalAmt.length - 2)} | ${totalAmt}`);
+    // ── Totals ────────────────────────────────────────────────────────────────
+    // Format: │ Label                    |   123.00│
+    // val field is right-aligned within valW chars; label fills the rest
+    const finalGT = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
+    const roundOff = Math.round(finalGT) - finalGT;
+    const netTotal = Math.round(finalGT);
 
+    const VAL_W = 8;                        // width of value field (right-aligned)
+    const LAB_W = INNER - VAL_W - 1;       // label fills rest; label + '|' + val = INNER
+    const tRow = (label: string, val: string) => {
+      const l = label.length > LAB_W ? label.substring(0, LAB_W) : label.padEnd(LAB_W);
+      const v = val.length > VAL_W ? val.substring(0, VAL_W) : val.padStart(VAL_W);
+      return B_LINE(l + '|' + v);
+    };
+
+    text += tRow('Total', data.subtotal.toFixed(2));
     if (data.discount > 0) {
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%)` : 'Discount';
-      text += boxLine(` ${padRight(dLabel, charsPerLine - 4 - 6 - 2)} | -${data.discount.toFixed(2)}`);
+      text += tRow(dLabel, `-${data.discount.toFixed(2)}`);
     }
+    if (data.scrapDeduction && data.scrapDeduction > 0) text += tRow('Scrap Deduction', `-${data.scrapDeduction.toFixed(2)}`);
+    if (data.returnDeduction && data.returnDeduction > 0) text += tRow('Return Deduction', `-${data.returnDeduction.toFixed(2)}`);
+    if (Math.abs(roundOff) >= 0.005) text += tRow('Round Off', `${roundOff >= 0 ? '+' : ''}${roundOff.toFixed(2)}`);
+    text += tRow('Net Total', `${Math.max(0, netTotal).toFixed(2)}`);
 
-    if (data.scrapDeduction && data.scrapDeduction > 0) {
-      text += boxLine(` ${padRight('Scrap Deduction', charsPerLine - 4 - 8 - 2)} | -${data.scrapDeduction.toFixed(2)}`);
-    }
-    if (data.returnDeduction && data.returnDeduction > 0) {
-      text += boxLine(` ${padRight('Return Deduction', charsPerLine - 4 - 8 - 2)} | -${data.returnDeduction.toFixed(2)}`);
-    }
-
-    const roundOff = Math.round(finalGrandTotal) - finalGrandTotal;
-    const netTotal = Math.round(finalGrandTotal);
-    if (Math.abs(roundOff) > 0) {
-      text += boxLine(` ${padRight('Round Off', charsPerLine - 4 - 6 - 2)} | ${roundOff.toFixed(2)}`);
-    }
-    text += boxLine(` ${padRight('Net Total', charsPerLine - 4 - 6 - 2)} | ${Math.max(0, netTotal).toFixed(2)}`);
-
-    // ── You Saved (skip for scrap) ──
+    // ── You Saved ─────────────────────────────────────────────────────────────
     if (data.invoiceType !== 'SCRAP') {
-      const perProductSavings = data.items.reduce((sum, item) => {
-        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
-        return sum;
-      }, 0);
-      const totalSaved = perProductSavings + data.discount;
+      const perSaved = data.items.reduce((s, item) =>
+        item.originalRate != null ? s + (item.originalRate - item.unit_price) * Number(item.quantity) : s, 0);
+      const totalSaved = perSaved + data.discount;
       if (totalSaved > 0) {
-        text += boxLine(centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine - 2));
+        text += B_MID();
+        text += B_LINE(` YOU SAVED \u20B9${totalSaved.toFixed(2)}`);
       }
     }
 
-    text += midBox();
+    text += B_MID();
 
-    // ── Tax Breakup Table ──
+    // ── Tax Breakup ───────────────────────────────────────────────────────────
     if (data.tax > 0) {
+      // 5 tax cols: B_ROW 1+sum+5=charsPerLine => sum=charsPerLine-6
+      const taxSum = charsPerLine - 6;
+      const tw = Math.floor(taxSum / 5);
+      const twLast = taxSum - tw * 4;
+      const taxWidths = [tw, tw, tw, tw, twLast];
       const taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
-      const taxW = Math.floor((charsPerLine - 2 - 6) / 5);
-      const taxWidths = [taxW, taxW, taxW, taxW, charsPerLine - 2 - taxW * 4 - 4];
-      text += boxRow(taxCols, taxWidths);
-      text += boxSep(taxWidths);
-      const taxable = (data.subtotal).toFixed(2);
-      const cgst = data.cgst ? data.cgst.toFixed(2) : '0.00';
-      const sgst = data.sgst ? data.sgst.toFixed(2) : '0.00';
-      const igst = data.igst ? data.igst.toFixed(2) : '0.00';
-      const totalGst = data.tax.toFixed(2);
-      text += boxRow([taxable, cgst, sgst, igst, totalGst], taxWidths);
-      text += midBox();
+      text += B_ROW(taxCols, taxWidths);
+      text += B_SEP(taxWidths);
+      text += B_ROW(
+        [
+          data.subtotal.toFixed(2),
+          data.cgst ? data.cgst.toFixed(2) : '0.00',
+          data.sgst ? data.sgst.toFixed(2) : '0.00',
+          data.igst ? data.igst.toFixed(2) : '0.00',
+          data.tax.toFixed(2),
+        ],
+        taxWidths
+      );
+      text += B_MID();
     }
 
-    // ── Amount in Words ──
-    text += boxLine(` Amount in Words: `);
-    text += boxLine(centerText(`${numberToIndianWords(Math.max(0, netTotal))} ONLY`, charsPerLine - 2));
-    text += midBox();
+    // ── Amount in Words ───────────────────────────────────────────────────────
+    text += B_LINE(' Amount in Words:');
+    text += B_LINE(` ${numberToIndianWords(Math.max(0, netTotal))} ONLY`);
+    text += B_MID();
 
-    // ── Instructions / Terms ──
-    const instr = data.billSettings?.instructions;
+    // ── Terms & Conditions ────────────────────────────────────────────────────
+    const instr = bs?.instructions;
     if (instr) {
-      text += boxLine(` Terms & Conditions`);
-      const lines = instr.split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        text += boxLine(centerText(line.trim(), charsPerLine - 2));
+      text += B_LINE(' Terms & Conditions:');
+      for (const line of instr.split('\n').filter(l => l.trim())) {
+        text += B_LINE(` ${line.trim()}`);
       }
-      text += midBox();
+      text += B_MID();
     }
 
-    // ── Barcode placeholder ──
-    const barcodeChars = '|'.repeat(Math.min(charsPerLine - 6, 14));
-    text += boxLine(centerText(barcodeChars, charsPerLine - 2));
-    text += boxLine(centerText('BARCODE', charsPerLine - 2));
-    text += midBox();
+    // ── Barcode ───────────────────────────────────────────────────────────────
+    const bcChars = '|'.repeat(Math.min(INNER - 2, 18));
+    text += B_LINE(centerText(bcChars, INNER));
+    text += B_MID();
 
-    // ── QR + Loyalty Points ──
-    const points = data.pointsEarned || data.previousPointsBalance || data.pointsRedeemed || data.remainingPointsBalance;
-    if (data.upiId || points) {
-      if (data.upiId) {
-        text += boxLine(` [QR CODE]${' '.repeat(2)}${data.upiId}`);
-        if (data.showUpiQr) {
-          try {
-            const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
-            text += '[[QR:' + upiUrl + ']]\n';
-          } catch {}
-        }
-      }
-      if (points) {
-        text += boxLine(` Bill Points    : ${(data.pointsEarned || 0).toFixed(2)}`);
-        text += boxLine(` Used Points    : ${(data.pointsRedeemed || 0).toFixed(0)}`);
-        if (data.pointsRedeemedDiscount) text += boxLine(` Used Amount    : ${data.pointsRedeemedDiscount.toFixed(2)}`);
-        text += boxLine(` Balance Points : ${(data.remainingPointsBalance || 0).toFixed(2)}`);
-      }
-      text += midBox();
+    // ── Footer ────────────────────────────────────────────────────────────────
+    text += B_LINE(centerText('Thank You... Visit Again !', INNER));
+    text += B_MID();
+
+    // ── QR Code ───────────────────────────────────────────────────────────────
+    if (data.upiId && data.showUpiQr) {
+      try {
+        const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
+        text += '[[QR:' + upiUrl + ']]\n';
+      } catch {}
     }
 
-    // ── Footer ──
-    text += boxLine(centerText('Thank You. Visit Again.', charsPerLine - 2));
-    text += botBox();
+    // ── Loyalty Points ────────────────────────────────────────────────────────
+    const hasPoints =
+      (data.pointsEarned != null && data.pointsEarned > 0) ||
+      (data.previousPointsBalance != null && data.previousPointsBalance > 0) ||
+      (data.pointsRedeemed != null && data.pointsRedeemed > 0) ||
+      (data.remainingPointsBalance != null && data.remainingPointsBalance > 0);
+    if (hasPoints) {
+      const ptLW = Math.floor(INNER * 0.6);
+      const ptVW = INNER - ptLW - 1;
+      const ptRow = (l: string, v: string) =>
+        B_LINE((l.length > ptLW ? l.substring(0, ptLW) : l.padEnd(ptLW)) + '|' + (v.length > ptVW ? v.substring(0, ptVW) : v.padStart(ptVW)));
+      text += ptRow('Bill Points', (data.pointsEarned || 0).toFixed(2));
+      text += ptRow('Used Point', String(data.pointsRedeemed || 0));
+      text += ptRow('Used Amt', data.pointsRedeemedDiscount ? data.pointsRedeemedDiscount.toFixed(2) : '0');
+      text += ptRow('Balance Points', (data.remainingPointsBalance || 0).toFixed(2));
+      text += B_MID();
+    }
+
+    text += B_BOT();
   }
 
   return text;
 }
-
