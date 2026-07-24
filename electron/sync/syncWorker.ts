@@ -383,7 +383,10 @@ async function syncProducts(token: string, tenantId: string) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const products = batch.map((p: any) => ({
       ...p,
-      is_deleted: !!p.is_deleted,
+      is_deleted: p.is_deleted === true || p.is_deleted === 1 || p.is_deleted === '1' || p.is_deleted === 'true',
+      is_gst_applicable: p.is_gst_applicable === true || p.is_gst_applicable === 1 || p.is_gst_applicable === '1' || p.is_gst_applicable === 'true',
+      weight_override_allowed: p.weight_override_allowed === true || p.weight_override_allowed === 1 || p.weight_override_allowed === '1' || p.weight_override_allowed === 'true',
+      is_service_item: p.is_service_item === true || p.is_service_item === 1 || p.is_service_item === '1' || p.is_service_item === 'true',
       domain_attributes: (() => { 
           try { 
             const parsed = JSON.parse(p.domain_attributes || '{}');

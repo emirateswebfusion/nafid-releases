@@ -1902,9 +1902,14 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
     if (payload.prefix) {
       prefix = payload.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
     } else if (confRow) {
-      const cfg = JSON.parse(confRow.value);
-      prefix = (cfg.prefix || defaultPrefix).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
-      counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+      try {
+        const cfg = JSON.parse(confRow.value);
+        const rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+        prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+        counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+      } catch {
+        // Invalid JSON — use defaults
+      }
     }
     const returnNumber = `${prefix}${String(counter).padStart(3, '0')}`;
     db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES ('global', 'return_counter', ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run(JSON.stringify({ prefix, counter: counter + 1 }));
@@ -1921,11 +1926,17 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
   let prefix = defaultPrefix;
   let counter = 1;
   if (payload.prefix) {
-    prefix = payload.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+    const sanitized = payload.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20);
+    prefix = sanitized && /[A-Z0-9]/i.test(sanitized) ? sanitized : defaultPrefix;
   } else if (confRow) {
-    const cfg = JSON.parse(confRow.value);
-    prefix = (cfg.prefix || defaultPrefix).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
-    counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+    try {
+      const cfg = JSON.parse(confRow.value);
+      const rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+      prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+      counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+    } catch {
+      // Invalid JSON — use defaults
+    }
   }
   const returnNumber = `${prefix}${String(counter).padStart(3, '0')}`;
   return { success: true, returnNumber };
@@ -2285,10 +2296,20 @@ ipcMain.handle('auth:clearToken', () => {
 
 function getOrInitTerminalCode(db: any): string {
   const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
-  if (row) return JSON.parse(row.value);
+  if (row) {
+    try {
+      const code = JSON.parse(row.value);
+      // Validate the stored terminal code — regenerate if corrupted or invalid
+      if (typeof code === 'string' && /^[A-Z0-9]+$/i.test(code)) {
+        return code;
+      }
+    } catch {
+      // JSON parse failed — corrupted value, will regenerate below
+    }
+  }
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)`).run('global', 'terminal_code', JSON.stringify(code));
+  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run('global', 'terminal_code', JSON.stringify(code));
   return code;
 }
 
@@ -2365,14 +2386,17 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenan
 
       if (row) {
         try {
-          config = JSON.parse(row.value);
-          counter = (typeof config.counter === 'number' ? config.counter : 1);
+          const parsed = JSON.parse(row.value);
+          counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
+          // Validate prefix — must contain at least one alphanumeric character
+          const prefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-`;
+          config = { prefix, counter };
         } catch {
           counter = 1;
         }
       }
 
-      const invoiceNumber = `${config.prefix || `${terminalCode}-`}${String(counter).padStart(3, '0')}`;
+      const invoiceNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
       
       config.counter = counter + 1;
       db.prepare(`
@@ -2399,11 +2423,18 @@ ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tena
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    const defaultPrefix = `${terminalCode}-`;
 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
     if (row) {
-      const config = JSON.parse(row.value);
-      return { success: true, invoiceNumber: `${config.prefix || `${terminalCode}-`}${String(config.counter || 1).padStart(3, '0')}` };
+      try {
+        const config = JSON.parse(row.value);
+        // Validate prefix — must contain at least one alphanumeric character
+        const prefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
+      } catch {
+        // Invalid JSON in stored value — fall through to default
+      }
     }
     return { success: true, invoiceNumber: `${terminalCode}-001` };
   } catch (error: any) {
@@ -2557,14 +2588,16 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
 
       if (row) {
         try {
-          config = JSON.parse(row.value);
-          counter = (typeof config.counter === 'number' ? config.counter : 1);
+          const parsed = JSON.parse(row.value);
+          counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
+          const rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-SCR-`;
+          config = { prefix: rawPrefix, counter };
         } catch {
           counter = 1;
         }
       }
 
-      const prefix = (config.prefix || `${terminalCode}-SCR-`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-SCR-`;
+      const prefix = config.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-SCR-`;
       const invoiceNumber = `${prefix}${String(counter).padStart(3, '0')}`;
 
       config.counter = counter + 1;
@@ -2591,12 +2624,19 @@ ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
+    const defaultPrefix = `${terminalCode}-SCR-`;
 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'scrap_invoice_counter');
     if (row) {
-      const config = JSON.parse(row.value);
-      const prefix = (config.prefix || `${terminalCode}-SCR-`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-SCR-`;
-      return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
+      try {
+        const config = JSON.parse(row.value);
+        // Validate prefix — must contain at least one alphanumeric character
+        const rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+        return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
+      } catch {
+        // Invalid JSON in stored value — fall through to default
+      }
     }
     return { success: true, invoiceNumber: `${terminalCode}-SCR-001` };
   } catch (error: any) {
@@ -2720,14 +2760,16 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: 
 
       if (row) {
         try {
-          config = JSON.parse(row.value);
-          counter = (typeof config.counter === 'number' ? config.counter : 1);
+          const parsed = JSON.parse(row.value);
+          counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
+          const rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-QTN-`;
+          config = { prefix: rawPrefix, counter };
         } catch {
           counter = 1;
         }
       }
 
-      const prefix = (config.prefix || `${terminalCode}-QTN-`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-QTN-`;
+      const prefix = config.prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-QTN-`;
       const quotationNumber = `${prefix}${String(counter).padStart(3, '0')}`;
 
       config.counter = counter + 1;
@@ -2754,12 +2796,19 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
   try {
     const db = getDb();
     const terminalCode = getOrInitTerminalCode(db);
+    const defaultPrefix = `${terminalCode}-QTN-`;
 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'quotation_counter');
     if (row) {
-      const config = JSON.parse(row.value);
-      const prefix = (config.prefix || `${terminalCode}-QTN-`).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || `${terminalCode}-QTN-`;
-      return { success: true, quotationNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
+      try {
+        const config = JSON.parse(row.value);
+        // Validate prefix — must contain at least one alphanumeric character
+        const rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+        return { success: true, quotationNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
+      } catch {
+        // Invalid JSON in stored value — fall through to default
+      }
     }
     return { success: true, quotationNumber: `${terminalCode}-QTN-001` };
   } catch (error: any) {
