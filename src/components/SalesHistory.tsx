@@ -18,7 +18,7 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '..
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { ReturnManager } from './ReturnManager';
-import { CreateReturn } from './CreateReturn';
+
 
 const PAYMENT_LABELS: Record<string, string> = {
   PENDING: 'Pending',
@@ -245,7 +245,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
-  const [showCreateReturn, setShowCreateReturn] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && selectedInvoiceIds.has(i.invoice_id)),
@@ -1046,7 +1045,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <Trash2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Delete</span>
                     </button>
-                    <button onClick={() => setShowCreateReturn(true)}
+                    <button onClick={async () => {
+                      // Store invoice ref and close — BillingPage will open in return mode
+                      localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
+                      // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
+                      if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) {
+                        useCartStore.getState().setRole('BILLER');
+                      }
+                      closeDrawer();
+                      onClose();
+                      setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
+                    }}
                       className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
                     >
                       <Package className="w-3.5 h-3.5 shrink-0" />
@@ -1531,17 +1540,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         </div>
       </Modal>
 
-      {/* Create Return */}
-      {showCreateReturn && selectedInvoice && (
-        <CreateReturn
-          invoice={selectedInvoice}
-          onClose={() => setShowCreateReturn(false)}
-          onSuccess={() => {
-            loadInvoices();
-            setSelectedInvoice(null);
-          }}
-        />
-      )}
 
       <style>{`
         @keyframes slideDown {

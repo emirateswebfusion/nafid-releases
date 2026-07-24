@@ -402,6 +402,18 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
   }
 });
 
+ipcMain.handle('db:getProductsByIds', (event, { tenant_id, product_ids }: { tenant_id: string; product_ids: string[] }) => {
+  try {
+    const db = getDb();
+    if (!product_ids?.length) return [];
+    const placeholders = product_ids.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM products WHERE tenant_id = ? AND product_id IN (${placeholders})`).all(tenant_id, ...product_ids);
+  } catch (error: any) {
+    console.error('[db:getProductsByIds]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:getProductsCount', (event, arg: any) => {
   try {
     const db = getDb();

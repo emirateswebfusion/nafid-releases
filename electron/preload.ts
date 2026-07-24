@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appDownloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbGetProductsCount: (params: any) => ipcRenderer.invoke('db:getProductsCount', params),
+  dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => ipcRenderer.invoke('db:getProductsByIds', params),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
   dbEnsureServiceItem: (params: { tenant_id: string }) => ipcRenderer.invoke('db:ensureServiceItem', params),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),

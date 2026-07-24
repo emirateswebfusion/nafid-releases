@@ -14,6 +14,7 @@ export interface IElectronAPI {
   appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   dbGetProducts: (params: any) => Promise<any[]>;
   dbGetProductsCount: (params: any) => Promise<number>;
+  dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => Promise<any[]>;
   dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;

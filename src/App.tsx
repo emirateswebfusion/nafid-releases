@@ -323,6 +323,24 @@ function App() {
       setShowReturnManager(false);
     };
 
+    // Close all overlays and navigate to BillingPage in return mode
+    const handleOpenReturnMode = () => {
+      setShowSalesHistory(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowQuotationManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowCashierSettlement(false);
+    };
+
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
@@ -338,6 +356,7 @@ function App() {
     window.addEventListener('open-customers-page', handleOpenCustomersPage);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
+    window.addEventListener('open-return-mode', handleOpenReturnMode);
 
     if (window.electronAPI) {
       window.electronAPI.onTokenExpired(() => {
@@ -395,6 +414,7 @@ function App() {
       window.removeEventListener('open-customers-page', handleOpenCustomersPage);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
+      window.removeEventListener('open-return-mode', handleOpenReturnMode);
     };
   }, [addItem]);
 

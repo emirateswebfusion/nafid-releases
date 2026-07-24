@@ -725,16 +725,30 @@ export function BillingPage() {
         const { invoice, items: invoiceItems, originalRole } = JSON.parse(raw);
         if (!invoiceItems?.length) return;
 
-        // Enrich items with product data (barcode, brand) if missing from invoice items
-        if (!invoiceItems[0]?.sku_barcode) {
-          for (const item of invoiceItems) {
-            if (!item.sku_barcode && item.product_id) {
-              try {
-                const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: item.product_id, limit: 1 });
-                const p = Array.isArray(products) ? products.find((p: any) => p.product_id === item.product_id) : null;
-                if (p) { item.sku_barcode = p.sku_barcode || null; item.brand_manufacturer = p.brand_manufacturer || null; }
-              } catch {}
+        // Enrich items with product data (barcode, brand, tax rate, uom, hsn, pricing, etc.)
+        const productIds = [...new Set(invoiceItems.map((i: any) => i.product_id).filter(Boolean))];
+        const productMap: Record<string, any> = {};
+        if (productIds.length > 0) {
+          try {
+            const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+            if (Array.isArray(products)) {
+              products.forEach((p: any) => { productMap[p.product_id] = p; });
             }
+          } catch {}
+        }
+        for (const item of invoiceItems) {
+          const p = productMap[item.product_id];
+          if (p) {
+            item.sku_barcode = p.sku_barcode || null;
+            item.brand_manufacturer = p.brand_manufacturer || null;
+            item.tax_rate_percent = p.gst_percent || 0;
+            item.billing_type = p.billing_type || 'PIECES';
+            item.pricing_mode = p.pricing_mode || 'FIXED';
+            item.purchase_price = p.purchase_price || 0;
+            item.grade_id = p.grade_id || null;
+            item.grade_rate = p.grade_rate || null;
+            item.uom = p.uom || 'PCS';
+            item.hsn = p.hsn || '';
           }
         }
 
@@ -807,6 +821,96 @@ export function BillingPage() {
 
     window.addEventListener('open-edit-bill', handler);
     return () => window.removeEventListener('open-edit-bill', handler);
+  }, []);
+
+  // Listen for Return from Sales History — activates return mode with pre-loaded invoice
+  useEffect(() => {
+    const handler = async () => {
+      const raw = localStorage.getItem('returnBillData');
+      if (!raw) return;
+      localStorage.removeItem('returnBillData');
+      try {
+        const { invoice } = JSON.parse(raw);
+        if (!invoice?.invoice_id) return;
+        if (!window.electronAPI) return;
+
+        const [rawItems, returnedQtys] = await Promise.all([
+          window.electronAPI.dbGetInvoiceItems(invoice.invoice_id),
+          window.electronAPI.dbGetAlreadyReturnedQuantities(invoice.invoice_id),
+        ]);
+
+        if (!Array.isArray(rawItems) || rawItems.length === 0) {
+          setHardwareError('Invoice has no items');
+          return;
+        }
+
+        const returnedMap: Record<string, number> = {};
+        (returnedQtys || []).forEach((r: any) => {
+          returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
+        });
+
+        const enriched = rawItems
+          .map((item: any) => ({
+            ...item,
+            already_returned: returnedMap[item.item_id] || 0,
+            available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+          }))
+          .filter((item: any) => item.available_to_return > 0);
+
+        if (enriched.length === 0) {
+          setHardwareError('All items have already been returned');
+          return;
+        }
+
+        // Clear cart and activate return mode
+        clearCart();
+        setReturnMode(true);
+
+        // Load returnable items into cart
+        enriched.forEach((item: any) => {
+          const productId = item.product_id || `return-${uuidv4()}`;
+          addItem({
+            product_id: productId,
+            invoiceItemId: item.item_id,
+            name: item.name || 'Product',
+            base_price: Number(item.unit_price) || 0,
+            purchase_price: Number(item.unit_price) || 0,
+            tax_rate_percent: Number(item.tax_rate_percent) || 0,
+            billing_type: item.billing_type,
+            isReturnItem: true,
+            originalQuantity: Number(item.quantity) || 0,
+            availableToReturn: item.available_to_return,
+            alreadyReturned: item.already_returned,
+            originalUnitPrice: Number(item.unit_price) || 0,
+            originalTaxAmount: Number(item.tax_amount) || 0,
+            returnSourceInvoiceId: invoice.invoice_id,
+            returnSourceInvoiceNumber: invoice.invoice_number,
+            quantity: item.available_to_return,
+          });
+        });
+
+        // Set source invoice as the selected return invoice
+        setSelectedReturnInvoice({
+          invoice_id: invoice.invoice_id,
+          invoice_number: invoice.invoice_number,
+          customer_name: invoice.customer_name,
+          customer_phone: invoice.customer_phone,
+        });
+
+        // Pre-fill customer info
+        updateActiveTab({
+          customerName: invoice.customer_name || '',
+          customerPhone: invoice.customer_phone || '',
+        });
+
+        syncActiveSnapshot();
+      } catch (e) {
+        console.error('Failed to load return bill data', e);
+        setHardwareError('Failed to load invoice for return');
+      }
+    };
+    window.addEventListener('open-return-mode', handler);
+    return () => window.removeEventListener('open-return-mode', handler);
   }, []);
 
   const handleSelectProduct = (product: any) => {
@@ -1060,6 +1164,81 @@ export function BillingPage() {
       window.dispatchEvent(new CustomEvent('open-edit-bill'));
     } catch (e) {
       setHardwareError('Failed to fetch invoice');
+      console.error(e);
+    }
+  };
+
+  const handleReturnFromPastBill = async (invoice: any) => {
+    if (!window.electronAPI) return;
+    try {
+      const [rawItems, returnedQtys] = await Promise.all([
+        window.electronAPI.dbGetInvoiceItems(invoice.invoice_id),
+        window.electronAPI.dbGetAlreadyReturnedQuantities(invoice.invoice_id),
+      ]);
+      if (!Array.isArray(rawItems) || rawItems.length === 0) {
+        setHardwareError('Invoice has no items');
+        return;
+      }
+      const returnedMap: Record<string, number> = {};
+      (returnedQtys || []).forEach((r: any) => {
+        returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
+      });
+      const enriched = (rawItems || []).map((item: any) => ({
+        ...item,
+        already_returned: returnedMap[item.item_id] || 0,
+        available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
+      })).filter((item: any) => item.available_to_return > 0);
+
+      if (enriched.length === 0) { setHardwareError('All items already returned'); return; }
+
+      // Enrich with product data (gst_percent, uom, hsn)
+      const productIds = [...new Set(enriched.map((i: any) => i.product_id).filter(Boolean))];
+      const productMap: Record<string, any> = {};
+      if (productIds.length > 0) {
+        try {
+          const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+          if (Array.isArray(products)) { products.forEach((p: any) => { productMap[p.product_id] = p; }); }
+        } catch {}
+      }
+
+      setSearchQuery('');
+      setPastBillResults([]);
+      setIsPastBillMode(false);
+      setReturnMode(true);
+      clearCart();
+      const cartItems = enriched.map((item: any) => {
+        const p = productMap[item.product_id];
+        return {
+          product_id: item.product_id,
+          name: item.name,
+          quantity: item.available_to_return,
+          base_price: Number(item.unit_price) || 0,
+          pricing_mode: 'FIXED',
+          gst_percent: Number(p?.gst_percent || item.gst_percent) || 0,
+          isReturnItem: true,
+          invoiceItemId: item.item_id,
+          originalQuantity: Number(item.quantity) || 0,
+          availableToReturn: item.available_to_return,
+          alreadyReturned: item.already_returned,
+          originalUnitPrice: Number(item.unit_price) || 0,
+          originalTaxAmount: Number(item.tax_amount) || 0,
+          returnSourceInvoiceId: invoice.invoice_id,
+          returnSourceInvoiceNumber: invoice.invoice_number,
+          uom: p?.uom || 'PCS',
+          hsn: p?.hsn || '',
+        };
+      });
+      for (const ci of cartItems) {
+        addItem(ci);
+      }
+      setSelectedReturnInvoice({
+        invoice_id: invoice.invoice_id,
+        invoice_number: invoice.invoice_number,
+        customer_name: invoice.customer_name,
+        customer_phone: invoice.customer_phone,
+      });
+    } catch (e) {
+      setHardwareError('Failed to load invoice for return');
       console.error(e);
     }
   };
@@ -2134,36 +2313,47 @@ export function BillingPage() {
                     <div className="px-3 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border">
                       Past Bills ({pastBillResults.length})
                     </div>
-                    {pastBillResults.map((inv, i) => {
+                      {pastBillResults.map((inv, i) => {
                       const isSelected = i === selectedIndex;
                       return (
-                        <button
+                        <div
                           key={inv.invoice_id}
-                          onClick={() => handleSelectPastBill(inv)}
-                          onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
-                            'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
+                            'flex items-center gap-2 px-3 py-2 border-b border-border last:border-0 transition-colors',
                             isSelected ? 'bg-teal-500/10 border-l-4 border-l-teal-500 pl-2' : 'hover:bg-teal-500/5'
                           )}
                         >
-                          <div className={clsx(
-                            'p-2 rounded-xl shrink-0 transition-colors',
-                            isSelected ? 'bg-teal-500/15 text-teal-500' : 'bg-teal-500/10 text-teal-500'
-                          )}>
-                            <Receipt className="w-4 h-4" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</div>
-                            <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              <span>{inv.customer_name || 'Walk-in'}</span>
-                              <span>&middot;</span>
-                              <span>{new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                          <button
+                            onClick={() => handleSelectPastBill(inv)}
+                            onMouseEnter={() => setSelectedIndex(i)}
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left cursor-pointer"
+                          >
+                            <div className={clsx(
+                              'p-2 rounded-xl shrink-0 transition-colors',
+                              isSelected ? 'bg-teal-500/15 text-teal-500' : 'bg-teal-500/10 text-teal-500'
+                            )}>
+                              <Receipt className="w-4 h-4" />
                             </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</div>
+                              <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
+                                <span>{inv.customer_name || 'Walk-in'}</span>
+                                <span>&middot;</span>
+                                <span>{new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                              </div>
+                            </div>
+                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-xs font-black text-teal-600 dark:text-teal-400 mr-1">{formatCurrency(inv.grand_total)}</span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleReturnFromPastBill(inv); }}
+                              className="p-1.5 rounded-lg bg-rose-500/10 text-rose-600 hover:bg-rose-500/20 transition-colors cursor-pointer"
+                              title="Return this invoice"
+                            >
+                              <ArrowLeftRight className="w-3.5 h-3.5" />
+                            </button>
                           </div>
-                          <div className="text-right shrink-0">
-                            <div className="font-black text-sm text-teal-600 dark:text-teal-400">{formatCurrency(inv.grand_total)}</div>
-                          </div>
-                        </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -2980,7 +3170,7 @@ export function BillingPage() {
           </div>
 
           {/* ── Scrollable content area ── */}
-          <div className="flex-1 overflow-y-auto px-5 py-3">
+          <div className="flex-1 overflow-y-auto px-5 py-2">
             {/* Payment / Refund method grid — replaced by Quotation/Return Details in those modes */}
             <div className={clsx(
               'overflow-hidden transition-all duration-400 ease-in-out',
@@ -2989,7 +3179,7 @@ export function BillingPage() {
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
               {isScrapMode ? (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { value: 'PENDING' as const, label: 'Pending', icon: Clock, color: 'text-gray-500', activeBg: 'bg-gray-500/10', activeText: 'text-gray-600 dark:text-gray-400', activeBorder: 'border-gray-500', activeIconBg: 'bg-gray-500/15' },
                   { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
@@ -3000,7 +3190,7 @@ export function BillingPage() {
                       key={opt.value}
                       onClick={() => updateActiveTab({ scrapPaymentStatus: opt.value })}
                       className={clsx(
-                        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer col-span-1',
+                        'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer col-span-1',
                         isActive
                           ? `${opt.activeBg} ${opt.activeBorder} ${opt.activeText} shadow-sm`
                           : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
@@ -3055,7 +3245,7 @@ export function BillingPage() {
                 )}
               </div>
               ) : (
-              <div className="grid grid-cols-6 gap-2">
+              <div className="grid grid-cols-6 gap-1.5">
                 {PAYMENT_OPTIONS.map((opt, idx) => {
                   const isActive = paymentMethod === opt.value;
                   const span = idx < 3 ? 'col-span-2' : 'col-span-3';
@@ -3074,7 +3264,7 @@ export function BillingPage() {
                       key={opt.value}
                       onClick={() => updateActiveTab({ paymentMethod: opt.value })}
                       className={clsx(
-                        'flex flex-col items-center justify-center gap-1.5 py-3 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                        'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
                         span,
                         isActive
                           ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
