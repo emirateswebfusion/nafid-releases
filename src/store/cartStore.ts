@@ -24,7 +24,17 @@ export interface CartItem {
   brand_manufacturer?: string | null;
   isScrap?: boolean;
   scrap_category_id?: string;
+  isServiceItem?: boolean;
   pieces_override?: number;
+  isReturnItem?: boolean;
+  invoiceItemId?: string;
+  originalQuantity?: number;
+  availableToReturn?: number;
+  alreadyReturned?: number;
+  originalUnitPrice?: number;
+  originalTaxAmount?: number;
+  returnSourceInvoiceId?: string;
+  returnSourceInvoiceNumber?: string;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -43,7 +53,11 @@ interface CartState {
   shopDomainConfirmed: boolean;
   scrapDeduction: number;
   scrapInvoiceNumber: string;
+  returnDeduction: number;
+  returnInvoiceNumber: string;
   isQuotationMode: boolean;
+  isReturnMode: boolean;
+  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
@@ -68,6 +82,10 @@ interface CartState {
   setScrapDeduction: (amount: number, invoiceNumber: string) => void;
   setScrapInvoiceNumber: (invoiceNumber: string) => void;
   clearScrapDeduction: () => void;
+  setReturnDeduction: (amount: number, returnInvoiceNumber: string) => void;
+  clearReturnDeduction: () => void;
+  setReturnMode: (isReturnMode: boolean) => void;
+  setReturnRefundMethod: (method: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL') => void;
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
   setEditingInvoice: (id: string | null, number: string | null, role: 'OWNER' | 'BILLER' | null) => void;
@@ -88,7 +106,11 @@ export const useCartStore = create<CartState>()(
       shopDomainConfirmed: false,
       scrapDeduction: 0,
       scrapInvoiceNumber: '',
+      returnDeduction: 0,
+      returnInvoiceNumber: '',
       isQuotationMode: false,
+      isReturnMode: false,
+      returnRefundMethod: 'CASH',
       editingQuotationId: null,
       editingQuotationNumber: null,
       editingInvoiceId: null,
@@ -188,10 +210,14 @@ export const useCartStore = create<CartState>()(
       setScrapDeduction: (amount, invoiceNumber) => set({ scrapDeduction: amount, scrapInvoiceNumber: invoiceNumber }),
       setScrapInvoiceNumber: (invoiceNumber) => set({ scrapInvoiceNumber: invoiceNumber }),
       clearScrapDeduction: () => set({ scrapDeduction: 0, scrapInvoiceNumber: '' }),
+      setReturnDeduction: (amount, returnInvoiceNumber) => set({ returnDeduction: amount, returnInvoiceNumber }),
+      clearReturnDeduction: () => set({ returnDeduction: 0, returnInvoiceNumber: '' }),
+      setReturnMode: (isReturnMode) => set({ isReturnMode }),
+      setReturnRefundMethod: (returnRefundMethod) => set({ returnRefundMethod }),
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', isQuotationMode: false, editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null })),
+      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, returnRefundMethod: 'CASH', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null })),
     }),
     {
       name: 'vendora-cart-storage',
@@ -213,13 +239,19 @@ export interface LoyaltyInfo {
 
 // Derived Selectors
 export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) => {
-  const { items, invoiceType, discountType, discountValue, shopState, customerState } = useCartStore();
+  const { items, invoiceType, discountType, discountValue, shopState, customerState, returnDeduction } = useCartStore();
 
   let subtotal = 0;
   let totalTax = 0;
   let scrapTotal = 0;
+  let serviceTotal = 0;
 
   items.forEach(item => {
+    if (item.isServiceItem) {
+      serviceTotal += Number(item.offer_price ?? item.base_price) || 0;
+      return;
+    }
+
     const rawRate = item.pricing_mode === 'GRADE_RATE' 
       ? (item.grade_rate || 0) 
       : item.base_price;
@@ -258,9 +290,9 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
     }
   });
 
-  const baseForDiscount = subtotal > 0 ? subtotal : scrapTotal;
+  const discountableBase = subtotal;
   const calculatedDiscount = discountType === 'PERCENTAGE'
-    ? (baseForDiscount * discountValue) / 100
+    ? (discountableBase * discountValue) / 100
     : discountValue;
 
   const effectiveDiscount = subtotal > 0 ? Math.min(calculatedDiscount, subtotal) : calculatedDiscount;
@@ -277,9 +309,11 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
   const sgst = hasTax && !isInterState ? adjustedTax / 2 : 0;
   const igst = hasTax && isInterState ? adjustedTax : 0;
 
-  const grandTotal = taxableAmount + adjustedTax;
+  const grandTotal = taxableAmount + adjustedTax + serviceTotal;
 
   const extraBonus = subtotal > 0 ? 0 : effectiveDiscount;
 
-  return { subtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount, scrapTotal, extraBonus };
+  const displayedSubtotal = subtotal + serviceTotal;
+
+  return { subtotal: displayedSubtotal, cgst, sgst, igst, totalTax: adjustedTax, discount: effectiveDiscount, grandTotal, taxableAmount, scrapTotal, extraBonus, returnDeduction, serviceTotal };
 };

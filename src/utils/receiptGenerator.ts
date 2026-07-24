@@ -73,6 +73,10 @@ export interface ReceiptData {
   customerAddress?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
+  returnDeduction?: number;
+  returnInvoiceNumber?: string;
+  referenceInvoiceNumber?: string;
+  refundMethod?: string;
   showProductOffers?: boolean;
   billSettings?: BillSettings;
   isB2B?: boolean;
@@ -136,6 +140,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
     case 'ESTIMATE': return 'BILL OF SUPPLY';
+    case 'RETURN': return 'RETURN INVOICE';
     default: return 'INVOICE';
   }
 }
@@ -233,8 +238,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Meta ──
-    text += `  INV No:  ${data.invoiceNumber}\n`;
+    text += `  ${data.invoiceType === 'RETURN' ? 'RET No:  ' : 'INV No:  '}${data.invoiceNumber}\n`;
     text += `  Date:    ${data.date}\n`;
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += `  Ref Inv: ${data.referenceInvoiceNumber}\n`;
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += `  Refund Method: ${data.refundMethod}\n`;
+    }
     if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
 
     // ── Customer ──
@@ -292,9 +303,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('SCRAP DEDUCTION', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('RETURN DEDUCTION', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
     text += '\n';
@@ -362,7 +376,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (bs?.showShopState && data.shopState) text += `${data.shopState}\n`;
     if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
     text += DASH + '\n';
-    text += `${data.invoiceNumber}  ${data.date}\n`;
+    text += `${data.invoiceType === 'RETURN' ? 'RET No' : 'INV No'}: ${data.invoiceNumber}  ${data.date}\n`;
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += `Ref Inv: ${data.referenceInvoiceNumber}\n`;
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += `Refund Method: ${data.refundMethod}\n`;
+    }
     if (data.billerName) text += `${data.billerName}\n`;
 
     // ── Customer ──
@@ -406,9 +426,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('Extra / Bonus', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
     } else if (data.discount > 0) text += `${padRight('Discount', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
 
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('Return', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
     text += '\n';
@@ -480,8 +503,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
       text += THICK + '\n';
     }
-    text += `  INV:  ${data.invoiceNumber}\n`;
+    text += `  ${data.invoiceType === 'RETURN' ? 'RET' : 'INV'}:  ${data.invoiceNumber}\n`;
     text += `  Date: ${data.date}\n`;
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += `  Ref:  ${data.referenceInvoiceNumber}\n`;
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += `  Refund Method: ${data.refundMethod}\n`;
+    }
     if (data.billerName) text += `  Staff: ${data.billerName}\n`;
 
     // ── Customer ──
@@ -530,9 +559,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('SCRAP', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('RETURN', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
     text += '\n';
@@ -602,9 +634,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
     if (bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += '\n';
 
-    // ── Meta ──
     text += `Date: ${data.date}\n`;
-    text += `Receipt No: ${data.invoiceNumber}\n`;
+    text += `${data.invoiceType === 'RETURN' ? 'Return No' : 'Receipt No'}: ${data.invoiceNumber}\n`;
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += `Ref Invoice: ${data.referenceInvoiceNumber}\n`;
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += `Refund Method: ${data.refundMethod}\n`;
+    }
     if (data.billerName) text += `Staff: ${data.billerName}\n`;
     text += '\n';
 
@@ -668,9 +705,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`₹-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('SCRAP DEDUCTION :', labelW)}  ${padLeft(`₹-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('RETURN DEDUCTION :', labelW)}  ${padLeft(`₹-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
     text += '\n';
@@ -758,8 +798,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Meta ──
-    text += `  Invoice No:  ${data.invoiceNumber}\n`;
+    text += `  ${data.invoiceType === 'RETURN' ? 'Return No:  ' : 'Invoice No:  '}${data.invoiceNumber}\n`;
     text += `  Date:        ${data.date}\n`;
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += `  Ref Invoice: ${data.referenceInvoiceNumber}\n`;
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += `  Refund Method: ${data.refundMethod}\n`;
+    }
     if (data.billerName) text += `  Biller:      ${data.billerName}\n`;
 
     // ── Customer ──
@@ -808,9 +854,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0);
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Deduction:', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('Return Deduction:', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     }
 
     text += '\n';

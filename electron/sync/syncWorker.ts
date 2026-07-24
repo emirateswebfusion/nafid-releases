@@ -599,14 +599,14 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
         uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
         discount_percent, discount_flat, offer_price,
         billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
-        print_status, sync_status, created_at, updated_at
+        is_service_item, print_status, sync_status, created_at, updated_at
       ) VALUES (
         @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
         @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
         @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
         @discount_percent, @discount_flat, @offer_price,
         @billing_type, @grade_id, @pricing_mode, @average_weight_per_piece, @weight_override_allowed,
-        @print_status, 'SYNCED', @created_at, @updated_at
+        @is_service_item, @print_status, 'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(product_id) DO UPDATE SET
         name = excluded.name,
@@ -632,6 +632,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
         pricing_mode = excluded.pricing_mode,
         average_weight_per_piece = excluded.average_weight_per_piece,
         weight_override_allowed = excluded.weight_override_allowed,
+        is_service_item = excluded.is_service_item,
         print_status = COALESCE(excluded.print_status, products.print_status),
         created_at = COALESCE(products.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
@@ -674,6 +675,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
               pricing_mode: currentP.pricing_mode || 'FIXED_PRICE',
               average_weight_per_piece: currentP.average_weight_per_piece ?? null,
               weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
+              is_service_item: currentP.is_service_item ? 1 : 0,
               print_status: currentP.print_status ?? null,
               created_at: toSqliteDate(currentP.created_at),
               updated_at: toSqliteDate(currentP.updated_at),

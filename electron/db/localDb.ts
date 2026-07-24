@@ -69,6 +69,7 @@ export function initDb() {
         pricing_mode TEXT DEFAULT 'FIXED_PRICE',
         average_weight_per_piece REAL,
         weight_override_allowed INTEGER DEFAULT 0,
+        is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         print_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -97,6 +98,8 @@ export function initDb() {
         received_amount REAL DEFAULT 0,
         balance_amount REAL DEFAULT 0,
         user_id TEXT,
+        return_deduction REAL DEFAULT 0,
+        return_invoice_number TEXT,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -113,6 +116,7 @@ export function initDb() {
         unit_price REAL NOT NULL,
         tax_amount REAL NOT NULL DEFAULT 0,
         total REAL NOT NULL,
+        is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id),
@@ -367,6 +371,8 @@ export function initDb() {
         grand_total REAL NOT NULL DEFAULT 0,
         reason TEXT,
         return_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        refund_method TEXT,
+        adjusted_invoice_number TEXT,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -436,17 +442,18 @@ export function initDb() {
         'reorder_level', 'domain_attributes', 'is_deleted', 'sync_status', 'item_code',
         'discount_percent', 'discount_flat', 'offer_price', 'created_at',
         'billing_type', 'grade_id', 'pricing_mode', 'average_weight_per_piece', 'weight_override_allowed',
-        'print_status'
+        'print_status', 'is_service_item'
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
         'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
         'customer_gstin', 'customer_state', 'customer_address', 'received_amount', 'balance_amount', 'updated_at',
         'scrap_deduction', 'scrap_invoice_number',
+        'return_deduction', 'return_invoice_number',
         'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance'
     ],
     invoice_items: [
-        'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total'
+        'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item'
     ],
     users: [
         'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'
@@ -500,7 +507,8 @@ export function initDb() {
     ],
     returns: [
         'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',
-        'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at'
+        'subtotal', 'tax_total', 'grand_total', 'reason', 'return_date', 'sync_status', 'created_at', 'updated_at',
+        'refund_method', 'adjusted_invoice_number'
     ],
     return_items: [
         'return_item_id', 'return_id', 'tenant_id', 'invoice_item_id', 'product_id', 'name', 'quantity',
@@ -522,7 +530,7 @@ export function initDb() {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (col === 'weight_override_allowed') {
+        if (col === 'weight_override_allowed' || col === 'is_service_item') {
           type = 'INTEGER DEFAULT 0';
         } else if (col === 'print_status') {
           type = "TEXT DEFAULT 'PENDING'";

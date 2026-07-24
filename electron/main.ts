@@ -449,8 +449,8 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
         uom, brand_manufacturer, current_stock, reorder_level, domain_attributes,
         discount_percent, discount_flat, offer_price,
         is_deleted, billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
-        sync_status, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        is_service_item, sync_status, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `);
     stmt.run(
       p.product_id,
@@ -477,13 +477,31 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
        p.grade_id || null,
        p.pricing_mode || 'FIXED_PRICE',
        p.average_weight_per_piece ?? null,
-       p.weight_override_allowed ?? 0
+       p.weight_override_allowed ?? 0,
+       p.is_service_item ?? 0
     );
     return { success: true };
   } catch (error: any) {
     const msg = error?.message || 'Operation failed';
     console.error('[db:addProduct]', msg);
     return { success: false, error: msg };
+  }
+}));
+
+ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const existing = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND is_service_item = 1 AND is_deleted = 0").get(tenant_id);
+    if (existing) return { success: true };
+    const product_id = crypto.randomUUID();
+    db.prepare(`
+      INSERT INTO products (product_id, tenant_id, name, sku_barcode, base_price, tax_rate_percent, uom, current_stock, is_service_item, billing_type, pricing_mode, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, 'Service Charge', ?, 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(product_id, tenant_id, `SVC-${tenant_id.substring(0, 4).toUpperCase()}-001`);
+    return { success: true, product_id };
+  } catch (error: any) {
+    console.error('[db:ensureServiceItem]', error);
+    return { success: false, error: error.message || 'Operation failed' };
   }
 }));
 
@@ -498,6 +516,7 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
           domain_attributes = ?, discount_percent = ?, discount_flat = ?, offer_price = ?, 
           is_deleted = ?, billing_type = ?, grade_id = ?, pricing_mode = ?, 
           average_weight_per_piece = ?, weight_override_allowed = ?,
+          is_service_item = ?,
           sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE product_id = ?
     `);
@@ -526,6 +545,7 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
        p.pricing_mode || 'FIXED_PRICE',
        p.average_weight_per_piece ?? null,
        p.weight_override_allowed ?? 0,
+       p.is_service_item ?? 0,
        p.product_id
     );
     return { success: true };
@@ -993,9 +1013,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
-        scrap_deduction, scrap_invoice_number
+        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -1018,13 +1038,15 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.customer_state || null,
       invoice.customer_address || null,
       invoice.scrap_deduction ?? 0,
-      invoice.scrap_invoice_number || null
+      invoice.scrap_invoice_number || null,
+      invoice.return_deduction ?? 0,
+      invoice.return_invoice_number || null
     );
 
     // 2. Insert items and update stock
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
     const getDaStmt = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
@@ -1040,19 +1062,22 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         item.quantity,
         item.unit_price,
         item.tax_amount,
-        item.total
+        item.total,
+        item.isServiceItem ? 1 : 0
       );
-      stockStmt.run(item.quantity, item.product_id);
-      if (item.pieces_sold) {
-        const row = getDaStmt.get(item.product_id) as any;
-        if (row?.domain_attributes) {
-          try {
-            const da = JSON.parse(row.domain_attributes);
-            if (da.pcs !== undefined) {
-              da.pcs = Math.max(0, Number(da.pcs) - item.pieces_sold);
-              updDaStmt.run(JSON.stringify(da), item.product_id);
-            }
-          } catch {}
+      if (!item.isServiceItem) {
+        stockStmt.run(item.quantity, item.product_id);
+        if (item.pieces_sold) {
+          const row = getDaStmt.get(item.product_id) as any;
+          if (row?.domain_attributes) {
+            try {
+              const da = JSON.parse(row.domain_attributes);
+              if (da.pcs !== undefined) {
+                da.pcs = Math.max(0, Number(da.pcs) - item.pieces_sold);
+                updDaStmt.run(JSON.stringify(da), item.product_id);
+              }
+            } catch {}
+          }
         }
       }
     }
@@ -1250,6 +1275,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     unit_price: number;
     tax_amount: number;
     total: number;
+    isServiceItem?: boolean;
   }>;
 }) => {
   // Only OWNER can update invoices
@@ -1285,8 +1311,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
     // 4. Insert new items
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of items) {
       itemStmt.run(
@@ -1298,17 +1324,32 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         item.quantity,
         item.unit_price,
         item.tax_amount,
-        item.total
+        item.total,
+        (item as any).isServiceItem ? 1 : 0
       );
     }
 
-    // 5. Adjust stock: reverse old quantities, apply new
+    // 5. Adjust stock: reverse old quantities, apply new (skip service items)
+    const isServiceItemLookup: Record<string, boolean> = {};
+    const svcStmt = db.prepare('SELECT is_service_item FROM products WHERE product_id = ?');
+    const isServiceItem = (pid: string) => {
+      if (isServiceItemLookup[pid] === undefined) {
+        const row = svcStmt.get(pid) as any;
+        isServiceItemLookup[pid] = row ? !!row.is_service_item : false;
+      }
+      return isServiceItemLookup[pid];
+    };
+
     const stockDelta: Record<string, number> = {};
     for (const old of oldItems) {
-      stockDelta[old.product_id] = (stockDelta[old.product_id] || 0) + old.quantity;
+      if (!isServiceItem(old.product_id)) {
+        stockDelta[old.product_id] = (stockDelta[old.product_id] || 0) + old.quantity;
+      }
     }
     for (const item of items) {
-      stockDelta[item.product_id] = (stockDelta[item.product_id] || 0) - item.quantity;
+      if (!isServiceItem(item.product_id)) {
+        stockDelta[item.product_id] = (stockDelta[item.product_id] || 0) - item.quantity;
+      }
     }
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
     for (const [product_id, delta] of Object.entries(stockDelta)) {
@@ -1368,6 +1409,8 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   tax_total: number;
   grand_total: number;
   reason?: string;
+  refund_method?: string;
+  adjusted_invoice_number?: string;
   items: Array<{
     return_item_id: string;
     product_id: string;
@@ -1383,12 +1426,13 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   const db = getDb();
   const transaction = db.transaction(() => {
     db.prepare(`
-      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
-      returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null
+      returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null,
+      returnData.refund_method || null, returnData.adjusted_invoice_number || null
     );
 
     const itemStmt = db.prepare(`
@@ -1417,6 +1461,48 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
     console.error('[db:createReturn]', error);
     return { success: false, error: 'Operation failed' };
   }
+}));
+
+ipcMain.handle('db:getAlreadyReturnedQuantities', safeHandler((event, invoice_id: string) => {
+  const db = getDb();
+  return db.prepare(`
+    SELECT invoice_item_id, COALESCE(SUM(quantity), 0) as returned_qty
+    FROM return_items
+    WHERE return_id IN (SELECT return_id FROM returns WHERE invoice_id = ?)
+    GROUP BY invoice_item_id
+  `).all(invoice_id);
+}));
+
+ipcMain.handle('db:getReturnInvoiceByNumber', safeHandler((event, { tenant_id, return_number }: { tenant_id: string; return_number: string }) => {
+  const db = getDb();
+  return db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ?').get(tenant_id, return_number);
+}));
+
+ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
+  const db = getDb();
+  let query = `
+    SELECT * FROM returns 
+    WHERE tenant_id = ? 
+      AND refund_method = 'ADJUST_BILL' 
+      AND (adjusted_invoice_number IS NULL OR adjusted_invoice_number = '')
+  `;
+  const params: any[] = [tenant_id];
+  if (search) {
+    query += ' AND (return_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+  query += ' ORDER BY created_at DESC LIMIT 10';
+  return db.prepare(query).all(...params);
+}));
+
+ipcMain.handle('db:settleReturnInvoice', safeHandler((event, { tenant_id, return_number, adjusted_invoice_number }: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => {
+  const db = getDb();
+  db.prepare(`
+    UPDATE returns 
+    SET adjusted_invoice_number = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = ? AND return_number = ?
+  `).run(adjusted_invoice_number, tenant_id, return_number);
+  return { success: true };
 }));
 
 ipcMain.handle('db:getReturns', (event, filters?: {

@@ -14,6 +14,7 @@ export interface IElectronAPI {
   appDownloadUpdate: () => Promise<{ success: boolean; error?: string }>;
   dbGetProducts: (params: any) => Promise<any[]>;
   dbGetProductsCount: (params: any) => Promise<number>;
+  dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
@@ -131,6 +132,17 @@ export interface IElectronAPI {
   dbUpdatePurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbGenerateBarcode: (args: { tenant_id: string; item_code?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
+
+  // Returns
+  dbCreateReturn: (payload: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetReturns: (filters: { tenant_id: string; invoice_id?: string; limit?: number; offset?: number; search?: string }) => Promise<any[]>;
+  dbGetReturnItems: (return_id: string) => Promise<any[]>;
+  dbDeleteReturn: (return_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbGetNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => Promise<{ success: boolean; returnNumber?: string; error?: string }>;
+  dbGetAlreadyReturnedQuantities: (invoiceId: string) => Promise<any[]>;
+  dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
+  dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<any[]>;
+  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

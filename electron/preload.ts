@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbGetProductsCount: (params: any) => ipcRenderer.invoke('db:getProductsCount', params),
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
+  dbEnsureServiceItem: (params: { tenant_id: string }) => ipcRenderer.invoke('db:ensureServiceItem', params),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
   dbDeleteProduct: (product_id: string) => ipcRenderer.invoke('db:deleteProduct', product_id),
   dbAdjustStock: (args: { product_id: string; delta: number }) => ipcRenderer.invoke('db:adjustStock', args),
@@ -166,4 +167,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetReturnItems: (return_id: string) => ipcRenderer.invoke('db:getReturnItems', return_id),
   dbDeleteReturn: (return_id: string) => ipcRenderer.invoke('db:deleteReturn', return_id),
   dbGetNextReturnNumber: (payload: { tenant_id: string; prefix?: string }) => ipcRenderer.invoke('db:getNextReturnNumber', payload),
+  dbGetAlreadyReturnedQuantities: (invoiceId: string) => ipcRenderer.invoke('db:getAlreadyReturnedQuantities', invoiceId),
+  dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => ipcRenderer.invoke('db:getReturnInvoiceByNumber', payload),
+  dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPendingReturnInvoices', payload),
+  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => ipcRenderer.invoke('db:settleReturnInvoice', payload),
 });
