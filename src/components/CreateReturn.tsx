@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, X, Package, IndianRupee, AlertCircle, CheckCircle2, Minus, Plus, LogOut } from 'lucide-react';
+import { ArrowLeft, X, Package, AlertCircle, Minus, Plus, FileText, Undo2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
-import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 
 function formatCurrency(amount: number): string {
@@ -83,7 +82,7 @@ export function CreateReturn({
       prev.map((s, i) => {
         if (i !== index) return s;
         const newQty = Math.max(0, Math.min(s.max_quantity, s.quantity + delta));
-        const ratio = newQty / s.max_quantity;
+        const ratio = s.max_quantity === 0 ? 0 : newQty / s.max_quantity;
         return {
           ...s,
           quantity: newQty,
@@ -173,86 +172,119 @@ export function CreateReturn({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 h-12 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors cursor-pointer">
-            <ArrowLeft className="w-5 h-5" />
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border flex items-center justify-center" title="Back">
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="w-7 h-7 rounded-lg bg-red-500/10 flex items-center justify-center">
-            <Package className="w-4 h-4 text-red-500" />
+          
+          <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 shadow-inner shrink-0">
+            <Package className="w-4 h-4 text-rose-500" />
           </div>
-          <h1 className="font-black text-sm">Create Return</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={onClose} className="flex items-center gap-1.5 px-3 h-8 text-xs font-bold hover:bg-accent rounded-xl transition-all cursor-pointer">
-            <X className="w-3.5 h-3.5" /> Close
-          </button>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-foreground truncate">Create Return</h1>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            </div>
+            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+              Select items and quantities from the original invoice to initiate a return
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={onClose} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
+              <X className="w-4 h-4" /> Close
+            </button>
+          </div>
         </div>
       </header>
 
-      {/* Invoice info */}
-      <div className="shrink-0 px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center justify-between">
-          <div>
-            <span className="text-xs font-bold">{invoice.invoice_number}</span>
-            <span className="text-[10px] text-muted-foreground ml-2">{invoice.customer_name || 'Walk-in'}</span>
+      {/* Invoice summary card */}
+      <div className="shrink-0 px-5 py-4 border-b border-border bg-muted/[0.03]">
+        <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
+              <FileText className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Original Invoice</span>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-xs font-black text-foreground font-mono">{invoice.invoice_number}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span className="text-xs font-bold text-muted-foreground">{invoice.customer_name || 'Walk-in Customer'}</span>
+              </div>
+            </div>
           </div>
           <button
             onClick={handleReturnAll}
-            className="text-[10px] font-bold text-primary hover:bg-primary/10 px-2.5 h-7 rounded-lg transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-4 h-9 bg-primary/10 hover:bg-primary/20 text-primary rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border border-primary/10"
           >
-            Return All
+            <Undo2 className="w-3.5 h-3.5" /> Return All Items
           </button>
         </div>
       </div>
 
-      {/* Items */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-2">
+      {/* Items list */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-3 bg-muted/[0.02]">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="p-4 rounded-xl border border-border">
-              <Skeleton className="h-4 w-40 mb-3" />
+            <div key={i} className="p-5 rounded-2xl border border-border bg-card shadow-sm">
+              <Skeleton className="h-4 w-48 mb-3.5" />
               <Skeleton className="h-8 w-full" />
             </div>
           ))
         ) : (
           selections.map((s, index) => (
-            <div key={s.invoice_item_id} className="p-4 rounded-xl border border-border">
-              <div className="flex items-center justify-between mb-3">
-                <div className="min-w-0 flex-1 mr-3">
-                  <div className="text-xs font-bold truncate">{s.name}</div>
-                  <div className="text-[10px] text-muted-foreground">
-                    {formatCurrency(s.unit_price)} each · Max {s.max_quantity}
+            <div key={s.invoice_item_id} className="p-4 rounded-2xl border border-border bg-card shadow-sm hover:border-rose-500/10 transition-all flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-start gap-3 flex-1 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0 shadow-inner">
+                  <Package className="w-4 h-4 text-rose-500" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-foreground truncate">{s.name}</div>
+                  <div className="text-[10px] text-muted-foreground mt-0.5">
+                    {formatCurrency(s.unit_price)} each · Max quantity: <span className="font-bold text-foreground">{s.max_quantity}</span>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <div className="text-xs font-black">-{formatCurrency(s.unit_price * s.quantity)}</div>
-                </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => updateQuantity(index, -1)}
-                    disabled={s.quantity <= 0}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-muted hover:bg-accent text-foreground transition-all cursor-pointer disabled:opacity-30"
-                  >
-                    <Minus className="w-3.5 h-3.5" />
-                  </button>
-                  <span className="w-12 text-center text-sm font-black tabular-nums">{s.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(index, 1)}
-                    disabled={s.quantity >= s.max_quantity}
-                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-muted hover:bg-accent text-foreground transition-all cursor-pointer disabled:opacity-30"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                  </button>
+
+              <div className="flex items-center justify-between md:justify-end gap-6 shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 bg-muted p-1 rounded-xl">
+                    <button
+                      onClick={() => updateQuantity(index, -1)}
+                      disabled={s.quantity <= 0}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-card hover:bg-accent text-foreground transition-all active:scale-90 cursor-pointer disabled:opacity-30 shadow-sm"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                    </button>
+                    <span className="w-12 text-center text-xs font-black tabular-nums text-foreground">{s.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(index, 1)}
+                      disabled={s.quantity >= s.max_quantity}
+                      className="w-8 h-8 flex items-center justify-center rounded-lg bg-card hover:bg-accent text-foreground transition-all active:scale-90 cursor-pointer disabled:opacity-30 shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                  <div className="w-24 text-right">
+                    {s.quantity > 0 && s.quantity < s.max_quantity && (
+                      <span className="px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[9px] font-bold">Partial Return</span>
+                    )}
+                    {s.quantity === s.max_quantity && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[9px] font-bold">Full Return</span>
+                    )}
+                    {s.quantity === 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-[9px] font-bold">No Return</span>
+                    )}
+                  </div>
                 </div>
-                {s.quantity > 0 && s.quantity < s.max_quantity && (
-                  <span className="text-[10px] text-muted-foreground">Partial return</span>
-                )}
-                {s.quantity === s.max_quantity && (
-                  <span className="text-[10px] font-bold text-emerald-500">Full return</span>
-                )}
+
+                <div className="text-right min-w-[80px]">
+                  <span className="text-[10px] text-muted-foreground block leading-none mb-0.5">Refund</span>
+                  <span className="text-xs font-black text-rose-500">-{formatCurrency(s.unit_price * s.quantity)}</span>
+                </div>
               </div>
             </div>
           ))
@@ -260,31 +292,34 @@ export function CreateReturn({
       </div>
 
       {/* Reason & Submit */}
-      <div className="shrink-0 border-t border-border bg-card p-4 space-y-3">
+      <div className="shrink-0 border-t border-border bg-card p-5 space-y-4 shadow-[0_-4px_12px_rgba(0,0,0,0.03)] z-10">
         {error && (
-          <div className="flex items-center gap-2 text-xs font-bold text-red-500 bg-red-500/10 px-3 py-2 rounded-xl">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <div className="flex items-center gap-2 text-xs font-semibold text-red-500 bg-red-500/10 border border-red-500/10 px-4 py-3 rounded-xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <AlertCircle className="w-4 h-4 shrink-0" />
             {error}
           </div>
         )}
 
-        <input
-          type="text"
-          placeholder="Reason for return (optional)"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          className="w-full px-3 h-9 text-xs font-medium bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-        />
+        <div className="relative">
+          <FileText className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+          <input
+            type="text"
+            placeholder="Reason for return (optional)..."
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            className="w-full pl-10 pr-4 h-10 text-xs font-medium bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+          />
+        </div>
 
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-[10px] text-muted-foreground">Refund Amount</div>
-            <div className="text-sm font-black text-red-500">-{formatCurrency(grandTotal)}</div>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground block leading-none mb-1">Total Refund Amount</span>
+            <div className="text-lg font-black text-rose-500">-{formatCurrency(grandTotal)}</div>
           </div>
           <button
             onClick={handleSubmit}
             disabled={saving || !hasSelections}
-            className="px-6 h-10 text-xs font-bold text-white bg-red-500 hover:bg-red-600 disabled:bg-muted disabled:text-muted-foreground rounded-xl transition-all cursor-pointer disabled:cursor-not-allowed"
+            className="px-6 h-10 text-xs font-bold text-white bg-rose-500 hover:bg-rose-600 disabled:bg-muted disabled:text-muted-foreground rounded-xl transition-all active:scale-95 shadow-md shadow-rose-500/10 cursor-pointer disabled:cursor-not-allowed"
           >
             {saving ? 'Processing...' : 'Process Return'}
           </button>

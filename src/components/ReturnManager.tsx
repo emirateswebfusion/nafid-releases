@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { ArrowLeft, Undo2, Search, X, Package, User, FileText, IndianRupee, AlertCircle, CheckCircle2, LogOut } from 'lucide-react';
-import { v4 as uuidv4 } from 'uuid';
+import { ArrowLeft, Undo2, Search, X, Package, User, FileText, AlertCircle, CheckCircle2, LogOut, Phone, Trash } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
@@ -68,7 +67,9 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
     setLoading(false);
   }, [tenantId, search]);
 
-  useEffect(() => { loadReturns(); }, [loadReturns]);
+  useEffect(() => {
+    loadReturns();
+  }, [loadReturns]);
 
   const handleViewReturn = async (r: ReturnInvoice) => {
     setSelectedReturn(r);
@@ -105,166 +106,265 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
     setDeleteSaving(false);
   };
 
-  const totalReturnValue = returnItems.reduce((sum, item) => sum + item.total, 0);
+  // Calculations for Stats
+  const totalRefunded = returns.reduce((sum, r) => sum + r.grand_total, 0);
+
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const todayReturns = returns.filter(r => {
+    try {
+      const datePart = r.return_date.split('T')[0];
+      return datePart === todayStr;
+    } catch {
+      return false;
+    }
+  });
+  const todayRefundedAmount = todayReturns.reduce((sum, r) => sum + r.grand_total, 0);
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* Header */}
-      <header className="shrink-0 flex items-center justify-between px-4 h-12 border-b border-border bg-card">
-        <div className="flex items-center gap-2">
-          <button onClick={onClose} className="p-1.5 hover:bg-accent rounded-lg transition-colors cursor-pointer">
-            <ArrowLeft className="w-5 h-5" />
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
+        <div className="flex items-center gap-3 px-5 py-3">
+          <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border flex items-center justify-center" title="Back">
+            <ArrowLeft className="w-4 h-4" />
           </button>
-          <Undo2 className="w-5 h-5 text-primary" />
-          <h1 className="font-black text-sm">Returns</h1>
-          <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{returns.length}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          {isRestricted ? (
-            <button onClick={() => useAuthStore.getState().logout()} className="flex items-center gap-1.5 px-3 h-8 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-xl transition-all cursor-pointer">
-              <LogOut className="w-3.5 h-3.5" /> Logout
-            </button>
-          ) : (
-            <button onClick={onClose} className="flex items-center gap-1.5 px-3 h-8 text-xs font-bold hover:bg-accent rounded-xl transition-all cursor-pointer">
-              <X className="w-3.5 h-3.5" /> Close
-            </button>
-          )}
+          
+          <div className="p-2.5 rounded-xl bg-rose-500/10 text-rose-500 shadow-inner shrink-0">
+            <Undo2 className="w-4 h-4" />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="text-sm font-bold text-foreground truncate">Returns</h1>
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+            </div>
+            <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+              {returns.length} return record{returns.length !== 1 ? 's' : ''} · Track customer returns & stock restoration
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {statusMessage && (
+              <span className={clsx(
+                'hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                  : 'bg-destructive/10 text-destructive'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                {statusMessage.text}
+              </span>
+            )}
+
+            {isRestricted ? (
+              <button onClick={() => useAuthStore.getState().logout()} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all duration-200 active:scale-95 border border-red-500/20 cursor-pointer">
+                <LogOut className="w-4 h-4" /> Logout
+              </button>
+            ) : (
+              <button onClick={onClose} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
+                <X className="w-4 h-4" /> Close
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
-      {/* Status Message */}
+      {/* Status Message for small screens */}
       {statusMessage && (
-        <div className={clsx('shrink-0 flex items-center gap-2 px-4 py-2 text-xs font-bold', statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600')}>
+        <div className={clsx('sm:hidden shrink-0 flex items-center gap-2 px-4 py-2 text-xs font-bold border-b', statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/10' : 'bg-red-500/10 text-red-600 border-red-500/10')}>
           {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
           {statusMessage.text}
           <button onClick={() => setStatusMessage(null)} className="ml-auto cursor-pointer"><X className="w-3.5 h-3.5" /></button>
         </div>
       )}
 
+      {/* Statistics Panel */}
+      <div className="grid grid-cols-3 gap-4 px-5 py-4 border-b border-border bg-card shrink-0 shadow-sm">
+        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Returns</p>
+          <p className="text-2xl font-black text-primary mt-1">{returns.length}</p>
+        </div>
+        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Refunded</p>
+          <p className="text-2xl font-black text-rose-500 mt-1">{formatCurrency(totalRefunded)}</p>
+        </div>
+        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Today's Refunds</p>
+          <p className="text-2xl font-black text-amber-500 mt-1">{formatCurrency(todayRefundedAmount)}</p>
+        </div>
+      </div>
+
       <div className="flex-1 flex overflow-hidden">
         {/* Returns List */}
-        <div className={clsx('flex flex-col border-r border-border', selectedReturn ? 'w-1/2 hidden md:flex' : 'w-full')}>
+        <div className={clsx('flex flex-col border-r border-border bg-card/40', selectedReturn ? 'w-1/2 hidden md:flex' : 'w-full')}>
           {/* Search */}
-          <div className="shrink-0 p-3">
+          <div className="shrink-0 p-4 border-b border-border">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search return #, customer..."
+                placeholder="Search return #, customer name or phone..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-3 h-9 text-xs font-medium bg-muted border border-border rounded-xl outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+                className="w-full pl-10 pr-4 h-10 text-xs font-medium bg-background border border-border rounded-xl outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
               />
             </div>
           </div>
 
           {/* List */}
-          <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
+          <div className="flex-1 overflow-y-auto p-4 space-y-2">
             {loading ? (
               Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="p-3 rounded-xl border border-border">
-                  <Skeleton className="h-4 w-24 mb-2" />
-                  <Skeleton className="h-3 w-32" />
+                <div key={i} className="p-4 rounded-xl border border-border bg-card shadow-sm">
+                  <Skeleton className="h-4 w-28 mb-3" />
+                  <Skeleton className="h-3 w-40" />
                 </div>
               ))
             ) : returns.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-                <Undo2 className="w-8 h-8 mb-2 opacity-30" />
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-10">
+                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                  <Undo2 className="w-6 h-6 opacity-40" />
+                </div>
                 <p className="text-xs font-bold">No returns found</p>
               </div>
             ) : (
-              returns.map((r) => (
-                <button
-                  key={r.return_id}
-                  onClick={() => handleViewReturn(r)}
-                  className={clsx(
-                    'w-full text-left p-3 rounded-xl border transition-all cursor-pointer',
-                    selectedReturn?.return_id === r.return_id
-                      ? 'border-primary/30 bg-primary/5'
-                      : 'border-border hover:border-primary/20 hover:bg-accent/50'
-                  )}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-black text-foreground">{r.return_number}</span>
-                    <span className="text-xs font-bold text-muted-foreground">{formatDate(r.return_date)}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-muted-foreground truncate mr-2">{r.customer_name || 'Walk-in'}</span>
-                    <span className="text-xs font-black text-red-500 shrink-0">-{formatCurrency(r.grand_total)}</span>
-                  </div>
-                </button>
-              ))
+              returns.map((r) => {
+                const isSelected = selectedReturn?.return_id === r.return_id;
+                return (
+                  <button
+                    key={r.return_id}
+                    onClick={() => handleViewReturn(r)}
+                    className={clsx(
+                      'w-full text-left p-4 rounded-xl border transition-all cursor-pointer relative overflow-hidden flex flex-col gap-2 shadow-sm',
+                      isSelected
+                        ? 'border-rose-500/30 bg-rose-500/[0.04]'
+                        : 'border-border bg-card hover:border-rose-500/20 hover:bg-accent/40'
+                    )}
+                  >
+                    {isSelected && (
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-rose-500" />
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-foreground tracking-wide font-mono">{r.return_number}</span>
+                      <span className="text-[10px] font-bold text-muted-foreground">{formatDate(r.return_date)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-muted-foreground font-medium truncate mr-2">
+                        {r.customer_name || 'Walk-in Customer'}
+                      </span>
+                      <span className="text-xs font-black text-rose-500 shrink-0">
+                        -{formatCurrency(r.grand_total)}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })
             )}
           </div>
         </div>
 
         {/* Return Detail */}
-        {selectedReturn && (
-          <div className="flex-1 flex flex-col">
+        {selectedReturn ? (
+          <div className="flex-1 flex flex-col bg-background">
             {/* Detail Header */}
-            <div className="shrink-0 p-4 border-b border-border">
-              <div className="flex items-center justify-between mb-3">
+            <div className="shrink-0 p-5 border-b border-border bg-muted/[0.05]">
+              <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-sm font-black">{selectedReturn.return_number}</h2>
-                  <p className="text-[10px] text-muted-foreground">{formatDate(selectedReturn.return_date)}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 text-[10px] font-bold font-mono">
+                      RETURN RECORD
+                    </span>
+                  </div>
+                  <h2 className="text-base font-black text-foreground mt-1 font-mono">{selectedReturn.return_number}</h2>
+                  <p className="text-[10px] font-semibold text-muted-foreground mt-0.5">{formatDate(selectedReturn.return_date)}</p>
                 </div>
                 <div className="text-right">
-                  <div className="text-xs font-black text-red-500">-{formatCurrency(selectedReturn.grand_total)}</div>
-                  <div className="text-[10px] text-muted-foreground">Refund Amount</div>
+                  <div className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Refund Amount</div>
+                  <div className="text-lg font-black text-rose-500">-{formatCurrency(selectedReturn.grand_total)}</div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <User className="w-3 h-3" /> {selectedReturn.customer_name || 'Walk-in Customer'}
+
+              {/* Customer Info Card */}
+              <div className="bg-card border border-border rounded-xl p-3.5 grid grid-cols-2 gap-3 shadow-sm mb-4">
+                <div>
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Customer</span>
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-foreground mt-0.5">
+                    <User className="w-3.5 h-3.5 text-muted-foreground" />
+                    {selectedReturn.customer_name || 'Walk-in Customer'}
+                  </div>
                 </div>
                 {selectedReturn.customer_phone && (
-                  <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                    <Package className="w-3 h-3" /> {selectedReturn.customer_phone}
+                  <div>
+                    <span className="text-[9px] uppercase tracking-wider font-bold text-muted-foreground">Phone</span>
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground mt-0.5">
+                      <Phone className="w-3.5 h-3.5 text-muted-foreground" />
+                      {selectedReturn.customer_phone}
+                    </div>
                   </div>
                 )}
               </div>
+
               {selectedReturn.reason && (
-                <div className="mt-2 flex items-start gap-1.5 text-[11px] text-muted-foreground">
-                  <FileText className="w-3 h-3 mt-0.5 shrink-0" />
-                  <em>"{selectedReturn.reason}"</em>
+                <div className="mb-4 bg-amber-500/[0.04] border-l-4 border-amber-500 p-3.5 rounded-r-xl">
+                  <span className="text-[9px] uppercase tracking-wider font-bold text-amber-600 dark:text-amber-400">
+                    Reason for Return
+                  </span>
+                  <p className="text-xs text-foreground italic mt-0.5">
+                    "{selectedReturn.reason}"
+                  </p>
                 </div>
               )}
-              <div className="mt-3 flex gap-2">
+
+              <div className="flex gap-2">
                 <button
                   onClick={() => { setDeleteConfirmOpen(true); }}
-                  className="flex items-center gap-1.5 px-3 h-7 text-[10px] font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-all cursor-pointer"
+                  className="flex items-center gap-1.5 px-4 h-9 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/15 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
                 >
-                  <X className="w-3 h-3" /> Delete Return
+                  <Trash className="w-3.5 h-3.5" /> Delete Return
+                </button>
+                <button
+                  onClick={() => setSelectedReturn(null)}
+                  className="md:hidden flex items-center gap-1.5 px-4 h-9 text-xs font-bold text-muted-foreground bg-muted hover:bg-muted/80 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  Back to List
                 </button>
               </div>
             </div>
 
             {/* Items */}
-            <div className="flex-1 overflow-y-auto p-4">
-              <h3 className="text-[10px] font-black uppercase tracking-widest text-muted-foreground mb-3">Returned Items</h3>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              <h3 className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Returned Items</h3>
               {itemsLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 mb-2 rounded-xl border border-border">
-                    <Skeleton className="w-8 h-8 rounded-lg" />
-                    <div className="flex-1"><Skeleton className="h-3 w-32 mb-1" /><Skeleton className="h-3 w-20" /></div>
+                  <div key={i} className="flex items-center gap-3 p-4 mb-2 rounded-xl border border-border bg-card shadow-sm">
+                    <Skeleton className="w-10 h-10 rounded-xl" />
+                    <div className="flex-1">
+                      <Skeleton className="h-3 w-32 mb-1.5" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
                   </div>
                 ))
               ) : (
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   {returnItems.map((item) => (
-                    <div key={item.return_item_id} className="flex items-center gap-3 p-3 rounded-xl border border-border">
-                      <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center shrink-0">
-                        <Package className="w-4 h-4 text-red-500" />
+                    <div key={item.return_item_id} className="flex items-center gap-4 p-4 rounded-xl border border-border bg-card shadow-sm hover:border-rose-500/15 transition-all">
+                      <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0 shadow-inner">
+                        <Package className="w-5 h-5 text-rose-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-xs font-bold truncate">{item.name}</div>
-                        <div className="text-[10px] text-muted-foreground">
-                          {item.sku_barcode && <span className="font-mono">{item.sku_barcode} · </span>}
-                          {item.quantity} × {formatCurrency(item.unit_price)}
+                        <div className="text-xs font-bold text-foreground truncate">{item.name}</div>
+                        <div className="text-[10px] text-muted-foreground mt-0.5 flex items-center gap-1">
+                          {item.sku_barcode && (
+                            <>
+                              <span className="font-mono bg-muted px-1.5 py-0.5 rounded">{item.sku_barcode}</span>
+                              <span>·</span>
+                            </>
+                          )}
+                          <span>{item.quantity} × {formatCurrency(item.unit_price)}</span>
                         </div>
                       </div>
                       <div className="text-right shrink-0">
-                        <div className="text-xs font-black text-red-500">-{formatCurrency(item.total)}</div>
+                        <div className="text-xs font-black text-rose-500">-{formatCurrency(item.total)}</div>
                       </div>
                     </div>
                   ))}
@@ -273,16 +373,16 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
 
               {/* Totals */}
               {!itemsLoading && returnItems.length > 0 && (
-                <div className="mt-4 p-3 rounded-xl border border-border bg-muted/50">
-                  <div className="flex justify-between text-[11px] mb-1">
+                <div className="p-4 rounded-xl border border-border bg-muted/30 shadow-inner space-y-2">
+                  <div className="flex justify-between text-xs font-medium">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span className="font-bold">{formatCurrency(selectedReturn.subtotal)}</span>
+                    <span className="font-bold text-foreground">{formatCurrency(selectedReturn.subtotal)}</span>
                   </div>
-                  <div className="flex justify-between text-[11px] mb-1">
+                  <div className="flex justify-between text-xs font-medium">
                     <span className="text-muted-foreground">Tax</span>
-                    <span className="font-bold">{formatCurrency(selectedReturn.tax_total)}</span>
+                    <span className="font-bold text-foreground">{formatCurrency(selectedReturn.tax_total)}</span>
                   </div>
-                  <div className="flex justify-between text-xs font-black text-red-500 pt-1.5 border-t border-border">
+                  <div className="flex justify-between text-sm font-black text-rose-500 pt-2.5 border-t border-border">
                     <span>Total Refund</span>
                     <span>-{formatCurrency(selectedReturn.grand_total)}</span>
                   </div>
@@ -290,25 +390,32 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
               )}
             </div>
           </div>
+        ) : (
+          <div className="hidden md:flex flex-1 flex-col items-center justify-center text-muted-foreground bg-card/10">
+            <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center mb-3">
+              <FileText className="w-8 h-8 opacity-30" />
+            </div>
+            <p className="text-xs font-bold">Select a return record to view details</p>
+          </div>
         )}
       </div>
 
       {/* Delete Confirmation Modal */}
       <Modal open={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
         <div className="p-6 max-w-sm mx-auto text-center">
-          <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500/10 flex items-center justify-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center shadow-inner">
             <AlertCircle className="w-6 h-6 text-red-500" />
           </div>
-          <h3 className="text-sm font-black mb-1">Delete Return?</h3>
-          <p className="text-[11px] text-muted-foreground mb-5">
+          <h3 className="text-base font-black mb-1 text-foreground">Delete Return?</h3>
+          <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
             This will remove the return record and deduct the returned quantity from stock.
           </p>
-          <div className="flex gap-2">
+          <div className="flex gap-3">
             <button onClick={() => setDeleteConfirmOpen(false)} disabled={deleteSaving}
-              className="flex-1 h-9 text-xs font-bold rounded-xl border border-border hover:bg-accent transition-all cursor-pointer disabled:opacity-50"
+              className="flex-1 h-10 text-xs font-bold rounded-xl border border-border hover:bg-muted hover:text-foreground text-muted-foreground transition-all duration-150 active:scale-95 cursor-pointer disabled:opacity-50"
             >Cancel</button>
             <button onClick={handleDeleteReturn} disabled={deleteSaving}
-              className="flex-1 h-9 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl transition-all cursor-pointer disabled:opacity-50"
+              className="flex-1 h-10 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md shadow-red-500/10 transition-all duration-150 active:scale-95 cursor-pointer disabled:opacity-50"
             >{deleteSaving ? 'Deleting...' : 'Delete'}</button>
           </div>
         </div>

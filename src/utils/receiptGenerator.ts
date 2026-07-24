@@ -145,7 +145,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
   }
 }
 
-export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' = 'standard'): string {
+export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill' = 'standard'): string {
   if (charsPerLine == null) {
     charsPerLine = widthCm >= 7.5 ? 36 : 32;
   }
@@ -1245,6 +1245,252 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Footer ──
     text += centerText('Thank You, Visit Again!', charsPerLine) + '\n';
     text += THIN + '\n';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════════
+  //  BILL — Boxed receipt with +--+ borders, product table, tax breakup, round-off
+  // ══════════════════════════════════════════════════════════════════════════════
+  else if (style === 'bill') {
+    // ── Helpers ──
+    const boxLine = (content: string) => '│' + content + '│\n';
+    const boxSep = (segments: number[]) => {
+      let s = '├';
+      for (const w of segments) s += '─'.repeat(w) + '┼';
+      return s.slice(0, -1) + '┤
+';
+    };
+    const boxRow = (cells: string[], widths: number[]) => {
+      let line = '│';
+      cells.forEach((c, i) => {
+        line += (c.length > widths[i] ? c.substring(0, widths[i]) : c.padEnd(widths[i])) + '│';
+      });
+      return line + '\n';
+    };
+
+    const topBox = () => `┌${'─'.repeat(charsPerLine - 2)}┐\n`;
+    const botBox = () => `└${'─'.repeat(charsPerLine - 2)}┘\n`;
+    const midBox = () => `├${'─'.repeat(charsPerLine - 2)}┤\n`;
+
+    // ── Header ──
+    const bs = data.billSettings;
+    text += topBox();
+    if (bs?.showShopGstin && data.shopGstin) {
+      const gstLine = ` GSTIN: ${data.shopGstin}`;
+      const phoneLine = data.shopPhone ? `Ph: ${data.shopPhone}` : '';
+      const avail = charsPerLine - 2 - gstLine.length;
+      text += boxLine(gstLine + (phoneLine ? ' '.repeat(Math.max(2, avail - phoneLine.length)) + phoneLine : ' '.repeat(avail)));
+    }
+    if (bs?.showShopName) text += boxLine(centerText(data.shopName, charsPerLine - 2)) + '\n';
+    if (bs?.showShopAddress && data.shopAddress) text += boxLine(centerText(data.shopAddress, charsPerLine - 2));
+    text += midBox();
+
+    // ── Document Title ──
+    const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
+    if (bs?.showTitle || showScrap) {
+      const docTitle = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B);
+      text += boxLine(centerText(docTitle, charsPerLine - 2));
+      text += midBox();
+    }
+
+    // ── Bill Info ──
+    const invLabel = data.invoiceType === 'RETURN' ? 'RET No' : 'Bill No';
+    const dateStr = `${data.date}`;
+    const billInfoLine = `${invLabel} : ${data.invoiceNumber}`;
+    const spaceAvail = charsPerLine - 2 - billInfoLine.length;
+    const datePart = `Date : ${dateStr}`;
+    text += boxLine(billInfoLine + ' '.repeat(Math.max(1, spaceAvail - datePart.length)) + datePart);
+    if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
+      text += boxLine(`Ref Inv: ${data.referenceInvoiceNumber}`);
+    }
+    if (data.invoiceType === 'RETURN' && data.refundMethod) {
+      text += boxLine(`Refund: ${data.refundMethod}`);
+    }
+    if (data.billerName) text += boxLine(`Staff: ${data.billerName}`);
+
+    // ── Customer ──
+    const showCustName = data.customerName && data.billSettings?.showCustomerName;
+    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin) || data.customerAddress) {
+      text += midBox();
+      text += boxLine(` Customer Details:`);
+      if (data.customerName) text += boxLine(` Name    : ${data.customerName}`);
+      if (data.customerAddress) text += boxLine(` Address : ${data.customerAddress}`);
+      if (data.customerPhone) text += boxLine(` Contact : ${data.customerPhone}`);
+      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += boxLine(` GSTIN   : ${data.customerGstin}`);
+    }
+
+    // ── Item Table ──
+    // Column layout adapts to width
+    const sepW = 1;
+    const idxW = 3;  // "Sr#" or "Sr"
+    let qtyW = 6;    // adjust
+    let mrpW: number | null = null;
+    let rateW = 6;
+    let amtW = 6;
+    let nameW: number;
+
+    if (charsPerLine >= 42) {
+      // Full table with MRP
+      mrpW = 6;
+      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - mrpW - sepW - rateW - sepW - amtW - sepW * 5;
+      if (nameW < 5) { nameW = 8; mrpW = 0; }
+    } else if (charsPerLine >= 36) {
+      // With MRP
+      mrpW = 6;
+      qtyW = 5;
+      rateW = 6;
+      amtW = 6;
+      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - mrpW - sepW - rateW - sepW - amtW - sepW * 5;
+      if (nameW < 5) { nameW = 7; mrpW = 0; }
+    } else {
+      // No MRP, compact
+      mrpW = null;
+      qtyW = 5;
+      rateW = 5;
+      amtW = 6;
+      nameW = charsPerLine - 2 - idxW - sepW - qtyW - sepW - rateW - sepW - amtW - sepW * 4;
+      if (nameW < 4) { nameW = 4; amtW = 5; rateW = 4; qtyW = 4; }
+    }
+
+    // Build column widths array
+    const colWidths: number[] = [idxW];
+    const colLabels: string[] = ['Sr#'];
+    colWidths.push(nameW); colLabels.push('Product');
+    colWidths.push(qtyW); colLabels.push('Qty');
+    if (mrpW && mrpW > 0) { colWidths.push(mrpW); colLabels.push('MRP'); }
+    colWidths.push(rateW); colLabels.push('Rate');
+    colWidths.push(amtW); colLabels.push('Amt');
+
+    // Header separator
+    text += midBox();
+    text += boxRow(colLabels, colWidths);
+    text += boxSep(colWidths);
+
+    // Items
+    data.items.forEach((item, i) => {
+      const idx = String(i + 1);
+      const name = item.name;
+      const qty = String(item.quantity);
+      const rate = item.unit_price.toFixed(2);
+      const amt = item.total.toFixed(2);
+      const mrpStr = item.originalRate ? item.originalRate.toFixed(2) : '';
+
+      const cells = [idx, name, qty];
+      if (mrpW && mrpW > 0) cells.push(mrpStr);
+      cells.push(rate, amt);
+      text += boxRow(cells, colWidths);
+
+      // Show MRP savings or pack info
+      if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
+        const savings = `MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}`;
+        const info = `${savings}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
+        text += boxLine(` ${info.substring(0, charsPerLine - 4)}`);
+      }
+    });
+
+    // Table footer
+    text += boxSep(colWidths);
+
+    // ── Totals ──
+    const finalGrandTotal = data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0);
+    const totalLabel = 'Total';
+    const totalAmt = data.subtotal.toFixed(2);
+    text += boxLine(` ${padRight(totalLabel, charsPerLine - 4 - totalAmt.length - 2)} | ${totalAmt}`);
+
+    if (data.discount > 0) {
+      const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%)` : 'Discount';
+      text += boxLine(` ${padRight(dLabel, charsPerLine - 4 - 6 - 2)} | -${data.discount.toFixed(2)}`);
+    }
+
+    if (data.scrapDeduction && data.scrapDeduction > 0) {
+      text += boxLine(` ${padRight('Scrap Deduction', charsPerLine - 4 - 8 - 2)} | -${data.scrapDeduction.toFixed(2)}`);
+    }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += boxLine(` ${padRight('Return Deduction', charsPerLine - 4 - 8 - 2)} | -${data.returnDeduction.toFixed(2)}`);
+    }
+
+    const roundOff = Math.round(finalGrandTotal) - finalGrandTotal;
+    const netTotal = Math.round(finalGrandTotal);
+    if (Math.abs(roundOff) > 0) {
+      text += boxLine(` ${padRight('Round Off', charsPerLine - 4 - 6 - 2)} | ${roundOff.toFixed(2)}`);
+    }
+    text += boxLine(` ${padRight('Net Total', charsPerLine - 4 - 6 - 2)} | ${Math.max(0, netTotal).toFixed(2)}`);
+
+    // ── You Saved (skip for scrap) ──
+    if (data.invoiceType !== 'SCRAP') {
+      const perProductSavings = data.items.reduce((sum, item) => {
+        if (item.originalRate != null) return sum + (item.originalRate - item.unit_price) * Number(item.quantity);
+        return sum;
+      }, 0);
+      const totalSaved = perProductSavings + data.discount;
+      if (totalSaved > 0) {
+        text += boxLine(centerText(`YOU SAVED ₹${totalSaved.toFixed(2)}`, charsPerLine - 2));
+      }
+    }
+
+    text += midBox();
+
+    // ── Tax Breakup Table ──
+    if (data.tax > 0) {
+      const taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
+      const taxW = Math.floor((charsPerLine - 2 - 6) / 5);
+      const taxWidths = [taxW, taxW, taxW, taxW, charsPerLine - 2 - taxW * 4 - 4];
+      text += boxRow(taxCols, taxWidths);
+      text += boxSep(taxWidths);
+      const taxable = (data.subtotal).toFixed(2);
+      const cgst = data.cgst ? data.cgst.toFixed(2) : '0.00';
+      const sgst = data.sgst ? data.sgst.toFixed(2) : '0.00';
+      const igst = data.igst ? data.igst.toFixed(2) : '0.00';
+      const totalGst = data.tax.toFixed(2);
+      text += boxRow([taxable, cgst, sgst, igst, totalGst], taxWidths);
+      text += midBox();
+    }
+
+    // ── Amount in Words ──
+    text += boxLine(` Amount in Words: `);
+    text += boxLine(centerText(`${numberToIndianWords(Math.max(0, netTotal))} ONLY`, charsPerLine - 2));
+    text += midBox();
+
+    // ── Instructions / Terms ──
+    const instr = data.billSettings?.instructions;
+    if (instr) {
+      text += boxLine(` Terms & Conditions`);
+      const lines = instr.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        text += boxLine(centerText(line.trim(), charsPerLine - 2));
+      }
+      text += midBox();
+    }
+
+    // ── Barcode placeholder ──
+    const barcodeChars = '|'.repeat(Math.min(charsPerLine - 6, 14));
+    text += boxLine(centerText(barcodeChars, charsPerLine - 2));
+    text += boxLine(centerText('BARCODE', charsPerLine - 2));
+    text += midBox();
+
+    // ── QR + Loyalty Points ──
+    const points = data.pointsEarned || data.previousPointsBalance || data.pointsRedeemed || data.remainingPointsBalance;
+    if (data.upiId || points) {
+      if (data.upiId) {
+        text += boxLine(` [QR CODE]${' '.repeat(2)}${data.upiId}`);
+        if (data.showUpiQr) {
+          try {
+            const upiUrl = `upi://pay?pa=${encodeURIComponent(data.upiId)}&pn=${encodeURIComponent((data.shopName || '').substring(0, 16))}&am=${Math.max(0, netTotal).toFixed(2)}&cu=INR`;
+            text += '[[QR:' + upiUrl + ']]\n';
+          } catch {}
+        }
+      }
+      if (points) {
+        text += boxLine(` Bill Points    : ${(data.pointsEarned || 0).toFixed(2)}`);
+        text += boxLine(` Used Points    : ${(data.pointsRedeemed || 0).toFixed(0)}`);
+        if (data.pointsRedeemedDiscount) text += boxLine(` Used Amount    : ${data.pointsRedeemedDiscount.toFixed(2)}`);
+        text += boxLine(` Balance Points : ${(data.remainingPointsBalance || 0).toFixed(2)}`);
+      }
+      text += midBox();
+    }
+
+    // ── Footer ──
+    text += boxLine(centerText('Thank You. Visit Again.', charsPerLine - 2));
+    text += botBox();
   }
 
   return text;

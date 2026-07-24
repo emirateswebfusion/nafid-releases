@@ -97,7 +97,7 @@ interface PaperPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   format: 'thermal' | 'a4';
-  thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe';
+  thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill';
   a4Style: 'standard' | 'modern' | 'classic';
   paperWidth: number;
   showProductOffers: boolean;

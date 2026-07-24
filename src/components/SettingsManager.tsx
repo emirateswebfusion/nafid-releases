@@ -193,7 +193,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [printWidth, setPrintWidth] = useState<number>(58);
-  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe'>('standard');
+  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
@@ -1183,22 +1183,23 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           { id: 'clean', name: 'Clean', color: 'from-emerald-500/10 to-emerald-500/5' },
                           { id: 'dot', name: 'Dot', color: 'from-cyan-500/10 to-cyan-500/5' },
                           { id: 'slim', name: 'Slim', color: 'from-gray-500/10 to-gray-500/5' },
-                          { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' }
+                          { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' },
+                          { id: 'bill', name: 'Bill', color: 'from-teal-500/10 to-teal-500/5' }
                         ].map((style) => {
                           const isActive = thermalStyle === style.id;
                           return (
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="w-full cursor-pointer text-left">
+                              <button type="button" onClick={() => { setThermalStyle(style.id as any); }} className="w-full cursor-pointer text-left">
                                 <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
                               </button>
                               <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                                 <div className="relative group flex justify-center">
-                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
+                                  <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
-                                  </div>
+                                  </button>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                                 </div>
                               </div>
@@ -1409,16 +1410,16 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           return (
                             <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
                               {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="w-full cursor-pointer text-left">
+                              <button type="button" onClick={() => { setA4Style(style.id as any); }} className="w-full cursor-pointer text-left">
                                 <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
                                   <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                                 </div>
                               </button>
                               <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                                 <div className="relative group flex justify-center">
-                                  <div className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md">
+                                  <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
                                     <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
-                                  </div>
+                                  </button>
                                   <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                                 </div>
                               </div>
