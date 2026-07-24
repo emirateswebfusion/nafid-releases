@@ -327,8 +327,14 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
       if (printFmt.scrapBillSettings) setScrapBillSettings({ ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings });
     }
 
-    const termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
-    setTerminalCode(termCode || '');
+    let termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
+    if (!termCode || !/^[A-Z0-9]+$/i.test(termCode)) {
+      // Auto-generate a unique terminal code like a new user — same charset as POS backend's getOrInitTerminalCode()
+      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+      termCode = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+      await window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: termCode });
+    }
+    setTerminalCode(termCode);
 
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
     if (invCfg) { setInvoiceStartNumber(invCfg.counter || 1); }
@@ -412,10 +418,10 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${terminalCode}-RTN`}-`, counter: Number(returnStartNumber) || 1 } }), name: 'return_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${scrapPrefix || `${terminalCode}-SCR`}-`, counter: Number(scrapStartNumber) || 1 } }), name: 'scrap_invoice_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${quotationPrefix || `${terminalCode}-QTN`}-`, counter: Number(quotationStartNumber) || 1 } }), name: 'quotation_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode || 'POS1'}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${terminalCode || 'POS1'}-RTN`}-`, counter: Number(returnStartNumber) || 1 } }), name: 'return_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${scrapPrefix || `${terminalCode || 'POS1'}-SCR`}-`, counter: Number(scrapStartNumber) || 1 } }), name: 'scrap_invoice_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${quotationPrefix || `${terminalCode || 'POS1'}-QTN`}-`, counter: Number(quotationStartNumber) || 1 } }), name: 'quotation_counter' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? Number(b2bStartNumber) || 1 : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? Number(b2cStartNumber) || 1 : 1 } }), name: 'three_invoice_series' },
         ...(enableThreeInvoiceSeries ? [
           { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: Number(b2bStartNumber) || 1 } }), name: 'gst_b2b_invoice' },
@@ -692,7 +698,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={scrapPrefix} onChange={(e) => setScrapPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-orange-500/10 rounded-xl" maxLength={10} placeholder={`e.g. ${terminalCode}-SCR`} />
+                        <Input type="text" value={scrapPrefix || `${terminalCode}-SCR`} onChange={(e) => setScrapPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-orange-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
@@ -721,7 +727,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={quotationPrefix} onChange={(e) => setQuotationPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" maxLength={10} placeholder={`e.g. ${terminalCode}-QTN`} />
+                        <Input type="text" value={quotationPrefix || `${terminalCode}-QTN`} onChange={(e) => setQuotationPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-blue-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>
@@ -750,7 +756,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Prefix</label>
-                        <Input type="text" value={returnPrefix} onChange={(e) => setReturnPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-rose-500/10 rounded-xl" maxLength={10} placeholder={`e.g. ${terminalCode}-RTN`} />
+                        <Input type="text" value={returnPrefix || `${terminalCode}-RTN`} onChange={(e) => setReturnPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} className="font-mono font-bold uppercase bg-background focus:ring-4 focus:ring-rose-500/10 rounded-xl" maxLength={10} placeholder="Auto-generated" />
                       </div>
                       <div className="space-y-1">
                         <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Starting Number</label>

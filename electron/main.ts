@@ -2163,14 +2163,15 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
       try {
         return JSON.parse(row.value);
       } catch {
-        console.warn(`[settings:get] Non-JSON value for key "${key}", returning empty object`);
-        return {};
+        // Value is a raw (non-JSON) string — return it as-is instead of {}
+        // so text fields don't display "[object Object]" in the UI
+        return row.value;
       }
     }
     return null;
   } catch (error: any) {
     console.error('[settings:get]', error);
-    return { error: 'Operation failed' };
+    return null;
   }
 });
 
