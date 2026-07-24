@@ -117,7 +117,14 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         const tid = tenantId || '';
         await window.electronAPI.dbDeduplicateScrapCategories();
         const cats = await window.electronAPI.dbGetScrapCategories(tid);
-        if (Array.isArray(cats)) setCategories(cats);
+        if (Array.isArray(cats)) {
+          setCategories(cats);
+          const currentCatId = selectedCategory?.scrap_category_id;
+          if (currentCatId) {
+            const updated = cats.find(c => c.scrap_category_id === currentCatId);
+            if (updated) setSelectedCategory(updated);
+          }
+        }
       }
     } catch (err) {
       console.error('[ScrapManager] Failed to load data:', err);
@@ -387,7 +394,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
   const totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
   const totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
-  const profit = totalSales - totalPurchases;
+  const realizedProfit = transactions
+    .filter(t => t.type === 'SALE')
+    .reduce((sum, t) => sum + (Number(t.rate) - Number(selectedCategory?.purchase_price || 0)) * Number(t.quantity), 0);
 
   const fieldCls = "w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm";
 
@@ -643,7 +652,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                               <Package className="w-3 h-3" />{stock.toFixed(1)} {cat.unit}
                             </span>
                             <span className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />Sell: {formatCurrency(cat.selling_price)}
+                              <TrendingUp className="w-3 h-3" />Buy: {formatCurrency(cat.purchase_price)}
                             </span>
                           </div>
                         </div>
@@ -653,13 +662,16 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                             'text-base font-black leading-none',
                             outOfStock ? 'text-muted-foreground' : 'text-emerald-600 dark:text-emerald-400'
                           )}>
-                            {formatCurrency(cat.purchase_price)}
+                            {formatCurrency(cat.selling_price)}
                           </p>
-                          {outOfStock && (
-                            <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md bg-muted text-muted-foreground">
-                              Out of Stock
-                            </span>
-                          )}
+                          <span className={clsx(
+                            'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md',
+                            outOfStock
+                              ? 'bg-muted text-muted-foreground'
+                              : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                          )}>
+                            {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
+                          </span>
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
@@ -861,6 +873,17 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     <span className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
                       Sell: {formatCurrency(selectedCategory.selling_price)}
                     </span>
+                    {totalSales > 0 && (
+                      <span className={clsx(
+                        'flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg',
+                        realizedProfit >= 0
+                          ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                          : 'text-red-700 bg-red-50 border border-red-200'
+                      )}>
+                        {realizedProfit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        Profit: {formatCurrency(realizedProfit)}
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
                     {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
@@ -1352,7 +1375,10 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                       <p className="font-medium text-foreground">No scrap invoices found</p>
                       <p className="text-sm mt-1">Complete a scrap purchase from billing to see it here</p>
                     </div>
-                  ) : invoices.map((inv: any) => (
+                  ) : invoices.map((inv: any) => {
+                    const units = inv.units || 'Kgs';
+                    const hasMixedUnits = units.includes(',');
+                    return (
                     <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
                       <div className="col-span-2">
                         <div className="flex items-center gap-2">
@@ -1375,7 +1401,11 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                       </div>
                       <div className="col-span-1 text-center font-bold text-sm text-foreground">{inv.item_count}</div>
                       <div className="col-span-2 text-right font-bold text-sm text-foreground">
-                        {Number(inv.total_qty || 0).toFixed(3)} <span className="text-muted-foreground text-xs font-semibold">{inv.units || 'Kgs'}</span>
+                        {hasMixedUnits ? (
+                          <span className="text-muted-foreground text-xs font-semibold italic">Mixed units</span>
+                        ) : (
+                          <>{Number(inv.total_qty || 0).toFixed(3)} <span className="text-muted-foreground text-xs font-semibold">{units}</span></>
+                        )}
                       </div>
                       <div className="col-span-2 text-right font-bold text-sm text-orange-600">{formatCurrency(inv.total_amount)}</div>
                       <div className="col-span-1 text-center">
@@ -1387,7 +1417,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                         </button>
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1421,7 +1452,12 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                         </p>
                       )}
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0).toFixed(3)} {invoiceDetailTxs[0]?.unit || 'Kgs'} · {invoiceDetailTxs.length} item(s)
+                        {(() => {
+                          const allUnits = [...new Set(invoiceDetailTxs.map((tx: any) => tx.unit || 'Kgs'))];
+                          const totalQty = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0);
+                          if (allUnits.length === 1) return `${totalQty.toFixed(3)} ${allUnits[0]} · ${invoiceDetailTxs.length} item(s)`;
+                          return `${invoiceDetailTxs.length} item(s)`;
+                        })()}
                       </p>
                     </div>
                     <button

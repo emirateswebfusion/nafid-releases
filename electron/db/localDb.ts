@@ -103,6 +103,9 @@ export function initDb() {
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        held_until DATETIME,
+        is_held INTEGER DEFAULT 0,
+        hold_note TEXT,
         UNIQUE(tenant_id, invoice_number)
     );
 
@@ -450,7 +453,8 @@ export function initDb() {
         'customer_gstin', 'customer_state', 'customer_address', 'received_amount', 'balance_amount', 'updated_at',
         'scrap_deduction', 'scrap_invoice_number',
         'return_deduction', 'return_invoice_number',
-        'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance'
+        'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance',
+        'held_until', 'is_held', 'hold_note'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item'

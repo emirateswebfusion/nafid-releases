@@ -1890,7 +1890,7 @@ export function BillingPage() {
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
-          grand_total: displayGrandTotal, payment_method: paymentMethod,
+          grand_total: grandTotal, payment_method: paymentMethod,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
           customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
@@ -2087,13 +2087,208 @@ export function BillingPage() {
     }
   };
 
-  const handleHoldBill = () => {
+  // Held Bills state
+  const [heldBills, setHeldBills] = useState<any[]>([]);
+  const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
+  const [heldBillsLoading, setHeldBillsLoading] = useState(false);
+
+  // Load active held bills from backend
+  const loadHeldBills = useCallback(async () => {
+    if (!window.electronAPI) return;
+    setHeldBillsLoading(true);
+    try {
+      const bills = await window.electronAPI.dbGetHeldBills({ tenant_id: tenantId || 'global' });
+      if (Array.isArray(bills)) {
+        setHeldBills(bills);
+      }
+    } catch (e) {
+      console.error('Failed to load held bills', e);
+    } finally {
+      setHeldBillsLoading(false);
+    }
+  }, [tenantId]);
+
+  // Auto-expire stale holds on mount
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    window.electronAPI.dbExpireStaleHeldBills({ tenant_id: tenantId || 'global' }).catch(() => {});
+    loadHeldBills();
+  }, [tenantId, loadHeldBills]);
+
+  // Refresh held bills after a hold or release
+  useEffect(() => {
+    if (showHeldBillsPanel) {
+      loadHeldBills();
+    }
+  }, [showHeldBillsPanel, loadHeldBills]);
+
+  // Rewrite handleHoldBill to save to backend
+  const handleHoldBill = async () => {
     if (items.length === 0) return;
-    const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items, invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
-    const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
-    stored.push(bill);
-    localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
-    clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' }); syncActiveSnapshot();
+    // Don't allow holding in scrap or return mode
+    if (isScrapMode || isReturnMode || isQuotationMode) return;
+    if (!window.electronAPI) {
+      // Fallback for non-electron: save to localStorage
+      const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items, invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
+      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      stored.push(bill);
+      localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
+      clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' }); syncActiveSnapshot();
+      return;
+    }
+
+    // Build invoice payload similar to checkout
+    const invoice_id = uuidv4();
+    const invoice_number = nextInvoiceNumber || `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-HLD-${Date.now()}`;
+
+    const lineItems = items.map((item) => {
+      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+      const qty = Number(item.quantity) || 0;
+      let itemTotal = rate * qty;
+      if (item.offer_price) {
+        itemTotal = Number(item.offer_price) * qty;
+      } else if (item.discount_flat) {
+        itemTotal = Math.max(0, rate - Number(item.discount_flat)) * qty;
+      } else if (item.discount_percent) {
+        itemTotal = Math.max(0, rate * (1 - Number(item.discount_percent) / 100)) * qty;
+      }
+      const taxAmount = invoiceType === 'GST' ? itemTotal * (item.tax_rate_percent / 100) : 0;
+      return {
+        item_id: uuidv4(),
+        product_id: item.product_id,
+        name: item.name,
+        quantity: qty,
+        unit_price: qty > 0 ? itemTotal / qty : rate,
+        tax_amount: taxAmount,
+        total: itemTotal,
+        isServiceItem: item.isServiceItem ? true : false,
+      };
+    });
+
+    const result = await window.electronAPI.dbHoldBill({
+      invoice_id,
+      tenant_id: tenantId || 'global',
+      user_id: userId || 'unknown',
+      invoice_number,
+      subtotal,
+      tax_total: totalTax,
+      discount_total: discount,
+      discount_type: discountType,
+      discount_value: discountValue,
+      grand_total: grandTotal,
+      payment_method: paymentMethod || 'PENDING',
+      received_amount: receivedAmount ?? 0,
+      balance_amount: balanceAmount,
+      customer_name: customerName || null,
+      customer_phone: customerPhone || null,
+      customer_gstin: customerGstin || null,
+      customer_state: customerState || null,
+      customer_address: customerAddress || null,
+      items: lineItems,
+      hold_note: null,
+    });
+
+    if (!result.success) {
+      setHardwareError('Failed to hold bill: ' + (result.error || 'Unknown error'));
+      return;
+    }
+
+    clearCart();
+    updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' });
+    syncActiveSnapshot();
+    loadHeldBills();
+  };
+
+  // Recall a held bill — load its items back into cart
+  const handleRecallHeldBill = async (heldInvoice: any) => {
+    if (!window.electronAPI) return;
+    setHeldBillsLoading(true);
+    try {
+      const result = await window.electronAPI.dbRecallHeldBill({ invoice_id: heldInvoice.invoice_id });
+      if (!result.success) {
+        setHardwareError(result.error || 'Failed to recall held bill');
+        return;
+      }
+
+      // Clear current cart
+      clearCart();
+
+      // Restore invoice type
+      if (result.invoice?.invoice_type === 'GST' || result.invoice?.invoice_type === 'BILL_OF_SUPPLY') {
+        setInvoiceType(result.invoice.invoice_type);
+      }
+
+      // Restore discount
+      if (Number(result.invoice?.discount_value) > 0) {
+        setDiscount(Number(result.invoice.discount_value), result.invoice.discount_type || 'FIXED');
+      }
+
+      // Restore items
+      if (Array.isArray(result.items)) {
+        for (const item of result.items) {
+          const basePrice = Number(item.base_price || item.unit_price) || 0;
+          addItem({
+            product_id: item.product_id,
+            name: item.name || 'Product',
+            base_price: basePrice,
+            purchase_price: Number(item.purchase_price) || 0,
+            tax_rate_percent: Number(item.gst_percent || item.tax_rate_percent) || 0,
+            billing_type: item.billing_type || 'PIECE',
+            pricing_mode: item.pricing_mode || 'FIXED_PRICE',
+            grade_id: item.grade_id || null,
+            grade_rate: item.grade_rate || null,
+            discount_percent: item.discount_percent ?? null,
+            discount_flat: item.discount_flat ?? null,
+            offer_price: item.offer_price ?? null,
+            sku_barcode: item.sku_barcode || null,
+            brand_manufacturer: item.brand_manufacturer || null,
+          });
+          const qty = Number(item.quantity) || 1;
+          if (qty > 0) {
+            updateQuantity(item.product_id, qty);
+          }
+        }
+      }
+
+      // Restore customer info
+      updateActiveTab({
+        customerName: result.invoice?.customer_name || '',
+        customerPhone: result.invoice?.customer_phone || '',
+        customerGstin: result.invoice?.customer_gstin || '',
+        customerAddress: result.invoice?.customer_address || '',
+        paymentMethod: result.invoice?.payment_method || 'PENDING',
+        receivedAmount: Number(result.invoice?.received_amount) || 0,
+      });
+
+      // Set customer state
+      if (result.invoice?.customer_state) {
+        setCustomerState(result.invoice.customer_state);
+      }
+
+      setShowHeldBillsPanel(false);
+      syncActiveSnapshot();
+    } catch (e) {
+      setHardwareError('Failed to recall held bill');
+      console.error(e);
+    } finally {
+      setHeldBillsLoading(false);
+    }
+  };
+
+  // Release (delete) a held bill — revert stock, mark as expired
+  const handleReleaseHeldBill = async (invoiceId: string) => {
+    if (!window.electronAPI) return;
+    try {
+      const result = await window.electronAPI.dbReleaseHeldBill({ invoice_id: invoiceId });
+      if (result.success) {
+        loadHeldBills();
+      } else {
+        setHardwareError(result.error || 'Failed to release held bill');
+      }
+    } catch (e) {
+      setHardwareError('Failed to release held bill');
+      console.error(e);
+    }
   };
 
   useKeyboardShortcuts({

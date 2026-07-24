@@ -411,7 +411,7 @@ async function syncProducts(token: string, tenantId: string) {
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ? AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} invoices to cloud in batches of ${BATCH_SIZE}...`);
@@ -427,22 +427,22 @@ async function syncInvoices(token: string, tenantId: string) {
       subtotal: Number(inv.subtotal) || 0,
       tax_total: Number(inv.tax_total) || 0,
       grand_total: Number(inv.grand_total) || 0,
-      discount_total: inv.discount_total != null ? Number(inv.discount_total) : 0,
-      discount_value: inv.discount_value != null ? Number(inv.discount_value) : 0,
-      received_amount: inv.received_amount != null ? Number(inv.received_amount) : 0,
-      balance_amount: inv.balance_amount != null ? Number(inv.balance_amount) : 0,
-      scrap_deduction: inv.scrap_deduction != null ? Number(inv.scrap_deduction) : 0,
-      points_earned: inv.points_earned != null ? Number(inv.points_earned) : 0,
-      points_redeemed: inv.points_redeemed != null ? Number(inv.points_redeemed) : 0,
-      points_redeemed_discount: inv.points_redeemed_discount != null ? Number(inv.points_redeemed_discount) : 0,
-      previous_points_balance: inv.previous_points_balance != null ? Number(inv.previous_points_balance) : 0,
-      remaining_points_balance: inv.remaining_points_balance != null ? Number(inv.remaining_points_balance) : 0,
+      discount_total: Number(inv.discount_total) || 0,
+      discount_value: Number(inv.discount_value) || 0,
+      received_amount: Number(inv.received_amount) || 0,
+      balance_amount: Number(inv.balance_amount) || 0,
+      scrap_deduction: Number(inv.scrap_deduction) || 0,
+      points_earned: Number(inv.points_earned) || 0,
+      points_redeemed: Number(inv.points_redeemed) || 0,
+      points_redeemed_discount: Number(inv.points_redeemed_discount) || 0,
+      previous_points_balance: Number(inv.previous_points_balance) || 0,
+      remaining_points_balance: Number(inv.remaining_points_balance) || 0,
       items: (getItems.all(inv.invoice_id, tenantId) as any[]).map((item: any) => ({
         ...item,
         quantity: Number(item.quantity) || 0,
         unit_price: Number(item.unit_price) || 0,
         total: Number(item.total) || 0,
-        tax_amount: item.tax_amount != null ? Number(item.tax_amount) : 0,
+        tax_amount: Number(item.tax_amount) || 0,
       })),
     }));
 
@@ -1265,7 +1265,6 @@ async function pullScrapCategories(token: string, tenantId: string): Promise<boo
         name = excluded.name,
         purchase_price = excluded.purchase_price,
         selling_price = excluded.selling_price,
-        current_stock = excluded.current_stock,
         unit = excluded.unit,
         is_deleted = excluded.is_deleted,
         created_at = COALESCE(scrap_categories.created_at, excluded.created_at),

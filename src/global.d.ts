@@ -145,6 +145,17 @@ export interface IElectronAPI {
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<any[]>;
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => Promise<{ success: boolean; error?: string }>;
+
+  // Hold Bill
+  dbHoldBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
+  dbGetHeldBills: (payload: { tenant_id: string }) => Promise<any[]>;
+  dbRecallHeldBill: (payload: { invoice_id: string }) => Promise<{ success: boolean; invoice?: any; items?: any[]; error?: string }>;
+  dbReleaseHeldBill: (payload: { invoice_id: string }) => Promise<{ success: boolean; error?: string }>;
+  dbExpireStaleHeldBills: (payload: { tenant_id: string }) => Promise<{ success: boolean; expiredCount?: number; error?: string }>;
+
+  // Diagnostic sync helpers
+  syncClearPending: (payload: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => Promise<{ success: boolean; error?: string }>;
+  syncGetPending: (payload: { tenant_id: string }) => Promise<{ success: boolean; pending: { invoices: any[]; products: any[] }; error?: string }>;
 }
 
 declare global {

@@ -173,4 +173,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => ipcRenderer.invoke('db:getReturnInvoiceByNumber', payload),
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPendingReturnInvoices', payload),
   dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => ipcRenderer.invoke('db:settleReturnInvoice', payload),
+
+  // Hold Bill
+  dbHoldBill: (payload: any) => ipcRenderer.invoke('db:holdBill', payload),
+  dbGetHeldBills: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getHeldBills', payload),
+  dbRecallHeldBill: (payload: { invoice_id: string }) => ipcRenderer.invoke('db:recallHeldBill', payload),
+  dbReleaseHeldBill: (payload: { invoice_id: string }) => ipcRenderer.invoke('db:releaseHeldBill', payload),
+  dbExpireStaleHeldBills: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:expireStaleHeldBills', payload),
+  
+  // Diagnostic sync helpers
+  syncClearPending: (payload: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => ipcRenderer.invoke('sync:clearPending', payload),
+  syncGetPending: (payload: { tenant_id: string }) => ipcRenderer.invoke('sync:getPending', payload),
 });

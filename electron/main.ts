@@ -230,6 +230,44 @@ app.whenReady().then(async () => {
     initBarcodeScanner(mainWindow);
     initWeighingScale(mainWindow);
     initSyncWorker();
+    
+    // Auto-expire any stale held bills on startup
+    try {
+      const _db = getDb();
+      // Clean up any HOLD invoices that might have been left with sync_status='PENDING'
+      _db.prepare("UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_type = 'HOLD' AND sync_status = 'PENDING'").run();
+      _db.prepare("UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_type = 'EXPIRED_HOLD' AND sync_status = 'PENDING'").run();
+      
+      // Self-heal: fix any PENDING invoices with negative balance_amount (clamp to 0)
+      _db.prepare("UPDATE invoices SET balance_amount = 0 WHERE sync_status = 'PENDING' AND (balance_amount < 0 OR balance_amount IS NULL)").run();
+      // Self-heal: fix any PENDING invoices with missing/null grand_total
+      _db.prepare("UPDATE invoices SET grand_total = 0 WHERE sync_status = 'PENDING' AND (grand_total IS NULL OR grand_total < 0)").run();
+      // Self-heal: fix any PENDING invoices with missing/null subtotal
+      _db.prepare("UPDATE invoices SET subtotal = 0 WHERE sync_status = 'PENDING' AND (subtotal IS NULL OR subtotal < 0)").run();
+      // Self-heal: fix any PENDING invoices with missing/null received_amount
+      _db.prepare("UPDATE invoices SET received_amount = 0 WHERE sync_status = 'PENDING' AND (received_amount IS NULL OR received_amount < 0)").run();
+      
+      const staleBills = _db.prepare(
+        "SELECT invoice_id, tenant_id FROM invoices WHERE invoice_type = 'HOLD' AND is_held = 1 AND held_until <= datetime('now', 'localtime')"
+      ).all() as any[];
+      if (staleBills.length > 0) {
+        const expireTx = _db.transaction(() => {
+          const stockStmt = _db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
+          const markStmt = _db.prepare('UPDATE invoices SET is_held = 0, invoice_type = \'EXPIRED_HOLD\', sync_status = \'SYNCED\', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?');
+          for (const bill of staleBills) {
+            const items = _db.prepare('SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?').all(bill.invoice_id) as any[];
+            for (const item of items) {
+              if (!item.is_service_item) stockStmt.run(item.quantity, item.product_id);
+            }
+            markStmt.run(bill.invoice_id);
+          }
+        });
+        expireTx();
+        console.log(`[Main] Auto-expired ${staleBills.length} stale held bill(s) on startup`);
+      }
+    } catch (e: any) {
+      console.warn('[Main] Failed to expire stale holds on startup:', e.message);
+    }
   }
 
   app.on('activate', () => {
@@ -1135,6 +1173,276 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     return { success: false, error: 'Operation failed' };
   }
 }));
+
+// ── Hold Bill IPC Handlers ────────────────────────────────────────────────
+// Save current cart as a HOLD invoice: deducts stock, sets held_until = now + 24h
+ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
+  const { items, ...invoice } = payload;
+  const db = getDb();
+  const transaction = db.transaction(() => {
+    // 1. Insert the invoice as a HOLD type
+    const invStmt = db.prepare(`
+      INSERT INTO invoices (
+        invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
+        subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
+        payment_method, received_amount, balance_amount, customer_name, customer_phone, 
+        customer_gstin, customer_state, customer_address, sync_status,
+        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
+        held_until, is_held, hold_note
+      )
+      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours'), 1, ?)
+    `);
+    invStmt.run(
+      invoice.invoice_id,
+      invoice.tenant_id,
+      invoice.user_id,
+      invoice.invoice_number,
+      invoice.subtotal,
+      invoice.tax_total,
+      invoice.discount_total,
+      invoice.discount_type || 'FIXED',
+      invoice.discount_value || 0,
+      invoice.grand_total,
+      invoice.payment_method || 'PENDING',
+      invoice.received_amount ?? 0,
+      invoice.balance_amount ?? 0,
+      invoice.customer_name || null,
+      invoice.customer_phone || null,
+      invoice.customer_gstin || null,
+      invoice.customer_state || null,
+      invoice.customer_address || null,
+      invoice.scrap_deduction ?? 0,
+      invoice.scrap_invoice_number || null,
+      invoice.return_deduction ?? 0,
+      invoice.return_invoice_number || null,
+      invoice.hold_note || null
+    );
+
+    // 2. Insert items and DEDUCT stock (reserve the inventory for this hold)
+    const itemStmt = db.prepare(`
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
+
+    for (const item of items) {
+      itemStmt.run(
+        item.item_id,
+        invoice.invoice_id,
+        invoice.tenant_id,
+        item.product_id,
+        item.name,
+        item.quantity,
+        item.unit_price,
+        item.tax_amount,
+        item.total,
+        item.isServiceItem ? 1 : 0
+      );
+      if (!item.isServiceItem) {
+        stockStmt.run(item.quantity, item.product_id);
+      }
+    }
+  });
+
+  try {
+    transaction();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:holdBill]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+// Get all active (non-expired) held bills for a tenant
+ipcMain.handle('db:getHeldBills', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    return db.prepare(`
+      SELECT * FROM invoices 
+      WHERE tenant_id = ? 
+        AND invoice_type = 'HOLD' 
+        AND is_held = 1 
+        AND held_until > datetime('now', 'localtime')
+      ORDER BY created_at DESC
+    `).all(tenant_id);
+  } catch (error: any) {
+    console.error('[db:getHeldBills]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+// Get a specific held bill's full data (header + items) for recall
+ipcMain.handle('db:recallHeldBill', (event, { invoice_id }: { invoice_id: string }) => {
+  try {
+    const db = getDb();
+    const invoice = db.prepare(
+      `SELECT * FROM invoices WHERE invoice_id = ? AND invoice_type = 'HOLD' AND is_held = 1`
+    ).get(invoice_id) as any;
+    if (!invoice) {
+      return { success: false, error: 'Held bill not found or already expired' };
+    }
+    const items = db.prepare(
+      `SELECT ii.*, p.sku_barcode, p.brand_manufacturer, p.grade_id, p.pricing_mode, p.grade_rate, 
+              p.discount_percent, p.discount_flat, p.offer_price, p.purchase_price, p.base_price,
+              p.tax_rate_percent as gst_percent, p.uom, p.hsn_sac_code as hsn, p.billing_type
+       FROM invoice_items ii
+       LEFT JOIN products p ON ii.product_id = p.product_id
+       WHERE ii.invoice_id = ?`
+    ).all(invoice_id);
+    return { success: true, invoice, items };
+  } catch (error: any) {
+    console.error('[db:recallHeldBill]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// Manually release a held bill — revert stock and mark as expired
+ipcMain.handle('db:releaseHeldBill', (event, { invoice_id }: { invoice_id: string }) => {
+  try {
+    const db = getDb();
+    const transaction = db.transaction(() => {
+      // 1. Check it's a valid held bill
+      const invoice = db.prepare(
+        `SELECT * FROM invoices WHERE invoice_id = ? AND invoice_type = 'HOLD' AND is_held = 1`
+      ).get(invoice_id) as any;
+      if (!invoice) {
+        throw new Error('Held bill not found');
+      }
+
+      // 2. Get items to revert stock
+      const items = db.prepare(
+        'SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?'
+      ).all(invoice_id) as any[];
+
+      // 3. Revert stock (add back)
+      const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
+      for (const item of items) {
+        if (!item.is_service_item) {
+          stockStmt.run(item.quantity, item.product_id);
+        }
+      }
+
+      // 4. Mark invoice as expired/held = 0, change type to track it (keep sync_status='SYNCED' so it stays out of the sync queue)
+      db.prepare(`
+        UPDATE invoices 
+        SET is_held = 0, 
+            invoice_type = 'EXPIRED_HOLD', 
+            sync_status = 'SYNCED', 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE invoice_id = ?
+      `).run(invoice_id);
+    });
+
+    transaction();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:releaseHeldBill]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+});
+
+// Auto-expire stale held bills — called on startup
+ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    let expiredCount = 0;
+
+    const transaction = db.transaction(() => {
+      // 1. Find all expired held bills
+      const expired = db.prepare(`
+        SELECT invoice_id FROM invoices 
+        WHERE tenant_id = ? 
+          AND invoice_type = 'HOLD' 
+          AND is_held = 1 
+          AND held_until <= datetime('now', 'localtime')
+      `).all(tenant_id) as any[];
+
+      for (const bill of expired) {
+        // 2. Get items to revert stock
+        const items = db.prepare(
+          'SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?'
+        ).all(bill.invoice_id) as any[];
+
+        // 3. Revert stock
+        const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
+        for (const item of items) {
+          if (!item.is_service_item) {
+            stockStmt.run(item.quantity, item.product_id);
+          }
+        }
+
+        // 4. Mark as expired (keep sync_status='SYNCED' so it stays out of the sync queue)
+        db.prepare(`
+          UPDATE invoices 
+          SET is_held = 0, 
+              invoice_type = 'EXPIRED_HOLD', 
+              sync_status = 'SYNCED', 
+              updated_at = CURRENT_TIMESTAMP 
+          WHERE invoice_id = ?
+        `).run(bill.invoice_id);
+
+        expiredCount++;
+      }
+    });
+
+    transaction();
+    if (expiredCount > 0) {
+      console.log(`[Hold] Expired ${expiredCount} stale held bill(s) and reverted stock`);
+    }
+    return { success: true, expiredCount };
+  } catch (error: any) {
+    console.error('[db:expireStaleHeldBills]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+// ── Diagnostic: Clear stuck PENDING sync records ─────────────────────────────
+ipcMain.handle('sync:clearPending', async (event, { tenant_id, type, records }: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => {
+  try {
+    const db = getDb();
+    
+    if (type === 'invoices' || type === 'all') {
+      if (records && records.length > 0) {
+        const placeholders = records.map(() => '?').join(',');
+        db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id IN (${placeholders}) AND tenant_id = ?`).run(...records, tenant_id);
+        console.log(`[Sync] Force-cleared ${records.length} stuck invoice(s) from sync queue`);
+      }
+    }
+    
+    if (type === 'products' || type === 'all') {
+      if (records && records.length > 0) {
+        const placeholders = records.map(() => '?').join(',');
+        db.prepare(`UPDATE products SET sync_status = 'SYNCED' WHERE product_id IN (${placeholders}) AND tenant_id = ?`).run(...records, tenant_id);
+        console.log(`[Sync] Force-cleared ${records.length} stuck product(s) from sync queue`);
+      }
+    }
+    
+    return { success: true };
+  } catch (error: any) {
+    console.error('[sync:clearPending]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+});
+
+// ── Diagnostic: Get stuck PENDING sync records ────────────────────────────────
+ipcMain.handle('sync:getPending', async (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const invoices = db.prepare(
+      `SELECT invoice_id, invoice_number, invoice_type, balance_amount, received_amount, 
+              grand_total, subtotal, sync_status, created_at 
+       FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ?`
+    ).all(tenant_id);
+    const products = db.prepare(
+      `SELECT product_id, name, print_status, sync_status, created_at 
+       FROM products WHERE sync_status = 'PENDING' AND tenant_id = ?`
+    ).all(tenant_id);
+    return { success: true, pending: { invoices, products } };
+  } catch (error: any) {
+    console.error('[sync:getPending]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+});
 
 ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, discount_value, role }: { invoice_id: string, discount_type: 'FIXED' | 'PERCENTAGE', discount_value: number, role?: string }) => {
   try {
