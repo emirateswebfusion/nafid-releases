@@ -218,13 +218,15 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [quotationStartNumber, setQuotationStartNumber] = useState<number | string>(1);
   const [stockReportDefaultView, setStockReportDefaultView] = useState('combined');
   const [inventoryDefaultView, setInventoryDefaultView] = useState('combined');
+  const [serviceChargeProduct, setServiceChargeProduct] = useState<any>(null);
+  const [serviceChargeBarcode, setServiceChargeBarcode] = useState('');
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -258,7 +260,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode });
     }
   }, [loading]);
 
@@ -383,6 +385,17 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
     try { const pr = await window.electronAPI.getPrinters(); setOsPrinters(pr || []); } catch (err) { console.error('Failed to get printers', err); }
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
 
+    try {
+      const svcProducts = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: 'Service Charge' });
+      const svcProd = Array.isArray(svcProducts) ? svcProducts.find((p: any) => Number(p.is_service_item) === 1 || p.name === 'Service Charge') : null;
+      if (svcProd) {
+        setServiceChargeProduct(svcProd);
+        setServiceChargeBarcode(svcProd.sku_barcode || '99');
+      }
+    } catch (err) {
+      console.error('Failed to load Service Charge settings', err);
+    }
+
     setLoading(false);
   };
 
@@ -437,9 +450,22 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
         if (!res.success) throw new Error(`${name}: ${res.error}`);
       }
 
+      if (serviceChargeProduct && serviceChargeBarcode && serviceChargeBarcode !== serviceChargeProduct.sku_barcode) {
+        const updatedProduct = {
+          ...serviceChargeProduct,
+          sku_barcode: serviceChargeBarcode,
+          sync_status: 'PENDING'
+        };
+        const updateRes = await window.electronAPI.dbUpdateProduct(updatedProduct);
+        if (!updateRes.success) {
+          throw new Error(`service_charge: ${updateRes.error || 'Failed to update barcode'}`);
+        }
+        setServiceChargeProduct(updatedProduct);
+      }
+
       useCartStore.setState({ shopState });
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, enableScrap, showCashRegister, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -1053,24 +1079,50 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
             {/* Content pane */}
 
             {activeProductsTab === 'coding' && (
-              <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-6">
-                <div className="flex items-center gap-3 pb-4 border-b border-border">
-                  <Key className="w-4.5 h-4.5 text-primary" />
-                  <span className="text-xs font-black uppercase tracking-widest text-foreground">Purchase Price Coding System</span>
-                </div>
-                <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                  Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for â‚¹1250).
-                </p>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-                  {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
-                    <div key={digit} className="flex items-center justify-between gap-3 bg-muted/40 dark:bg-muted/10 p-3 rounded-2xl border border-border hover:border-primary/30 hover:bg-background/80 hover:shadow-sm transition-all duration-300 select-none">
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center justify-center font-black text-xs w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
-                        <span className="text-muted-foreground/50 text-xs font-bold">=</span>
+              <div className="space-y-6">
+                <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-6">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
+                    <Key className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Purchase Price Coding System</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                    Assign a unique, non-repeating letter to each digit (0-9). This lets you print encoded purchase prices on product labels (e.g. code "BHXY" for ₹1250).
+                  </p>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                    {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => (
+                      <div key={digit} className="flex items-center justify-between gap-3 bg-muted/40 dark:bg-muted/10 p-3 rounded-2xl border border-border hover:border-primary/30 hover:bg-background/80 hover:shadow-sm transition-all duration-300 select-none">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center justify-center font-black text-xs w-8 h-8 rounded-xl bg-primary/10 text-primary shrink-0 shadow-inner">{digit}</span>
+                          <span className="text-muted-foreground/50 text-xs font-bold">=</span>
+                        </div>
+                        <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="w-12 h-10 text-center font-extrabold text-base uppercase bg-card dark:bg-background border border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl px-1 block shadow-sm transition-all duration-200" style={{ color: 'var(--foreground)' }} />
                       </div>
-                      <Input type="text" maxLength={1} value={priceCoding[digit.toString()] || ''} onChange={(e) => setPriceCoding({ ...priceCoding, [digit.toString()]: e.target.value.toUpperCase() })} className="w-12 h-10 text-center font-extrabold text-base uppercase bg-card dark:bg-background border border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl px-1 block shadow-sm transition-all duration-200" style={{ color: 'var(--foreground)' }} />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-6">
+                  <div className="flex items-center gap-3 pb-4 border-b border-border">
+                    <Tags className="w-4.5 h-4.5 text-primary" />
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Service Charge Configuration</span>
+                  </div>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1">
+                      <p className="text-xs font-extrabold text-foreground">Easy Barcode Number</p>
+                      <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                        Customize the barcode used to quickly scan/add the Service Charge item in the billing panel.
+                      </p>
                     </div>
-                  ))}
+                    <div className="w-full sm:w-48">
+                      <Input
+                        type="text"
+                        placeholder="Enter barcode (e.g. 99)"
+                        value={serviceChargeBarcode}
+                        onChange={(e) => setServiceChargeBarcode(e.target.value.trim())}
+                        className="w-full font-bold text-sm bg-card border border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 rounded-xl px-3 py-2"
+                      />
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

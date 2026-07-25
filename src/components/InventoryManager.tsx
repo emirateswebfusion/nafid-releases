@@ -921,6 +921,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
   const filtered = useMemo(() =>
     products.filter(p => {
+      if (Number(p.is_service_item) === 1) return false;
       if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
       if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
       return true;
