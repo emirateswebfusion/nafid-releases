@@ -1839,6 +1839,13 @@ export function BillingPage() {
     }
 
     // ── Normal Mode Checkout ──
+    if (paymentMethod === 'CREDIT') {
+      if (!customerName.trim() || !customerPhone.trim()) {
+        setHardwareError('Please enter Customer Name and Phone Number for Credit');
+        setIsCheckingOut(false);
+        return;
+      }
+    }
 
     const isEditing = !!editingInvoiceId;
 
