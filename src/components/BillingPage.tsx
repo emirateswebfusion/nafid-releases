@@ -1800,7 +1800,12 @@ export function BillingPage() {
           };
 
           const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-          await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
+          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
+          if (printResult?.skipped) {
+            setHardwareError('No printer configured. Receipt print skipped.');
+          } else if (printResult && !printResult.success) {
+            setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+          }
         }
 
         // Cash drawer: record CASH_OUT for scrap cash payments
@@ -2095,6 +2100,8 @@ export function BillingPage() {
             if (!printResult.success) {
               console.warn('[Checkout] Print failed (invoice saved):', printResult.error);
               setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+            } else if (printResult.skipped) {
+              setHardwareError('No printer configured. Receipt print skipped.');
             }
           }
           if (!isPaymentPending || openCashDrawerOnPending) {
@@ -2219,7 +2226,12 @@ export function BillingPage() {
         };
         const { generateReceiptText } = await import('../utils/receiptGenerator');
         const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
-        await window.electronAPI.printReceipt(tid, receiptText);
+        const printResult = await window.electronAPI.printReceipt(tid, receiptText);
+        if (printResult?.skipped) {
+          setHardwareError('No printer configured. Receipt print skipped.');
+        } else if (printResult && !printResult.success) {
+          setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+        }
       }
 
       setReturnProcessed(true);
@@ -2467,21 +2479,21 @@ export function BillingPage() {
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-md pointer-events-none">
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
         {hardwareError && (
-          <div className="px-5 py-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+          <div className="px-5 py-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
             <AlertCircle className="w-4 h-4 shrink-0" />
             <span className="flex-1">{hardwareError}</span>
           </div>
         )}
         {checkoutSuccess && (
-          <div className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+          <div className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
             <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
             <span>{checkoutSuccess === 'printed' ? 'Invoice completed & Receipt printed!' : 'Invoice saved successfully!'}</span>
           </div>
         )}
         {quotationSuccess && (
-          <div className="px-5 py-3 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto">
+          <div className="px-5 py-3 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
             <FileText className="w-4 h-4 shrink-0" />
             <span>{quotationSuccess}</span>
           </div>

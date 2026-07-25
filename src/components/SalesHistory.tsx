@@ -437,7 +437,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
         const thermalStyle = printFmt?.style || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-        await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        if (printResult?.skipped) {
+          alert('No printer configured. Receipt print skipped.');
+        } else if (printResult && !printResult.success) {
+          alert(`Printing issue: ${printResult.error || 'check printer'}`);
+        }
       }
       setReprintSuccess(true);
     } catch (err) {
