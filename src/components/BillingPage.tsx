@@ -1643,12 +1643,18 @@ export function BillingPage() {
     if (items.length === 0) return;
     if (!window.electronAPI) return;
 
+    const cartStore = useCartStore.getState();
+    const editingInvoiceId = cartStore.editingInvoiceId;
+    const editingInvoiceNumber = cartStore.editingInvoiceNumber;
+    const editingInvoiceRole = cartStore.editingInvoiceRole;
+
     setIsCheckingOut(true);
     setHardwareError(null);
 
     if (isScrapMode) {
       try {
         let scrapInvoiceNum = editingInvoiceNumber;
+        const finalScrapGrandTotal = scrapTotal + extraBonus;
 
         if (editingInvoiceNumber) {
           const scrapItemsForUpdate = items.map(item => {
@@ -1769,7 +1775,6 @@ export function BillingPage() {
 
           const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
           const cartState = useCartStore.getState();
-          const finalScrapGrandTotal = scrapTotal + extraBonus;
           const receiptData: ReceiptData = {
             shopName: scrapBillSettings.showShopName ? (shopName || 'My Shop') : '',
             shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -1825,7 +1830,8 @@ export function BillingPage() {
             updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
           }
         }, 1800);
-      } catch {
+      } catch (error) {
+        console.error('Failed to save scrap invoice error:', error);
         setHardwareError('Failed to save scrap invoice');
         setIsCheckingOut(false);
       }
@@ -1834,10 +1840,6 @@ export function BillingPage() {
 
     // ── Normal Mode Checkout ──
 
-    const cartStore = useCartStore.getState();
-    const editingInvoiceId = cartStore.editingInvoiceId;
-    const editingInvoiceNumber = cartStore.editingInvoiceNumber;
-    const editingInvoiceRole = cartStore.editingInvoiceRole;
     const isEditing = !!editingInvoiceId;
 
     const isPaymentPending = paymentMethod === 'PENDING';

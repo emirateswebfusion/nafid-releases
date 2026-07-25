@@ -203,6 +203,8 @@ export function initDb() {
         customer_phone TEXT,
         customer_address TEXT,
         notes TEXT,
+        scrap_invoice_number TEXT,
+        payment_status TEXT DEFAULT 'CASH',
         transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -839,9 +841,13 @@ export function initDb() {
     console.warn('[DB Migration] Failed to recreate scrap_transactions table:', e.message);
   }
 
-  // Migration: Add payment_status column to scrap_transactions
+  // Migration: Add payment_status/scrap_invoice_number column to scrap_transactions
   try {
     const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    if (!scrapTxCols.includes('scrap_invoice_number')) {
+      console.log('[DB Migration] Adding scrap_invoice_number to scrap_transactions...');
+      db.exec("ALTER TABLE scrap_transactions ADD COLUMN scrap_invoice_number TEXT");
+    }
     if (!scrapTxCols.includes('payment_status')) {
       console.log('[DB Migration] Adding payment_status to scrap_transactions...');
       db.exec("ALTER TABLE scrap_transactions ADD COLUMN payment_status TEXT DEFAULT 'CASH'");
