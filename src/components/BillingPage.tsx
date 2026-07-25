@@ -242,11 +242,11 @@ export function BillingPage() {
     }
   }, [enableScrap, isScrapMode]);
 
-  // Reset reserved invoice numbers when mode changes
+  // Reset reserved invoice numbers when mode changes (but preserve when editing existing)
   const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
   useEffect(() => {
     const currentMode = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
-    if (prevReserveMode.current !== currentMode) {
+    if (prevReserveMode.current !== currentMode && !editingInvoiceNumber) {
       prevReserveMode.current = currentMode;
       updateActiveTab({ reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
     }
@@ -427,7 +427,9 @@ export function BillingPage() {
     if (initialized.current) return;
     initialized.current = true;
     useTabStore.setState({ tabs: [], activeTabId: '' });
-    handleAddTab();
+
+    tabCounter.current++;
+    addTab(undefined, `Bill ${tabCounter.current}`);
     useCartStore.getState().setEditingInvoice(null, null, null);
   }, []);
 
@@ -522,6 +524,16 @@ export function BillingPage() {
     }
   }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
 
+  // Ensure tab title stays synced with scrap editing invoice number
+  useEffect(() => {
+    if (isScrapMode && editingInvoiceNumber) {
+      const tab = getActiveTab();
+      if (tab && tab.title !== editingInvoiceNumber) {
+        updateActiveTab({ title: editingInvoiceNumber, reservedScrapInvoiceNumber: editingInvoiceNumber });
+      }
+    }
+  }, [isScrapMode, editingInvoiceNumber, getActiveTab, updateActiveTab]);
+
   const pendingScrapInvoiceToEdit = useCartStore(s => s.pendingScrapInvoiceToEdit);
 
   const loadScrapInvoiceForEdit = useCallback(async (invNum: string) => {
@@ -539,9 +551,12 @@ export function BillingPage() {
     // Enable Scrap mode and clear cart
     setIsScrapMode(true);
     clearCart();
+    clearScrapDeduction();
     useCartStore.getState().setEditingInvoice(invNum, invNum, 'OWNER');
+    setDiscount(0, 'FIXED');
 
     const firstTx = detail.transactions[0];
+    const savedPaymentStatus = firstTx.payment_status === 'CASH' ? 'CASH' : 'PENDING';
 
     updateActiveTab({
       customerName: firstTx.party_name || '',
@@ -551,6 +566,9 @@ export function BillingPage() {
       reservedInvoiceNumber: '',
       reservedQuotationNumber: '',
       reservedScrapInvoiceNumber: invNum,
+      scrapPaymentStatus: savedPaymentStatus,
+      paymentMethod: savedPaymentStatus === 'CASH' ? 'CASH' : 'PENDING',
+      receivedAmount: 0,
       title: invNum,
     });
 
@@ -569,27 +587,31 @@ export function BillingPage() {
         unit: tx.unit || 'Kgs',
       });
     });
-  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode]);
+  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount]);
 
   useEffect(() => {
     if (pendingScrapInvoiceToEdit) {
       const invNum = pendingScrapInvoiceToEdit;
       useCartStore.getState().setPendingScrapInvoiceToEdit(null);
+      updateActiveTab({ title: invNum, reservedScrapInvoiceNumber: invNum });
       loadScrapInvoiceForEdit(invNum);
     }
-  }, [pendingScrapInvoiceToEdit, loadScrapInvoiceForEdit]);
+  }, [pendingScrapInvoiceToEdit, loadScrapInvoiceForEdit, updateActiveTab]);
 
   useEffect(() => {
     const handleEditScrapInvoiceEvent = (e: any) => {
       const invNum = e.detail?.invoiceNumber;
-      if (invNum) loadScrapInvoiceForEdit(invNum);
+      if (invNum) {
+        updateActiveTab({ title: invNum, reservedScrapInvoiceNumber: invNum });
+        loadScrapInvoiceForEdit(invNum);
+      }
     };
 
     window.addEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
     return () => {
       window.removeEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
     };
-  }, [loadScrapInvoiceForEdit]);
+  }, [loadScrapInvoiceForEdit, updateActiveTab]);
 
   useEffect(() => {
     // In scrap mode, return mode, or past bill mode, skip product search
@@ -823,6 +845,11 @@ export function BillingPage() {
       try {
         const { invoice, items: invoiceItems, originalRole } = JSON.parse(raw);
         if (!invoiceItems?.length) return;
+
+        if (!useTabStore.getState().activeTabId) {
+          tabCounter.current++;
+          addTab(undefined, `Bill ${tabCounter.current}`);
+        }
 
         // Enrich items with product data (barcode, brand, tax rate, uom, hsn, pricing, etc.)
         const productIds = [...new Set(invoiceItems.map((i: any) => i.product_id).filter(Boolean))];
@@ -2945,27 +2972,6 @@ export function BillingPage() {
           </div>
 
 
-
-          {/* Editing Scrap Invoice Banner */}
-          {editingInvoiceNumber && isScrapMode && (
-            <div className="mx-4 mt-3 p-3 bg-orange-500/15 border border-orange-500/30 rounded-xl flex items-center justify-between text-orange-600 dark:text-orange-400 font-bold text-xs shadow-sm">
-              <div className="flex items-center gap-2">
-                <Pencil className="w-4 h-4 text-orange-500 animate-pulse" />
-                <span>EDITING SCRAP INVOICE: <strong className="font-black underline text-foreground">{editingInvoiceNumber}</strong></span>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  useCartStore.getState().setEditingInvoice(null, null, null);
-                  clearCart();
-                  updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0 });
-                }}
-                className="flex items-center gap-1 text-[11px] font-extrabold bg-orange-500/20 hover:bg-orange-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-orange-600 dark:text-orange-400"
-              >
-                <X className="w-3.5 h-3.5" /> Cancel Edit
-              </button>
-            </div>
-          )}
 
           {/* Customer details — moved to top of cart */}
           <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
