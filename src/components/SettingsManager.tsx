@@ -1108,7 +1108,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                   </div>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <p className="text-xs font-extrabold text-foreground">Easy Barcode Number</p>
+                      <p className="text-xs font-extrabold text-foreground">Service Charge Barcode</p>
                       <p className="text-xs text-muted-foreground/80 leading-relaxed">
                         Customize the barcode used to quickly scan/add the Service Charge item in the billing panel.
                       </p>
