@@ -118,6 +118,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetScrapInvoiceByNumber: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:getScrapInvoiceByNumber', args),
   dbGetScrapInvoiceList: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getScrapInvoiceList', args),
   dbUpdateScrapInvoicePaymentStatus: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string }) => ipcRenderer.invoke('db:updateScrapInvoicePaymentStatus', args),
+  dbUpdateScrapTransaction: (args: any) => ipcRenderer.invoke('db:updateScrapTransaction', args),
+  dbDeleteScrapTransaction: (transaction_id: string) => ipcRenderer.invoke('db:deleteScrapTransaction', transaction_id),
+  dbDeleteScrapInvoice: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:deleteScrapInvoice', args),
 
   // Parties
   dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),

@@ -2729,6 +2729,75 @@ ipcMain.handle('db:updateScrapInvoicePaymentStatus', (event, { tenant_id, scrap_
   }
 });
 
+ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
+  try {
+    const db = getDb();
+    const row: any = db.prepare(
+      'SELECT * FROM scrap_transactions WHERE transaction_id = ? AND tenant_id = ?'
+    ).get(args.transaction_id, args.tenant_id);
+    if (!row) return { success: false, error: 'Transaction not found' };
+    const oldQty = Number(row.quantity);
+    const newQty = Number(args.quantity);
+    const qtyDelta = row.type === 'SALE' ? oldQty - newQty : newQty - oldQty;
+    const totalAmount = newQty * Number(args.rate);
+    const result = db.transaction(() => {
+      db.prepare(`
+        UPDATE scrap_transactions SET quantity = ?, rate = ?, total_amount = ?, party_name = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE transaction_id = ? AND tenant_id = ?
+      `).run(newQty, args.rate, totalAmount, args.party_name ?? row.party_name, args.notes ?? row.notes, args.transaction_id, args.tenant_id);
+      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+        .run(qtyDelta, row.scrap_category_id);
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:updateScrapTransaction]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:deleteScrapTransaction', (event, transaction_id: string) => {
+  try {
+    const db = getDb();
+    const row: any = db.prepare('SELECT * FROM scrap_transactions WHERE transaction_id = ?').get(transaction_id);
+    if (!row) return { success: false, error: 'Transaction not found' };
+    const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
+    const result = db.transaction(() => {
+      db.prepare('DELETE FROM scrap_transactions WHERE transaction_id = ?').run(transaction_id);
+      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+        .run(qtyDelta, row.scrap_category_id);
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:deleteScrapTransaction]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_number }: { tenant_id: string; scrap_invoice_number: string }) => {
+  try {
+    const db = getDb();
+    const rows: any[] = db.prepare(
+      'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?'
+    ).all(tenant_id, scrap_invoice_number);
+    const result = db.transaction(() => {
+      for (const row of rows) {
+        const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
+        db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+          .run(qtyDelta, row.scrap_category_id);
+      }
+      db.prepare('DELETE FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?')
+        .run(tenant_id, scrap_invoice_number);
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:deleteScrapInvoice]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
   try {
     const db = getDb();

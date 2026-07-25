@@ -3529,16 +3529,15 @@ export function BillingPage() {
                 })}
               </div>
               ) : isReturnMode ? (
-              <div className="flex flex-col gap-2 p-2 bg-rose-500/5 border border-rose-500/20 rounded-2xl">
-                <p className="text-xs font-extrabold text-rose-600 uppercase tracking-wider">Refund Method</p>
-                <div className="grid grid-cols-3 gap-2">
+              <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-6 gap-1.5">
                   {[
-                    { value: 'CASH' as const, label: 'Cash', icon: Banknote },
-                    { value: 'UPI' as const, label: 'UPI', icon: Smartphone },
-                    { value: 'CARD' as const, label: 'Card', icon: Wallet },
-                    { value: 'BANK_TRANSFER' as const, label: 'Bank Transfer', icon: Building },
-                    { value: 'STORE_CREDIT' as const, label: 'Store Credit', icon: Gift },
-                    { value: 'ADJUST_BILL' as const, label: 'Adjust Bill', icon: ArrowLeftRight },
+                    { value: 'CASH' as const, label: 'Cash', icon: Banknote, activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
+                    { value: 'UPI' as const, label: 'UPI', icon: Smartphone, activeBg: 'bg-violet-500/10', activeText: 'text-violet-600 dark:text-violet-400', activeBorder: 'border-violet-500', activeIconBg: 'bg-violet-500/15' },
+                    { value: 'CARD' as const, label: 'Card', icon: Wallet, activeBg: 'bg-blue-500/10', activeText: 'text-blue-600 dark:text-blue-400', activeBorder: 'border-blue-500', activeIconBg: 'bg-blue-500/15' },
+                    { value: 'BANK_TRANSFER' as const, label: 'Bank Transfer', icon: Building, activeBg: 'bg-sky-500/10', activeText: 'text-sky-600 dark:text-sky-400', activeBorder: 'border-sky-500', activeIconBg: 'bg-sky-500/15' },
+                    { value: 'STORE_CREDIT' as const, label: 'Store Credit', icon: Gift, activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
+                    { value: 'ADJUST_BILL' as const, label: 'Adjust Bill', icon: ArrowLeftRight, activeBg: 'bg-rose-500/10', activeText: 'text-rose-600 dark:text-rose-400', activeBorder: 'border-rose-500', activeIconBg: 'bg-rose-500/15' },
                   ].map(opt => {
                     const isActive = returnRefundMethod === opt.value;
                     return (
@@ -3546,22 +3545,27 @@ export function BillingPage() {
                         key={opt.value}
                         onClick={() => setReturnRefundMethod(opt.value)}
                         className={clsx(
-                          'flex flex-col items-center justify-center gap-1 py-2 rounded-xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
+                          'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer col-span-2',
                           isActive
-                            ? 'bg-rose-500/10 border-rose-500 text-rose-600 shadow-sm'
-                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                            ? `${opt.activeBg} ${opt.activeBorder} ${opt.activeText} shadow-sm`
+                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
                         )}
                       >
-                        <opt.icon className="w-4 h-4" />
-                        <span className="text-[10px] font-extrabold">{opt.label}</span>
+                        <div className={clsx(
+                          'p-2 rounded-xl transition-colors',
+                          isActive ? opt.activeIconBg : 'bg-muted'
+                        )}>
+                          <opt.icon className="w-4.5 h-4.5" />
+                        </div>
+                        <span className="text-xs font-extrabold">{opt.label}</span>
                       </button>
                     );
                   })}
                 </div>
                 {selectedReturnInvoice && (
-                  <div className="flex items-center justify-between px-1 pt-1 border-t border-rose-500/20">
-                    <span className="text-xs text-muted-foreground">Invoice: {selectedReturnInvoice.invoice_number}</span>
-                    <span className="text-xs font-bold text-rose-600">{selectedReturnInvoice.customer_name || 'Walk-in'}</span>
+                  <div className="flex items-center justify-between px-3 py-2 bg-rose-500/5 border border-rose-500/10 rounded-xl mt-1">
+                    <span className="text-xs text-muted-foreground">Original Invoice: <span className="font-bold text-foreground">{selectedReturnInvoice.invoice_number}</span></span>
+                    <span className="text-xs font-bold text-rose-600 dark:text-rose-400">{selectedReturnInvoice.customer_name || 'Walk-in'}</span>
                   </div>
                 )}
               </div>

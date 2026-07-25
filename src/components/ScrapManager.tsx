@@ -100,6 +100,12 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
 
+  // Edit/delete transaction state
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
+  const [editTxForm, setEditTxForm] = useState({ quantity: '', rate: '', party_name: '', notes: '' });
+  const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
+  const [deletingInvoiceNumber, setDeletingInvoiceNumber] = useState<string | null>(null);
+
   const showStatus = (text: string, type: 'success' | 'error') => {
     setStatusMessage({ text, type });
     setTimeout(() => setStatusMessage(null), 3500);
@@ -385,6 +391,99 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     }
   };
 
+  const handleStartEditTx = (tx: any) => {
+    setEditingTxId(tx.transaction_id);
+    setEditTxForm({
+      quantity: String(tx.quantity || ''),
+      rate: String(tx.rate || ''),
+      party_name: tx.party_name || '',
+      notes: tx.notes || '',
+    });
+  };
+
+  const handleCancelEditTx = () => {
+    setEditingTxId(null);
+    setEditTxForm({ quantity: '', rate: '', party_name: '', notes: '' });
+  };
+
+  const handleSaveEditTx = async () => {
+    if (!editingTxId) return;
+    if (!editTxForm.quantity || !editTxForm.rate) { showStatus('Quantity and Rate are required', 'error'); return; }
+    setIsSavingTx(true);
+    try {
+      const res = await window.electronAPI.dbUpdateScrapTransaction({
+        transaction_id: editingTxId,
+        tenant_id: tenantId,
+        quantity: Number(editTxForm.quantity),
+        rate: Number(editTxForm.rate),
+        party_name: editTxForm.party_name,
+        notes: editTxForm.notes,
+      });
+      if (res.success) {
+        showStatus('Transaction updated successfully', 'success');
+        setEditingTxId(null);
+        setEditTxForm({ quantity: '', rate: '', party_name: '', notes: '' });
+        if (selectedInvoiceNumber) {
+          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
+        }
+        await loadInvoices();
+      } else {
+        showStatus(res.error || 'Update failed', 'error');
+      }
+    } catch {
+      showStatus('Operation failed', 'error');
+    } finally {
+      setIsSavingTx(false);
+    }
+  };
+
+  const handleDeleteTx = async (transactionId: string) => {
+    if (!isOwner) { showStatus('Only owners can delete transactions', 'error'); return; }
+    try {
+      const res = await window.electronAPI.dbDeleteScrapTransaction(transactionId);
+      if (res.success) {
+        showStatus('Transaction deleted', 'success');
+        setDeletingTxId(null);
+        if (selectedInvoiceNumber) {
+          const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
+          if (detail && detail.transactions) {
+            if (detail.transactions.length === 0) {
+              setView('invoices');
+              await loadInvoices();
+            } else {
+              setInvoiceDetailTxs(detail.transactions);
+            }
+          }
+        }
+        await loadInvoices();
+      } else {
+        showStatus(res.error || 'Delete failed', 'error');
+      }
+    } catch {
+      showStatus('Operation failed', 'error');
+    }
+  };
+
+  const handleDeleteInvoice = async (invoiceNumber: string) => {
+    if (!isOwner) { showStatus('Only owners can delete invoices', 'error'); return; }
+    try {
+      const res = await window.electronAPI.dbDeleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
+      if (res.success) {
+        showStatus('Invoice deleted successfully', 'success');
+        setDeletingInvoiceNumber(null);
+        if (view === 'invoice_detail') {
+          setView('invoices');
+        }
+        await loadInvoices();
+      } else {
+        showStatus(res.error || 'Delete failed', 'error');
+      }
+    } catch {
+      showStatus('Operation failed', 'error');
+    }
+  };
+
   const filteredCategories = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -523,7 +622,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               )}
 
               <button
-                onClick={view === 'list' ? onClose : view === 'transaction' ? () => setView('list') : view === 'category_form' ? () => setView('list') : view === 'tx_form' ? () => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); } : view === 'selling' ? () => setView('list') : view === 'invoice_detail' ? () => { loadInvoices(); setView('invoices'); } : view === 'invoices' ? () => setView('list') : () => setView('list')}
+                onClick={view === 'list' ? onClose : view === 'transaction' ? () => setView('list') : view === 'category_form' ? () => setView('list') : view === 'tx_form' ? () => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); } : view === 'selling' ? () => setView('list') : view === 'invoice_detail' ? () => { setEditingTxId(null); setDeletingTxId(null); setDeletingInvoiceNumber(null); loadInvoices(); setView('invoices'); } : view === 'invoices' ? () => { setDeletingInvoiceNumber(null); setView('list'); } : () => setView('list')}
                 className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
                 title="Close"
               >
@@ -1408,13 +1507,41 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                         )}
                       </div>
                       <div className="col-span-2 text-right font-bold text-sm text-orange-600">{formatCurrency(inv.total_amount)}</div>
-                      <div className="col-span-1 text-center">
+                      <div className="col-span-1 text-center flex items-center justify-center gap-1">
                         <button
                           onClick={() => openInvoiceDetail(inv.invoice_number)}
-                          className="px-3 py-1.5 text-xs font-bold text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
+                          className="px-2 py-1.5 text-xs font-bold text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
                         >
                           View
                         </button>
+                        {isOwner && (
+                          <>
+                            {deletingInvoiceNumber === inv.invoice_number ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleDeleteInvoice(inv.invoice_number)}
+                                  className="px-2 py-1.5 text-xs font-bold text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setDeletingInvoiceNumber(null)}
+                                  className="px-2 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted rounded-lg transition-all active:scale-90 cursor-pointer"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeletingInvoiceNumber(inv.invoice_number)}
+                                className="px-2 py-1.5 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
+                                title="Delete invoice"
+                              >
+                                <Trash className="w-3 h-3" />
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                     );
@@ -1460,6 +1587,30 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                         })()}
                       </p>
                     </div>
+                    {isOwner && deletingInvoiceNumber === selectedInvoiceNumber ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleDeleteInvoice(selectedInvoiceNumber)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-destructive text-destructive-foreground rounded-xl transition-all text-xs font-bold active:scale-95 cursor-pointer"
+                        >
+                          <Trash className="w-3.5 h-3.5" /> Confirm
+                        </button>
+                        <button
+                          onClick={() => setDeletingInvoiceNumber(null)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-muted text-muted-foreground rounded-xl transition-all text-xs font-bold hover:bg-muted/80 active:scale-95 cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    ) : isOwner && (
+                      <button
+                        onClick={() => setDeletingInvoiceNumber(selectedInvoiceNumber)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-xl transition-all text-sm font-bold border border-destructive/20 hover:border-destructive/30 active:scale-95 cursor-pointer"
+                        title="Delete entire invoice"
+                      >
+                        <Trash className="w-3.5 h-3.5" /> Delete
+                      </button>
+                    )}
                     <button
                       onClick={handleReprintScrap}
                       disabled={invoiceDetailTxs.length === 0}
@@ -1473,25 +1624,125 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
               <div className="border border-border rounded-xl overflow-hidden">
                 <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
-                  <div className="col-span-4">Category</div>
+                  <div className="col-span-3">Category</div>
                   <div className="col-span-2 text-right">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
-                  <div className="col-span-3 text-right">Total</div>
+                  <div className="col-span-2 text-right">Total</div>
                   <div className="col-span-1 text-center">Date</div>
+                  {isOwner && <div className="col-span-2 text-center">Actions</div>}
                 </div>
                 <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
                   {invoiceDetailTxs.length === 0 ? (
                     <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
                   ) : invoiceDetailTxs.map((tx: any) => (
-                    <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors">
-                      <div className="col-span-4 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                      <div className="col-span-2 text-right font-semibold">
-                        {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
+                    editingTxId === tx.transaction_id ? (
+                      <div key={tx.transaction_id} className="px-4 py-3 bg-card border-b border-border/40">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-muted-foreground mb-1">{tx.scrap_category_name || 'Unknown'}</p>
+                            <div className="flex items-center gap-2">
+                              <div className="w-24">
+                                <input
+                                  type="number"
+                                  step="0.001"
+                                  min="0.001"
+                                  value={editTxForm.quantity}
+                                  onChange={e => setEditTxForm(f => ({ ...f, quantity: e.target.value }))}
+                                  className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="relative w-24">
+                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs pointer-events-none">₹</span>
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  min="0.01"
+                                  value={editTxForm.rate}
+                                  onChange={e => setEditTxForm(f => ({ ...f, rate: e.target.value }))}
+                                  className="w-full bg-background border border-border rounded-lg pl-5 pr-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                />
+                              </div>
+                              <div className="w-32">
+                                <input
+                                  type="text"
+                                  placeholder="Party"
+                                  value={editTxForm.party_name}
+                                  onChange={e => setEditTxForm(f => ({ ...f, party_name: e.target.value }))}
+                                  className="w-full bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none"
+                                />
+                              </div>
+                              <div className="text-sm font-black text-primary min-w-[60px]">
+                                ₹{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={handleSaveEditTx}
+                              disabled={isSavingTx}
+                              className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                            >
+                              {isSavingTx ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                            </button>
+                            <button
+                              onClick={handleCancelEditTx}
+                              className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-bold hover:bg-muted/80 transition-all active:scale-95 cursor-pointer"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                      <div className="col-span-3 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
-                    </div>
+                    ) : (
+                      <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors group">
+                        <div className="col-span-3 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
+                        <div className="col-span-2 text-right font-semibold">
+                          {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
+                        </div>
+                        <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
+                        <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
+                        <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                        {isOwner && (
+                          <div className="col-span-2 text-center flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            {deletingTxId === tx.transaction_id ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => handleDeleteTx(tx.transaction_id)}
+                                  className="p-1 rounded text-emerald-500 hover:bg-emerald-500/10 transition-all cursor-pointer"
+                                  title="Confirm delete"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeletingTxId(null)}
+                                  className="p-1 rounded text-muted-foreground hover:bg-muted transition-all cursor-pointer"
+                                  title="Cancel"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleStartEditTx(tx)}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => setDeletingTxId(tx.transaction_id)}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
                   ))}
                 </div>
               </div>
