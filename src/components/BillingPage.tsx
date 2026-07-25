@@ -2570,7 +2570,15 @@ export function BillingPage() {
                 setIsScrapMode(next);
                 if (next && isQuotationMode) setQuotationMode(false);
                 if (next && isReturnMode) setReturnMode(false);
-                if (next) reserveScrapInvoiceNumberForTab();
+                if (next) {
+                  reserveScrapInvoiceNumberForTab();
+                } else {
+                  if (editingInvoiceNumber) {
+                    useCartStore.getState().setEditingInvoice(null, null, null);
+                    setDiscount(0, 'FIXED');
+                  }
+                  updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
+                }
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}
               className={clsx(
