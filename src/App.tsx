@@ -310,6 +310,7 @@ function App() {
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
     const handleOpenCustomersPage = () => setShowCustomersPage(true);
     const handleOpenQuotationEdit = () => {
+      useCartStore.getState().setRole('BILLER');
       setShowQuotationManager(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
@@ -325,6 +326,28 @@ function App() {
 
     // Close all overlays and navigate to BillingPage in return mode
     const handleOpenReturnMode = () => {
+      useCartStore.getState().setRole('BILLER');
+      setShowSalesHistory(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowQuotationManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowCashierSettlement(false);
+    };
+
+    // Close all overlays and navigate to BillingPage in scrap edit mode
+    const handleOpenScrapEdit = () => {
+      useCartStore.getState().setRole('BILLER');
+      useCartStore.getState().setReturnMode(false);
+      useCartStore.getState().setQuotationMode(false);
       setShowSalesHistory(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
@@ -357,6 +380,7 @@ function App() {
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
     window.addEventListener('open-return-mode', handleOpenReturnMode);
+    window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
 
     if (window.electronAPI) {
       window.electronAPI.onTokenExpired(() => {
@@ -415,6 +439,7 @@ function App() {
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
       window.removeEventListener('open-return-mode', handleOpenReturnMode);
+      window.removeEventListener('edit-scrap-invoice', handleOpenScrapEdit);
     };
   }, [addItem]);
 

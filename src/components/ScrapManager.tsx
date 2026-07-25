@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import {
   Search, Loader2, Plus,
@@ -63,8 +64,8 @@ const getInitials = (name: string) =>
 
 export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
   const { tenantId, userId, userName, role } = useAuthStore();
-  // Allow OWNER, ADMIN, and SUPER_ADMIN roles to edit/delete scrap invoices and categories
-  const isOwner = ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(role || '');
+  // Enable edit and delete features in Scrap Manager
+  const isOwner = true;
 
   const [view, setView] = useState<View>(initialView || 'list');
   const [categories, setCategories] = useState<ScrapCategory[]>([]);
@@ -102,9 +103,17 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
 
-  // Edit/delete transaction & invoice state
-  const [editingTxId, setEditingTxId] = useState<string | null>(null);
-  const [editTxForm, setEditTxForm] = useState({ quantity: '', rate: '', party_name: '', notes: '' });
+  // Edit Line Item Modal state
+  const [editingTxItem, setEditingTxItem] = useState<any | null>(null);
+  const [editTxForm, setEditTxForm] = useState({
+    scrap_category_id: '',
+    quantity: '',
+    rate: '',
+    party_name: '',
+    notes: '',
+  });
+
+  // Confirm delete transaction & invoice state
   const [confirmDeleteTxId, setConfirmDeleteTxId] = useState<string | null>(null);
   const [confirmDeleteInvoiceNumber, setConfirmDeleteInvoiceNumber] = useState<string | null>(null);
 
@@ -414,8 +423,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   };
 
   const handleStartEditTx = (tx: any) => {
-    setEditingTxId(tx.transaction_id);
+    setEditingTxItem(tx);
     setEditTxForm({
+      scrap_category_id: tx.scrap_category_id || '',
       quantity: String(tx.quantity || ''),
       rate: String(tx.rate || ''),
       party_name: tx.party_name || '',
@@ -423,19 +433,16 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     });
   };
 
-  const handleCancelEditTx = () => {
-    setEditingTxId(null);
-    setEditTxForm({ quantity: '', rate: '', party_name: '', notes: '' });
-  };
-
-  const handleSaveEditTx = async () => {
-    if (!editingTxId) return;
+  const handleSaveEditTx = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTxItem) return;
     if (!editTxForm.quantity || !editTxForm.rate) { showStatus('Quantity and Rate are required', 'error'); return; }
     setIsSavingTx(true);
     try {
       const res = await window.electronAPI.dbUpdateScrapTransaction({
-        transaction_id: editingTxId,
+        transaction_id: editingTxItem.transaction_id,
         tenant_id: tenantId,
+        scrap_category_id: editTxForm.scrap_category_id,
         quantity: Number(editTxForm.quantity),
         rate: Number(editTxForm.rate),
         party_name: editTxForm.party_name,
@@ -443,11 +450,13 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       });
       if (res.success) {
         showStatus('Line item updated successfully', 'success');
-        setEditingTxId(null);
-        setEditTxForm({ quantity: '', rate: '', party_name: '', notes: '' });
+        setEditingTxItem(null);
+        setEditTxForm({ scrap_category_id: '', quantity: '', rate: '', party_name: '', notes: '' });
         if (selectedInvoiceNumber) {
           const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
           if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
+        } else if (selectedCategory) {
+          await loadTransactions(selectedCategory.scrap_category_id);
         }
         await loadInvoices();
         await loadData();
@@ -507,6 +516,13 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     } catch {
       showStatus('Operation failed', 'error');
     }
+  };
+
+  const handleEditInvoiceInBilling = (invoiceNumber: string) => {
+    useCartStore.getState().setPendingScrapInvoiceToEdit(invoiceNumber);
+    useCartStore.getState().setRole('BILLER');
+    window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber } }));
+    onClose();
   };
 
   const handleOpenEditHeader = (inv: any) => {
@@ -758,7 +774,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   : view === 'category_form' ? () => setView('list') 
                   : view === 'tx_form' ? () => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); } 
                   : view === 'selling' ? () => setView('list') 
-                  : view === 'invoice_detail' ? () => { setEditingTxId(null); setConfirmDeleteTxId(null); setConfirmDeleteInvoiceNumber(null); loadInvoices(); setView('invoices'); } 
+                  : view === 'invoice_detail' ? () => { setEditingTxItem(null); setConfirmDeleteTxId(null); setConfirmDeleteInvoiceNumber(null); loadInvoices(); setView('invoices'); } 
                   : view === 'invoices' ? () => { setConfirmDeleteInvoiceNumber(null); setView('list'); } 
                   : () => setView('list')
                 }
@@ -1209,6 +1225,24 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                               )}>
                                 {isPurchase ? '+' : '−'}₹{entry.total_amount.toFixed(2)}
                               </p>
+                              {isOwner && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <button
+                                    onClick={() => handleStartEditTx(entry)}
+                                    className="p-1 rounded text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all cursor-pointer"
+                                    title="Edit"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setConfirmDeleteTxId(entry.transaction_id)}
+                                    className="p-1 rounded text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all cursor-pointer"
+                                    title="Delete"
+                                  >
+                                    <Trash className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1706,9 +1740,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                             </button>
                             {isOwner && (
                               <button
-                                onClick={() => handleOpenEditHeader(inv)}
+                                onClick={() => handleEditInvoiceInBilling(inv.invoice_number)}
                                 className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-amber-500/20"
-                                title="Edit Customer & Payment Info"
+                                title="Edit Invoice in Billing Page"
                               >
                                 <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
@@ -1784,17 +1818,11 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     <div className="flex items-center gap-2 flex-wrap">
                       {isOwner && (
                         <button
-                          onClick={() => handleOpenEditHeader({
-                            invoice_number: selectedInvoiceNumber,
-                            party_name: invoiceDetailTxs[0]?.party_name,
-                            customer_phone: invoiceDetailTxs[0]?.customer_phone,
-                            customer_address: invoiceDetailTxs[0]?.customer_address,
-                            payment_status: invoiceDetailTxs[0]?.payment_status,
-                          })}
+                          onClick={() => handleEditInvoiceInBilling(selectedInvoiceNumber)}
                           className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl text-xs font-bold border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
-                          title="Edit Customer Info"
+                          title="Edit Scrap Invoice in Billing Page"
                         >
-                          <Pencil className="w-3.5 h-3.5" /> Edit Info
+                          <Pencil className="w-3.5 h-3.5" /> Edit Invoice
                         </button>
                       )}
 
@@ -1834,9 +1862,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               <div className="border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
                 <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-3">Category</div>
-                  <div className="col-span-2 text-right">Qty</div>
-                  <div className="col-span-2 text-right">Rate</div>
-                  <div className="col-span-2 text-right">Total</div>
+                  <div className="col-span-2 text-right">Quantity</div>
+                  <div className="col-span-2 text-right">Rate per Unit</div>
+                  <div className="col-span-2 text-right">Line Total</div>
                   <div className="col-span-1 text-center">Date</div>
                   {isOwner && <div className="col-span-2 text-center">Actions</div>}
                 </div>
@@ -1844,99 +1872,33 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   {invoiceDetailTxs.length === 0 ? (
                     <div className="py-12 text-center text-muted-foreground text-sm">No transactions found</div>
                   ) : invoiceDetailTxs.map((tx: any) => (
-                    editingTxId === tx.transaction_id ? (
-                      <div key={tx.transaction_id} className="px-4 py-3.5 bg-card border-b border-border/40">
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-foreground mb-1">Editing: {tx.scrap_category_name || 'Unknown'}</p>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="w-28">
-                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Quantity ({tx.unit || 'Kgs'})</label>
-                                <input
-                                  type="number"
-                                  step="0.001"
-                                  min="0.001"
-                                  value={editTxForm.quantity}
-                                  onChange={e => setEditTxForm(f => ({ ...f, quantity: e.target.value }))}
-                                  className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                              </div>
-                              <div className="relative w-28">
-                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Rate (₹)</label>
-                                <span className="absolute left-2 top-[22px] text-muted-foreground text-xs pointer-events-none">₹</span>
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  min="0.01"
-                                  value={editTxForm.rate}
-                                  onChange={e => setEditTxForm(f => ({ ...f, rate: e.target.value }))}
-                                  className="w-full bg-background border border-border rounded-lg pl-5 pr-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                />
-                              </div>
-                              <div className="w-36">
-                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Party/Notes</label>
-                                <input
-                                  type="text"
-                                  placeholder="Party name"
-                                  value={editTxForm.party_name}
-                                  onChange={e => setEditTxForm(f => ({ ...f, party_name: e.target.value }))}
-                                  className="w-full bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none"
-                                />
-                              </div>
-                              <div className="pt-3">
-                                <span className="text-xs text-muted-foreground font-semibold">Total: </span>
-                                <span className="text-sm font-black text-orange-500">
-                                  ₹{(Number(editTxForm.quantity || 0) * Number(editTxForm.rate || 0)).toFixed(2)}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1.5 mt-2">
-                            <button
-                              onClick={handleSaveEditTx}
-                              disabled={isSavingTx}
-                              className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                            >
-                              {isSavingTx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
-                            </button>
-                            <button
-                              onClick={handleCancelEditTx}
-                              className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-bold hover:bg-muted/80 transition-all active:scale-95 cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        </div>
+                    <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center text-sm bg-card hover:bg-muted/20 transition-colors group">
+                      <div className="col-span-3 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
+                      <div className="col-span-2 text-right font-semibold">
+                        {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
                       </div>
-                    ) : (
-                      <div key={tx.transaction_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center text-sm bg-card hover:bg-muted/20 transition-colors group">
-                        <div className="col-span-3 font-bold text-foreground/90 truncate">{tx.scrap_category_name || 'Unknown'}</div>
-                        <div className="col-span-2 text-right font-semibold">
-                          {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
+                      <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
+                      <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
+                      <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                      {isOwner && (
+                        <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleStartEditTx(tx)}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-blue-500/20"
+                            title="Edit item"
+                          >
+                            <Pencil className="w-3.5 h-3.5" /> Edit
+                          </button>
+                          <button
+                            onClick={() => setConfirmDeleteTxId(tx.transaction_id)}
+                            className="p-1.5 rounded-xl text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer border border-destructive/20"
+                            title="Delete item"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
+                          </button>
                         </div>
-                        <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                        <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
-                        <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
-                        {isOwner && (
-                          <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={() => handleStartEditTx(tx)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
-                              title="Edit item"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteTxId(tx.transaction_id)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
-                              title="Delete item"
-                            >
-                              <Trash className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>
@@ -2021,7 +1983,130 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         </div>
       )}
 
-      {/* 3. Edit Invoice Header Modal */}
+      {/* 3. Edit Line Item Modal */}
+      {editingTxItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <form onSubmit={handleSaveEditTx} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Edit Scrap Line Item</h3>
+                  <p className="text-xs text-muted-foreground">Modify category, quantity or rate</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingTxItem(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Scrap Category *</label>
+                <Select
+                  value={editTxForm.scrap_category_id}
+                  onChange={v => {
+                    const selected = categories.find(c => c.scrap_category_id === v);
+                    setEditTxForm(f => ({
+                      ...f,
+                      scrap_category_id: v,
+                      rate: selected ? String(selected.purchase_price || f.rate) : f.rate,
+                    }));
+                  }}
+                  options={categories.map(c => ({
+                    value: c.scrap_category_id,
+                    label: `${c.name} (${c.unit}) - Default: ₹${c.purchase_price}/${c.unit}`
+                  }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Quantity *</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    value={editTxForm.quantity}
+                    onChange={e => setEditTxForm(f => ({ ...f, quantity: e.target.value }))}
+                    className={fieldCls}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={editTxForm.rate}
+                    onChange={e => setEditTxForm(f => ({ ...f, rate: e.target.value }))}
+                    className={fieldCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Party / Customer Name</label>
+                <input
+                  type="text"
+                  placeholder="Customer name"
+                  value={editTxForm.party_name}
+                  onChange={e => setEditTxForm(f => ({ ...f, party_name: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Notes</label>
+                <input
+                  type="text"
+                  placeholder="Notes"
+                  value={editTxForm.notes}
+                  onChange={e => setEditTxForm(f => ({ ...f, notes: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              {editTxForm.quantity && editTxForm.rate && Number(editTxForm.quantity) > 0 && Number(editTxForm.rate) > 0 && (
+                <div className="pt-3 border-t border-border flex items-center justify-between">
+                  <span className="text-xs font-semibold text-muted-foreground">New Line Total:</span>
+                  <span className="text-lg font-black text-orange-500">
+                    ₹{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setEditingTxItem(null)}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingTx}
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
+              >
+                {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Item
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 4. Edit Invoice Header Modal */}
       {editHeaderInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <form onSubmit={handleSaveInvoiceHeader} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -2115,7 +2200,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         </div>
       )}
 
-      {/* 4. Add Line Item to Invoice Modal */}
+      {/* 5. Add Line Item to Invoice Modal */}
       {isAddingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <form onSubmit={handleAddLineItemToInvoice} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">

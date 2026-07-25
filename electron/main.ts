@@ -2744,6 +2744,67 @@ ipcMain.handle('db:updateScrapInvoiceHeader', (event, { tenant_id, scrap_invoice
   }
 });
 
+ipcMain.handle('db:updateScrapInvoiceFull', (event, { tenant_id, scrap_invoice_number, party_name, customer_phone, customer_address, payment_status, items }: { tenant_id: string; scrap_invoice_number: string; party_name?: string; customer_phone?: string; customer_address?: string; payment_status?: string; items: any[] }) => {
+  try {
+    const db = getDb();
+    const result = db.transaction(() => {
+      const existingRows: any[] = db.prepare(
+        'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?'
+      ).all(tenant_id, scrap_invoice_number);
+
+      for (const row of existingRows) {
+        const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
+        db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+          .run(qtyDelta, row.scrap_category_id);
+      }
+
+      db.prepare('DELETE FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?')
+        .run(tenant_id, scrap_invoice_number);
+
+      const insertTx = db.prepare(`
+        INSERT INTO scrap_transactions (
+          transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, created_at, updated_at
+        ) VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `);
+
+      const updateStock = db.prepare(`
+        UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?
+      `);
+
+      for (const item of items) {
+        const txId = crypto.randomUUID();
+        const catId = item.scrap_category_id || item.product_id;
+        const qty = Number(item.quantity) || 0;
+        const rate = Number(item.rate) || 0;
+        const totalAmount = qty * rate;
+
+        insertTx.run(
+          txId,
+          tenant_id,
+          catId,
+          qty,
+          rate,
+          totalAmount,
+          party_name ?? null,
+          customer_phone ?? null,
+          customer_address ?? null,
+          item.notes || 'Updated via Billing Page',
+          scrap_invoice_number,
+          payment_status || 'CASH'
+        );
+
+        updateStock.run(qty, catId);
+      }
+
+      return { success: true };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:updateScrapInvoiceFull]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
   try {
     const db = getDb();
@@ -2751,17 +2812,44 @@ ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
       'SELECT * FROM scrap_transactions WHERE transaction_id = ? AND tenant_id = ?'
     ).get(args.transaction_id, args.tenant_id);
     if (!row) return { success: false, error: 'Transaction not found' };
+
+    const oldCatId = row.scrap_category_id;
+    const newCatId = args.scrap_category_id || oldCatId;
     const oldQty = Number(row.quantity);
     const newQty = Number(args.quantity);
-    const qtyDelta = row.type === 'SALE' ? oldQty - newQty : newQty - oldQty;
-    const totalAmount = newQty * Number(args.rate);
+    const newRate = Number(args.rate);
+    const totalAmount = newQty * newRate;
+
     const result = db.transaction(() => {
       db.prepare(`
-        UPDATE scrap_transactions SET quantity = ?, rate = ?, total_amount = ?, party_name = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        UPDATE scrap_transactions 
+        SET scrap_category_id = ?, quantity = ?, rate = ?, total_amount = ?, party_name = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
         WHERE transaction_id = ? AND tenant_id = ?
-      `).run(newQty, args.rate, totalAmount, args.party_name ?? row.party_name, args.notes ?? row.notes, args.transaction_id, args.tenant_id);
-      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
-        .run(qtyDelta, row.scrap_category_id);
+      `).run(
+        newCatId,
+        newQty,
+        newRate,
+        totalAmount,
+        args.party_name ?? row.party_name,
+        args.notes ?? row.notes,
+        args.transaction_id,
+        args.tenant_id
+      );
+
+      if (oldCatId === newCatId) {
+        const qtyDelta = row.type === 'SALE' ? oldQty - newQty : newQty - oldQty;
+        db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+          .run(qtyDelta, oldCatId);
+      } else {
+        const revertOldDelta = row.type === 'SALE' ? oldQty : -oldQty;
+        db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+          .run(revertOldDelta, oldCatId);
+
+        const applyNewDelta = row.type === 'SALE' ? -newQty : newQty;
+        db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
+          .run(applyNewDelta, newCatId);
+      }
+
       return { success: true };
     })();
     return result;

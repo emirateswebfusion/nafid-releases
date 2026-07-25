@@ -1317,19 +1317,30 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <span className="text-orange-500 font-semibold flex items-center gap-1">
                       Scrap Credit
                       {selectedInvoice.scrap_invoice_number && (
+                        <span className="font-bold">
+                          ({selectedInvoice.scrap_invoice_number})
+                        </span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-orange-500 font-bold">-{formatCurrency(Number(selectedInvoice.scrap_deduction))}</span>
+                      {selectedInvoice.scrap_invoice_number && (
                         <button
                           type="button"
                           onClick={() => {
-                            window.dispatchEvent(new CustomEvent('open-scrap-manager', { detail: { initialView: 'invoices' } }));
+                            useCartStore.getState().setPendingScrapInvoiceToEdit(selectedInvoice.scrap_invoice_number);
+                            useCartStore.getState().setRole('BILLER');
+                            window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber: selectedInvoice.scrap_invoice_number } }));
+                            setDrawerOpen(false);
+                            onClose();
                           }}
-                          className="font-bold underline hover:text-orange-600 cursor-pointer"
-                          title="Open Scrap Manager"
+                          className="px-2 py-0.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all cursor-pointer flex items-center gap-1"
+                          title="Edit Scrap Invoice in Billing Page"
                         >
-                          ({selectedInvoice.scrap_invoice_number})
+                          <Edit3 className="w-3 h-3" /> Edit Scrap
                         </button>
                       )}
-                    </span>
-                    <span className="text-orange-500 font-bold">-{formatCurrency(Number(selectedInvoice.scrap_deduction))}</span>
+                    </div>
                   </div>
                 )}
                 {Number(selectedInvoice.return_deduction) > 0 && (

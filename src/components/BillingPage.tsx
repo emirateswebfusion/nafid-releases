@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag, ArrowLeftRight
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag, ArrowLeftRight, Pencil
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -521,6 +521,75 @@ export function BillingPage() {
       reserveReturnNumberForTab();
     }
   }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
+
+  const pendingScrapInvoiceToEdit = useCartStore(s => s.pendingScrapInvoiceToEdit);
+
+  const loadScrapInvoiceForEdit = useCallback(async (invNum: string) => {
+    if (!invNum || !window.electronAPI) return;
+    const tid = tenantId || 'global';
+    const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tid, scrap_invoice_number: invNum });
+    if (!detail || !detail.transactions || detail.transactions.length === 0) return;
+
+    // Explicitly disable Return, Quotation & Past Bill modes first
+    setReturnMode(false);
+    setQuotationMode(false);
+    setIsPastBillMode(false);
+    setSelectedReturnInvoice(null);
+
+    // Enable Scrap mode and clear cart
+    setIsScrapMode(true);
+    clearCart();
+    useCartStore.getState().setEditingInvoice(invNum, invNum, 'OWNER');
+
+    const firstTx = detail.transactions[0];
+
+    updateActiveTab({
+      customerName: firstTx.party_name || '',
+      customerPhone: firstTx.customer_phone || '',
+      customerAddress: firstTx.customer_address || '',
+      reservedReturnNumber: '',
+      reservedInvoiceNumber: '',
+      reservedQuotationNumber: '',
+      reservedScrapInvoiceNumber: invNum,
+      title: invNum,
+    });
+
+    // Populate scrap items cleanly into cart
+    detail.transactions.forEach((tx: any) => {
+      addItem({
+        product_id: tx.scrap_category_id,
+        scrap_category_id: tx.scrap_category_id,
+        name: tx.scrap_category_name || 'Scrap Item',
+        base_price: Number(tx.rate),
+        purchase_price: Number(tx.rate),
+        tax_rate_percent: 0,
+        quantity: Number(tx.quantity),
+        isScrap: true,
+        billing_type: 'WEIGHT',
+        unit: tx.unit || 'Kgs',
+      });
+    });
+  }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode]);
+
+  useEffect(() => {
+    if (pendingScrapInvoiceToEdit) {
+      const invNum = pendingScrapInvoiceToEdit;
+      useCartStore.getState().setPendingScrapInvoiceToEdit(null);
+      loadScrapInvoiceForEdit(invNum);
+    }
+  }, [pendingScrapInvoiceToEdit, loadScrapInvoiceForEdit]);
+
+  useEffect(() => {
+    const handleEditScrapInvoiceEvent = (e: any) => {
+      const invNum = e.detail?.invoiceNumber;
+      if (invNum) loadScrapInvoiceForEdit(invNum);
+    };
+
+    window.addEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
+    return () => {
+      window.removeEventListener('edit-scrap-invoice' as any, handleEditScrapInvoiceEvent as EventListener);
+    };
+  }, [loadScrapInvoiceForEdit]);
 
   useEffect(() => {
     // In scrap mode, return mode, or past bill mode, skip product search
@@ -1551,48 +1620,83 @@ export function BillingPage() {
     setHardwareError(null);
 
     if (isScrapMode) {
-      // ── Scrap Mode Checkout: save scrap transactions only, no invoice ──
       try {
-        const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: 'global' });
-        if (!numRes.success || !numRes.invoiceNumber) {
-          setHardwareError('Failed to generate scrap invoice number');
-          setIsCheckingOut(false); return;
-        }
-        const scrapInvoiceNum = numRes.invoiceNumber;
+        let scrapInvoiceNum = editingInvoiceNumber;
 
-        // Save each scrap item as an individual PURCHASE transaction
-        for (const item of items) {
-          const rawRate = item.base_price;
-          let effectiveRate = rawRate;
-          if (item.offer_price !== null && item.offer_price !== undefined) {
-            effectiveRate = Number(item.offer_price);
-          } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-            effectiveRate = rawRate + Number(item.discount_flat);
-          } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-            effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
-          }
-          effectiveRate = Math.max(effectiveRate, 0);
-          const qty = Number(item.quantity) || 0;
-          const totalAmount = effectiveRate * qty;
+        if (editingInvoiceNumber) {
+          const scrapItemsForUpdate = items.map(item => {
+            const rawRate = item.base_price;
+            let effectiveRate = rawRate;
+            if (item.offer_price !== null && item.offer_price !== undefined) {
+              effectiveRate = Number(item.offer_price);
+            } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
+              effectiveRate = rawRate + Number(item.discount_flat);
+            } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
+              effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+            }
+            return {
+              scrap_category_id: item.scrap_category_id || item.product_id,
+              quantity: Number(item.quantity) || 0,
+              rate: Math.max(effectiveRate, 0),
+              notes: '',
+            };
+          });
 
-          const result = await window.electronAPI.dbAddScrapTransaction({
-            transaction_id: uuidv4(),
-            tenant_id: tenantId || 'unset',
-            type: 'PURCHASE',
-            scrap_category_id: item.scrap_category_id,
-            quantity: qty,
-            rate: effectiveRate,
-            total_amount: totalAmount,
+          const result = await window.electronAPI.dbUpdateScrapInvoiceFull({
+            tenant_id: tenantId || 'global',
+            scrap_invoice_number: editingInvoiceNumber,
             party_name: customerName || null,
             customer_phone: customerPhone || null,
             customer_address: customerAddress || null,
-            notes: '',
-            scrap_invoice_number: scrapInvoiceNum,
             payment_status: scrapPaymentStatus,
+            items: scrapItemsForUpdate,
           });
+
           if (!result.success) {
-            setHardwareError(`Failed to save scrap item: ${result.error}`);
+            setHardwareError(`Failed to update scrap invoice: ${result.error}`);
             setIsCheckingOut(false); return;
+          }
+        } else {
+          const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: 'global' });
+          if (!numRes.success || !numRes.invoiceNumber) {
+            setHardwareError('Failed to generate scrap invoice number');
+            setIsCheckingOut(false); return;
+          }
+          scrapInvoiceNum = numRes.invoiceNumber;
+
+          for (const item of items) {
+            const rawRate = item.base_price;
+            let effectiveRate = rawRate;
+            if (item.offer_price !== null && item.offer_price !== undefined) {
+              effectiveRate = Number(item.offer_price);
+            } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
+              effectiveRate = rawRate + Number(item.discount_flat);
+            } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
+              effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+            }
+            effectiveRate = Math.max(effectiveRate, 0);
+            const qty = Number(item.quantity) || 0;
+            const totalAmount = effectiveRate * qty;
+
+            const result = await window.electronAPI.dbAddScrapTransaction({
+              transaction_id: uuidv4(),
+              tenant_id: tenantId || 'unset',
+              type: 'PURCHASE',
+              scrap_category_id: item.scrap_category_id,
+              quantity: qty,
+              rate: effectiveRate,
+              total_amount: totalAmount,
+              party_name: customerName || null,
+              customer_phone: customerPhone || null,
+              customer_address: customerAddress || null,
+              notes: '',
+              scrap_invoice_number: scrapInvoiceNum,
+              payment_status: scrapPaymentStatus,
+            });
+            if (!result.success) {
+              setHardwareError(`Failed to save scrap item: ${result.error}`);
+              setIsCheckingOut(false); return;
+            }
           }
         }
 
@@ -1684,7 +1788,8 @@ export function BillingPage() {
         setIsCheckingOut(false);
         setTimeout(async () => {
           clearCart();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+          useCartStore.getState().setEditingInvoice(null, null, null);
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
           syncActiveSnapshot();
           setCheckoutSuccess(false); // scrap mode reset
           await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
@@ -2840,6 +2945,27 @@ export function BillingPage() {
           </div>
 
 
+
+          {/* Editing Scrap Invoice Banner */}
+          {editingInvoiceNumber && isScrapMode && (
+            <div className="mx-4 mt-3 p-3 bg-orange-500/15 border border-orange-500/30 rounded-xl flex items-center justify-between text-orange-600 dark:text-orange-400 font-bold text-xs shadow-sm">
+              <div className="flex items-center gap-2">
+                <Pencil className="w-4 h-4 text-orange-500 animate-pulse" />
+                <span>EDITING SCRAP INVOICE: <strong className="font-black underline text-foreground">{editingInvoiceNumber}</strong></span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  useCartStore.getState().setEditingInvoice(null, null, null);
+                  clearCart();
+                  updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0 });
+                }}
+                className="flex items-center gap-1 text-[11px] font-extrabold bg-orange-500/20 hover:bg-orange-500/30 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-orange-600 dark:text-orange-400"
+              >
+                <X className="w-3.5 h-3.5" /> Cancel Edit
+              </button>
+            </div>
+          )}
 
           {/* Customer details — moved to top of cart */}
           <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">

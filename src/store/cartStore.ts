@@ -63,6 +63,7 @@ interface CartState {
   editingInvoiceId: string | null;
   editingInvoiceNumber: string | null;
   editingInvoiceRole: 'OWNER' | 'BILLER' | null;
+  pendingScrapInvoiceToEdit: string | null;
 
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
@@ -89,6 +90,7 @@ interface CartState {
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
   setEditingInvoice: (id: string | null, number: string | null, role: 'OWNER' | 'BILLER' | null) => void;
+  setPendingScrapInvoiceToEdit: (invoiceNumber: string | null) => void;
   clearCart: () => void;
 }
 
@@ -116,6 +118,8 @@ export const useCartStore = create<CartState>()(
       editingInvoiceId: null,
       editingInvoiceNumber: null,
       editingInvoiceRole: null,
+      pendingScrapInvoiceToEdit: null,
+      setPendingScrapInvoiceToEdit: (invoiceNumber) => set({ pendingScrapInvoiceToEdit: invoiceNumber }),
 
       addItem: (newItem) =>
         set((state) => {
