@@ -1599,6 +1599,10 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   customer_gstin?: string;
   customer_state?: string;
   customer_address?: string;
+  scrap_deduction?: number;
+  scrap_invoice_number?: string;
+  return_deduction?: number;
+  return_invoice_number?: string;
   items: Array<{
     item_id?: string;
     product_id: string;
@@ -1626,6 +1630,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         subtotal = ?, tax_total = ?, discount_total = ?, discount_type = ?,
         discount_value = ?, grand_total = ?, payment_method = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
+        scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
         sync_status = 'PENDING'
       WHERE invoice_id = ?
     `).run(
@@ -1635,6 +1640,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       invoice.customer_address || null,
+      invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
+      invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
       payload.invoice_id
     );
 

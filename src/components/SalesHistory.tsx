@@ -382,6 +382,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
       const useA4 = isB2B || printFmt?.format === 'a4';
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+      const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
+      const returnD = Number(selectedInvoice.return_deduction) || 0;
+      const baseGrandTotal = Number(selectedInvoice.grand_total) + scrapD + returnD;
+
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -399,7 +403,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         discount: selectedInvoice.discount_total,
         discountType: selectedInvoice.discount_type,
         discountValue: selectedInvoice.discount_value,
-        grandTotal: selectedInvoice.grand_total,
+        grandTotal: baseGrandTotal,
+        scrapDeduction: scrapD > 0 ? scrapD : undefined,
+        scrapInvoiceNumber: selectedInvoice.scrap_invoice_number || undefined,
+        returnDeduction: returnD > 0 ? returnD : undefined,
+        returnInvoiceNumber: selectedInvoice.return_invoice_number || undefined,
         isReprint: true,
         invoiceType,
         customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
@@ -1185,6 +1193,22 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
                     </span>
                     <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
+                  </div>
+                )}
+                {Number(selectedInvoice.scrap_deduction) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-orange-500 font-semibold">
+                      Scrap Credit {selectedInvoice.scrap_invoice_number ? `(${selectedInvoice.scrap_invoice_number})` : ''}
+                    </span>
+                    <span className="text-orange-500 font-bold">-{formatCurrency(Number(selectedInvoice.scrap_deduction))}</span>
+                  </div>
+                )}
+                {Number(selectedInvoice.return_deduction) > 0 && (
+                  <div className="flex justify-between text-xs">
+                    <span className="text-rose-500 font-semibold">
+                      Return Credit {selectedInvoice.return_invoice_number ? `(${selectedInvoice.return_invoice_number})` : ''}
+                    </span>
+                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.return_deduction))}</span>
                   </div>
                 )}
               </div>
