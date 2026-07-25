@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
@@ -515,7 +515,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                         <div className="flex items-center gap-2">
                           <p className="font-bold text-sm text-foreground truncate">{party.name}</p>
                           {party.gstin && (
-                            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/40 px-1.5 py-0.5 rounded-md shrink-0">
+                            <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
                               GST
                             </span>
                           )}
@@ -545,10 +545,10 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                           ₹{Math.abs(party.balance).toFixed(2)}
                         </p>
                         <span className={clsx(
-                          'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md',
-                          isReceivable ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400' :
-                          isPayable ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' :
-                          'bg-muted text-muted-foreground'
+                          'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
+                          isReceivable ? 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 text-red-500 dark:text-red-400' :
+                          isPayable ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400' :
+                          'bg-muted border-border text-muted-foreground'
                         )}>
                           {isReceivable ? 'To Receive' : isPayable ? 'To Pay' : 'Settled'}
                         </span>
@@ -809,7 +809,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     </span>
                   )}
                   {selectedParty.gstin && (
-                    <span className="flex items-center gap-1 text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
+                    <span className="flex items-center gap-1 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-2 py-0.5 rounded-lg">
                       <FileText className="w-3 h-3" /> {selectedParty.gstin}
                     </span>
                   )}
@@ -932,12 +932,12 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                               {isCredit ? '+' : '−'}₹{amount.toFixed(2)}
                             </p>
                             <div className={clsx(
-                              'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md',
+                              'inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md border',
                               entry.running_balance > 0
-                                ? 'bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400'
+                                ? 'bg-red-500/10 dark:bg-red-500/20 border-red-500/20 text-red-500 dark:text-red-400'
                                 : entry.running_balance < 0
-                                ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400'
-                                : 'bg-muted text-muted-foreground'
+                                ? 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-muted border-border text-muted-foreground'
                             )}>
                               Bal: ₹{Math.abs(entry.running_balance).toFixed(2)}
                             </div>

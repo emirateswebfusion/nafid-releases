@@ -1313,9 +1313,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   </div>
                 )}
                 {Number(selectedInvoice.scrap_deduction) > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-orange-500 font-semibold">
-                      Scrap Credit {selectedInvoice.scrap_invoice_number ? `(${selectedInvoice.scrap_invoice_number})` : ''}
+                  <div className="flex justify-between text-xs items-center">
+                    <span className="text-orange-500 font-semibold flex items-center gap-1">
+                      Scrap Credit
+                      {selectedInvoice.scrap_invoice_number && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.dispatchEvent(new CustomEvent('open-scrap-manager', { detail: { initialView: 'invoices' } }));
+                          }}
+                          className="font-bold underline hover:text-orange-600 cursor-pointer"
+                          title="Open Scrap Manager"
+                        >
+                          ({selectedInvoice.scrap_invoice_number})
+                        </button>
+                      )}
                     </span>
                     <span className="text-orange-500 font-bold">-{formatCurrency(Number(selectedInvoice.scrap_deduction))}</span>
                   </div>

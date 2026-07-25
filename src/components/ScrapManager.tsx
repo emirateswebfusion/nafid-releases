@@ -6,7 +6,7 @@ import {
   Pencil, Trash, X, Save, TrendingUp, TrendingDown, Recycle,
   CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
   IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
-  ChevronRight, Activity,
+  ChevronRight, Activity, AlertTriangle, FileText
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
@@ -63,7 +63,8 @@ const getInitials = (name: string) =>
 
 export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
   const { tenantId, userId, userName, role } = useAuthStore();
-  const isOwner = role === 'OWNER';
+  // Allow OWNER, ADMIN, and SUPER_ADMIN roles to edit/delete scrap invoices and categories
+  const isOwner = ['OWNER', 'ADMIN', 'SUPER_ADMIN'].includes(role || '');
 
   const [view, setView] = useState<View>(initialView || 'list');
   const [categories, setCategories] = useState<ScrapCategory[]>([]);
@@ -96,15 +97,36 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
   // Invoices state
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [invoiceSearch, setInvoiceSearch] = useState('');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string>('');
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
 
-  // Edit/delete transaction state
+  // Edit/delete transaction & invoice state
   const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [editTxForm, setEditTxForm] = useState({ quantity: '', rate: '', party_name: '', notes: '' });
-  const [deletingTxId, setDeletingTxId] = useState<string | null>(null);
-  const [deletingInvoiceNumber, setDeletingInvoiceNumber] = useState<string | null>(null);
+  const [confirmDeleteTxId, setConfirmDeleteTxId] = useState<string | null>(null);
+  const [confirmDeleteInvoiceNumber, setConfirmDeleteInvoiceNumber] = useState<string | null>(null);
+
+  // Edit Invoice Header state
+  const [editHeaderInvoice, setEditHeaderInvoice] = useState<any | null>(null);
+  const [editHeaderForm, setEditHeaderForm] = useState({
+    party_name: '',
+    customer_phone: '',
+    customer_address: '',
+    payment_status: 'CASH',
+  });
+  const [isSavingHeader, setIsSavingHeader] = useState(false);
+
+  // Add Item to existing Invoice state
+  const [isAddingItem, setIsAddingItem] = useState(false);
+  const [addItemForm, setAddItemForm] = useState({
+    categoryId: '',
+    quantity: '',
+    rate: '',
+    notes: '',
+  });
+  const [isAddingItemSaving, setIsAddingItemSaving] = useState(false);
 
   const showStatus = (text: string, type: 'success' | 'error') => {
     setStatusMessage({ text, type });
@@ -168,7 +190,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
   const handleSaveCategory = async () => {
     if (!formData.name.trim()) { showStatus('Category name is required', 'error'); return; }
-    if (!isOwner) { showStatus('Only owners can manage categories', 'error'); return; }
+    if (!isOwner) { showStatus('Only owners/admins can manage categories', 'error'); return; }
     setIsSavingCategory(true);
     try {
       if (editingCategory) {
@@ -214,7 +236,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   };
 
   const handleDeleteCategory = async (cat: ScrapCategory) => {
-    if (!isOwner) { showStatus('Only owners can delete categories', 'error'); return; }
+    if (!isOwner) { showStatus('Only owners/admins can delete categories', 'error'); return; }
     if (!confirm(`Delete category "${cat.name}"?`)) return;
     try {
       await window.electronAPI.dbDeleteScrapCategory(cat.scrap_category_id);
@@ -236,7 +258,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     e.preventDefault();
     if (!selectedCategory) return;
     if (!txForm.quantity || !txForm.rate) { showStatus('Quantity and Rate required', 'error'); return; }
-    if (!isOwner) { showStatus('Only owners can manage transactions', 'error'); return; }
+    if (!isOwner) { showStatus('Only owners/admins can manage transactions', 'error'); return; }
 
     const qty = Number(txForm.quantity);
     const rate = Number(txForm.rate);
@@ -420,7 +442,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         notes: editTxForm.notes,
       });
       if (res.success) {
-        showStatus('Transaction updated successfully', 'success');
+        showStatus('Line item updated successfully', 'success');
         setEditingTxId(null);
         setEditTxForm({ quantity: '', rate: '', party_name: '', notes: '' });
         if (selectedInvoiceNumber) {
@@ -428,6 +450,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           if (detail && detail.transactions) setInvoiceDetailTxs(detail.transactions);
         }
         await loadInvoices();
+        await loadData();
       } else {
         showStatus(res.error || 'Update failed', 'error');
       }
@@ -439,12 +462,12 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   };
 
   const handleDeleteTx = async (transactionId: string) => {
-    if (!isOwner) { showStatus('Only owners can delete transactions', 'error'); return; }
+    if (!isOwner) { showStatus('Only owners/admins can delete transactions', 'error'); return; }
     try {
       const res = await window.electronAPI.dbDeleteScrapTransaction(transactionId);
       if (res.success) {
-        showStatus('Transaction deleted', 'success');
-        setDeletingTxId(null);
+        showStatus('Transaction line item deleted', 'success');
+        setConfirmDeleteTxId(null);
         if (selectedInvoiceNumber) {
           const detail = await window.electronAPI.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: selectedInvoiceNumber });
           if (detail && detail.transactions) {
@@ -457,6 +480,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           }
         }
         await loadInvoices();
+        await loadData();
       } else {
         showStatus(res.error || 'Delete failed', 'error');
       }
@@ -466,16 +490,17 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   };
 
   const handleDeleteInvoice = async (invoiceNumber: string) => {
-    if (!isOwner) { showStatus('Only owners can delete invoices', 'error'); return; }
+    if (!isOwner) { showStatus('Only owners/admins can delete invoices', 'error'); return; }
     try {
       const res = await window.electronAPI.dbDeleteScrapInvoice({ tenant_id: tenantId || '', scrap_invoice_number: invoiceNumber });
       if (res.success) {
-        showStatus('Invoice deleted successfully', 'success');
-        setDeletingInvoiceNumber(null);
+        showStatus(`Scrap invoice ${invoiceNumber} deleted successfully`, 'success');
+        setConfirmDeleteInvoiceNumber(null);
         if (view === 'invoice_detail') {
           setView('invoices');
         }
         await loadInvoices();
+        await loadData();
       } else {
         showStatus(res.error || 'Delete failed', 'error');
       }
@@ -484,9 +509,112 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     }
   };
 
+  const handleOpenEditHeader = (inv: any) => {
+    setEditHeaderInvoice(inv);
+    setEditHeaderForm({
+      party_name: inv.party_name || '',
+      customer_phone: inv.customer_phone || '',
+      customer_address: inv.customer_address || '',
+      payment_status: inv.payment_status || 'CASH',
+    });
+  };
+
+  const handleSaveInvoiceHeader = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editHeaderInvoice || !window.electronAPI) return;
+    setIsSavingHeader(true);
+    try {
+      const res = await window.electronAPI.dbUpdateScrapInvoiceHeader({
+        tenant_id: tenantId || '',
+        scrap_invoice_number: editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number,
+        party_name: editHeaderForm.party_name,
+        customer_phone: editHeaderForm.customer_phone,
+        customer_address: editHeaderForm.customer_address,
+        payment_status: editHeaderForm.payment_status,
+      });
+      if (res.success) {
+        showStatus('Invoice customer info updated successfully', 'success');
+        const invNum = editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number;
+        setEditHeaderInvoice(null);
+        await loadInvoices();
+        if (view === 'invoice_detail' && selectedInvoiceNumber === invNum) {
+          await openInvoiceDetail(invNum);
+        }
+      } else {
+        showStatus(res.error || 'Failed to update invoice info', 'error');
+      }
+    } catch {
+      showStatus('Operation failed', 'error');
+    } finally {
+      setIsSavingHeader(false);
+    }
+  };
+
+  const handleAddLineItemToInvoice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedInvoiceNumber || !addItemForm.categoryId || !addItemForm.quantity || !addItemForm.rate) {
+      showStatus('Category, Quantity, and Rate are required', 'error');
+      return;
+    }
+    const cat = categories.find(c => c.scrap_category_id === addItemForm.categoryId);
+    if (!cat) {
+      showStatus('Category not found', 'error');
+      return;
+    }
+    const qty = Number(addItemForm.quantity);
+    const rate = Number(addItemForm.rate);
+    const firstTx = invoiceDetailTxs[0];
+
+    setIsAddingItemSaving(true);
+    try {
+      if (window.electronAPI) {
+        const res = await window.electronAPI.dbAddScrapTransaction({
+          transaction_id: uuidv4(),
+          tenant_id: tenantId,
+          type: 'PURCHASE',
+          scrap_category_id: addItemForm.categoryId,
+          quantity: qty,
+          rate: rate,
+          total_amount: qty * rate,
+          party_name: firstTx?.party_name || '',
+          customer_phone: firstTx?.customer_phone || '',
+          customer_address: firstTx?.customer_address || '',
+          notes: addItemForm.notes || 'Added line item',
+          scrap_invoice_number: selectedInvoiceNumber,
+          payment_status: firstTx?.payment_status || 'CASH',
+        });
+        if (res.success) {
+          showStatus(`Added ${qty} ${cat.unit} of ${cat.name} to invoice`, 'success');
+          setIsAddingItem(false);
+          setAddItemForm({ categoryId: '', quantity: '', rate: '', notes: '' });
+          await openInvoiceDetail(selectedInvoiceNumber);
+          await loadInvoices();
+          await loadData();
+        } else {
+          showStatus(res.error || 'Failed to add line item', 'error');
+        }
+      }
+    } catch {
+      showStatus('Operation failed', 'error');
+    } finally {
+      setIsAddingItemSaving(false);
+    }
+  };
+
   const filteredCategories = categories.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
+
+  const filteredInvoices = invoices.filter(inv => {
+    const q = invoiceSearch.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q)) ||
+      (inv.party_name && inv.party_name.toLowerCase().includes(q)) ||
+      (inv.customer_phone && inv.customer_phone.toLowerCase().includes(q)) ||
+      (inv.customer_address && inv.customer_address.toLowerCase().includes(q))
+    );
+  });
 
   const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
   const estimatedValue = categories.reduce((s, c) => s + Number(c.purchase_price) * Number(c.current_stock), 0);
@@ -568,7 +696,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   : view === 'selling'
                   ? 'Multi-item scrap sale'
                   : view === 'invoices'
-                  ? `${invoices.length} ${invoices.length === 1 ? 'invoice' : 'invoices'}`
+                  ? `${filteredInvoices.length} ${filteredInvoices.length === 1 ? 'invoice' : 'invoices'} · Edit and manage scrap bills`
+                  : view === 'invoice_detail'
+                  ? `${invoiceDetailTxs.length} line items in this invoice`
                   : ''}
               </p>
             </div>
@@ -581,7 +711,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
                     : 'bg-destructive/10 text-destructive'
                 )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
+                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
                   {statusMessage.text}
                 </span>
               )}
@@ -622,7 +752,16 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               )}
 
               <button
-                onClick={view === 'list' ? onClose : view === 'transaction' ? () => setView('list') : view === 'category_form' ? () => setView('list') : view === 'tx_form' ? () => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); } : view === 'selling' ? () => setView('list') : view === 'invoice_detail' ? () => { setEditingTxId(null); setDeletingTxId(null); setDeletingInvoiceNumber(null); loadInvoices(); setView('invoices'); } : view === 'invoices' ? () => { setDeletingInvoiceNumber(null); setView('list'); } : () => setView('list')}
+                onClick={
+                  view === 'list' ? onClose 
+                  : view === 'transaction' ? () => setView('list') 
+                  : view === 'category_form' ? () => setView('list') 
+                  : view === 'tx_form' ? () => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); } 
+                  : view === 'selling' ? () => setView('list') 
+                  : view === 'invoice_detail' ? () => { setEditingTxId(null); setConfirmDeleteTxId(null); setConfirmDeleteInvoiceNumber(null); loadInvoices(); setView('invoices'); } 
+                  : view === 'invoices' ? () => { setConfirmDeleteInvoiceNumber(null); setView('list'); } 
+                  : () => setView('list')
+                }
                 className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
                 title="Close"
               >
@@ -764,13 +903,13 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                             {formatCurrency(cat.selling_price)}
                           </p>
                           <span className={clsx(
-                            'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md',
-                            outOfStock
-                              ? 'bg-muted text-muted-foreground'
-                              : 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
-                          )}>
-                            {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
-                          </span>
+                             'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
+                             outOfStock
+                               ? 'bg-muted border-border text-muted-foreground'
+                               : 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                           )}>
+                             {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
+                           </span>
                         </div>
 
                         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
@@ -946,12 +1085,10 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         )}
 
         {/* ══════════════════════════════════════════
-            TRANSACTION VIEW (like Ledger)
+            TRANSACTION VIEW (Ledger)
         ══════════════════════════════════════════ */}
         {view === 'transaction' && selectedCategory && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-
-            {/* Category Banner */}
             <div
               className="shrink-0 px-5 py-4 border-b border-border"
               style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)},60%,96%) 0%, hsl(${nameToHue(selectedCategory.name)},40%,98%) 100%)` }}
@@ -966,30 +1103,21 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-                      <TrendingUp className="w-3 h-3" /> Buy: {formatCurrency(selectedCategory.purchase_price)}
+                    <span className={clsx(
+                      'inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg',
+                      realizedProfit >= 0
+                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                        : 'text-red-700 bg-red-50 border border-red-200'
+                    )}>
+                      {realizedProfit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
+                      Profit: {formatCurrency(realizedProfit)}
                     </span>
-                    <span className="flex items-center gap-1 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
-                      Sell: {formatCurrency(selectedCategory.selling_price)}
-                    </span>
-                    {totalSales > 0 && (
-                      <span className={clsx(
-                        'flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-lg',
-                        realizedProfit >= 0
-                          ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                          : 'text-red-700 bg-red-50 border border-red-200'
-                      )}>
-                        {realizedProfit >= 0 ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                        Profit: {formatCurrency(realizedProfit)}
-                      </span>
-                    )}
                   </div>
                   <p className="text-[11px] text-muted-foreground font-medium mt-1.5">
                     {transactions.length} {transactions.length === 1 ? 'transaction' : 'transactions'}
                   </p>
                 </div>
 
-                {/* Stock Pill */}
                 <div className={clsx(
                   'shrink-0 text-right px-4 py-3 rounded-2xl shadow-sm',
                   Number(selectedCategory.current_stock) > 0
@@ -1006,7 +1134,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               </div>
             </div>
 
-            {/* Transaction entries */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {transactions.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
@@ -1111,7 +1238,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   </span>
                 </div>
 
-                {/* Type selector */}
                 <div className="mb-5">
                   <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Transaction Type</label>
                   <div className="grid grid-cols-2 gap-3 max-w-sm">
@@ -1142,7 +1268,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   </div>
                 </div>
 
-                {/* Quantity + Rate */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Quantity ({selectedCategory.unit}) *</label>
@@ -1177,7 +1302,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   </div>
                 </div>
 
-                {/* Party + Notes */}
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
                     <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party / Customer</label>
@@ -1201,7 +1325,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   </div>
                 </div>
 
-                {/* Total preview */}
                 {txForm.quantity && txForm.rate && Number(txForm.quantity) > 0 && Number(txForm.rate) > 0 && (
                   <div className="pt-3 border-t border-border">
                     <div className="flex items-center justify-between">
@@ -1262,7 +1385,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         {view === 'selling' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-              {/* Section 1: Search & Select */}
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -1313,7 +1435,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                 </div>
               </section>
 
-              {/* Section 2: Selected Items */}
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between gap-2 mb-4 pb-3 border-b border-border">
                   <div className="flex items-center gap-2.5">
@@ -1402,7 +1523,6 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                 )}
               </section>
 
-              {/* Section 3: Summary & Confirm */}
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
@@ -1456,96 +1576,157 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         ══════════════════════════════════════════ */}
         {view === 'invoices' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
-                  <div className="col-span-2">Invoice No.</div>
-                  <div className="col-span-2">Customer</div>
-                  <div className="col-span-2 text-center">Date</div>
-                  <div className="col-span-1 text-center">Items</div>
-                  <div className="col-span-2 text-right">Qty</div>
-                  <div className="col-span-2 text-right">Total Amount</div>
-                  <div className="col-span-1 text-center">Action</div>
+            {/* Top Metrics Cards */}
+            <div className="shrink-0 px-5 py-3 border-b border-border bg-card/40">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-orange-500">Total Invoices</p>
+                  <p className="text-xl font-black text-foreground mt-0.5">{invoices.length}</p>
                 </div>
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400">Total Scrap Value</p>
+                  <p className="text-xl font-black text-foreground mt-0.5">
+                    {formatCurrency(invoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}
+                  </p>
+                </div>
+                <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-500">Total Items Collected</p>
+                  <p className="text-xl font-black text-foreground mt-0.5">
+                    {invoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Filter / Search Bar */}
+            <div className="shrink-0 px-5 py-3 border-b border-border bg-background flex items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search invoice number, customer name, phone..."
+                  value={invoiceSearch}
+                  onChange={e => setInvoiceSearch(e.target.value)}
+                  className={clsx(fieldCls, 'pl-10')}
+                />
+                {invoiceSearch && (
+                  <button
+                    onClick={() => setInvoiceSearch('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Invoices List */}
+            <div className="flex-1 overflow-y-auto px-5 py-4">
+              <div className="border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
+                <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
+                  <div className="col-span-3">Invoice & Customer</div>
+                  <div className="col-span-2 text-center">Date & Status</div>
+                  <div className="col-span-2 text-center">Items & Qty</div>
+                  <div className="col-span-2 text-right">Total Amount</div>
+                  <div className="col-span-3 text-center">Actions</div>
+                </div>
+
                 <div className="divide-y divide-border">
-                  {invoices.length === 0 ? (
+                  {filteredInvoices.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                       <Recycle className="w-12 h-12 mb-3 text-orange-500/30" />
-                      <p className="font-medium text-foreground">No scrap invoices found</p>
-                      <p className="text-sm mt-1">Complete a scrap purchase from billing to see it here</p>
+                      <p className="font-bold text-foreground text-base">
+                        {invoiceSearch ? 'No matching scrap invoices' : 'No scrap invoices found'}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {invoiceSearch ? `No invoices match "${invoiceSearch}"` : 'Scrap invoices from billing and purchases will appear here'}
+                      </p>
                     </div>
-                  ) : invoices.map((inv: any) => {
-                    const units = inv.units || 'Kgs';
-                    const hasMixedUnits = units.includes(',');
-                    return (
-                    <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-orange-500/30 hover:shadow-sm transition-all duration-150 group">
-                      <div className="col-span-2">
-                        <div className="flex items-center gap-2">
-                          <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
-                            <Recycle className="w-3.5 h-3.5" />
-                          </div>
-                          <span className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</span>
-                        </div>
-                      </div>
-                      <div className="col-span-2">
-                        <div className="text-xs text-muted-foreground font-semibold truncate">{inv.party_name || '-'}</div>
-                        {(inv.customer_phone || inv.customer_address) && (
-                          <div className="text-[9px] text-muted-foreground/60 truncate mt-0.5">
-                            {[inv.customer_phone, inv.customer_address].filter(Boolean).join(', ')}
-                          </div>
-                        )}
-                      </div>
-                      <div className="col-span-2 text-center text-xs text-muted-foreground font-semibold">
-                        {new Date(inv.created_at).toLocaleDateString('en-IN')}
-                      </div>
-                      <div className="col-span-1 text-center font-bold text-sm text-foreground">{inv.item_count}</div>
-                      <div className="col-span-2 text-right font-bold text-sm text-foreground">
-                        {hasMixedUnits ? (
-                          <span className="text-muted-foreground text-xs font-semibold italic">Mixed units</span>
-                        ) : (
-                          <>{Number(inv.total_qty || 0).toFixed(3)} <span className="text-muted-foreground text-xs font-semibold">{units}</span></>
-                        )}
-                      </div>
-                      <div className="col-span-2 text-right font-bold text-sm text-orange-600">{formatCurrency(inv.total_amount)}</div>
-                      <div className="col-span-1 text-center flex items-center justify-center gap-1">
-                        <button
-                          onClick={() => openInvoiceDetail(inv.invoice_number)}
-                          className="px-2 py-1.5 text-xs font-bold text-blue-500 hover:bg-blue-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                        >
-                          View
-                        </button>
-                        {isOwner && (
-                          <>
-                            {deletingInvoiceNumber === inv.invoice_number ? (
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => handleDeleteInvoice(inv.invoice_number)}
-                                  className="px-2 py-1.5 text-xs font-bold text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                                >
-                                  Yes
-                                </button>
-                                <button
-                                  onClick={() => setDeletingInvoiceNumber(null)}
-                                  className="px-2 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted rounded-lg transition-all active:scale-90 cursor-pointer"
-                                >
-                                  No
-                                </button>
+                  ) : (
+                    filteredInvoices.map((inv: any) => {
+                      const units = inv.units || 'Kgs';
+                      const hasMixedUnits = units.includes(',');
+                      return (
+                        <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center hover:bg-muted/20 transition-all duration-150 group">
+                          {/* Invoice & Customer */}
+                          <div className="col-span-3 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500 shrink-0">
+                                <Recycle className="w-4 h-4" />
                               </div>
-                            ) : (
+                              <span className="font-bold text-sm text-foreground truncate">{inv.invoice_number}</span>
+                            </div>
+                            <div className="text-xs font-semibold text-muted-foreground truncate mt-1">
+                              {inv.party_name ? `Customer: ${inv.party_name}` : 'Walk-in Customer'}
+                            </div>
+                            {(inv.customer_phone || inv.customer_address) && (
+                              <div className="text-[10px] text-muted-foreground/60 truncate">
+                                {[inv.customer_phone, inv.customer_address].filter(Boolean).join(' · ')}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Date & Status */}
+                          <div className="col-span-2 text-center">
+                            <div className="text-xs font-semibold text-foreground">
+                              {new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </div>
+                            <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                              {inv.payment_status || 'PAID'}
+                            </span>
+                          </div>
+
+                          {/* Items & Qty */}
+                          <div className="col-span-2 text-center">
+                            <span className="font-bold text-sm text-foreground">{inv.item_count} {inv.item_count === 1 ? 'item' : 'items'}</span>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              {hasMixedUnits ? (
+                                <span className="italic">Mixed units</span>
+                              ) : (
+                                <>{Number(inv.total_qty || 0).toFixed(3)} {units}</>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Total Amount */}
+                          <div className="col-span-2 text-right">
+                            <span className="text-base font-black text-orange-600 dark:text-orange-400">
+                              {formatCurrency(inv.total_amount)}
+                            </span>
+                          </div>
+
+                          {/* Actions */}
+                          <div className="col-span-3 flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => openInvoiceDetail(inv.invoice_number)}
+                              className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-blue-500/20"
+                              title="View Invoice Details & Line Items"
+                            >
+                              <FileText className="w-3.5 h-3.5" /> View
+                            </button>
+                            {isOwner && (
                               <button
-                                onClick={() => setDeletingInvoiceNumber(inv.invoice_number)}
-                                className="px-2 py-1.5 text-xs font-bold text-red-500 hover:bg-red-500/10 rounded-lg transition-all active:scale-90 cursor-pointer"
-                                title="Delete invoice"
+                                onClick={() => handleOpenEditHeader(inv)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-amber-500/20"
+                                title="Edit Customer & Payment Info"
                               >
-                                <Trash className="w-3 h-3" />
+                                <Pencil className="w-3.5 h-3.5" /> Edit
                               </button>
                             )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    );
-                  })}
+                            {isOwner && (
+                              <button
+                                onClick={() => setConfirmDeleteInvoiceNumber(inv.invoice_number)}
+                                className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-destructive bg-destructive/10 hover:bg-destructive/20 rounded-xl transition-all active:scale-95 cursor-pointer border border-destructive/20"
+                                title="Delete Invoice"
+                              >
+                                <Trash className="w-3.5 h-3.5" /> Delete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -1559,71 +1740,99 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
               {invoiceDetailTxs.length > 0 && (
-                <div className="bg-orange-500/5 border border-orange-500/20 rounded-2xl p-4 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Total Amount</p>
-                    <p className="text-2xl font-black text-orange-500 mt-1">
-                      {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + tx.total_amount, 0))}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Invoice</p>
-                      <p className="text-sm font-bold text-foreground mt-1">{selectedInvoiceNumber}</p>
-                      {invoiceDetailTxs[0]?.party_name && (
-                        <p className="text-xs font-semibold text-foreground/70 mt-0.5">{invoiceDetailTxs[0].party_name}</p>
-                      )}
-                      {(invoiceDetailTxs[0]?.customer_phone || invoiceDetailTxs[0]?.customer_address) && (
-                        <p className="text-[10px] text-muted-foreground/60 mt-0.5">
-                          {[invoiceDetailTxs[0].customer_phone, invoiceDetailTxs[0].customer_address].filter(Boolean).join(', ')}
+                <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+                  <div className="flex items-start justify-between gap-4 flex-wrap pb-4 border-b border-border">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500">
+                        <Recycle className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-lg font-black text-foreground">{selectedInvoiceNumber}</h2>
+                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            {invoiceDetailTxs[0]?.payment_status || 'PAID'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Created on {formatDateTime(invoiceDetailTxs[0]?.created_at)}
                         </p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {(() => {
-                          const allUnits = [...new Set(invoiceDetailTxs.map((tx: any) => tx.unit || 'Kgs'))];
-                          const totalQty = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.quantity), 0);
-                          if (allUnits.length === 1) return `${totalQty.toFixed(3)} ${allUnits[0]} · ${invoiceDetailTxs.length} item(s)`;
-                          return `${invoiceDetailTxs.length} item(s)`;
-                        })()}
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground uppercase font-bold tracking-wider">Total Amount</p>
+                      <p className="text-2xl font-black text-orange-600 dark:text-orange-400 mt-0.5">
+                        {formatCurrency(invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount || 0), 0))}
                       </p>
                     </div>
-                    {isOwner && deletingInvoiceNumber === selectedInvoiceNumber ? (
-                      <div className="flex items-center gap-1.5">
+                  </div>
+
+                  {/* Customer Info & Action Toolbar */}
+                  <div className="flex items-center justify-between bg-muted/30 p-4 rounded-xl border border-border flex-wrap gap-4">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer / Party Details</span>
+                      <p className="text-sm font-bold text-foreground mt-0.5">
+                        {invoiceDetailTxs[0]?.party_name || 'Walk-in Customer'}
+                      </p>
+                      {(invoiceDetailTxs[0]?.customer_phone || invoiceDetailTxs[0]?.customer_address) && (
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {[invoiceDetailTxs[0].customer_phone, invoiceDetailTxs[0].customer_address].filter(Boolean).join(' · ')}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {isOwner && (
                         <button
-                          onClick={() => handleDeleteInvoice(selectedInvoiceNumber)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-destructive text-destructive-foreground rounded-xl transition-all text-xs font-bold active:scale-95 cursor-pointer"
+                          onClick={() => handleOpenEditHeader({
+                            invoice_number: selectedInvoiceNumber,
+                            party_name: invoiceDetailTxs[0]?.party_name,
+                            customer_phone: invoiceDetailTxs[0]?.customer_phone,
+                            customer_address: invoiceDetailTxs[0]?.customer_address,
+                            payment_status: invoiceDetailTxs[0]?.payment_status,
+                          })}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 rounded-xl text-xs font-bold border border-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                          title="Edit Customer Info"
                         >
-                          <Trash className="w-3.5 h-3.5" /> Confirm
+                          <Pencil className="w-3.5 h-3.5" /> Edit Info
                         </button>
+                      )}
+
+                      {isOwner && (
                         <button
-                          onClick={() => setDeletingInvoiceNumber(null)}
-                          className="flex items-center gap-1.5 px-3 py-2 bg-muted text-muted-foreground rounded-xl transition-all text-xs font-bold hover:bg-muted/80 active:scale-95 cursor-pointer"
+                          onClick={() => setIsAddingItem(true)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl text-xs font-bold border border-primary/20 transition-all active:scale-95 cursor-pointer"
+                          title="Add line item to this invoice"
                         >
-                          Cancel
+                          <Plus className="w-3.5 h-3.5" /> Add Item
                         </button>
-                      </div>
-                    ) : isOwner && (
+                      )}
+
                       <button
-                        onClick={() => setDeletingInvoiceNumber(selectedInvoiceNumber)}
-                        className="flex items-center gap-1.5 px-3.5 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-xl transition-all text-sm font-bold border border-destructive/20 hover:border-destructive/30 active:scale-95 cursor-pointer"
-                        title="Delete entire invoice"
+                        onClick={handleReprintScrap}
+                        disabled={invoiceDetailTxs.length === 0}
+                        className="flex items-center gap-1.5 px-3 py-2 bg-blue-500/10 text-blue-600 dark:text-blue-400 hover:bg-blue-500/20 rounded-xl text-xs font-bold border border-blue-500/20 transition-all active:scale-95 cursor-pointer disabled:opacity-40"
                       >
-                        <Trash className="w-3.5 h-3.5" /> Delete
+                        <Printer className="w-3.5 h-3.5" /> Reprint
                       </button>
-                    )}
-                    <button
-                      onClick={handleReprintScrap}
-                      disabled={invoiceDetailTxs.length === 0}
-                      className="flex items-center gap-1.5 px-3.5 py-2 bg-primary/10 text-primary hover:bg-primary/20 rounded-xl transition-all text-sm font-bold border border-primary/20 hover:border-primary/30 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      <Printer className="w-3.5 h-3.5" /> Reprint
-                    </button>
+
+                      {isOwner && (
+                        <button
+                          onClick={() => setConfirmDeleteInvoiceNumber(selectedInvoiceNumber)}
+                          className="flex items-center gap-1.5 px-3 py-2 bg-destructive/10 text-destructive hover:bg-destructive/20 rounded-xl text-xs font-bold border border-destructive/20 transition-all active:scale-95 cursor-pointer"
+                          title="Delete entire invoice"
+                        >
+                          <Trash className="w-3.5 h-3.5" /> Delete Invoice
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
 
-              <div className="border border-border rounded-xl overflow-hidden">
-                <div className="grid grid-cols-12 gap-2 px-4 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
+              {/* Items Table */}
+              <div className="border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
+                <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-3">Category</div>
                   <div className="col-span-2 text-right">Qty</div>
                   <div className="col-span-2 text-right">Rate</div>
@@ -1633,15 +1842,16 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                 </div>
                 <div className="divide-y divide-border max-h-[500px] overflow-y-auto">
                   {invoiceDetailTxs.length === 0 ? (
-                    <div className="py-8 text-center text-muted-foreground text-sm">No transactions found</div>
+                    <div className="py-12 text-center text-muted-foreground text-sm">No transactions found</div>
                   ) : invoiceDetailTxs.map((tx: any) => (
                     editingTxId === tx.transaction_id ? (
-                      <div key={tx.transaction_id} className="px-4 py-3 bg-card border-b border-border/40">
+                      <div key={tx.transaction_id} className="px-4 py-3.5 bg-card border-b border-border/40">
                         <div className="flex items-center gap-3 flex-wrap">
                           <div className="flex-1 min-w-0">
-                            <p className="text-xs font-bold text-muted-foreground mb-1">{tx.scrap_category_name || 'Unknown'}</p>
-                            <div className="flex items-center gap-2">
-                              <div className="w-24">
+                            <p className="text-xs font-bold text-foreground mb-1">Editing: {tx.scrap_category_name || 'Unknown'}</p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="w-28">
+                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Quantity ({tx.unit || 'Kgs'})</label>
                                 <input
                                   type="number"
                                   step="0.001"
@@ -1651,8 +1861,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                                   className="w-full bg-background border border-border rounded-lg px-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                               </div>
-                              <div className="relative w-24">
-                                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs pointer-events-none">₹</span>
+                              <div className="relative w-28">
+                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Rate (₹)</label>
+                                <span className="absolute left-2 top-[22px] text-muted-foreground text-xs pointer-events-none">₹</span>
                                 <input
                                   type="number"
                                   step="0.01"
@@ -1662,33 +1873,37 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                                   className="w-full bg-background border border-border rounded-lg pl-5 pr-2 py-1 text-sm font-bold text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                                 />
                               </div>
-                              <div className="w-32">
+                              <div className="w-36">
+                                <label className="block text-[10px] text-muted-foreground font-bold mb-0.5">Party/Notes</label>
                                 <input
                                   type="text"
-                                  placeholder="Party"
+                                  placeholder="Party name"
                                   value={editTxForm.party_name}
                                   onChange={e => setEditTxForm(f => ({ ...f, party_name: e.target.value }))}
                                   className="w-full bg-background border border-border rounded-lg px-2 py-1 text-xs text-foreground focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none"
                                 />
                               </div>
-                              <div className="text-sm font-black text-primary min-w-[60px]">
-                                ₹{(Number(editTxForm.quantity) * Number(editTxForm.rate)).toFixed(2)}
+                              <div className="pt-3">
+                                <span className="text-xs text-muted-foreground font-semibold">Total: </span>
+                                <span className="text-sm font-black text-orange-500">
+                                  ₹{(Number(editTxForm.quantity || 0) * Number(editTxForm.rate || 0)).toFixed(2)}
+                                </span>
                               </div>
                             </div>
                           </div>
-                          <div className="flex items-center gap-1">
+                          <div className="flex items-center gap-1.5 mt-2">
                             <button
                               onClick={handleSaveEditTx}
                               disabled={isSavingTx}
-                              className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50"
+                              className="px-3 py-1.5 bg-emerald-500 text-white rounded-lg text-xs font-bold hover:bg-emerald-600 transition-all active:scale-95 cursor-pointer disabled:opacity-50 flex items-center gap-1"
                             >
-                              {isSavingTx ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                              {isSavingTx ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} Save
                             </button>
                             <button
                               onClick={handleCancelEditTx}
                               className="px-3 py-1.5 bg-muted text-muted-foreground rounded-lg text-xs font-bold hover:bg-muted/80 transition-all active:scale-95 cursor-pointer"
                             >
-                              <X className="w-3 h-3" />
+                              Cancel
                             </button>
                           </div>
                         </div>
@@ -1700,45 +1915,24 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                           {Number(tx.quantity).toFixed(3)} <span className="text-muted-foreground text-xs">{tx.unit || 'Kgs'}</span>
                         </div>
                         <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
-                        <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
+                        <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
                         <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
                         {isOwner && (
-                          <div className="col-span-2 text-center flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {deletingTxId === tx.transaction_id ? (
-                              <div className="flex items-center gap-1">
-                                <button
-                                  onClick={() => handleDeleteTx(tx.transaction_id)}
-                                  className="p-1 rounded text-emerald-500 hover:bg-emerald-500/10 transition-all cursor-pointer"
-                                  title="Confirm delete"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => setDeletingTxId(null)}
-                                  className="p-1 rounded text-muted-foreground hover:bg-muted transition-all cursor-pointer"
-                                  title="Cancel"
-                                >
-                                  <X className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <button
-                                  onClick={() => handleStartEditTx(tx)}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
-                                  title="Edit"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => setDeletingTxId(tx.transaction_id)}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
-                                  title="Delete"
-                                >
-                                  <Trash className="w-3.5 h-3.5" />
-                                </button>
-                              </>
-                            )}
+                          <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => handleStartEditTx(tx)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
+                              title="Edit item"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteTxId(tx.transaction_id)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
+                              title="Delete item"
+                            >
+                              <Trash className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1750,7 +1944,288 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
           </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════
+          MODALS
+      ══════════════════════════════════════════ */}
+
+      {/* 1. Delete Invoice Confirmation Modal */}
+      {confirmDeleteInvoiceNumber && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-destructive">
+              <div className="p-2.5 rounded-xl bg-destructive/10">
+                <Trash className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Scrap Invoice</h3>
+                <p className="text-xs text-muted-foreground">Invoice #{confirmDeleteInvoiceNumber}</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Are you sure you want to delete this scrap invoice? This action will permanently remove the invoice and restore inventory stock for all included scrap categories.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                onClick={() => setConfirmDeleteInvoiceNumber(null)}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteInvoice(confirmDeleteInvoiceNumber)}
+                className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Delete Invoice
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Delete Single Line Item Confirmation Modal */}
+      {confirmDeleteTxId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center gap-3 text-destructive">
+              <div className="p-2.5 rounded-xl bg-destructive/10">
+                <Trash className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-foreground">Delete Scrap Item</h3>
+                <p className="text-xs text-muted-foreground">Line item from invoice</p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              Delete this line item? Stock will be restored to the category, and line total will be subtracted from this invoice.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                onClick={() => setConfirmDeleteTxId(null)}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDeleteTx(confirmDeleteTxId)}
+                className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer"
+              >
+                Delete Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Edit Invoice Header Modal */}
+      {editHeaderInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <form onSubmit={handleSaveInvoiceHeader} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <Pencil className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Edit Scrap Invoice Header</h3>
+                  <p className="text-xs text-muted-foreground">{editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditHeaderInvoice(null)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer / Party Name</label>
+                <input
+                  type="text"
+                  placeholder="Customer Name"
+                  value={editHeaderForm.party_name}
+                  onChange={e => setEditHeaderForm(f => ({ ...f, party_name: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer Phone</label>
+                <input
+                  type="text"
+                  placeholder="Phone number"
+                  value={editHeaderForm.customer_phone}
+                  onChange={e => setEditHeaderForm(f => ({ ...f, customer_phone: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Customer Address</label>
+                <input
+                  type="text"
+                  placeholder="Address"
+                  value={editHeaderForm.customer_address}
+                  onChange={e => setEditHeaderForm(f => ({ ...f, customer_address: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Payment Status</label>
+                <Select
+                  value={editHeaderForm.payment_status}
+                  onChange={v => setEditHeaderForm(f => ({ ...f, payment_status: v }))}
+                  options={[
+                    { value: 'CASH', label: 'CASH' },
+                    { value: 'UPI', label: 'UPI' },
+                    { value: 'CARD', label: 'CARD' },
+                    { value: 'CREDIT', label: 'CREDIT' },
+                    { value: 'PAID', label: 'PAID' },
+                  ]}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setEditHeaderInvoice(null)}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isSavingHeader}
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
+              >
+                {isSavingHeader ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* 4. Add Line Item to Invoice Modal */}
+      {isAddingItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <form onSubmit={handleAddLineItemToInvoice} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <Plus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Add Item to Invoice</h3>
+                  <p className="text-xs text-muted-foreground">Invoice #{selectedInvoiceNumber}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingItem(false)}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Select Scrap Category *</label>
+                <Select
+                  value={addItemForm.categoryId}
+                  onChange={v => {
+                    const selected = categories.find(c => c.scrap_category_id === v);
+                    setAddItemForm(f => ({
+                      ...f,
+                      categoryId: v,
+                      rate: selected ? String(selected.purchase_price || '') : f.rate,
+                    }));
+                  }}
+                  options={[
+                    { value: '', label: '-- Select Category --' },
+                    ...categories.map(c => ({ value: c.scrap_category_id, label: `${c.name} (${c.unit}) - ₹${c.purchase_price}/${c.unit}` })),
+                  ]}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Quantity *</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.001"
+                    min="0.001"
+                    placeholder="0.000"
+                    value={addItemForm.quantity}
+                    onChange={e => setAddItemForm(f => ({ ...f, quantity: e.target.value }))}
+                    className={fieldCls}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Rate (₹) *</label>
+                  <input
+                    required
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="0.00"
+                    value={addItemForm.rate}
+                    onChange={e => setAddItemForm(f => ({ ...f, rate: e.target.value }))}
+                    className={fieldCls}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Notes</label>
+                <input
+                  type="text"
+                  placeholder="Item notes (optional)"
+                  value={addItemForm.notes}
+                  onChange={e => setAddItemForm(f => ({ ...f, notes: e.target.value }))}
+                  className={fieldCls}
+                />
+              </div>
+
+              {addItemForm.quantity && addItemForm.rate && Number(addItemForm.quantity) > 0 && Number(addItemForm.rate) > 0 && (
+                <div className="pt-2 flex items-center justify-between text-sm border-t border-border font-bold">
+                  <span className="text-muted-foreground">Line Total:</span>
+                  <span className="text-orange-500 text-base">₹{(Number(addItemForm.quantity) * Number(addItemForm.rate)).toFixed(2)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                type="button"
+                onClick={() => setIsAddingItem(false)}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={isAddingItemSaving}
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
+              >
+                {isAddingItemSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Add Item
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   );
 }
-

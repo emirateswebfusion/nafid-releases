@@ -2729,6 +2729,21 @@ ipcMain.handle('db:updateScrapInvoicePaymentStatus', (event, { tenant_id, scrap_
   }
 });
 
+ipcMain.handle('db:updateScrapInvoiceHeader', (event, { tenant_id, scrap_invoice_number, party_name, customer_phone, customer_address, payment_status }: { tenant_id: string; scrap_invoice_number: string; party_name?: string; customer_phone?: string; customer_address?: string; payment_status?: string }) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE scrap_transactions 
+      SET party_name = ?, customer_phone = ?, customer_address = ?, payment_status = COALESCE(?, payment_status), updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ? AND scrap_invoice_number = ?
+    `).run(party_name ?? null, customer_phone ?? null, customer_address ?? null, payment_status ?? null, tenant_id, scrap_invoice_number);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:updateScrapInvoiceHeader]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
   try {
     const db = getDb();
