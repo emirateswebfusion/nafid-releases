@@ -1874,18 +1874,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
 
           {/* Footer */}
           <div className="border-t border-border/50 bg-background">
-            {/* Status alerts */}
-            <div className="px-4 pt-2">
-              {statusMessage && (
-                <div className={clsx(
-                  "px-3 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
-                  statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                  <span className="flex-1">{statusMessage.text}</span>
-                </div>
-              )}
-            </div>
+            
 
             {/* Action row */}
             <div className="flex items-center justify-between px-4 py-3">
@@ -2034,6 +2023,25 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           </div>
         </Modal>
       )}
+
+      {/* ─── FLOATING TOASTS ─── */}
+      <div className="fixed bottom-4 left-4 z-50 flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
+        {statusMessage && (
+          <div className={clsx(
+            "px-5 py-3 border rounded-xl flex items-center gap-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto",
+            statusMessage.type === 'success'
+              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
+              : "bg-destructive/10 border-destructive/20 text-destructive"
+          )}>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0" />
+            )}
+            <span className="flex-1">{statusMessage.text}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

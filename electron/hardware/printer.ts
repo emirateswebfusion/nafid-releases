@@ -176,6 +176,10 @@ export function initPrinter() {
     const config = getPrinterConfig(tenant_id, 'barcode');
     const codeType = getLabelCodeType(tenant_id);
     try {
+      if (config.type === 'none' || !config.type) {
+        throw new Error('No barcode printer configured in settings');
+      }
+
       // Basic ESC/POS Barcode Command (CODE128)
       const barcodeData = Buffer.from(barcode, 'ascii');
       const gsBarcode = Buffer.from([
@@ -197,7 +201,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Barcode Print Error:', error);
-      return { success: false, error: 'Print failed' };
+      return { success: false, error: error.message || 'Print failed' };
     }
   });
 
@@ -206,6 +210,10 @@ export function initPrinter() {
     const config = getPrinterConfig(tenant_id, 'barcode');
     const codeType = getLabelCodeType(tenant_id);
     try {
+      if (config.type === 'none' || !config.type) {
+        throw new Error('No barcode printer configured in settings');
+      }
+
       if (config.type === 'network') {
         const buffers = items.flatMap(item => {
           const barcodeData = Buffer.from(item.barcode, 'ascii');
@@ -225,7 +233,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Bulk Barcode Print Error:', error);
-      return { success: false, error: 'Print failed' };
+      return { success: false, error: error.message || 'Print failed' };
     }
   });
 
