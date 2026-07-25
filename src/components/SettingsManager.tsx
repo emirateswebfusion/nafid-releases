@@ -193,7 +193,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [printWidth, setPrintWidth] = useState<number>(58);
-  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill'>('standard');
+  const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
@@ -1184,7 +1184,7 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
                           { id: 'dot', name: 'Dot', color: 'from-cyan-500/10 to-cyan-500/5' },
                           { id: 'slim', name: 'Slim', color: 'from-gray-500/10 to-gray-500/5' },
                           { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' },
-                          { id: 'bill', name: 'Bill', color: 'from-teal-500/10 to-teal-500/5' }
+                          { id: 'boxed', name: 'Boxed', color: 'from-teal-500/10 to-teal-500/5' }
                         ].map((style) => {
                           const isActive = thermalStyle === style.id;
                           return (

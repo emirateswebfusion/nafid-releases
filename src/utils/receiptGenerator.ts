@@ -145,7 +145,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
   }
 }
 
-export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill' = 'standard'): string {
+export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed' = 'standard'): string {
   if (charsPerLine == null) {
     charsPerLine = widthCm >= 7.5 ? 36 : 32;
   }
@@ -1250,7 +1250,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
   // ══════════════════════════════════════════════════════════════════════════════
   //  BILL — Boxed receipt matching reference: strict alignment, columnar table
   // ══════════════════════════════════════════════════════════════════════════════
-  else if (style === 'bill') {
+  else if (style === 'boxed') {
     const INNER = charsPerLine - 2; // usable width inside │ ... │
 
     // ── Helpers ──────────────────────────────────────────────────────────────

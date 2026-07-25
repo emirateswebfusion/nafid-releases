@@ -135,7 +135,7 @@ interface PaperPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   format: 'thermal' | 'a4';
-  thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'bill';
+  thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
   a4Style: 'standard' | 'modern' | 'classic';
   paperWidth: number;
   showProductOffers: boolean;
@@ -313,7 +313,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                           fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
                           color: '#000',
                           fontWeight: 700,
-                          lineHeight: thermalStyle === 'bill' ? 1.05 * row.lhMultiplier : 1.3,
+                          lineHeight: thermalStyle === 'boxed' ? 1.05 * row.lhMultiplier : 1.3,
                           textAlign: 'left',
                         }}
                       >
@@ -358,7 +358,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                         fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
                         color: '#000',
                         fontWeight: 700,
-                        lineHeight: thermalStyle === 'bill' ? 1.05 : 1.3,
+                        lineHeight: thermalStyle === 'boxed' ? 1.05 : 1.3,
                         textAlign: 'left',
                       }}
                     >

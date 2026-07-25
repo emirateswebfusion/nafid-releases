@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
-  BookOpen, IndianRupee, Percent, TrendingUp,
+  BookOpen, IndianRupee, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut, Undo2
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut, Undo2, Percent
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -35,6 +35,16 @@ const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> 
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
 };
+
+const TAX_RATES = [
+  { value: '', label: 'All GST %' },
+  { value: '0', label: '0%' },
+  { value: '3', label: '3%' },
+  { value: '5', label: '5%' },
+  { value: '12', label: '12%' },
+  { value: '18', label: '18%' },
+  { value: '28', label: '28%' },
+];
 
 function formatCurrency(amount: number): string {
   return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -227,6 +237,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  const [taxPercentageFilter, setTaxPercentageFilter] = useState('');
   const [reprintSuccess, setReprintSuccess] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [collectPaymentOpen, setCollectPaymentOpen] = useState(false);
@@ -524,7 +535,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setExportStatusMsg('Fetching all matching records…');
     try {
       const { userId, role, tenantId } = useAuthStore.getState();
-      // Fetch ALL records matching current filters (no pagination limit)
       const data = await window.electronAPI.dbGetInvoices({
         user_id: userId, tenant_id: tenantId, role,
         limit: 99999, offset: 0,
@@ -541,18 +551,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         return;
       }
 
-      const getTypeLabel = (inv: any) => {
-        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
-        if (inv.invoice_type === 'GST') return 'B2C';
-        return 'Bill of Supply';
-      };
-
-      const headers = [
-        'Invoice No', 'Date', 'Time', 'Type', 'Customer Name', 'Customer Phone',
-        'Customer GSTIN', 'Payment Method', 'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)',
-        'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller'
-      ];
-
       const escape = (val: any) => {
         const str = val == null ? '' : String(val);
         return str.includes(',') || str.includes('"') || str.includes('\n')
@@ -560,37 +558,140 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           : str;
       };
 
-      const rows = data.map((inv: any) => {
-        const { date, time } = formatDate(inv.created_at);
-        return [
-          escape(inv.invoice_number),
-          escape(date),
-          escape(time),
-          escape(getTypeLabel(inv)),
-          escape(inv.customer_name || ''),
-          escape(inv.customer_phone || ''),
-          escape(inv.customer_gstin || ''),
-          escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || ''),
-          escape((inv.subtotal || 0).toFixed(2)),
-          escape((inv.tax_total || 0).toFixed(2)),
-          escape((inv.discount_total || 0).toFixed(2)),
-          escape((inv.grand_total || 0).toFixed(2)),
-          escape((inv.received_amount || 0).toFixed(2)),
-          escape((inv.balance_amount || 0).toFixed(2)),
-          escape(inv.biller_name || ''),
-        ];
-      });
+      const getTypeLabel = (inv: any) => {
+        if (inv.invoice_type === 'GST' && inv.customer_gstin) return 'B2B';
+        if (inv.invoice_type === 'GST') return 'B2C';
+        return 'Bill of Supply';
+      };
 
-      // Build filename from active filters
+      let csvContent: string;
+      let filename: string;
+      let exportedCount = 0;
+
       const parts: string[] = ['sales'];
       if (invoiceTypeFilter) parts.push(invoiceTypeFilter.replace('_', '-').toLowerCase());
       if (paymentFilter) parts.push(paymentFilter.toLowerCase());
+      if (taxPercentageFilter) parts.push(`${taxPercentageFilter}pct`);
       if (filterDate) parts.push(filterDate);
       if (filterDateEnd && filterDateEnd !== filterDate) parts.push(`to-${filterDateEnd}`);
       parts.push(new Date().toLocaleDateString('en-CA'));
-      const filename = parts.join('_') + '.csv';
+      filename = parts.join('_') + '.csv';
 
-      const csvContent = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
+      if (taxPercentageFilter) {
+        // Item-level CSV filtered by tax percentage
+        const targetRate = Number(taxPercentageFilter);
+        const itemHeaders = [
+          'Invoice No.', 'Invoice Date', 'Tax Type', 'Customer Name', 'State',
+          'GSTIN/UID', 'Product Name', 'HSN Code', 'Sales Rate', 'Qty.', 'UOM',
+          'Discount %', 'Discount Amt', 'Taxable Amt', 'Total GST %', 'Total GST Amt',
+          'CGST %', 'CGST', 'SGST %', 'SGST/UTGST', 'IGST %', 'IGST',
+          'CESS %', 'CESS', 'Total Amount'
+        ];
+        const itemRows: string[][] = [];
+        let totalTaxable = 0;
+        let totalGstAmt = 0;
+
+        for (const inv of data) {
+          const invoiceDate = new Date(inv.created_at).toLocaleDateString('en-IN', {
+            day: '2-digit', month: '2-digit', year: 'numeric'
+          }) + ' ' + new Date(inv.created_at).toLocaleTimeString('en-IN', {
+            hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+          });
+          const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+          if (!Array.isArray(items)) continue;
+
+          for (const item of items) {
+            const taxableAmt = Number(item.total) || 0;
+            const gstAmt = Number(item.tax_amount) || 0;
+            const effectiveRate = taxableAmt > 0 ? Math.round((gstAmt / taxableAmt) * 100) : 0;
+            if (effectiveRate !== targetRate) continue;
+
+            const cgstPct = effectiveRate / 2;
+            const sgstPct = effectiveRate / 2;
+            const cgstAmt = gstAmt / 2;
+            const sgstAmt = gstAmt / 2;
+            const totalAmt = taxableAmt + gstAmt;
+
+            totalTaxable += taxableAmt;
+            totalGstAmt += gstAmt;
+
+            itemRows.push([
+              escape(inv.invoice_number),
+              escape(invoiceDate),
+              escape(inv.invoice_type === 'GST' ? 'GST' : 'BILL_OF_SUPPLY'),
+              escape(inv.customer_name || 'Cash'),
+              escape(inv.customer_state || ''),
+              escape(inv.customer_gstin || ''),
+              escape(item.name || ''),
+              escape(''),
+              escape(Number(item.unit_price || 0).toFixed(2)),
+              escape(Number(item.quantity || 0).toFixed(3)),
+              escape('PAC'),
+              escape('0.0000'),
+              escape('0.00'),
+              escape(taxableAmt.toFixed(2)),
+              escape(effectiveRate.toFixed(2)),
+              escape(gstAmt.toFixed(2)),
+              escape(cgstPct.toFixed(2)),
+              escape(cgstAmt.toFixed(2)),
+              escape(sgstPct.toFixed(2)),
+              escape(sgstAmt.toFixed(2)),
+              escape('0.00'),
+              escape('0.00'),
+              escape('0.00'),
+              escape('0.00'),
+              escape(totalAmt.toFixed(2)),
+            ]);
+          }
+        }
+
+        if (itemRows.length > 0) {
+          itemRows.push([
+            escape(''), escape(''), escape(''), escape(''), escape(''),
+            escape(''), escape(''), escape(''), escape(''), escape(''),
+            escape(''), escape(''), escape(''), escape('TOTAL'),
+            escape(''), escape(totalGstAmt.toFixed(2)),
+            escape(''), escape(''), escape(''), escape(''),
+            escape(''), escape(''), escape(''), escape(''),
+            escape(''),
+          ]);
+        }
+
+        csvContent = [itemHeaders.join(','), ...itemRows.map(r => r.join(','))].join('\n');
+        exportedCount = itemRows.length;
+      } else {
+        // Invoice-level CSV (existing behavior)
+        const headers = [
+          'Invoice No', 'Date', 'Time', 'Type', 'Customer Name', 'Customer Phone',
+          'Customer GSTIN', 'Payment Method', 'Subtotal (₹)', 'Tax (₹)', 'Discount (₹)',
+          'Grand Total (₹)', 'Received (₹)', 'Balance (₹)', 'Biller'
+        ];
+
+        const rows = data.map((inv: any) => {
+          const { date, time } = formatDate(inv.created_at);
+          return [
+            escape(inv.invoice_number),
+            escape(date),
+            escape(time),
+            escape(getTypeLabel(inv)),
+            escape(inv.customer_name || ''),
+            escape(inv.customer_phone || ''),
+            escape(inv.customer_gstin || ''),
+            escape(PAYMENT_LABELS[inv.payment_method] || inv.payment_method || ''),
+            escape((inv.subtotal || 0).toFixed(2)),
+            escape((inv.tax_total || 0).toFixed(2)),
+            escape((inv.discount_total || 0).toFixed(2)),
+            escape((inv.grand_total || 0).toFixed(2)),
+            escape((inv.received_amount || 0).toFixed(2)),
+            escape((inv.balance_amount || 0).toFixed(2)),
+            escape(inv.biller_name || ''),
+          ];
+        });
+
+        csvContent = [headers.join(','), ...rows.map((r: string[]) => r.join(','))].join('\n');
+        exportedCount = data.length;
+      }
+
       const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -600,7 +701,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      setExportStatusMsg(`✓ Exported ${data.length} invoice${data.length !== 1 ? 's' : ''}`);
+      setExportStatusMsg(`✓ Exported ${exportedCount} record${exportedCount !== 1 ? 's' : ''}`);
       setTimeout(() => setExportStatusMsg(null), 3000);
     } catch (err) {
       console.error('Export failed', err);
@@ -864,6 +965,22 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   />
                 );
               })()}
+              {invoiceTypeFilter.startsWith('GST') && (
+                <Select
+                  value={taxPercentageFilter}
+                  onChange={setTaxPercentageFilter}
+                  options={TAX_RATES}
+                  size="xs"
+                  className="w-28"
+                  triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
+                  renderOption={(opt) => (
+                    <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <Percent className="w-3 h-3 text-muted-foreground" />
+                      {opt.label}
+                    </span>
+                  )}
+                />
+              )}
             </div>
             <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
               {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
