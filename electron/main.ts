@@ -558,8 +558,8 @@ ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tena
     const product_id = crypto.randomUUID();
     db.prepare(`
       INSERT INTO products (product_id, tenant_id, name, sku_barcode, base_price, tax_rate_percent, uom, current_stock, is_service_item, billing_type, pricing_mode, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, 'Service Charge', ?, 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(product_id, tenant_id, `SVC-${tenant_id.substring(0, 4).toUpperCase()}-001`);
+      VALUES (?, ?, 'Service Charge', '99', 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(product_id, tenant_id);
     return { success: true, product_id };
   } catch (error: any) {
     console.error('[db:ensureServiceItem]', error);
