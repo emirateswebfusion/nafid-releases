@@ -260,13 +260,24 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
       ? (item.grade_rate || 0) 
       : item.base_price;
 
-    let effectiveRate = rawRate;
-    if (item.offer_price !== null && item.offer_price !== undefined) {
+    const isScrap = !!item.isScrap;
+
+    const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+      : item.catalog_discount_flat != null ? (isScrap ? rawRate + Number(item.catalog_discount_flat) : rawRate - Number(item.catalog_discount_flat))
+      : item.catalog_discount_percent != null ? (isScrap ? rawRate * (1 + Number(item.catalog_discount_percent) / 100) : rawRate * (1 - Number(item.catalog_discount_percent) / 100))
+      : rawRate;
+
+    const isAdhocOffer = item.offer_price != null && (item.catalog_offer_price == null || item.offer_price !== item.catalog_offer_price);
+    const isAdhocDiscFlat = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+    const isAdhocDiscPct = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+
+    let effectiveRate = catalogPrice;
+    if (isAdhocOffer) {
       effectiveRate = Number(item.offer_price);
-    } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-      effectiveRate = item.isScrap ? rawRate + Number(item.discount_flat) : rawRate - Number(item.discount_flat);
-    } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-      effectiveRate = item.isScrap ? rawRate * (1 + Number(item.discount_percent) / 100) : rawRate * (1 - Number(item.discount_percent) / 100);
+    } else if (isAdhocDiscFlat) {
+      effectiveRate = item.isScrap ? catalogPrice + Number(item.discount_flat) : catalogPrice - Number(item.discount_flat);
+    } else if (isAdhocDiscPct) {
+      effectiveRate = item.isScrap ? catalogPrice * (1 + Number(item.discount_percent) / 100) : catalogPrice * (1 - Number(item.discount_percent) / 100);
     }
     effectiveRate = Math.max(effectiveRate, 0);
 

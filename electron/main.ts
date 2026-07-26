@@ -2191,7 +2191,11 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
     const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', key);
     if (row) {
       try {
-        return JSON.parse(row.value);
+        const parsed = JSON.parse(row.value);
+        if (parsed && typeof parsed === 'object' && (parsed.error === 'Operation failed' || parsed.success === false)) {
+          return null;
+        }
+        return parsed;
       } catch {
         // Value is a raw (non-JSON) string — return it as-is instead of {}
         // so text fields don't display "[object Object]" in the UI

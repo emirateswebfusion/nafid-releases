@@ -129,13 +129,20 @@ export function BillingPage() {
     const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
     const qty = Number(item.quantity) || 0;
     const rawTotal = rate * qty;
-    let effectivePrice = rate;
-    if (item.offer_price) {
+    const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+      : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+      : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+      : rate;
+    const isAdhocOffer = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+    const isAdhocDiscFlat = item.discount_flat != null && item.discount_flat !== item.catalog_discount_flat;
+    const isAdhocDiscPct = item.discount_percent != null && item.discount_percent !== item.catalog_discount_percent;
+    let effectivePrice = catalogPrice;
+    if (isAdhocOffer) {
       effectivePrice = Number(item.offer_price);
-    } else if (item.discount_flat) {
-      effectivePrice = rate - Number(item.discount_flat);
-    } else if (item.discount_percent) {
-      effectivePrice = rate * (1 - Number(item.discount_percent) / 100);
+    } else if (isAdhocDiscFlat) {
+      effectivePrice = catalogPrice - Number(item.discount_flat);
+    } else if (isAdhocDiscPct) {
+      effectivePrice = catalogPrice * (1 - Number(item.discount_percent) / 100);
     }
     effectivePrice = Math.max(effectivePrice, 0);
     const total = effectivePrice * qty;
@@ -443,16 +450,16 @@ export function BillingPage() {
     if (!window.electronAPI) return;
     window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
-      if (v) setShopGstin(v);
+      setShopGstin(typeof v === 'string' ? v : '');
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
-      if (v) setShopAddress(v);
+      setShopAddress(typeof v === 'string' ? v : '');
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
-      if (v) setShopPhone(v);
+      setShopPhone(typeof v === 'string' ? v : '');
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
-      if (v) setUpiId(v);
+      setUpiId(typeof v === 'string' ? v : '');
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
@@ -1561,7 +1568,7 @@ export function BillingPage() {
 
         try {
           const printRes = await window.electronAPI.printA4Html(tid, fullHtml);
-          if (!printRes.success && printRes.useDefaultDialog) {
+          if (!printRes.success) {
             const pw = window.open('', '_blank');
             if (pw) {
               pw.document.write(fullHtml);
@@ -1659,13 +1666,20 @@ export function BillingPage() {
         if (editingInvoiceNumber) {
           const scrapItemsForUpdate = items.map(item => {
             const rawRate = item.base_price;
-            let effectiveRate = rawRate;
-            if (item.offer_price !== null && item.offer_price !== undefined) {
+            const catalogPriceScrap1 = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
+              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
+              : rawRate;
+            const isAdhocOfferS1 = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+            const isAdhocDiscFlatS1 = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+            const isAdhocDiscPctS1 = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+            let effectiveRate = catalogPriceScrap1;
+            if (isAdhocOfferS1) {
               effectiveRate = Number(item.offer_price);
-            } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-              effectiveRate = rawRate + Number(item.discount_flat);
-            } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-              effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+            } else if (isAdhocDiscFlatS1) {
+              effectiveRate = catalogPriceScrap1 + Number(item.discount_flat);
+            } else if (isAdhocDiscPctS1) {
+              effectiveRate = catalogPriceScrap1 * (1 + Number(item.discount_percent) / 100);
             }
             return {
               scrap_category_id: item.scrap_category_id || item.product_id,
@@ -1699,13 +1713,20 @@ export function BillingPage() {
 
           for (const item of items) {
             const rawRate = item.base_price;
-            let effectiveRate = rawRate;
-            if (item.offer_price !== null && item.offer_price !== undefined) {
+            const catalogPriceScrap2 = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
+              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
+              : rawRate;
+            const isAdhocOfferS2 = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+            const isAdhocDiscFlatS2 = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+            const isAdhocDiscPctS2 = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+            let effectiveRate = catalogPriceScrap2;
+            if (isAdhocOfferS2) {
               effectiveRate = Number(item.offer_price);
-            } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-              effectiveRate = rawRate + Number(item.discount_flat);
-            } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-              effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+            } else if (isAdhocDiscFlatS2) {
+              effectiveRate = catalogPriceScrap2 + Number(item.discount_flat);
+            } else if (isAdhocDiscPctS2) {
+              effectiveRate = catalogPriceScrap2 * (1 + Number(item.discount_percent) / 100);
             }
             effectiveRate = Math.max(effectiveRate, 0);
             const qty = Number(item.quantity) || 0;
@@ -1745,13 +1766,20 @@ export function BillingPage() {
           const scrapGrouped = items.reduce((acc, item) => {
             const key = item.scrap_category_id || item.product_id;
             const rawRate = item.base_price;
-            let effectiveRate = rawRate;
-            if (item.offer_price !== null && item.offer_price !== undefined) {
+            const catalogPriceScrapGrp = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+              : item.catalog_discount_flat != null ? rawRate + Number(item.catalog_discount_flat)
+              : item.catalog_discount_percent != null ? rawRate * (1 + Number(item.catalog_discount_percent) / 100)
+              : rawRate;
+            const isAdhocOfferSG = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+            const isAdhocDiscFlatSG = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+            const isAdhocDiscPctSG = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+            let effectiveRate = catalogPriceScrapGrp;
+            if (isAdhocOfferSG) {
               effectiveRate = Number(item.offer_price);
-            } else if (item.discount_flat !== null && item.discount_flat !== undefined) {
-              effectiveRate = rawRate + Number(item.discount_flat);
-            } else if (item.discount_percent !== null && item.discount_percent !== undefined) {
-              effectiveRate = rawRate * (1 + Number(item.discount_percent) / 100);
+            } else if (isAdhocDiscFlatSG) {
+              effectiveRate = catalogPriceScrapGrp + Number(item.discount_flat);
+            } else if (isAdhocDiscPctSG) {
+              effectiveRate = catalogPriceScrapGrp * (1 + Number(item.discount_percent) / 100);
             }
             effectiveRate = Math.max(effectiveRate, 0);
             const qty = Number(item.quantity) || 0;
@@ -1886,14 +1914,20 @@ export function BillingPage() {
       const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
 
-      // Apply per-item discount to get effective rate
-      let effectiveRate = rate;
-      if (item.offer_price) {
+      const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+        : rate;
+      const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+      const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+      const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+      let effectiveRate = catalogPriceChk;
+      if (isAdhocOfferC) {
         effectiveRate = Number(item.offer_price);
-      } else if (item.discount_flat) {
-        effectiveRate = rate - Number(item.discount_flat);
-      } else if (item.discount_percent) {
-        effectiveRate = rate * (1 - Number(item.discount_percent) / 100);
+      } else if (isAdhocDiscFlatC) {
+        effectiveRate = catalogPriceChk - Number(item.discount_flat);
+      } else if (isAdhocDiscPctC) {
+        effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
       }
       effectiveRate = Math.max(effectiveRate, 0);
 
@@ -1916,27 +1950,34 @@ export function BillingPage() {
 
       const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
-      let effectiveRate = rate;
-      if (item.offer_price) {
+      const catalogPriceRec = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+        : rate;
+      const isAdhocOfferRec = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+      const isAdhocDiscFlatRec = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+      const isAdhocDiscPctRec = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+      let effectiveRate = catalogPriceRec;
+      if (isAdhocOfferRec) {
         effectiveRate = Number(item.offer_price);
-      } else if (item.discount_flat) {
-        effectiveRate = rate - Number(item.discount_flat);
-      } else if (item.discount_percent) {
-        effectiveRate = rate * (1 - Number(item.discount_percent) / 100);
+      } else if (isAdhocDiscFlatRec) {
+        effectiveRate = catalogPriceRec - Number(item.discount_flat);
+      } else if (isAdhocDiscPctRec) {
+        effectiveRate = catalogPriceRec * (1 - Number(item.discount_percent) / 100);
       }
       effectiveRate = Math.max(effectiveRate, 0);
       const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
       let originalRate: number | undefined;
       let discountLabel: string | undefined;
-      if (item.offer_price) {
-        originalRate = rate;
+      if (isAdhocOfferRec) {
+        originalRate = catalogPriceRec;
         discountLabel = 'Offer';
-      } else if (item.discount_flat) {
-        originalRate = rate;
+      } else if (isAdhocDiscFlatRec) {
+        originalRate = catalogPriceRec;
         discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
-      } else if (item.discount_percent) {
-        originalRate = rate;
+      } else if (isAdhocDiscPctRec) {
+        originalRate = catalogPriceRec;
         discountLabel = `${item.discount_percent}% OFF`;
       }
       return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel };
@@ -2305,14 +2346,23 @@ export function BillingPage() {
     const lineItems = items.map((item) => {
       const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
       const qty = Number(item.quantity) || 0;
-      let itemTotal = rate * qty;
-      if (item.offer_price) {
-        itemTotal = Number(item.offer_price) * qty;
-      } else if (item.discount_flat) {
-        itemTotal = Math.max(0, rate - Number(item.discount_flat)) * qty;
-      } else if (item.discount_percent) {
-        itemTotal = Math.max(0, rate * (1 - Number(item.discount_percent) / 100)) * qty;
+      const catalogPriceLine = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+        : rate;
+      const isAdhocOfferL = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+      const isAdhocDiscFlatL = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+      const isAdhocDiscPctL = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+      let effectiveRate = catalogPriceLine;
+      if (isAdhocOfferL) {
+        effectiveRate = Number(item.offer_price);
+      } else if (isAdhocDiscFlatL) {
+        effectiveRate = catalogPriceLine - Number(item.discount_flat);
+      } else if (isAdhocDiscPctL) {
+        effectiveRate = catalogPriceLine * (1 - Number(item.discount_percent) / 100);
       }
+      effectiveRate = Math.max(effectiveRate, 0);
+      let itemTotal = effectiveRate * qty;
       const taxAmount = invoiceType === 'GST' ? itemTotal * (item.tax_rate_percent / 100) : 0;
       return {
         item_id: uuidv4(),
@@ -3290,10 +3340,17 @@ export function BillingPage() {
                     (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
                   );
 
-                  let effectivePrice = rate;
-                  if (item.offer_price !== null && item.offer_price !== undefined) { effectivePrice = Number(item.offer_price); }
-                  else if (item.discount_flat !== null && item.discount_flat !== undefined) { effectivePrice = rate + Number(item.discount_flat); }
-                  else if (item.discount_percent !== null && item.discount_percent !== undefined) { effectivePrice = rate * (1 + Number(item.discount_percent) / 100); }
+                  const catalogPriceScrapDisp = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                    : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
+                    : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
+                    : rate;
+                  const isAdhocOfferSD = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+                  const isAdhocDiscFlatSD = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+                  const isAdhocDiscPctSD = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+                  let effectivePrice = catalogPriceScrapDisp;
+                  if (isAdhocOfferSD) { effectivePrice = Number(item.offer_price); }
+                  else if (isAdhocDiscFlatSD) { effectivePrice = catalogPriceScrapDisp + Number(item.discount_flat); }
+                  else if (isAdhocDiscPctSD) { effectivePrice = catalogPriceScrapDisp * (1 + Number(item.discount_percent) / 100); }
                   effectivePrice = Math.max(effectivePrice, 0);
                   const total = effectivePrice * qty;
 
@@ -3332,13 +3389,17 @@ export function BillingPage() {
                             }
                             onChange={e => {
                               const val = e.target.value;
+                              const scrapConvPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                                : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
+                                : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
+                                : rate;
                               if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                                 setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                                 setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                                 removeItemDiscount(item.product_id);
                               } else {
                                 const pct = parseFloat(val);
-                                const flat = rate > 0 ? Math.round(rate * pct / 100 * 100) / 100 : 0;
+                                const flat = scrapConvPrice > 0 ? Math.round(scrapConvPrice * pct / 100 * 100) / 100 : 0;
                                 setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                                 setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                                 updateItemDiscount(item.product_id, 'PERCENT', pct);
@@ -3362,13 +3423,17 @@ export function BillingPage() {
                             }
                             onChange={e => {
                               const val = e.target.value;
+                              const scrapConvPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                                : item.catalog_discount_flat != null ? rate + Number(item.catalog_discount_flat)
+                                : item.catalog_discount_percent != null ? rate * (1 + Number(item.catalog_discount_percent) / 100)
+                                : rate;
                               if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                                 setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                                 setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                                 removeItemDiscount(item.product_id);
                               } else {
                                 const flat = parseFloat(val);
-                                const pct = rate > 0 ? Math.round(flat / rate * 100 * 100) / 100 : 0;
+                                const pct = scrapConvPrice > 0 ? Math.round(flat / scrapConvPrice * 100 * 100) / 100 : 0;
                                 setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                                 setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                                 updateItemDiscount(item.product_id, 'FLAT', flat);
@@ -3456,10 +3521,17 @@ export function BillingPage() {
                   (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
                 );
 
-                let effectivePrice = rate;
-                if (item.offer_price !== null && item.offer_price !== undefined) { effectivePrice = Number(item.offer_price); }
-                else if (item.discount_flat !== null && item.discount_flat !== undefined) { effectivePrice = rate - Number(item.discount_flat); }
-                else if (item.discount_percent !== null && item.discount_percent !== undefined) { effectivePrice = rate * (1 - Number(item.discount_percent) / 100); }
+                const catalogPriceItem = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                  : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+                  : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+                  : rate;
+                const isAdhocOfferI = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+                const isAdhocDiscFlatI = item.discount_flat != null && item.discount_flat !== item.catalog_discount_flat;
+                const isAdhocDiscPctI = item.discount_percent != null && item.discount_percent !== item.catalog_discount_percent;
+                let effectivePrice = catalogPriceItem;
+                if (isAdhocOfferI) { effectivePrice = Number(item.offer_price); }
+                else if (isAdhocDiscFlatI) { effectivePrice = catalogPriceItem - Number(item.discount_flat); }
+                else if (isAdhocDiscPctI) { effectivePrice = catalogPriceItem * (1 - Number(item.discount_percent) / 100); }
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
@@ -3537,13 +3609,17 @@ export function BillingPage() {
                           }
                           onChange={e => {
                             const val = e.target.value;
+                            const convCatalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                              : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+                              : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+                              : rate;
                             if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                               removeItemDiscount(item.product_id);
                             } else {
                               const pct = parseFloat(val);
-                              const flat = rate > 0 ? Math.round(rate * pct / 100 * 100) / 100 : 0;
+                              const flat = convCatalogPrice > 0 ? Math.round(convCatalogPrice * pct / 100 * 100) / 100 : 0;
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                               updateItemDiscount(item.product_id, 'PERCENT', pct);
@@ -3567,13 +3643,17 @@ export function BillingPage() {
                           }
                           onChange={e => {
                             const val = e.target.value;
+                            const convCatalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                              : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+                              : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+                              : rate;
                             if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0) {
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
                               removeItemDiscount(item.product_id);
                             } else {
                               const flat = parseFloat(val);
-                              const pct = rate > 0 ? Math.round(flat / rate * 100 * 100) / 100 : 0;
+                              const pct = convCatalogPrice > 0 ? Math.round(flat / convCatalogPrice * 100 * 100) / 100 : 0;
                               setLocalDiscFlats(p => ({ ...p, [item.product_id]: flat }));
                               setLocalDiscPcts(p => ({ ...p, [item.product_id]: pct }));
                               updateItemDiscount(item.product_id, 'FLAT', flat);
@@ -4318,11 +4398,29 @@ export function BillingPage() {
                 /* ── Quotation Edit Mode ── */
                 <>
                   <button
-                    onClick={handleSaveQuotation}
+                    onClick={() => handleSaveQuotation(false)}
                     disabled={quotationSaving || items.length === 0}
-                    className="w-[35%] py-3 rounded-xl border-2 border-blue-400 text-blue-600 dark:text-blue-400 font-black text-sm hover:bg-blue-500/10 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[20%] py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
                   >
-                    {quotationSaving ? 'Saving...' : 'Save Draft'}
+                    <Save className="w-3.5 h-3.5 shrink-0" />
+                    <span>Save</span>
+                  </button>
+                  <button
+                    onClick={() => handleSaveQuotation(true)}
+                    disabled={quotationSaving || items.length === 0}
+                    className="w-[35%] py-3 flex items-center justify-center gap-2 rounded-xl border-2 border-blue-500 text-blue-500 font-black text-sm hover:bg-blue-500/10 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                  >
+                    {quotationSaving ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                        <span>SAVING...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-4.5 h-4.5" />
+                        <span>SAVE &amp; PRINT</span>
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => handleCheckout()}

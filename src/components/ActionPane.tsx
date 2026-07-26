@@ -145,7 +145,7 @@ export function ActionPane() {
         if (useA4) {
           const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
           const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-          if (!printResult.success && printResult.useDefaultDialog) {
+          if (!printResult.success) {
             const pw = window.open('', '_blank');
             if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
           }

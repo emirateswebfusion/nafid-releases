@@ -754,6 +754,13 @@ export function initDb() {
     try { db.exec(q); } catch (e: any) { console.warn('[DB] Date fix query failed:', e.message); }
   }
 
+  // Clean up any corrupted settings that contain operation failure error objects
+  try {
+    db.exec("DELETE FROM settings WHERE value = '{\"error\":\"Operation failed\"}'");
+  } catch (e: any) {
+    console.warn('[DB Migration] Settings cleanup failed:', e.message);
+  }
+
   // Migrate legacy scrap_items data into scrap_categories (categories ARE items now)
   try {
     const hasScrapItems = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='scrap_items'").get();

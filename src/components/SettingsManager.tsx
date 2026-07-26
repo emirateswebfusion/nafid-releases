@@ -283,19 +283,40 @@ export function SettingsManager({ onClose, isRestricted }: { onClose: () => void
     const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
     const labelType = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' });
 
-    if (pBarcode) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pBarcode });
-    else if (pLegacy) setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...pLegacy });
-    if (pReceipt) setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...pReceipt });
-    else if (pLegacy) setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...pLegacy });
-    if (pA4) setA4Printer(pA4);
-    if (s) setScale(s);
-    if (pCoding) setPriceCoding(pCoding);
-    if (gstinVal) setShopGstin(gstinVal);
-    if (stateVal) setShopState(stateVal);
-    if (nameVal) setShopNameLocal(nameVal);
-    if (addressVal) setShopAddress(addressVal);
-    if (phoneVal) setShopPhone(phoneVal);
-    if (upiVal) setUpiId(upiVal);
+    if (pBarcode && typeof pBarcode === 'object' && !Array.isArray(pBarcode)) {
+      const cleanBarcode = { ...pBarcode };
+      for (let i = 0; i <= 20; i++) delete cleanBarcode[String(i)];
+      setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...cleanBarcode });
+    } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
+      const cleanLegacy = { ...pLegacy };
+      for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
+      setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...cleanLegacy });
+    }
+
+    if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
+      const cleanReceipt = { ...pReceipt };
+      for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
+      setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...cleanReceipt });
+    } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
+      const cleanLegacy = { ...pLegacy };
+      for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
+      setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...cleanLegacy });
+    }
+
+    if (pA4 && typeof pA4 === 'object' && !Array.isArray(pA4)) {
+      const cleanA4 = { ...pA4 };
+      for (let i = 0; i <= 20; i++) delete cleanA4[String(i)];
+      setA4Printer(cleanA4);
+    }
+    if (s && typeof s === 'object' && !Array.isArray(s)) setScale(s);
+    if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) setPriceCoding(pCoding);
+
+    setShopGstin(typeof gstinVal === 'string' ? gstinVal : '');
+    setShopState(typeof stateVal === 'string' ? stateVal : '');
+    setShopNameLocal(typeof nameVal === 'string' ? nameVal : '');
+    setShopAddress(typeof addressVal === 'string' ? addressVal : '');
+    setShopPhone(typeof phoneVal === 'string' ? phoneVal : '');
+    setUpiId(typeof upiVal === 'string' ? upiVal : '');
     if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
     const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
     if (scrapEnabled !== null && scrapEnabled !== undefined) setEnableScrap(Boolean(scrapEnabled));

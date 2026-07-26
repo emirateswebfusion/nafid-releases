@@ -228,13 +228,17 @@ export function CartPane() {
               const rawRate = item.pricing_mode === 'GRADE_RATE' 
                 ? (item.grade_rate || 0) 
                 : item.base_price;
-              const effectiveRate = item.offer_price !== null && item.offer_price !== undefined
-                ? Number(item.offer_price)
-                : item.discount_flat !== null && item.discount_flat !== undefined
-                ? Math.max(0, rawRate - Number(item.discount_flat))
-                : item.discount_percent !== null && item.discount_percent !== undefined
-                ? Math.max(0, rawRate * (1 - Number(item.discount_percent) / 100))
+              const catalogPriceCP = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+                : item.catalog_discount_flat != null ? rawRate - Number(item.catalog_discount_flat)
+                : item.catalog_discount_percent != null ? rawRate * (1 - Number(item.catalog_discount_percent) / 100)
                 : rawRate;
+              const isAdhocOfferCP = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+              const isAdhocDiscFlatCP = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+              const isAdhocDiscPctCP = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+              const effectiveRate = isAdhocOfferCP ? Number(item.offer_price)
+                : isAdhocDiscFlatCP ? Math.max(0, catalogPriceCP - Number(item.discount_flat))
+                : isAdhocDiscPctCP ? Math.max(0, catalogPriceCP * (1 - Number(item.discount_percent) / 100))
+                : catalogPriceCP;
 
               const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
               const weightKg = Number(item.quantity) || 0;

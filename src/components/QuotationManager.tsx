@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
 import clsx from 'clsx';
@@ -97,7 +97,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
     if (window.electronAPI) {
       const printResult = await window.electronAPI.printA4Html(tenantId || 'global', fullHtml);
-      if (!printResult.success && printResult.useDefaultDialog) {
+      if (!printResult.success) {
         const pw = window.open('', '_blank');
         if (pw) { pw.document.write(fullHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
       }
@@ -374,7 +374,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                 <Printer className="w-4 h-4" /> Print
               </button>
               <button onClick={handlePrint} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
-                <Printer className="w-4 h-4" /> PDF
+                <FileText className="w-4 h-4" /> PDF
               </button>
               {selectedQuotation.status === 'ACTIVE' && (
                 <>

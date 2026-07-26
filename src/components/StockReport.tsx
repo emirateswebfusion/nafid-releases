@@ -442,7 +442,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
     if (window.electronAPI) {
       const printResult = await window.electronAPI.printA4Html(tenantId || 'global', html);
-      if (!printResult.success && printResult.useDefaultDialog) {
+      if (!printResult.success) {
         const pw = window.open('', '_blank');
         if (pw) { pw.document.write(html); pw.document.close(); setTimeout(() => pw.print(), 500); }
       }
