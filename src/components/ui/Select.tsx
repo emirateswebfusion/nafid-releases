@@ -96,7 +96,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           const trigger = containerRef.current?.querySelector('button');
           if (trigger && document.activeElement !== trigger) trigger.focus();
           const focusable = document.querySelectorAll<HTMLElement>(
-            'button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+            '[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
           );
           const idx = Array.from(focusable).indexOf(trigger);
           if (idx >= 0 && idx < focusable.length - 1) {
@@ -110,6 +110,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       <div ref={containerRef} className={twMerge('relative', className)} onKeyDown={handleKeyDown}>
         <button
           type="button"
+          data-select-trigger
           disabled={disabled}
           onClick={() => !disabled && setOpen(prev => !prev)}
           className={twMerge(

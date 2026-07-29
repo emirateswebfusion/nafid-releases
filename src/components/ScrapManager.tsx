@@ -375,7 +375,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+      '[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
     );
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
