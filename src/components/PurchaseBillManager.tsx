@@ -1230,6 +1230,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  const productFormDialogRef = useRef<HTMLDivElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const [searchDropdownPos, setSearchDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
   const [newProductName, setNewProductName] = useState('');
@@ -1701,6 +1703,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
   }, [products, productSearch, showProductCreateForm]);
 
+  useEffect(() => {
+    if (showProductCreateForm) {
+      setTimeout(() => firstInputRef.current?.focus(), 50);
+    }
+  }, [showProductCreateForm]);
+
   const isEstimate = type === 'ESTIMATE';
 
   return (
@@ -1807,10 +1815,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           {showProductCreateForm && (
             <>
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }} />
+              <div className="fixed inset-0 bg-black/40 z-[100]" />
               {/* Dialog */}
-              <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-                <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+              <div ref={productFormDialogRef} className="fixed inset-0 z-[101] flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }}>
+                <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl overflow-hidden">
                   <div className="flex items-center justify-between px-5 py-3 border-b border-border/60">
                     <div className="flex items-center gap-2">
                       <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -1837,7 +1845,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                            <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
+                            <input ref={firstInputRef} type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
                               className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                           </div>
                           <div>

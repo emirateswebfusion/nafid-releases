@@ -152,6 +152,8 @@ export function BillingPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const productFormDialogRef = useRef<HTMLDivElement>(null);
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
@@ -811,7 +813,9 @@ export function BillingPage() {
         setResults([]);
         setPastBillResults([]);
         setSearchQuery('');
-        setShowProductCreateForm(false);
+        if (!productFormDialogRef.current?.contains(e.target as Node)) {
+          setShowProductCreateForm(false);
+        }
       }
       const scrapDropdown = document.getElementById('scrap-deduction-dropdown');
       if (scrapDeductionInputRef.current && !scrapDeductionInputRef.current.parentElement?.contains(e.target as Node) && !scrapDropdown?.contains(e.target as Node)) {
@@ -827,6 +831,12 @@ export function BillingPage() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    if (showProductCreateForm) {
+      setTimeout(() => firstInputRef.current?.focus(), 50);
+    }
+  }, [showProductCreateForm]);
 
   useEffect(() => {
     const handler = (e: CustomEvent) => {
@@ -4754,9 +4764,9 @@ export function BillingPage() {
       {/* ─── Create Product Modal ─── */}
       {showProductCreateForm && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }} />
-          <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
-            <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl pointer-events-auto overflow-hidden">
+          <div className="fixed inset-0 bg-black/40 z-[100]" />
+          <div ref={productFormDialogRef} className="fixed inset-0 z-[101] flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }}>
+            <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -4785,7 +4795,7 @@ export function BillingPage() {
                     <div className="space-y-4">
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                        <input type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
+                        <input ref={firstInputRef} type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
                           className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                       </div>
                       <div>
