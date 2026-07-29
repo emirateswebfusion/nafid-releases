@@ -2567,7 +2567,7 @@ ipcMain.handle('db:getScrapTransactions', (event, { tenant_id, scrap_category_id
       SELECT st.*, sc.name as scrap_category_name, sc.unit 
       FROM scrap_transactions st 
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id 
-      WHERE st.tenant_id = ?
+      WHERE st.tenant_id = ? AND (st.is_deleted IS NULL OR st.is_deleted = 0)
     `;
     const params: any[] = [tenant_id];
     if (scrap_category_id) {
@@ -2676,7 +2676,7 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
       SELECT st.*, sc.name as scrap_category_name, sc.unit
       FROM scrap_transactions st
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
-      WHERE st.tenant_id = ? AND st.scrap_invoice_number = ?
+      WHERE st.tenant_id = ? AND st.scrap_invoice_number = ? AND (st.is_deleted IS NULL OR st.is_deleted = 0)
       ORDER BY st.created_at DESC
     `).all(tenant_id, scrap_invoice_number);
     if (rows.length === 0) return null;
@@ -2707,7 +2707,7 @@ ipcMain.handle('db:getScrapInvoiceList', (event, { tenant_id }: { tenant_id: str
         MAX(st.customer_address) as customer_address
       FROM scrap_transactions st
       LEFT JOIN scrap_categories sc ON st.scrap_category_id = sc.scrap_category_id
-      WHERE st.tenant_id = ? AND st.scrap_invoice_number IS NOT NULL AND st.type = 'PURCHASE'
+      WHERE st.tenant_id = ? AND st.scrap_invoice_number IS NOT NULL AND st.type = 'PURCHASE' AND (st.is_deleted IS NULL OR st.is_deleted = 0)
       GROUP BY st.scrap_invoice_number
       ORDER BY created_at DESC
       LIMIT 500
@@ -2753,7 +2753,7 @@ ipcMain.handle('db:updateScrapInvoiceFull', (event, { tenant_id, scrap_invoice_n
     const db = getDb();
     const result = db.transaction(() => {
       const existingRows: any[] = db.prepare(
-        'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?'
+        'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0)'
       ).all(tenant_id, scrap_invoice_number);
 
       for (const row of existingRows) {
@@ -2762,7 +2762,7 @@ ipcMain.handle('db:updateScrapInvoiceFull', (event, { tenant_id, scrap_invoice_n
           .run(qtyDelta, row.scrap_category_id);
       }
 
-      db.prepare('DELETE FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?')
+      db.prepare(`UPDATE scrap_transactions SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND scrap_invoice_number = ?`)
         .run(tenant_id, scrap_invoice_number);
 
       const insertTx = db.prepare(`
@@ -2813,7 +2813,7 @@ ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
   try {
     const db = getDb();
     const row: any = db.prepare(
-      'SELECT * FROM scrap_transactions WHERE transaction_id = ? AND tenant_id = ?'
+      'SELECT * FROM scrap_transactions WHERE transaction_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)'
     ).get(args.transaction_id, args.tenant_id);
     if (!row) return { success: false, error: 'Transaction not found' };
 
@@ -2863,16 +2863,15 @@ ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
   }
 }));
 
-ipcMain.handle('db:deleteScrapTransaction', (event, transaction_id: string) => {
+ipcMain.handle('db:deleteScrapTransaction', (event, { tenant_id, transaction_id }: { tenant_id: string; transaction_id: string }) => {
   try {
     const db = getDb();
-    const row: any = db.prepare('SELECT * FROM scrap_transactions WHERE transaction_id = ?').get(transaction_id);
+    const row: any = db.prepare('SELECT * FROM scrap_transactions WHERE transaction_id = ? AND tenant_id = ?').get(transaction_id, tenant_id);
     if (!row) return { success: false, error: 'Transaction not found' };
     const qtyDelta = row.type === 'SALE' ? Number(row.quantity) : -Number(row.quantity);
     const result = db.transaction(() => {
-      db.prepare('DELETE FROM scrap_transactions WHERE transaction_id = ?').run(transaction_id);
-      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
-        .run(qtyDelta, row.scrap_category_id);
+      db.prepare(`UPDATE scrap_transactions SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE transaction_id = ? AND tenant_id = ?`).run(transaction_id, tenant_id);
+      db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(qtyDelta, row.scrap_category_id);
       return { success: true };
     })();
     return result;
@@ -2886,7 +2885,7 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
   try {
     const db = getDb();
     const rows: any[] = db.prepare(
-      'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?'
+      'SELECT * FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0)'
     ).all(tenant_id, scrap_invoice_number);
     const result = db.transaction(() => {
       for (const row of rows) {
@@ -2894,7 +2893,7 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
         db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`)
           .run(qtyDelta, row.scrap_category_id);
       }
-      db.prepare('DELETE FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ?')
+      db.prepare(`UPDATE scrap_transactions SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND scrap_invoice_number = ?`)
         .run(tenant_id, scrap_invoice_number);
       return { success: true };
     })();

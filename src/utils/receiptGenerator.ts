@@ -261,10 +261,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += LIGHT + '\n';
 
     // ── Items (table: # | Item | Qty | Amount) ──
+    // Layout: "N. " (idxW+1=3) + name + " " + qty + " " + amt = charsPerLine
+    // so nameW = charsPerLine - (idxW+1) - 1 - qtyW - 1 - amtW
     const qtyW = 4;
-    const amtW = 10;
+    const amtW = 8;
     const idxW = 2;
-    const nameW = charsPerLine - idxW - 1 - qtyW - 1 - amtW;
+    const nameW = charsPerLine - (idxW + 1) - 1 - qtyW - 1 - amtW;
 
     text += `${'# '.padEnd(idxW + 1)}${padRight('Item', nameW)} ${padLeft('Qty', qtyW)} ${padLeft('Amount', amtW)}\n`;
     text += LIGHT + '\n';
@@ -279,7 +281,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
         text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
       } else if (data.invoiceType === 'SCRAP') {
-        text += `  ${padLeft(item.unit_price.toFixed(2), 7)} ${padLeft(String(item.quantity), 5)} ${padLeft(item.total.toFixed(2), 8)}\n`;
+        // Rate | Weight | Total sub-line for scrap items
+        const subLine = `  ${padLeft(item.unit_price.toFixed(2), 7)} ${padLeft(String(item.quantity), 5)} ${padLeft(item.total.toFixed(2), 8)}`;
+        text += subLine.substring(0, charsPerLine) + '\n';
       }
     });
 
@@ -664,7 +668,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (nameW < 6) {
       nameW = charsPerLine - qtyW - colGap - rateW - colGap - amtW;
       text += `${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
-      data.items.forEach((item, i) => {
+      data.items.forEach((item) => {
         const name = item.name.length > nameW ? item.name.substring(0, nameW - 2) + '..' : item.name;
         const qty = Number(item.quantity).toFixed(3).replace(/\.0+$/, '');
         const rate = item.unit_price.toFixed(2);
@@ -918,7 +922,6 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
   else if (style === 'dot') {
     const DASH = '-'.repeat(charsPerLine);
     const totalW = 10;
-    const labelW = charsPerLine - totalW - 2;
 
     // ── Header centered ──
     const bs = data.billSettings;
@@ -1336,8 +1339,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const invLabel = data.invoiceType === 'RETURN' ? 'RET No' : 'Bill No';
     const billPart = `${invLabel}: ${data.invoiceNumber}`;
     const datePart = `Date: ${data.date}`;
-    const billGap = Math.max(1, INNER - billPart.length - datePart.length);
-    text += B_LINE(billPart + ' '.repeat(billGap) + datePart);
+    const combinedLen = billPart.length + 1 + datePart.length;
+    if (combinedLen <= INNER) {
+      // Both fit on one line
+      const billGap = INNER - billPart.length - datePart.length;
+      text += B_LINE(billPart + ' '.repeat(billGap) + datePart);
+    } else {
+      // Date is long (e.g. full locale timestamp) — put on separate line
+      text += B_LINE(` ${billPart}`);
+      text += B_LINE(` ${datePart}`);
+    }
     if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) text += B_LINE(` Ref Inv: ${data.referenceInvoiceNumber}`);
     if (data.invoiceType === 'RETURN' && data.refundMethod) text += B_LINE(` Refund: ${data.refundMethod}`);
     if (data.billerName) text += B_LINE(` Staff: ${data.billerName}`);
@@ -1499,7 +1510,23 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Amount in Words ───────────────────────────────────────────────────────
     text += B_LINE(' Amount in Words:');
-    text += B_LINE(` ${numberToIndianWords(Math.max(0, netTotal))} ONLY`);
+    {
+      const amountWords = `${numberToIndianWords(Math.max(0, netTotal))} ONLY`;
+      // Wrap long words string across multiple lines (INNER - 1 usable chars per line)
+      const wordLineW = INNER - 1;
+      let remaining = amountWords;
+      while (remaining.length > 0) {
+        if (remaining.length <= wordLineW) {
+          text += B_LINE(` ${remaining}`);
+          break;
+        }
+        // Break at a space within the limit
+        let breakAt = remaining.lastIndexOf(' ', wordLineW);
+        if (breakAt <= 0) breakAt = wordLineW;
+        text += B_LINE(` ${remaining.substring(0, breakAt)}`);
+        remaining = remaining.substring(breakAt).trimStart();
+      }
+    }
     text += B_MID();
 
     // ── Terms & Conditions ────────────────────────────────────────────────────

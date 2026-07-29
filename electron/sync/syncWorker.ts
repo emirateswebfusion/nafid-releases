@@ -1340,10 +1340,10 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
     const upsert = db.prepare(`
       INSERT INTO scrap_transactions (
         transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, transaction_date, created_at,
-        sync_status
+        is_deleted, sync_status
       ) VALUES (
         @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @transaction_date, @created_at,
-        'SYNCED'
+        COALESCE(@is_deleted, 0), 'SYNCED'
       )
       ON CONFLICT(transaction_id) DO UPDATE SET
         type = excluded.type,
@@ -1355,6 +1355,7 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
         customer_address = excluded.customer_address,
         notes = excluded.notes,
         scrap_invoice_number = excluded.scrap_invoice_number,
+        is_deleted = COALESCE(excluded.is_deleted, 0),
         sync_status = 'SYNCED'
       WHERE scrap_transactions.sync_status != 'PENDING'
     `);
@@ -1375,6 +1376,7 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
             customer_address: t.customer_address || null,
             notes: t.notes || null,
             scrap_invoice_number: t.scrap_invoice_number || null,
+            is_deleted: t.is_deleted ? 1 : 0,
             transaction_date: toSqliteDate(t.transaction_date),
             created_at: toSqliteDate(t.created_at),
           });

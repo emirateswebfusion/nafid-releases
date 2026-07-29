@@ -258,7 +258,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
 
   const openTransaction = (cat: ScrapCategory) => {
     setSelectedCategory(cat);
-    setTxForm({ type: 'PURCHASE', categoryId: cat.scrap_category_id, quantity: '', rate: '', party_name: '', notes: '' });
+    setTxForm({ type: 'PURCHASE', categoryId: cat.scrap_category_id, quantity: '', rate: String(cat.purchase_price), party_name: '', notes: '' });
     setView('transaction');
     loadTransactions(cat.scrap_category_id);
   };
@@ -364,6 +364,21 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       await loadData();
     }
     setSellingProcessing(false);
+  };
+
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>(
+      'input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+    );
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
 
   const handleReprintScrap = async () => {
@@ -473,7 +488,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   const handleDeleteTx = async (transactionId: string) => {
     if (!isOwner) { showStatus('Only owners/admins can delete transactions', 'error'); return; }
     try {
-      const res = await window.electronAPI.dbDeleteScrapTransaction(transactionId);
+      const res = await window.electronAPI.dbDeleteScrapTransaction({ tenant_id: tenantId || '', transaction_id: transactionId });
       if (res.success) {
         showStatus('Transaction line item deleted', 'success');
         setConfirmDeleteTxId(null);
@@ -758,7 +773,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               {view === 'transaction' && (
                 <button
                   onClick={() => {
-                    setTxForm({ type: 'PURCHASE', categoryId: selectedCategory?.scrap_category_id || '', quantity: '', rate: '', party_name: '', notes: '' });
+                    setTxForm({ type: 'PURCHASE', categoryId: selectedCategory?.scrap_category_id || '', quantity: '', rate: selectedCategory ? String(selectedCategory.purchase_price) : '', party_name: '', notes: '' });
                     setView('tx_form');
                   }}
                   className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -973,7 +988,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         ══════════════════════════════════════════ */}
         {view === 'category_form' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-orange-500/10 text-orange-500">
@@ -1163,7 +1178,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   {isOwner && (
                     <button
                       onClick={() => {
-                        setTxForm({ type: 'PURCHASE', categoryId: selectedCategory.scrap_category_id, quantity: '', rate: '', party_name: '', notes: '' });
+                        setTxForm({ type: 'PURCHASE', categoryId: selectedCategory.scrap_category_id, quantity: '', rate: String(selectedCategory.purchase_price), party_name: '', notes: '' });
                         setView('tx_form');
                       }}
                       className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
@@ -1260,7 +1275,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         ══════════════════════════════════════════ */}
         {view === 'tx_form' && selectedCategory && (
           <form onSubmit={handleSaveTransaction} className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -1277,7 +1292,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                   <div className="grid grid-cols-2 gap-3 max-w-sm">
                     <button
                       type="button"
-                      onClick={() => setTxForm(f => ({ ...f, type: 'PURCHASE' }))}
+                      onClick={() => setTxForm(f => ({ ...f, type: 'PURCHASE', rate: selectedCategory ? String(selectedCategory.purchase_price) : f.rate }))}
                       className={clsx(
                         'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
                         txForm.type === 'PURCHASE'
@@ -1289,7 +1304,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     </button>
                     <button
                       type="button"
-                      onClick={() => setTxForm(f => ({ ...f, type: 'SALE' }))}
+                      onClick={() => setTxForm(f => ({ ...f, type: 'SALE', rate: selectedCategory ? String(selectedCategory.selling_price) : f.rate }))}
                       className={clsx(
                         'py-3.5 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
                         txForm.type === 'SALE'
@@ -1418,7 +1433,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
         ══════════════════════════════════════════ */}
         {view === 'selling' && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
               <section className="bg-card border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
                   <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
@@ -1433,7 +1448,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
                     value={sellingSearch}
                     onChange={e => setSellingSearch(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter' && sellingResults.length > 0) handleAddToSellingCart(sellingResults[0]);
+                      if (e.key === 'Enter' && sellingResults.length > 0) { handleAddToSellingCart(sellingResults[0]); e.preventDefault(); }
                       if (e.key === 'Escape') { setSellingSearch(''); setSellingResults([]); }
                     }}
                     placeholder="Search scrap categories to sell..."
@@ -1986,7 +2001,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       {/* 3. Edit Line Item Modal */}
       {editingTxItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveEditTx} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <form onSubmit={handleSaveEditTx} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-blue-500/10 text-blue-500">
@@ -2109,7 +2124,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       {/* 4. Edit Invoice Header Modal */}
       {editHeaderInvoice && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleSaveInvoiceHeader} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <form onSubmit={handleSaveInvoiceHeader} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
@@ -2203,7 +2218,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       {/* 5. Add Line Item to Invoice Modal */}
       {isAddingItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <form onSubmit={handleAddLineItemToInvoice} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+          <form onSubmit={handleAddLineItemToInvoice} className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
             <div className="flex items-center justify-between pb-3 border-b border-border">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-primary/10 text-primary">

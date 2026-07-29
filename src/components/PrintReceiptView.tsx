@@ -18,7 +18,8 @@ const printStyles = `
     width: 100%;
     background-color: white;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
+    align-items: flex-start;
   }
   @media print {
     html, body {
@@ -26,7 +27,8 @@ const printStyles = `
       padding: 0;
       width: 100%;
       display: flex;
-      justify-content: center;
+      justify-content: flex-start;
+      align-items: flex-start;
     }
   }
 `;
@@ -147,16 +149,16 @@ export function PrintReceiptView({ text }: { text: string }) {
   const lh = isBillStyle ? 1.05 : 1.2;
 
   return (
-    <div style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <style>{printStyles}</style>
-      <div style={{ padding: '4px 0', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+      <div style={{ padding: '4px 0 4px 6px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
         {rows.map((row, index) => {
           if (row.type === 'text') {
             return (
               <pre key={`text-${index}`} style={{
-                margin: '0 auto',
+                margin: 0,
                 padding: 0,
-                fontSize: '9pt',
+                fontSize: '8.2pt',
                 fontFamily,
                 whiteSpace: 'pre',
                 color: 'black',
@@ -171,18 +173,18 @@ export function PrintReceiptView({ text }: { text: string }) {
 
           const qrSrc = qrImages[row.payload];
           return qrSrc ? (
-            <div key={`qr-${index}`} style={{ width: '100%', padding: '4px 0 6px', textAlign: 'center', display: 'flex', justifyContent: 'center' }}>
+            <div key={`qr-${index}`} style={{ width: '100%', padding: '4px 0 6px', textAlign: 'left', display: 'flex', justifyContent: 'flex-start', paddingLeft: '8px' }}>
               <img
                 src={qrSrc}
                 alt="UPI QR"
-                style={{ width: '92%', maxWidth: '220px', height: 'auto', imageRendering: 'pixelated', display: 'block', margin: '0 auto' }}
+                style={{ width: '92%', maxWidth: '220px', height: 'auto', imageRendering: 'pixelated', display: 'block' }}
               />
             </div>
           ) : (
             <pre key={`qr-fallback-${index}`} style={{
-              margin: '0 auto',
+              margin: 0,
               padding: 0,
-              fontSize: '9pt',
+              fontSize: '8.2pt',
               fontFamily,
               whiteSpace: 'pre',
               color: 'black',

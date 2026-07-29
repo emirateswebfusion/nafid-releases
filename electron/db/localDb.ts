@@ -205,6 +205,7 @@ export function initDb() {
         notes TEXT,
         scrap_invoice_number TEXT,
         payment_status TEXT DEFAULT 'CASH',
+        is_deleted INTEGER DEFAULT 0,
         transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -869,6 +870,17 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add scrap_transactions columns:', e.message);
+  }
+
+  // Migration: Add is_deleted column to scrap_transactions
+  try {
+    const scrapTxCols = db.prepare(`PRAGMA table_info(scrap_transactions)`).all().map((c: any) => c.name);
+    if (!scrapTxCols.includes('is_deleted')) {
+      console.log('[DB Migration] Adding is_deleted to scrap_transactions...');
+      db.exec("ALTER TABLE scrap_transactions ADD COLUMN is_deleted INTEGER DEFAULT 0");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add is_deleted to scrap_transactions:', e.message);
   }
 
   // Migration: Add bill_type column to purchase_bills
