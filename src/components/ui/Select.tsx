@@ -49,7 +49,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       }
       if (open) {
         const idx = filtered.findIndex(o => o.value === value);
-        setFocusedIndex(idx >= 0 ? idx : 0);
+        setFocusedIndex(idx >= 0 ? idx : -1);
       } else {
         setFocusedIndex(-1);
       }
@@ -85,9 +85,24 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setFocusedIndex(prev => Math.max(prev - 1, 0));
-      } else if (e.key === 'Enter' && focusedIndex >= 0 && focusedIndex < filtered.length) {
+      } else if (e.key === 'Enter') {
         e.preventDefault();
-        handleSelect(filtered[focusedIndex]);
+        if (focusedIndex >= 0 && focusedIndex < filtered.length) {
+          handleSelect(filtered[focusedIndex]);
+        } else {
+          setOpen(false);
+        }
+        setTimeout(() => {
+          const trigger = containerRef.current?.querySelector('button');
+          if (trigger && document.activeElement !== trigger) trigger.focus();
+          const focusable = document.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
+          );
+          const idx = Array.from(focusable).indexOf(trigger);
+          if (idx >= 0 && idx < focusable.length - 1) {
+            focusable[idx + 1]?.focus();
+          }
+        }, 0);
       }
     };
 

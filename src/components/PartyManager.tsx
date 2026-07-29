@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
@@ -280,11 +280,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
     e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };

@@ -143,11 +143,11 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
     e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
@@ -169,9 +169,9 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      {/* ═══════════════════════════════════════════════════
+      {/* ---------------------------------------------------
           HEADER
-      ═══════════════════════════════════════════════════ */}
+      --------------------------------------------------- */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500 shadow-inner shrink-0">
@@ -377,7 +377,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Auto-calculated Expiry Date</label>
-                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl font-bold text-base text-primary shadow-sm">{expiryDate ? formatDate(expiryDate) : '—'}</div>
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-xl font-bold text-base text-primary shadow-sm">{expiryDate ? formatDate(expiryDate) : '�'}</div>
                 </div>
               </div>
             </section>
@@ -412,13 +412,13 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
             <div>
               <table>
                 <tr><td className="label">Customer Name</td><td>{selectedWarranty.customer_name}</td></tr>
-                <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '—'}</td></tr>
+                <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '�'}</td></tr>
                 <tr><td className="label">Product</td><td>{selectedWarranty.product_name}</td></tr>
-                <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '—'}</td></tr>
+                <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '�'}</td></tr>
                 <tr><td className="label">Purchase Date</td><td>{formatDate(selectedWarranty.purchase_date)}</td></tr>
                 <tr><td className="label">Warranty Period</td><td>{selectedWarranty.warranty_period_days} Days</td></tr>
                 <tr><td className="label">Expiry Date</td><td>{formatDate(selectedWarranty.expiry_date)}</td></tr>
-                <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '—'}</td></tr>
+                <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '�'}</td></tr>
               </table>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -1148,6 +1148,19 @@ export function BillingPage() {
     setNewProductOfferPrice('');
     setNewProductIsGstApplicable(true);
     setNewProductIsCustomCategory(false);
+  };
+
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
 
   const handleCreateAndAddProduct = async () => {
@@ -4766,7 +4779,7 @@ export function BillingPage() {
         <>
           <div className="fixed inset-0 bg-black/40 z-[100]" />
           <div ref={productFormDialogRef} className="fixed inset-0 z-[101] flex items-center justify-center p-4" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }}>
-            <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl overflow-hidden">
+            <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl overflow-hidden" onKeyDown={handleFormKeyDown}>
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                 <div className="flex items-center gap-2">
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
@@ -4782,7 +4795,7 @@ export function BillingPage() {
                   </button>
                 </div>
               </div>
-              <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
+              <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3" data-enter-nav>
                 {/* 1. Basic Details */}
                 <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">

@@ -214,11 +214,11 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA' && target.tagName !== 'SELECT') return;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
     e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
@@ -376,7 +376,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgPurchasePrice.toFixed(2)}</p>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">?{avgPurchasePrice.toFixed(2)}</p>
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
               </div>
             </div>
@@ -385,7 +385,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgRate.toFixed(2)}</p>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">?{avgRate.toFixed(2)}</p>
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base MRP</p>
               </div>
             </div>
@@ -532,7 +532,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                             <span className="truncate text-foreground/80">{g.grade_name}</span>
                           </div>
                           <span className="font-mono text-[10px] text-muted-foreground font-semibold">
-                            P: <span className="text-foreground/90 font-extrabold">₹{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">₹{g.rate.toFixed(1)}</span>
+                            P: <span className="text-foreground/90 font-extrabold">?{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">?{g.rate.toFixed(1)}</span>
                           </span>
                         </div>
                       ))}
@@ -548,7 +548,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                       <div className="leading-tight text-left">
                         <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Avg Price (P / M)</span>
                         <span className="text-xs font-extrabold text-foreground font-mono">
-                          ₹{avgCatPurchasePrice.toFixed(1)} / ₹{avgCatRate.toFixed(1)}
+                          ?{avgCatPurchasePrice.toFixed(1)} / ?{avgCatRate.toFixed(1)}
                         </span>
                       </div>
                       <button
@@ -591,9 +591,9 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                     {filteredGrades.length > 0 && (
                       <>
                         {' '}
-                        · Avg Purchase: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
+                        � Avg Purchase: <span className="font-mono font-bold text-foreground/80">?{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
                         {' '}
-                        · Avg MRP: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
+                        � Avg MRP: <span className="font-mono font-bold text-foreground/80">?{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
                       </>
                     )}
                   </p>
@@ -680,8 +680,8 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
             <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
               <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
                 <div className="col-span-5">Grade Name</div>
-                <div className="col-span-3">Purchase Price (₹/kg)</div>
-                <div className="col-span-2.5">MRP (₹/kg)</div>
+                <div className="col-span-3">Purchase Price (?/kg)</div>
+                <div className="col-span-2.5">MRP (?/kg)</div>
                 <div className="col-span-1.5 text-right">Actions</div>
               </div>
               {filteredGrades.map((grade) => {
@@ -718,10 +718,10 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Purchase Price (₹)
+                              Purchase Price (?)
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">?</span>
                               <input
                                 type="number"
                                 value={editForm.purchase_price || ''}
@@ -732,10 +732,10 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              MRP (₹)
+                              MRP (?)
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">?</span>
                               <input
                                 type="number"
                                 value={editForm.rate || ''}
@@ -776,10 +776,10 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                           <span className="text-xs font-bold text-foreground truncate">{grade.grade_name}</span>
                         </div>
                         <div className="col-span-3 font-mono font-bold text-foreground/80 text-xs">
-                          ₹{(grade.purchase_price || 0).toFixed(2)}
+                          ?{(grade.purchase_price || 0).toFixed(2)}
                         </div>
                         <div className="col-span-2.5 font-mono font-extrabold text-primary text-xs">
-                          ₹{grade.rate.toFixed(2)}
+                          ?{grade.rate.toFixed(2)}
                         </div>
                         <div className="col-span-1.5 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
                           <button
@@ -884,7 +884,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                     Purchase
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">?</span>
                     <input
                       type="number"
                       placeholder="0.00"
@@ -899,7 +899,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
                     MRP
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">?</span>
                     <input
                       type="number"
                       placeholder="0.00"

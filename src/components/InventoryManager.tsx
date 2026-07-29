@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
+﻿import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3 } from 'lucide-react';
@@ -85,6 +85,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -181,6 +182,12 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
         .catch(console.error);
     }
   }, [view, tenantId]);
+
+  useEffect(() => {
+    if (view === 'add') {
+      setTimeout(() => firstInputRef.current?.focus(), 50);
+    }
+  }, [view]);
 
   // Keep GST fields in sync when "Same as Current Product" is enabled
   useEffect(() => {
@@ -312,11 +319,11 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT' && target.tagName !== 'SELECT') return;
+    if (target.tagName !== 'INPUT') return;
     e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled])');
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
   };
@@ -1285,7 +1292,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                 <div className="space-y-4">
                   <div ref={nameContainerRef} className="relative">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
-                    <input type="text" value={formData.name} onChange={e => { handleInputChange('name', e.target.value); setSelectedNameIndex(0); }} onKeyDown={handleNameKeyDown} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                    <input ref={firstInputRef} type="text" value={formData.name} onChange={e => { handleInputChange('name', e.target.value); setSelectedNameIndex(0); }} onKeyDown={handleNameKeyDown} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     {nameSuggestions.length > 0 && (
                       <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-64 overflow-y-auto">
                         {nameSuggestions.map((p, i) => (

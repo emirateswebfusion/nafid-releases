@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useRef } from 'react';
 import { Save, Printer, AlertCircle, Trash, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
@@ -32,6 +32,7 @@ interface RowData {
 
 export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   const { tenantId } = useAuthStore();
+  const firstInputRef = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<RowData[]>([createEmptyRow()]);
   const [grades, setGrades] = useState<any[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
@@ -53,6 +54,10 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     loadPendingPrintCount();
   }, [printDate, printDateEnd, printOnlyPending]);
+
+  useEffect(() => {
+    setTimeout(() => firstInputRef.current?.focus(), 50);
+  }, []);
 
   const loadGrades = async () => {
     if (window.electronAPI) {
@@ -328,6 +333,19 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     return nextBarcode;
   };
 
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+  };
+
   const handleBulkSave = async () => {
     const validData = rows.filter(r => r.name.trim() !== '');
     if (validData.length === 0) {
@@ -527,7 +545,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
 
         <div className="flex justify-between items-center shrink-0">
           <div className="text-sm text-muted-foreground bg-muted/30 px-3 py-2 rounded-lg border border-border overflow-hidden whitespace-nowrap overflow-x-auto max-w-[70vw]">
-            <b>Expected Excel Columns:</b> Name → Barcode → Item Code → Brand → Category → Grade → Purchase → MRP → Stock → Reorder Level → Disc% → DiscFlat → OfferPrice → GST(Y/N) → Tax% → UOM → Billing(Piece/Weight) → AvgWgt → WgtOverride(Y/N)
+            <b>Expected Excel Columns:</b> Name ? Barcode ? Item Code ? Brand ? Category ? Grade ? Purchase ? MRP ? Stock ? Reorder Level ? Disc% ? DiscFlat ? OfferPrice ? GST(Y/N) ? Tax% ? UOM ? Billing(Piece/Weight) ? AvgWgt ? WgtOverride(Y/N)
           </div>
           <Button onClick={handleBulkSave} disabled={loading} className="gap-2 shrink-0">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
@@ -535,8 +553,8 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
           </Button>
         </div>
 
-        <div className="flex-1 overflow-x-auto overflow-y-auto border border-border rounded-xl shadow-inner relative custom-scrollbar bg-card">
-          <table className="w-max text-sm text-left">
+        <div className="flex-1 overflow-x-auto overflow-y-auto border border-border rounded-xl shadow-inner relative custom-scrollbar bg-card" onKeyDown={handleFormKeyDown}>
+          <table className="w-max text-sm text-left" data-enter-nav>
             <thead className="text-xs text-muted-foreground uppercase bg-muted/80 sticky top-0 z-20 shadow-sm">
               <tr>
                 <th className="px-3 py-3 font-semibold min-w-[200px] sticky left-0 bg-muted/80 z-30">Product Name *</th>
@@ -566,6 +584,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                     <td className="p-1 sticky left-0 bg-card z-10">
                       <div className="relative">
                         <input
+                          ref={index === 0 ? firstInputRef : undefined}
                           type="text"
                           value={row.name}
                           onChange={(e) => updateRow(index, 'name', e.target.value)}
@@ -589,7 +608,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
                       )}
                     </td>
                     <td className="p-1">
-                      <Select value={row.grade_id} onChange={v => updateRow(index, 'grade_id', v)} placeholder="- Grade -" size="sm" searchable disabled={!row.category || availableGrades.length === 0} options={availableGrades.map(g => ({value:g.grade_id,label:g.grade_name+' (₹'+g.rate+')'}))} />
+                      <Select value={row.grade_id} onChange={v => updateRow(index, 'grade_id', v)} placeholder="- Grade -" size="sm" searchable disabled={!row.category || availableGrades.length === 0} options={availableGrades.map(g => ({value:g.grade_id,label:g.grade_name+' (?'+g.rate+')'}))} />
                     </td>
                     <td className="p-1"><input type="text" value={row.purchase_price} onChange={(e) => updateRow(index, 'purchase_price', e.target.value.replace(/[^0-9.]/g, ''))} className="w-full bg-transparent px-2 py-1.5 outline-none border border-transparent focus:border-primary rounded-md" placeholder="0" /></td>
                     <td className="p-1"><input type="text" value={row.mrp} onChange={(e) => updateRow(index, 'mrp', e.target.value.replace(/[^0-9.]/g, ''))} className={`w-full bg-transparent px-2 py-1.5 outline-none border ${row.error && row.name && !row.mrp ? 'border-destructive' : 'border-transparent focus:border-primary'} rounded-md font-bold`} placeholder="0" /></td>
