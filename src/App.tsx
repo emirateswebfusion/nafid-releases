@@ -4,6 +4,7 @@ import {
   Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags, Undo2 
 } from 'lucide-react';
 import clsx from 'clsx';
+import UpdateBanner from './components/UpdateBanner';
 
 const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing', icon: ShoppingCart },
@@ -570,6 +571,9 @@ function App() {
         
         {/* Main Content Area */}
         <main className="flex-1 min-w-0 h-full relative overflow-hidden bg-background">
+          <div className="absolute top-0 left-0 right-0 z-40">
+            <UpdateBanner onOpenSettings={() => {}} />
+          </div>
           {renderRestrictedPage()}
         </main>
       </div>
@@ -577,8 +581,11 @@ function App() {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
+    <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
       {currentUserRole === 'OWNER' && <DomainWizard />}
+      <div className="absolute top-0 left-0 right-0 z-50">
+        <UpdateBanner onOpenSettings={() => setShowSettingsManager(true)} />
+      </div>
 
       {showPartyManager ? (
         <PartyManager onClose={() => setShowPartyManager(false)} />

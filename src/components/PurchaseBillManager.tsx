@@ -1330,6 +1330,23 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
   }, [showProductCreateForm, tenantId]);
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === ' ' && !showProductCreateForm) {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
+          e.preventDefault();
+          setShowProductCreateForm(true);
+          setNewProductName('');
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showProductCreateForm]);
+
   const searchProducts = async (q: string) => {
     setProductSearch(q);
     setShowProductCreateForm(false);
@@ -1729,14 +1746,28 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       {/* Products Section */}
       <div className="p-4">
         <div ref={searchRef} className="relative mb-4">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={productSearch}
-            onChange={e => searchProducts(e.target.value)}
-            className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
-          />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search products..."
+                value={productSearch}
+                onChange={e => searchProducts(e.target.value)}
+                onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); } }}
+                className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-sm font-bold shrink-0 cursor-pointer active:scale-95 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              title="Add new product"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add</span>
+            </button>
+          </div>
           {searchDropdownPos && products.length > 0 && !showProductCreateForm && (
             <div style={{ position: 'fixed', top: searchDropdownPos.top, left: searchDropdownPos.left, width: searchDropdownPos.width, zIndex: 50 }} className="bg-card border border-border/80 rounded-xl shadow-xl max-h-48 overflow-y-auto">
               {products.map(p => (

@@ -1602,6 +1602,23 @@ export function BillingPage() {
     setTimeout(() => setQuotationSuccess(null), 4000);
   };
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === ' ' && !showProductCreateForm && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode) {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
+          e.preventDefault();
+          setShowProductCreateForm(true);
+          setNewProductName('');
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [showProductCreateForm, isScrapMode, isReturnMode, isPastBillMode, isQuotationMode]);
+
   const handleSearchKey = (e: React.KeyboardEvent) => {
     const maxLen = isScrapMode ? scrapSearchResults.length : isPastBillMode ? pastBillResults.length : results.length;
     if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, maxLen - 1)); e.preventDefault(); }
@@ -1620,6 +1637,7 @@ export function BillingPage() {
         setNewProductName(searchQuery);
       }
     }
+    else if (e.key === ' ' && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode) { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); }
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
   };
 
@@ -2818,25 +2836,40 @@ export function BillingPage() {
                   )}
                 </div>
 
-                <button
-                  onClick={() => {
-                    setIsPastBillMode(prev => !prev);
-                    setSearchQuery('');
-                    setResults([]);
-                    setPastBillResults([]);
-                    if (!isPastBillMode) setTimeout(() => searchRef.current?.focus(), 100);
-                  }}
-                  className={clsx(
-                    "flex items-center gap-1.5 px-3 py-2.5 rounded-xl transition-all text-sm font-bold shrink-0 cursor-pointer active:scale-95 border",
-                    isPastBillMode
-                      ? "bg-teal-500/15 text-teal-600 dark:text-teal-400 border-teal-500/30 shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted border-border"
+                <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0">
+                  {!isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
+                    <button
+                      onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}
+                      className="flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 bg-primary/10 text-primary hover:bg-primary/20 border-0"
+                      title="Add new product"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="hidden sm:inline">Add</span>
+                    </button>
                   )}
-                  title="Search past bills by invoice number"
-                >
-                  <Clock className={clsx("w-4 h-4", isPastBillMode && "text-teal-500")} />
-                  <span className="hidden sm:inline">{isPastBillMode ? 'Searching Bills' : 'Past Bill'}</span>
-                </button>
+                  {!isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
+                    <div className="w-px h-5 bg-border/60" />
+                  )}
+                  <button
+                    onClick={() => {
+                      setIsPastBillMode(prev => !prev);
+                      setSearchQuery('');
+                      setResults([]);
+                      setPastBillResults([]);
+                      if (!isPastBillMode) setTimeout(() => searchRef.current?.focus(), 100);
+                    }}
+                    className={clsx(
+                      "flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 border-0",
+                      isPastBillMode
+                        ? "bg-teal-500/15 text-teal-600 dark:text-teal-400"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    )}
+                    title="Search past bills by invoice number"
+                  >
+                    <Clock className={clsx("w-4 h-4", isPastBillMode && "text-teal-500")} />
+                    <span className="hidden sm:inline">{isPastBillMode ? 'Searching Bills' : 'Past Bill'}</span>
+                  </button>
+                </div>
               </div>
 
               {isPastBillMode && pastBillResults.length > 0 && (
