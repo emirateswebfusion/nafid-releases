@@ -4754,7 +4754,7 @@ export function BillingPage() {
       {/* ─── Create Product Modal ─── */}
       {showProductCreateForm && (
         <>
-          <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
+          <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }} />
           <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
             <div className="w-full max-w-6xl bg-card dark:bg-card border border-border rounded-[28px] shadow-2xl pointer-events-auto overflow-hidden">
               <div className="flex items-center justify-between px-5 py-3 border-b border-border">
@@ -4764,11 +4764,13 @@ export function BillingPage() {
                   </div>
                   <span className="text-xs font-black text-primary uppercase tracking-wider">New Product</span>
                 </div>
-                <button type="button" onClick={resetProductForm}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                  title="Close">
-                  <X className="w-4 h-4 text-destructive" />
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={resetProductForm}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                    title="Close">
+                    <X className="w-4 h-4 text-destructive" />
+                  </button>
+                </div>
               </div>
               <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3">
                 {/* 1. Basic Details */}

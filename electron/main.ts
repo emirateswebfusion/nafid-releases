@@ -555,11 +555,13 @@ ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tena
     const db = getDb();
     const existing = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND is_service_item = 1 AND is_deleted = 0").get(tenant_id);
     if (existing) return { success: true };
+    const existingBarcode = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 0").get(tenant_id);
+    const barcode = existingBarcode ? `SVC-${crypto.randomUUID().slice(0, 8)}` : '99';
     const product_id = crypto.randomUUID();
     db.prepare(`
       INSERT INTO products (product_id, tenant_id, name, sku_barcode, base_price, tax_rate_percent, uom, current_stock, is_service_item, billing_type, pricing_mode, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, 'Service Charge', '99', 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(product_id, tenant_id);
+      VALUES (?, ?, 'Service Charge', ?, 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(product_id, tenant_id, barcode);
     return { success: true, product_id };
   } catch (error: any) {
     console.error('[db:ensureServiceItem]', error);

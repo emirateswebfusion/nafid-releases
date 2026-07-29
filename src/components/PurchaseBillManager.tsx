@@ -1807,7 +1807,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           {showProductCreateForm && (
             <>
               {/* Backdrop */}
-              <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={resetProductForm} />
+              <div className="fixed inset-0 bg-black/40 z-[100]" onMouseDown={e => { if (e.target === e.currentTarget) resetProductForm(); }} />
               {/* Dialog */}
               <div className="fixed inset-0 z-[101] flex items-center justify-center p-4 pointer-events-none">
                 <div className="w-full max-w-6xl bg-card border border-border/80 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
