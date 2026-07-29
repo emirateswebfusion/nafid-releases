@@ -502,6 +502,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
               setInvoiceDetailTxs(detail.transactions);
             }
           }
+        } else if (selectedCategory) {
+          await loadTransactions(selectedCategory.scrap_category_id);
         }
         await loadInvoices();
         await loadData();

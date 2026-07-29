@@ -2260,14 +2260,12 @@ const decrypt = (data: Buffer): string | null => {
 
 ipcMain.handle('auth:saveToken', (event, payload) => {
   try {
-    const encrypted = encrypt(JSON.stringify(payload));
+    const plaintext = JSON.stringify(payload);
+    // Always save plaintext backup so auth survives safeStorage key changes after updates
+    fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
+    const encrypted = encrypt(plaintext);
     if (encrypted) {
       fs.writeFileSync(getEncryptedPath(), encrypted);
-    }
-    // Remove legacy config after migration
-    const oldPath = getConfigPath();
-    if (fs.existsSync(oldPath)) {
-      try { fs.unlinkSync(oldPath); } catch {}
     }
     setSyncActive(true);
     return { success: true };
@@ -2282,15 +2280,16 @@ function readAuthPayload(): any {
   if (fs.existsSync(encPath)) {
     const raw = fs.readFileSync(encPath);
     const decrypted = decrypt(raw);
-    if (decrypted) return JSON.parse(decrypted);
+    if (decrypted) {
+      try { return JSON.parse(decrypted); } catch {}
+    }
+    // Decryption failed (e.g. safeStorage key changed after update) — fall through to plaintext backup
   }
-  // Legacy fallback during migration
+  // Plaintext backup (always written by saveToken, survives app updates)
   const p = getConfigPath();
   if (!fs.existsSync(p)) return null;
   try {
-    const data = JSON.parse(fs.readFileSync(p, 'utf-8'));
-    // Migrate to encrypted on next saveToken call
-    return data;
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
   } catch {
     return null;
   }
