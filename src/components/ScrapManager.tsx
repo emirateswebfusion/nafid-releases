@@ -378,7 +378,11 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
       '[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
     );
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+    if (idx >= 0 && idx < focusable.length - 1) {
+      focusable[idx + 1]?.focus();
+    } else if (idx >= 0) {
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
+    }
   };
 
   const handleReprintScrap = async () => {

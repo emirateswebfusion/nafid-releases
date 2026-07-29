@@ -325,7 +325,11 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+    if (idx >= 0 && idx < focusable.length - 1) {
+      focusable[idx + 1]?.focus();
+    } else if (idx >= 0) {
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
+    }
   };
 
   // ── Intersection Observer for infinite scrolling ──
@@ -1914,7 +1918,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   <Printer className="w-3.5 h-3.5" />
                   Print Label
                 </button>
-                <button onClick={handleSave} disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                <button onClick={handleSave} data-enter-submit disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
                   {loading ? 'Saving...' : view === 'edit' ? 'Update Product' : 'Add to Inventory'}
                 </button>

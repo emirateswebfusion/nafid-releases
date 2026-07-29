@@ -1160,7 +1160,11 @@ export function BillingPage() {
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) focusable[idx + 1]?.focus();
+    if (idx >= 0 && idx < focusable.length - 1) {
+      focusable[idx + 1]?.focus();
+    } else if (idx >= 0) {
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
+    }
   };
 
   const handleCreateAndAddProduct = async () => {
@@ -5061,7 +5065,7 @@ export function BillingPage() {
                 </section>
               </div>
               <div className="flex items-center justify-end px-5 py-3 border-t border-border bg-background">
-                <button type="button" onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
+                <button type="button" data-enter-submit onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
                   Add to Inventory
