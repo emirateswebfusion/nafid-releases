@@ -132,6 +132,35 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     itemsCount: number;
   }>>({});
 
+  // Stable memoized editingData objects to prevent infinite re-render cascades
+  // (Inline object literals cause child useEffect([editingData]) to fire on every render)
+  const gstEditingData = useMemo(() =>
+    editingBill?.bill_type === 'GST'
+      ? {
+          purchase_bill_id: editingBill.purchase_bill_id,
+          bill_number: editingBill.bill_number,
+          invoice_number: editingBill?.invoice_number,
+          payment_type: (editingBill as any)?.payment_type || 'CASH',
+        }
+      : undefined,
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
+  );
+  const estEditingData = useMemo(() =>
+    editingBill?.bill_type === 'ESTIMATE'
+      ? {
+          purchase_bill_id: editingBill.purchase_bill_id,
+          bill_number: editingBill.bill_number,
+          invoice_number: editingBill?.invoice_number,
+          payment_type: (editingBill as any)?.payment_type || 'CASH',
+        }
+      : undefined,
+    [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
+  );
+
+  // Stable memoized cross-section addItem callbacks
+  const gstOtherAddItem = useMemo(() => estRef.current?.addItem ?? undefined, [estRef.current?.addItem]);
+  const estOtherAddItem = useMemo(() => gstRef.current?.addItem ?? undefined, [gstRef.current?.addItem]);
+
   const loadBillSummaries = async (bills: PurchaseBill[]) => {
     if (!window.electronAPI) return;
     const gstBills = bills.filter(b => b.bill_type === 'GST');
@@ -790,13 +819,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setGstHasItems}
-                otherSectionAddItem={estRef.current?.addItem}
-                editingData={editingBill?.bill_type === 'GST' ? {
-                  purchase_bill_id: editingBill!.purchase_bill_id,
-                  bill_number: editingBill!.bill_number,
-                  invoice_number: editingBill?.invoice_number,
-                  payment_type: (editingBill as any)?.payment_type || 'CASH',
-                } : undefined}
+                otherSectionAddItem={gstOtherAddItem}
+                editingData={gstEditingData}
               />
             </div>
             <div className={billType === 'ESTIMATE' ? 'block' : 'hidden'}>
@@ -812,13 +836,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setEstHasItems}
-                otherSectionAddItem={gstRef.current?.addItem}
-                editingData={editingBill?.bill_type === 'ESTIMATE' ? {
-                  purchase_bill_id: editingBill!.purchase_bill_id,
-                  bill_number: editingBill!.bill_number,
-                  invoice_number: editingBill?.invoice_number,
-                  payment_type: (editingBill as any)?.payment_type || 'CASH',
-                } : undefined}
+                otherSectionAddItem={estOtherAddItem}
+                editingData={estEditingData}
               />
             </div>
           </div>
