@@ -1,3 +1,9 @@
+# Vendora v1.5.6 Release Notes
+
+## What's Changed
+- Implemented PurchaseBillManager component for viewing and managing purchase bills
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.5...v1.5.6
+
 # Vendora v1.5.5 Release Notes
 
 ## What's Changed
