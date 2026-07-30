@@ -14,7 +14,7 @@ function getScaleConfig() {
 export async function initWeighingScale(mainWindow: BrowserWindow) {
   const config = getScaleConfig();
   try {
-    const { SerialPort, ReadlineParser } = await import('serialport');
+    const { SerialPort, ReadlineParser } = (await import('serialport')) as any;
     
     const port = new SerialPort({ path: config.path, baudRate: config.baudRate || 9600 });
     const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
@@ -26,7 +26,7 @@ export async function initWeighingScale(mainWindow: BrowserWindow) {
       }
     });
 
-    port.on('error', (err) => {
+    port.on('error', (err: any) => {
       console.error('[Hardware] Weighing Scale SerialPort Error:', err.message);
     });
 

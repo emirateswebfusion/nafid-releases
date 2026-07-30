@@ -92,13 +92,16 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     setCollectPaymentSaving(true);
     setPendingInvoiceSelection(invoiceId);
     const method = rowMethods[invoiceId] || 'CASH';
+    const inv = pendingInvoices.find((i: any) => i.invoice_id === invoiceId);
+    const receivedAmount = inv ? Number(inv.grand_total) : 0;
     try {
-      const r = await window.electronAPI!.dbUpdateInvoiceSettlement({
+      const r = await window.electronAPI!.dbCashierSettlePayment({
         invoice_id: invoiceId,
         tenant_id: tenantId,
+        received_amount: receivedAmount,
         payment_method: method,
-        collected_by: userId,
-        collected_by_name: userName || undefined,
+        user_id: userId,
+        user_name: userName || undefined,
       });
       if (r.success) {
         setCollectPaymentSuccess(true);
