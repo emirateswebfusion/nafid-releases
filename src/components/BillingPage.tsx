@@ -1172,7 +1172,7 @@ export function BillingPage() {
     const target = e.target as HTMLElement;
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
-    const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
+    const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-focusable-checkbox]');
     const idx = Array.from(focusable).indexOf(target as HTMLElement);
     if (idx === -1) return;
     e.preventDefault();
@@ -5046,6 +5046,9 @@ export function BillingPage() {
                       <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
                       <div
                         onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                        onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                        data-focusable-checkbox
+                        tabIndex={-1}
                         className={clsx(
                           'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
                           newProductIsGstApplicable
