@@ -3458,17 +3458,23 @@ ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { te
   }
 });
 
-ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_id: string; item_code?: string }) => {
+ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffix }: { tenant_id: string; item_code?: string; strip_suffix?: string }) => {
   try {
     const db = getDb();
     const prefix = (item_code || '').trim();
+    const suffix = strip_suffix || '';
     let nextNum = 1;
     if (prefix) {
       const rows = db.prepare(
         `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode LIKE ?`
       ).all(tenant_id, `${prefix}%`) as any[];
       for (const row of rows) {
-        const numStr = row.sku_barcode.slice(prefix.length).replace(/\D/g, '');
+        let base = row.sku_barcode.slice(prefix.length);
+        // Strip known suffix (priceCode) from the end before extracting digits
+        if (suffix && base.endsWith(suffix)) {
+          base = base.slice(0, -suffix.length);
+        }
+        const numStr = base.replace(/\D/g, '');
         if (numStr) {
           const num = parseInt(numStr, 10);
           if (num >= nextNum) nextNum = num + 1;
@@ -3479,7 +3485,12 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_
         `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode GLOB '[0-9]*'`
       ).all(tenant_id) as any[];
       for (const row of rows) {
-        const numStr = row.sku_barcode.replace(/\D/g, '');
+        let base = row.sku_barcode;
+        // Strip known suffix from the end
+        if (suffix && base.endsWith(suffix)) {
+          base = base.slice(0, -suffix.length);
+        }
+        const numStr = base.replace(/\D/g, '');
         if (numStr) {
           const num = parseInt(numStr, 10);
           if (num >= nextNum) nextNum = num + 1;

@@ -144,7 +144,7 @@ export interface IElectronAPI {
   dbDeletePurchaseBill: (purchase_bill_id: string) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePurchaseBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => Promise<any[]>;
-  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
+  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string; strip_suffix?: string }) => Promise<{ success: boolean; barcode?: string; error?: string }>;
 
   // Returns
   dbCreateReturn: (payload: any) => Promise<{ success: boolean; error?: string }>;

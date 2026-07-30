@@ -158,7 +158,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdatePurchaseBill: (payload: any) => ipcRenderer.invoke('db:updatePurchaseBill', payload),
   dbDeletePurchaseBill: (purchase_bill_id: string) => ipcRenderer.invoke('db:deletePurchaseBill', purchase_bill_id),
   dbGetPurchaseBillProducts: (args: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPurchaseBillProducts', args),
-  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string }) => ipcRenderer.invoke('db:generateBarcode', args),
+  dbGenerateBarcode: (args: { tenant_id: string; item_code?: string; strip_suffix?: string }) => ipcRenderer.invoke('db:generateBarcode', args),
 
   // Customers / Loyalty
   dbGetCustomers: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getCustomers', args),

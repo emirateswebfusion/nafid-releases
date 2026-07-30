@@ -1489,9 +1489,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   const autoGenerateBarcode = async () => {
     if (!window.electronAPI || !tenantId) return;
-    const res = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+    const priceCode = getPriceCode();
+    const res = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
     if (res.success && res.barcode) {
-      setNewProductBarcode(res.barcode + getPriceCode());
+      setNewProductBarcode(res.barcode + priceCode);
     }
   };
 
@@ -1593,8 +1594,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const productId = uuidv4();
     let finalBarcode = newProductBarcode;
     if (!finalBarcode) {
-      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
       const priceCode = getPriceCode();
+      const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined, strip_suffix: priceCode || undefined });
       finalBarcode = ((gen?.success && gen?.barcode) || `${newProductItemCode || '0'}001`) + priceCode;
     }
     const purchasePrice = Number(newProductPurchasePrice) || 0;
@@ -1624,10 +1625,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      const defaultQty = String(Number(newProductStock) || 1);
       setBillItems(prev => [...prev, {
         product_id: productId,
         name: newProductName.trim(),
-        quantity: '1',
+        quantity: defaultQty,
         purchase_price: String(purchasePrice),
         selling_price: String(basePrice),
         is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
@@ -1638,11 +1640,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       setProducts([]);
       resetProductForm();
     } else if (res.error?.includes('sku_barcode') && retries > 0 && !newProductBarcode) {
-      const match = finalBarcode.match(/(\d+)(\D*)$/);
-      const suffix = match ? match[2] || '' : '';
+      const priceCode = getPriceCode();
+      // Strip priceCode from the end to get the base barcode for proper sequential increment
+      const baseBarcode = priceCode && finalBarcode.endsWith(priceCode)
+        ? finalBarcode.slice(0, -priceCode.length)
+        : finalBarcode;
+      const match = baseBarcode.match(/(\d+)$/);
       const numPart = match ? match[1] : '001';
       const nextNum = String(parseInt(numPart, 10) + 1).padStart(numPart.length, '0');
-      setNewProductBarcode(finalBarcode.replace(/(\d+)(\D*)$/, nextNum + suffix));
+      const newBase = baseBarcode.replace(/(\d+)$/, nextNum);
+      setNewProductBarcode(newBase + priceCode);
       setTimeout(() => handleCreateAndAddProduct(retries - 1), 100);
     } else {
       onStatusMessage({ text: 'Failed to create product: ' + (res.error || ''), type: 'error' });
@@ -1868,6 +1875,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       </div>
                       <span className="text-xs font-black text-primary uppercase tracking-wider">{editingProductItemId ? 'Edit Product' : 'New Product'}</span>
                     </div>
+                    <button type="button" onClick={resetProductForm}
+                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                      title="Close">
+                      <X className="w-4 h-4 text-destructive" />
+                    </button>
                     <button type="button" onClick={() => {
                       const next = productFormView === 'grid' ? 'list' : 'grid';
                       setProductFormView(next);
@@ -1876,11 +1888,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/30"
                       title={productFormView === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                       {productFormView === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-                    </button>
-                    <button type="button" onClick={resetProductForm}
-                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                      title="Close">
-                      <X className="w-4 h-4 text-destructive" />
                     </button>
                   </div>
                   <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3" data-enter-nav>
