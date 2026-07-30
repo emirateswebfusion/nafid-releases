@@ -835,6 +835,22 @@ export function BillingPage() {
   useEffect(() => {
     if (showProductCreateForm) {
       setTimeout(() => firstInputRef.current?.focus(), 50);
+      (async () => {
+        if (!window.electronAPI || !tenantId) return;
+        try {
+          const lastProduct = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' });
+          if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
+            const lastBarcode = lastProduct[0].sku_barcode;
+            const match = lastBarcode.match(/(\d+)[^\d]*$/);
+            if (match) {
+              const nextNum = (BigInt(match[1]) + 1n).toString();
+              setNewProductBarcode(nextNum.padStart(match[1].length, '0'));
+            }
+          }
+        } catch (err) {
+          console.error("Failed to fetch last barcode", err);
+        }
+      })();
     }
   }, [showProductCreateForm]);
 
@@ -1154,20 +1170,22 @@ export function BillingPage() {
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT') return;
-    e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
-    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) {
-      focusable[idx + 1]?.focus();
-    } else if (idx >= 0) {
+    const idx = Array.from(focusable).indexOf(target as HTMLElement);
+    if (idx === -1) return;
+    e.preventDefault();
+    if (idx < focusable.length - 1) {
+      const nextEl = focusable[idx + 1];
+      nextEl?.focus();
+      if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
+    } else {
       (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
     }
   };
 
-  const handleCreateAndAddProduct = async () => {
+  const handleCreateAndAddProduct = async (retries = 3) => {
     if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
     const productId = uuidv4();
     let finalBarcode = newProductBarcode;
@@ -1220,6 +1238,13 @@ export function BillingPage() {
       setSearchQuery('');
       setResults([]);
       resetProductForm();
+    } else if (res.error?.includes('sku_barcode') && retries > 0 && !newProductBarcode) {
+      const match = finalBarcode.match(/(\d+)(\D*)$/);
+      const suffix = match ? match[2] || '' : '';
+      const numPart = match ? match[1] : '001';
+      const nextNum = String(parseInt(numPart, 10) + 1).padStart(numPart.length, '0');
+      setNewProductBarcode(finalBarcode.replace(/(\d+)(\D*)$/, nextNum + suffix));
+      setTimeout(() => handleCreateAndAddProduct(retries - 1), 100);
     } else {
       setHardwareError('Failed to create product: ' + (res.error || ''));
     }

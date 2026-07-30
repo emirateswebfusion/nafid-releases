@@ -100,7 +100,9 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           );
           const idx = Array.from(focusable).indexOf(trigger);
           if (idx >= 0 && idx < focusable.length - 1) {
-            focusable[idx + 1]?.focus();
+            const nextEl = focusable[idx + 1];
+            nextEl?.focus();
+            if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
           }
         }, 0);
       }

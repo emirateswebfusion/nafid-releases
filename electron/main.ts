@@ -3464,20 +3464,26 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code }: { tenant_
     const prefix = (item_code || '').trim();
     let nextNum = 1;
     if (prefix) {
-      const maxRow = db.prepare(
-        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode LIKE ? ORDER BY LENGTH(sku_barcode) DESC, sku_barcode DESC LIMIT 1`
-      ).get(tenant_id, `${prefix}%`) as any;
-      if (maxRow?.sku_barcode) {
-        const numPart = maxRow.sku_barcode.slice(prefix.length).replace(/\D/g, '');
-        if (numPart) nextNum = parseInt(numPart, 10) + 1;
+      const rows = db.prepare(
+        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode LIKE ?`
+      ).all(tenant_id, `${prefix}%`) as any[];
+      for (const row of rows) {
+        const numStr = row.sku_barcode.slice(prefix.length).replace(/\D/g, '');
+        if (numStr) {
+          const num = parseInt(numStr, 10);
+          if (num >= nextNum) nextNum = num + 1;
+        }
       }
     } else {
-      const maxRow = db.prepare(
-        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode GLOB '[0-9]*' ORDER BY LENGTH(sku_barcode) DESC, sku_barcode DESC LIMIT 1`
-      ).get(tenant_id) as any;
-      if (maxRow?.sku_barcode) {
-        const numPart = maxRow.sku_barcode.replace(/\D/g, '');
-        if (numPart) nextNum = parseInt(numPart, 10) + 1;
+      const rows = db.prepare(
+        `SELECT sku_barcode FROM products WHERE tenant_id = ? AND sku_barcode GLOB '[0-9]*'`
+      ).all(tenant_id) as any[];
+      for (const row of rows) {
+        const numStr = row.sku_barcode.replace(/\D/g, '');
+        if (numStr) {
+          const num = parseInt(numStr, 10);
+          if (num >= nextNum) nextNum = num + 1;
+        }
       }
     }
     const digits = Math.max(3, nextNum.toString().length);

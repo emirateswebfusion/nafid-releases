@@ -319,15 +319,17 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT') return;
-    e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
-    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) {
-      focusable[idx + 1]?.focus();
-    } else if (idx >= 0) {
+    const idx = Array.from(focusable).indexOf(target as HTMLElement);
+    if (idx === -1) return;
+    e.preventDefault();
+    if (idx < focusable.length - 1) {
+      const nextEl = focusable[idx + 1];
+      nextEl?.focus();
+      if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
+    } else {
       (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
     }
   };
@@ -800,7 +802,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleSave = async () => {
+  const handleSave = async (retries = 3) => {
     if (!formData.name || Number(formData.base_price) <= 0) {
       setStatusMessage({ text: 'Please fill in Name and a valid MRP.', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
@@ -914,6 +916,10 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
           setTotalCount(prev => prev !== null ? prev + 1 : null);
         }
         setView('list');
+      } else if (!formData.sku_barcode && res.error?.includes('sku_barcode') && retries > 0) {
+        setLoading(false);
+        setFormData(prev => ({ ...prev, sku_barcode: '' }));
+        setTimeout(() => handleSave(retries - 1), 100);
       } else {
         let errorMessage = res.error || 'Unknown error occurred';
         if (errorMessage.includes('UNIQUE constraint failed')) {

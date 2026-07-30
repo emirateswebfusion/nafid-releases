@@ -337,15 +337,17 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
-    if (target.tagName !== 'INPUT') return;
-    e.preventDefault();
     const container = target.closest('[data-enter-nav]');
     if (!container) return;
     const focusable = container.querySelectorAll<HTMLElement>('[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
-    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
-    if (idx >= 0 && idx < focusable.length - 1) {
-      focusable[idx + 1]?.focus();
-    } else if (idx >= 0) {
+    const idx = Array.from(focusable).indexOf(target as HTMLElement);
+    if (idx === -1) return;
+    e.preventDefault();
+    if (idx < focusable.length - 1) {
+      const nextEl = focusable[idx + 1];
+      nextEl?.focus();
+      if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
+    } else {
       (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
     }
   };

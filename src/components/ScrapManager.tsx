@@ -379,7 +379,9 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     );
     const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
     if (idx >= 0 && idx < focusable.length - 1) {
-      focusable[idx + 1]?.focus();
+      const nextEl = focusable[idx + 1];
+      nextEl?.focus();
+      if (nextEl?.hasAttribute('data-select-trigger')) setTimeout(() => nextEl.click(), 0);
     } else if (idx >= 0) {
       (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
     }
