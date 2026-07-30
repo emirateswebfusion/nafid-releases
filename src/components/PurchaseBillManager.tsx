@@ -3,7 +3,8 @@ import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save,
-  Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List
+  Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List,
+  UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
@@ -70,7 +71,7 @@ const formatDate = (d: string) => {
 
 export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { tenantId } = useAuthStore();
+  const { tenantId, userId, userName } = useAuthStore();
 
   const [bills, setBills] = useState<PurchaseBill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,6 +132,13 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     taxableAmount: number;
     itemsCount: number;
   }>>({});
+
+  // ── Party Create Dialog ──
+  const [showPartyCreateForm, setShowPartyCreateForm] = useState(false);
+  const [newPartyForm, setNewPartyForm] = useState({
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE',
+  });
+  const [isSavingParty, setIsSavingParty] = useState(false);
 
   // Stable memoized editingData objects to prevent infinite re-render cascades
   // (Inline object literals cause child useEffect([editingData]) to fire on every render)
@@ -372,6 +380,42 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const filteredSuppliers = suppliers.filter(s =>
     s.name.toLowerCase().includes(supplierSearch.toLowerCase())
   );
+
+  const handleCreateParty = async () => {
+    if (!newPartyForm.name.trim()) { setStatusMessage({ text: 'Party name is required', type: 'error' }); setTimeout(() => setStatusMessage(null), 3000); return; }
+    if (!window.electronAPI || !tenantId || !userId) return;
+    setIsSavingParty(true);
+    try {
+      const partyId = uuidv4();
+      await window.electronAPI.dbAddParty({
+        party_id: partyId,
+        tenant_id: tenantId,
+        name: newPartyForm.name.trim(),
+        phone: newPartyForm.phone.trim() || null,
+        address: newPartyForm.address.trim() || null,
+        gstin: newPartyForm.gstin.trim() || null,
+        balance: parseFloat(newPartyForm.opening_balance) || 0,
+        balance_type: newPartyForm.balance_type,
+        created_by: userId,
+        created_by_name: userName || undefined,
+      });
+      setStatusMessage({ text: 'Party created successfully', type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
+      // Refresh suppliers and auto-select
+      const updated = await window.electronAPI.dbGetParties(tenantId);
+      if (Array.isArray(updated)) setSuppliers(updated);
+      setSupplierName(newPartyForm.name.trim());
+      setSupplierId(partyId);
+      setSupplierSearch('');
+      setShowPartyCreateForm(false);
+      setNewPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' });
+    } catch {
+      setStatusMessage({ text: 'Failed to create party', type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setIsSavingParty(false);
+    }
+  };
 
   const handleSaveAll = async () => {
     setIsSavingAll(true);
@@ -733,6 +777,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              onClick={() => { setNewPartyForm(prev => ({ ...prev, name: supplierSearch || '' })); setShowPartyCreateForm(true); }}
+              className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer shrink-0"
+              title="Create Party"
+            >
+              <UserPlus className="w-4 h-4" />
+            </button>
             <div className="flex items-center gap-2 shrink-0">
               {/* Tab: GST */}
               <button
@@ -1179,6 +1231,160 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             </div>
 
 
+          </div>
+        </div>
+      )}
+
+      {/* ── Create Party Dialog ── */}
+      {showPartyCreateForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPartyCreateForm(false)}>
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="shrink-0 px-6 py-4 border-b border-border/60 flex items-center justify-between bg-card">
+              <div className="flex items-center gap-2.5">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+                  <UserCircle className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-black uppercase tracking-wider text-primary">Create Party</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPartyCreateForm(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              {/* Party Name */}
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Rajan Traders"
+                  value={newPartyForm.name}
+                  onChange={e => setNewPartyForm(f => ({ ...f, name: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                  autoFocus
+                />
+              </div>
+
+              {/* Phone + GSTIN */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Phone</label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Phone number"
+                      value={newPartyForm.phone}
+                      onChange={e => setNewPartyForm(f => ({ ...f, phone: e.target.value }))}
+                      className="w-full bg-background border border-border rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GSTIN</label>
+                  <input
+                    type="text"
+                    placeholder="Optional"
+                    value={newPartyForm.gstin}
+                    onChange={e => setNewPartyForm(f => ({ ...f, gstin: e.target.value.toUpperCase() }))}
+                    className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm font-mono tracking-wider"
+                  />
+                </div>
+              </div>
+
+              {/* Address */}
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Address</label>
+                <div className="relative">
+                  <MapPin className="absolute left-3 top-3 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                  <textarea
+                    placeholder="Optional address"
+                    rows={2}
+                    value={newPartyForm.address}
+                    onChange={e => setNewPartyForm(f => ({ ...f, address: e.target.value }))}
+                    className="w-full bg-background border border-border rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* Opening Balance */}
+              <div className="bg-card border border-border/60 rounded-xl p-4">
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
+                  <Banknote className="w-3.5 h-3.5 text-emerald-600" />
+                  <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">Opening Balance (Optional)</span>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Type</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {(['RECEIVABLE', 'PAYABLE'] as const).map(t => (
+                        <button
+                          key={t}
+                          type="button"
+                          onClick={() => setNewPartyForm(f => ({ ...f, balance_type: t }))}
+                          className={clsx(
+                            'py-2 px-2 rounded-lg border-2 text-[10px] font-black transition-all duration-200 active:scale-95 cursor-pointer text-center',
+                            newPartyForm.balance_type === t
+                              ? t === 'RECEIVABLE'
+                                ? 'border-red-400 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                                : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
+                              : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                          )}
+                        >
+                          {t === 'RECEIVABLE' ? '↑ Receive' : '↓ Payable'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">Amount (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-xs pointer-events-none">₹</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={newPartyForm.opening_balance}
+                        onChange={e => setNewPartyForm(f => ({ ...f, opening_balance: e.target.value }))}
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        className="w-full bg-background border border-border rounded-xl pl-7 pr-3.5 py-2 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm no-spinners"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 border-t border-border/60 bg-card px-6 py-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPartyCreateForm(false)}
+                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isSavingParty || !newPartyForm.name.trim()}
+                onClick={handleCreateParty}
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+              >
+                {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
+                {isSavingParty ? 'Creating…' : 'Create Party'}
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1755,8 +1961,24 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   useEffect(() => {
     if (showProductCreateForm) {
       setTimeout(() => firstInputRef.current?.focus(), 50);
+      // Auto-generate barcode — match billing page behavior: increment last product's barcode number
+      if (window.electronAPI && tenantId && !newProductBarcode) {
+        window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
+          .then((lastProduct: any[]) => {
+            if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
+              const lastBarcode = lastProduct[0].sku_barcode;
+              const match = lastBarcode.match(/(\d+)[^\d]*$/);
+              if (match) {
+                const numStr = match[1];
+                const nextNum = (BigInt(numStr) + 1n).toString();
+                setNewProductBarcode(nextNum.padStart(numStr.length, '0'));
+              }
+            }
+          })
+          .catch(console.error);
+      }
     }
-  }, [showProductCreateForm]);
+  }, [showProductCreateForm, tenantId]);
 
   const isEstimate = type === 'ESTIMATE';
 
@@ -1875,20 +2097,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       </div>
                       <span className="text-xs font-black text-primary uppercase tracking-wider">{editingProductItemId ? 'Edit Product' : 'New Product'}</span>
                     </div>
-                    <button type="button" onClick={resetProductForm}
-                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
-                      title="Close">
-                      <X className="w-4 h-4 text-destructive" />
-                    </button>
-                    <button type="button" onClick={() => {
-                      const next = productFormView === 'grid' ? 'list' : 'grid';
-                      setProductFormView(next);
-                      localStorage.setItem('productFormView', next);
-                    }}
-                      className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/30"
-                      title={productFormView === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
-                      {productFormView === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button type="button" onClick={resetProductForm}
+                        className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+                        title="Close">
+                        <X className="w-4 h-4 text-destructive" />
+                      </button>
+                      <button type="button" onClick={() => {
+                        const next = productFormView === 'grid' ? 'list' : 'grid';
+                        setProductFormView(next);
+                        localStorage.setItem('productFormView', next);
+                      }}
+                        className="p-2 rounded-xl border border-border/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+                        title={productFormView === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
+                        {productFormView === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <div className="p-5 max-h-[70vh] overflow-y-auto space-y-3" data-enter-nav>
                     {/* 1. Basic Details */}
