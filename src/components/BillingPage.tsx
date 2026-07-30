@@ -2584,6 +2584,17 @@ export function BillingPage() {
   };
 
   useKeyboardShortcuts({
+    'Escape': () => {
+      // Close active tab first if there are multiple tabs
+      const { tabs, activeTabId, closeTab } = useTabStore.getState();
+      if (tabs.length > 1 && activeTabId) {
+        closeTab(activeTabId);
+        return;
+      }
+      // Otherwise close/logout the page
+      if (authRole === 'OWNER') setRole('OWNER');
+      else logout();
+    },
     'F2': () => searchRef.current?.focus(),
     'F8': () => { discountRef.current?.focus(); },
     'F12': () => {
@@ -5351,9 +5362,7 @@ export function BillingPage() {
             </div>
           </div>
         </>
-      )}
-
-      {cashRegisterOpen && (
+      )}        {cashRegisterOpen && (
         <CashRegisterPanel onClose={() => setCashRegisterOpen(false)} />
       )}
     </div>

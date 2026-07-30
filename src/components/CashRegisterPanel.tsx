@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   X, Plus, Minus, TrendingUp, TrendingDown, Clock, Receipt, Banknote,
-  CheckCircle2, AlertTriangle, Save
+  CheckCircle2, AlertTriangle, User2, DollarSign, Search
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Select } from '../components/ui/Select';
@@ -26,7 +26,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
 
   const [drawer, setDrawer] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
 
   const [showOpeningBal, setShowOpeningBal] = useState(false);
   const [openingBalInput, setOpeningBalInput] = useState<number>(0);
@@ -50,23 +50,67 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const [newCatName, setNewCatName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
 
+  // ── Pending Invoices ──
+  const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
+  const [pendingSearch, setPendingSearch] = useState('');
+  const [rowMethods, setRowMethods] = useState<Record<string, string>>({});
+  const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
+  const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
+  const [pendingInvoiceSelection, setPendingInvoiceSelection] = useState<string | null>(null);
+
+  // ── Party Link for Transactions ──
+  const [parties, setParties] = useState<any[]>([]);
+  const [txnPartyId, setTxnPartyId] = useState('');
+  const [txnPartyName, setTxnPartyName] = useState('');
+  const [partySearch, setPartySearch] = useState('');
+
+  const drawerOpen = drawer?.status === 'OPEN';
   const totalIn = transactions.filter(t => t.type === 'CASH_IN').reduce((s, t) => s + Number(t.amount), 0);
   const totalOut = transactions.filter(t => t.type === 'CASH_OUT').reduce((s, t) => s + Number(t.amount), 0);
 
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
     setLoading(true);
-    const [d, txs] = await Promise.all([
+    const [d, txs, invs, pts] = await Promise.all([
       window.electronAPI.dbCashierGetDrawer({ tenant_id: tenantId }),
       window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
+      window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: pendingSearch || undefined }),
+      window.electronAPI.dbGetParties(tenantId),
     ]);
     if (d && !d.error && d.status === 'CLOSED') { setDrawer(null); }
     else if (d && !d.error) { setDrawer(d); }
     if (Array.isArray(txs)) setTransactions(txs);
+    if (Array.isArray(invs)) setPendingInvoices(invs);
+    if (Array.isArray(pts)) setParties(pts);
     setLoading(false);
-  }, [tenantId]);
+  }, [tenantId, pendingSearch]);
 
   useEffect(() => { load(); }, [load]);
+
+  const handleCollectPayment = async (invoiceId: string) => {
+    if (!tenantId || !userId) return;
+    setCollectPaymentSaving(true);
+    setPendingInvoiceSelection(invoiceId);
+    const method = rowMethods[invoiceId] || 'CASH';
+    try {
+      const r = await window.electronAPI!.dbUpdateInvoiceSettlement({
+        invoice_id: invoiceId,
+        tenant_id: tenantId,
+        payment_method: method,
+        collected_by: userId,
+        collected_by_name: userName || undefined,
+      });
+      if (r.success) {
+        setCollectPaymentSuccess(true);
+        setTimeout(() => setCollectPaymentSuccess(false), 2000);
+        await load();
+      }
+    } catch (err) {
+      console.error('Failed to collect payment:', err);
+    }
+    setCollectPaymentSaving(false);
+    setPendingInvoiceSelection(null);
+  };
 
   useEffect(() => {
     if (!drawer || !drawer.opening_balance) {
@@ -94,8 +138,22 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
       category: txnCat || undefined, notes: txnNote || undefined,
       user_id: userId, user_name: userName || undefined,
     });
+    if (r.success && txnPartyId) {
+      const partyTxnType = txnType === 'CASH_IN' ? 'DEBIT' : 'CREDIT';
+      await window.electronAPI!.dbAddPartyLedgerEntry({
+        party_id: txnPartyId,
+        tenant_id: tenantId,
+        transaction_type: partyTxnType,
+        amount: txnAmt,
+        description: `${txnType === 'CASH_IN' ? 'Cash received' : 'Cash paid'} - ${txnCat || 'Manual'}${txnNote ? ': ' + txnNote : ''}`,
+        reference_number: null,
+        created_by: userId,
+        created_by_name: userName || undefined,
+        ledger_id: crypto.randomUUID(),
+      });
+    }
     setTxnSubmitting(false);
-    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
+    if (r.success) { setTxnAmt(0); setTxnCat(''); setTxnNote(''); setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName(''); setShowTxnModal(false); await load(); }
   };
 
   const handleDayClose = async () => {
@@ -126,93 +184,253 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     }
   };
 
+  // ── Loading state ──
+  if (loading) {
+    return (
+      <div className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-background">
+        <div className="relative">
+          <div className="w-14 h-14 rounded-full border-2 border-primary/20 border-t-primary animate-spin" />
+          <Banknote className="w-5 h-5 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+        </div>
+        <p className="text-sm font-bold text-muted-foreground animate-pulse">Loading register data…</p>
+      </div>
+    );
+  }
+
   return (
-    <>
-      {/* ── REGISTER PANEL ── */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
-        <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[480px] h-[560px] max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-          {/* Header */}
-          <div className="shrink-0 flex items-center justify-between px-5 py-3 border-b border-border/60">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-blue-500/10">
-                <Receipt className="w-4 h-4 text-blue-500" />
-              </div>
-              <h2 className="text-sm font-extrabold text-foreground">Cash Register</h2>
+    <div className="fixed inset-0 z-40 flex flex-col bg-background">
+
+      {/* ═══ HEADER ═══ */}
+      <header className="shrink-0 border-b border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between px-5 py-3 gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <Banknote className="w-4 h-4" />
             </div>
-            <button onClick={onClose} className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all active:scale-95 cursor-pointer">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Cash Register</h1>
+                <span className={clsx(
+                  'w-1.5 h-1.5 rounded-full shrink-0',
+                  drawerOpen ? 'bg-emerald-500 animate-pulse' : drawer ? 'bg-muted-foreground' : 'bg-amber-500'
+                )} />
+              </div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className={clsx(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
+                  drawerOpen ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
+                  drawer ? 'bg-muted text-muted-foreground border-border' :
+                  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
+                )}>
+                  {drawerOpen ? 'Open' : drawer ? 'Closed' : 'Not Started'}
+                </span>
+                <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
+                  {drawer?.business_date || new Date().toLocaleDateString('en-CA')}
+                </span>
+                {drawer && (
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    Sales: {formatCurrency(drawer.cash_sales || 0)}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!drawerOpen && (
+              <button
+                onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setOpeningBalError(''); setShowOpeningBal(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
+              >
+                <DollarSign className="w-3.5 h-3.5" /> Opening
+              </button>
+            )}
+            {drawerOpen && !closeResult && (
+              <button
+                onClick={() => { setActualCash(drawer?.expected_closing || 0); setCloseResult(null); setShowDayClose(true); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-destructive hover:bg-destructive/10 border border-destructive/25 transition-all duration-200 active:scale-95 cursor-pointer"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" /> Close
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
               <X className="w-4 h-4 text-destructive" />
             </button>
           </div>
+        </div>
+      </header>
 
-          {!drawer || !drawer.opening_balance ? (
-            /* Opening balance prompt */
-            <div className="flex-1 flex flex-col items-center justify-center gap-4 p-8 text-center">
-              <div className="w-16 h-16 rounded-full bg-muted/40 flex items-center justify-center">
-                <Banknote className="w-8 h-8 text-muted-foreground/40" />
+      {/* ═══ TWO-COLUMN MAIN CONTENT ═══ */}
+      <div className="flex-1 flex min-h-0">
+
+        {/* ═══ LEFT: Pending Invoices ═══ */}
+        <div className="flex-1 min-w-0 flex flex-col border-r border-border">
+          {/* Toolbar */}
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-border bg-muted/10 shrink-0">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search invoice or customer…"
+                value={pendingSearch}
+                onChange={(e) => setPendingSearch(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs bg-card border border-border rounded-xl outline-none focus:border-primary/40 focus:ring-2 focus:ring-primary/10 text-foreground placeholder:text-muted-foreground/50 transition-all duration-200"
+              />
+            </div>
+            <div className={clsx(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-xl border shrink-0',
+              pendingInvoices.length > 0 ? 'bg-amber-500/10 border-amber-500/25' : 'bg-emerald-500/10 border-emerald-500/25'
+            )}>
+              <span className={clsx('text-sm font-black tabular-nums leading-none', pendingInvoices.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')}>
+                {pendingInvoices.length}
+              </span>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">Pending</span>
+            </div>
+          </div>
+
+          {/* Column headers */}
+          <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1fr_0.8fr] gap-x-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
+            <span className="text-center">Invoice</span>
+            <span className="text-center">Customer</span>
+            <span className="text-center">Amount</span>
+            <span className="text-center">Payment</span>
+            <span className="text-center">Action</span>
+          </div>
+
+          {/* Rows */}
+          <div className="flex-1 overflow-y-auto">
+            {collectPaymentSuccess && (
+              <div className="mx-3 mt-2 px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center gap-2 text-xs font-bold text-emerald-600">
+                <CheckCircle2 className="w-4 h-4" /> Payment collected successfully!
               </div>
-              <div>
-                <p className="text-sm font-bold text-foreground">No open cash drawer</p>
-                <p className="text-xs text-muted-foreground/60 mt-1">Set opening balance to start the register</p>
+            )}
+            {pendingInvoices.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-10">
+                <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-bold text-foreground">All Settled!</p>
+                  <p className="text-xs text-muted-foreground/70 mt-1">No pending invoices for today</p>
+                </div>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/30">
+                {pendingInvoices.map((inv: any, idx: number) => {
+                  const method = rowMethods[inv.invoice_id] || 'CASH';
+                  const isSaving = collectPaymentSaving && pendingInvoiceSelection === inv.invoice_id;
+                  return (
+                    <div
+                      key={inv.invoice_id}
+                      className={clsx(
+                        'grid grid-cols-[1.2fr_1.2fr_1fr_1fr_0.8fr] gap-x-2 px-4 py-2.5 transition-all duration-150 items-center hover:bg-primary/5',
+                        idx % 2 === 0 ? 'bg-card' : 'bg-muted/25'
+                      )}
+                    >
+                      <span className="text-xs font-bold text-foreground truncate text-center">{inv.invoice_number}</span>
+                      <span className="text-xs text-muted-foreground truncate text-center">{inv.customer_name || '—'}</span>
+                      <span className="text-xs font-black text-foreground text-center tabular-nums">{formatCurrency(inv.grand_total)}</span>
+                      <div className="flex justify-center">
+                        <select
+                          value={method}
+                          onChange={(e) => setRowMethods((p: any) => ({ ...p, [inv.invoice_id]: e.target.value }))}
+                          className="text-[10px] font-bold bg-background border border-border rounded-lg px-1.5 py-1 text-foreground outline-none cursor-pointer"
+                        >
+                          <option value="CASH">Cash</option>
+                          <option value="CARD">Card</option>
+                          <option value="UPI">UPI</option>
+                        </select>
+                      </div>
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => handleCollectPayment(inv.invoice_id)}
+                          disabled={isSaving}
+                          className="flex items-center gap-1 px-3 py-1.5 text-[10px] font-black text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-all active:scale-95 cursor-pointer disabled:opacity-50 shadow-sm"
+                        >
+                          {isSaving ? (
+                            <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3" />
+                          )}
+                          {isSaving ? '' : 'Collect'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* ═══ RIGHT: Cash Register Feed ═══ */}
+        <div className="w-[400px] shrink-0 flex flex-col bg-card z-10">
+          {/* Panel header */}
+          <div className="relative shrink-0">
+            <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(217,91%,60%) 50%, transparent 100%)' }} />
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-500/10">
+                  <Receipt className="w-4 h-4 text-blue-500" />
+                </div>
+                <h2 className="text-sm font-extrabold text-foreground tracking-tight">Cash Register</h2>
               </div>
               <button
-                onClick={() => { setShowOpeningBal(true); setOpeningBalInput(0); setOpeningBalError(''); }}
-                className="px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
+                onClick={async () => {
+                  setTxnAmt(0); setTxnCat(''); setTxnNote('');
+                  setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
+                  setShowTxnModal(true);
+                  if (!parties.length) {
+                    const p = await window.electronAPI!.dbGetParties(tenantId!);
+                    if (Array.isArray(p)) setParties(p);
+                  }
+                  const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId! });
+                  if (Array.isArray(cats)) setCustomCategories(cats);
+                }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
               >
-                Set Opening Balance
+                <Plus className="w-3.5 h-3.5" /> Add Entry
               </button>
+            </div>
+          </div>
+
+          {/* Mini stat cards */}
+          <div className="grid grid-cols-2 gap-3 px-5 py-3 border-b border-border bg-muted/5 shrink-0">
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
+              <div className="p-1.5 rounded-lg bg-emerald-500/15"><TrendingUp className="w-3.5 h-3.5 text-emerald-500" /></div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash In</p>
+                <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight">{formatCurrency(totalIn)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20">
+              <div className="p-1.5 rounded-lg bg-rose-500/15"><TrendingDown className="w-3.5 h-3.5 text-rose-500" /></div>
+              <div>
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash Out</p>
+                <p className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums leading-tight">{formatCurrency(totalOut)}</p>
+              </div>
+            </div>
+          </div>
+
+          {!drawer || !drawer.opening_balance ? (
+            <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
+              <Banknote className="w-10 h-10 text-muted-foreground/30" />
+              <p className="text-xs font-bold text-muted-foreground">No open drawer yet</p>
+              <p className="text-[10px] text-muted-foreground/60">Set opening balance to begin</p>
             </div>
           ) : (
             <>
-              {/* Mini stat cards */}
-              <div className="grid grid-cols-2 gap-3 px-5 py-3 border-b border-border/50 bg-muted/5 shrink-0">
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
-                  <div className="p-1.5 rounded-lg bg-emerald-500/15"><TrendingUp className="w-3.5 h-3.5 text-emerald-500" /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash In</p>
-                    <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight">{formatCurrency(totalIn)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20">
-                  <div className="p-1.5 rounded-lg bg-rose-500/15"><TrendingDown className="w-3.5 h-3.5 text-rose-500" /></div>
-                  <div>
-                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash Out</p>
-                    <p className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums leading-tight">{formatCurrency(totalOut)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Register controls */}
-              <div className="flex items-center justify-between px-5 py-2 border-b border-border/50 shrink-0">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Transactions</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={async () => {
-                      setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName('');
-                      setShowTxnModal(true);
-                      const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId! });
-                      if (Array.isArray(cats)) setCustomCategories(cats);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Plus className="w-3 h-3" /> Add Entry
-                  </button>
-                  <button
-                    onClick={() => { setShowDayClose(true); setActualCash(drawer.current_cash ?? 0); setCloseRemarks(''); setCloseResult(null); }}
-                    className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-rose-500 hover:bg-rose-500/10 border border-rose-500/20 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Save className="w-3 h-3" /> Day Close
-                  </button>
-                </div>
-              </div>
-
               {/* Column headers */}
-              <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/20 shrink-0">
+              <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
                 <span>Time</span><span>Type</span><span>Category</span><span className="text-right">Amount</span><span className="text-right">By</span>
               </div>
-
               {/* Transaction feed */}
-              <div className="flex-1 overflow-y-auto pb-6">
-                {transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
+              <div className="flex-1 overflow-y-auto">
+                {transactions.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
                     <Banknote className="w-10 h-10 text-muted-foreground/30" />
                     <p className="text-sm font-bold">No entries</p>
@@ -222,9 +440,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   <div className="divide-y divide-border/30">
                     {drawer && drawer.opening_balance != null && drawer.opening_balance >= 0 && (
                       <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2 border-l-primary/50">
-                        <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
-                          <Clock className="w-2.5 h-2.5 shrink-0" /> {drawer.opened_at ? formatTime(drawer.opened_at) : '—'}
-                        </span>
+                        <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5"><Clock className="w-2.5 h-2.5 shrink-0" /> {drawer.opened_at ? formatTime(drawer.opened_at) : '—'}</span>
                         <span className="text-[9px] font-black px-1.5 py-0.5 rounded-md text-center w-fit text-primary bg-primary/10">OPEN</span>
                         <span className="text-xs text-foreground truncate font-bold">Opening Balance</span>
                         <span className="text-xs font-black text-right tabular-nums text-foreground">{formatCurrency(drawer.opening_balance)}</span>
@@ -250,6 +466,10 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════════
+          MODALS
+      ══════════════════════════════════════════════════════════════════════ */}
 
       {/* ── Opening Balance Modal ── */}
       {showOpeningBal && (
@@ -299,7 +519,6 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
               </div>
             </div>
             <div className="p-6 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
-              {/* Type toggle */}
               <div className="flex rounded-xl bg-muted/40 border border-border/60 p-1 gap-1">
                 <button onClick={() => setTxnType('CASH_IN')} className={clsx('flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-black transition-all cursor-pointer', txnType === 'CASH_IN' ? 'bg-emerald-500 text-white shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
                   <TrendingUp className="w-3.5 h-3.5" /> Cash In
@@ -308,7 +527,6 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   <TrendingDown className="w-3.5 h-3.5" /> Expense
                 </button>
               </div>
-              {/* Amount */}
               <div>
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Amount</label>
                 <div className="relative">
@@ -318,7 +536,6 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                     step="0.01" min="0" placeholder="Enter amount" autoFocus />
                 </div>
               </div>
-              {/* Category */}
               <div>
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Category</label>
                 {showAddCatForm ? (
@@ -343,12 +560,32 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                     })()} />
                 )}
               </div>
-              {/* Notes */}
               <div>
                 <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Notes <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
                 <input type="text" value={txnNote} onChange={e => setTxnNote(e.target.value)} placeholder="Add a note..." className="w-full bg-background border border-border/80 rounded-xl px-4 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary transition-all" />
               </div>
-              {/* Actions */}
+              <div>
+                <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1.5">Link to Party <span className="font-normal normal-case text-muted-foreground/50">(optional)</span></label>
+                {txnPartyId ? (
+                  <div className="flex items-center gap-2 px-4 py-2.5 bg-card border border-border rounded-2xl shadow-sm">
+                    <span className="text-sm font-bold text-foreground flex-1 truncate">{txnPartyName}</span>
+                    <button onClick={() => { setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); }} className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"><X className="w-3.5 h-3.5" /></button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <User2 className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <input type="text" value={partySearch} onChange={(e) => setPartySearch(e.target.value)} placeholder="Search party..." className="w-full pl-9 pr-3 py-2.5 text-sm bg-card border border-border rounded-2xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 shadow-sm transition-all" />
+                    {partySearch && (
+                      <div className="absolute top-full mt-1 left-0 right-0 bg-card border border-border rounded-2xl shadow-xl z-10 max-h-40 overflow-y-auto">
+                        {parties.filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase())).slice(0, 20).map((p: any) => (
+                          <button key={p.party_id} onClick={() => { setTxnPartyId(p.party_id); setTxnPartyName(p.name); setPartySearch(''); }} className="w-full text-left px-4 py-2.5 text-sm text-foreground hover:bg-muted transition-colors cursor-pointer border-b border-border last:border-0">{p.name}</button>
+                        ))}
+                        {parties.filter((p: any) => p.name.toLowerCase().includes(partySearch.toLowerCase())).length === 0 && <p className="px-4 py-3 text-xs text-muted-foreground text-center">No parties found</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="flex gap-3 pt-1">
                 <button onClick={() => { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName(''); }} className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all active:scale-[0.98] cursor-pointer">Cancel</button>
                 <button onClick={handleAddTransaction} disabled={txnSubmitting || txnAmt <= 0} className="flex-1 py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">{txnSubmitting ? 'Saving...' : 'Submit'}</button>
@@ -413,6 +650,6 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
