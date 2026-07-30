@@ -2,13 +2,14 @@
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
-  TrendingUp, TrendingDown, ArrowRight, ArrowLeft, Clock, AlertTriangle,
+  TrendingUp, TrendingDown, Clock, AlertTriangle,
   ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
-  CheckCheck, Calendar, BookOpen, RefreshCw, LogOut
+  CheckCheck, Calendar, BookOpen, RefreshCw
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
 import { useAuthStore } from '../store/authStore';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
@@ -107,6 +108,7 @@ interface CashierSettlementProps {
 }
 
 export function CashierSettlement({ onClose, isRestricted }: CashierSettlementProps) {
+  useCloseOnEscape(onClose);
   const { tenantId, userId, userName } = useAuthStore();
   const [drawer, setDrawer] = useState<any>(null);
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);

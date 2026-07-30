@@ -10,6 +10,7 @@ import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ interface Product {
   billing_type?: string;
   grade_id?: string;
   pricing_mode?: string;
+  is_service_item?: number;
   sync_status: string;
   created_at?: string;
   updated_at?: string;
@@ -73,7 +75,8 @@ const DEFAULT_FORM = {
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
-export function InventoryManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const { shopDomain } = useCartStore();
   const { tenantId } = useAuthStore();
 
@@ -192,7 +195,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId || 'global' })
         .then(res => {
           if (res.success && res.billNumber) {
-            setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber }));
+            setFormData(prev => ({ ...prev, gst_bill_number: res.billNumber || '' }));
           }
         })
         .catch(console.error);
@@ -424,6 +427,14 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
       billing_type: product.billing_type || 'PIECE',
       grade_id: validGradeId,
       pricing_mode: validGradeId ? (product.pricing_mode || 'FIXED_PRICE') : 'FIXED_PRICE',
+      show_gst_purchase: false,
+      gst_same_as_current: false,
+      gst_purchase_price: '' as string | number,
+      gst_purchase_quantity: '' as string | number,
+      gst_supplier_id: '',
+      gst_supplier_name: '',
+      gst_bill_number: '',
+      gst_bill_date: new Date().toLocaleDateString('en-CA'),
     });
     setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
     setView('edit');
@@ -1943,7 +1954,7 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
                   <Printer className="w-3.5 h-3.5" />
                   Print Label
                 </button>
-                <button onClick={handleSave} data-enter-submit disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
+                <button onClick={() => handleSave()} data-enter-submit disabled={loading} className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
                   {loading ? 'Saving...' : view === 'edit' ? 'Update Product' : 'Add to Inventory'}
                 </button>

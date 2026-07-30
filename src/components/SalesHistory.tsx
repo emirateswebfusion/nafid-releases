@@ -4,7 +4,7 @@ import {
   BookOpen, IndianRupee, TrendingUp,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
-  ArrowDownRight, ShieldAlert, Building, FileText, Download, LogOut, Undo2, Percent
+  ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent
 } from 'lucide-react';
 import { XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
 import { useAuthStore } from '../store/authStore';
@@ -16,8 +16,8 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
-import { ReturnManager } from './ReturnManager';
 
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -133,7 +133,7 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 /* ─── Invoice Row ─── */
 function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void }) {
   const { date, time } = formatDate(inv.created_at);
-  const isPending = inv.payment_method === 'PENDING';
+  const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
 
   return (
@@ -298,11 +298,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (drawerOpen) { setDrawerOpen(false); setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300); }
+        else { onClose?.(); }
       }
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [drawerOpen]);
+  }, [drawerOpen, onClose]);
 
   useEffect(() => {
     if (!reprintSuccess) return;
@@ -438,7 +439,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const thermalStyle = printFmt?.style || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-        if (printResult?.skipped) {
+        if ((printResult as any)?.skipped) {
           alert('No printer configured. Receipt print skipped.');
         } else if (printResult && !printResult.success) {
           alert(`Printing issue: ${printResult.error || 'check printer'}`);
@@ -878,7 +879,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           }}
                           labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 800, marginBottom: 1 }}
                           itemStyle={{ color: 'hsl(var(--primary))' }}
-                          formatter={(v: number) => [formatCurrency(Number(v)), 'Revenue']}
+                          formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
                           cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '4 4' }}
                         />
                         <Area

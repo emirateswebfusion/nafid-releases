@@ -27,6 +27,7 @@ export interface CartItem {
   isServiceItem?: boolean;
   pieces_override?: number;
   isReturnItem?: boolean;
+  unit?: string;
   invoiceItemId?: string;
   originalQuantity?: number;
   availableToReturn?: number;

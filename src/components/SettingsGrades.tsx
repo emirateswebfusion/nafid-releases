@@ -1,11 +1,12 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash, Edit2, Check, X, Loader2, Search,
-  Folder, Layers, TrendingUp, Tag, ChevronDown, ChevronRight,
-  FolderOpen, ArrowLeft, ArrowUpRight, Edit3, Tags
+  Folder, Layers, TrendingUp, Tag, ChevronRight,
+  ArrowLeft, Edit3, Tags
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Badge } from './ui/Badge';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
@@ -19,7 +20,8 @@ interface Grade {
   purchase_price?: number;
 }
 
-export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void; isRestricted?: boolean }) {
+export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClose?: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
@@ -330,7 +332,7 @@ export function SettingsGrades({ onClose, isRestricted }: { onClose?: () => void
             <Layers className="w-4 h-4 shrink-0 text-current" />
             <span>All Categories ({grades.length})</span>
           </button>
-          {categories.map((cat, index) => {
+          {categories.map((cat, _index) => {
             const isTabActive = selectedCategory === cat;
             const count = grades.filter(g => g.category === cat).length;
             return (

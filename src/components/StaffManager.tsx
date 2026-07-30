@@ -1,13 +1,13 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { 
-  Users, UserPlus, Mail, Shield, Key, Save, Loader2, Trash, X, 
-  Search, SlidersHorizontal, User, ShieldAlert, BarChart3, CheckCircle2, Check,
+  Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
+  Search, SlidersHorizontal, User, CheckCircle2, Check,
   AlertCircle
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
-import { Input } from './ui/Input';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 
 interface StaffMember {
@@ -72,6 +72,7 @@ function getAvatarGradient(name: string, role: string) {
 }
 
 export function StaffManager({ onClose }: { onClose: () => void }) {
+  useCloseOnEscape(onClose);
   const { token, userId } = useAuthStore();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [view, setView] = useState<'list' | 'add'>('list');

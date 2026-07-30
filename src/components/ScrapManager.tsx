@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
@@ -7,8 +7,9 @@ import {
   Pencil, Trash, X, Save, TrendingUp, TrendingDown, Recycle,
   CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
   IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
-  ChevronRight, Activity, AlertTriangle, FileText
+  ChevronRight, Activity, FileText
 } from 'lucide-react';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -43,7 +44,7 @@ interface ScrapTransaction {
 const formatCurrency = (amount: number | undefined | null) =>
   amount == null || isNaN(amount) ? '-' : `\u20B9${amount.toFixed(2)}`;
 
-const formatDate = (d: string) => {
+const _formatDate = (d: string) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
@@ -62,8 +63,9 @@ const nameToHue = (name: string) => {
 const getInitials = (name: string) =>
   name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
-export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
-  const { tenantId, userId, userName, role } = useAuthStore();
+export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
+  const { tenantId, userId: _userId, userName: _userName, role: _role } = useAuthStore();
   // Enable edit and delete features in Scrap Manager
   const isOwner = true;
 
@@ -366,7 +368,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     setSellingProcessing(false);
   };
 
-  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+  const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
     if (e.key !== 'Enter') return;
     if (e.defaultPrevented) return;
     const target = e.target as HTMLElement;
@@ -548,7 +550,7 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
     onClose();
   };
 
-  const handleOpenEditHeader = (inv: any) => {
+  const _handleOpenEditHeader = (inv: any) => {
     setEditHeaderInvoice(inv);
     setEditHeaderForm({
       party_name: inv.party_name || '',
@@ -658,8 +660,8 @@ export function ScrapManager({ onClose, initialView, isRestricted }: { onClose: 
   const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
   const estimatedValue = categories.reduce((s, c) => s + Number(c.purchase_price) * Number(c.current_stock), 0);
 
-  const totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
-  const totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
+  const _totalPurchases = transactions.filter(t => t.type === 'PURCHASE').reduce((s, t) => s + t.total_amount, 0);
+  const _totalSales = transactions.filter(t => t.type === 'SALE').reduce((s, t) => s + t.total_amount, 0);
   const realizedProfit = transactions
     .filter(t => t.type === 'SALE')
     .reduce((sum, t) => sum + (Number(t.rate) - Number(selectedCategory?.purchase_price || 0)) * Number(t.quantity), 0);

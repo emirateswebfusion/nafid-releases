@@ -1,5 +1,6 @@
 import { Plus, X } from 'lucide-react';
 import { useTabStore } from '../store/tabStore';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import clsx from 'clsx';
 
 export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab?: () => void; enableThreeInvoiceSeries?: boolean }) {
@@ -7,6 +8,15 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
   const activeTabId = useTabStore(s => s.activeTabId);
   const switchTab = useTabStore(s => s.switchTab);
   const closeTab = useTabStore(s => s.closeTab);
+
+  // ESC key closes the active tab
+  useKeyboardShortcuts({
+    Escape: () => {
+      if (tabs.length > 1 && activeTabId) {
+        closeTab(activeTabId);
+      }
+    },
+  });
 
   const handleClose = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();

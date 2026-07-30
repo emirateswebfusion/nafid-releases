@@ -22,7 +22,7 @@ export interface SelectProps {
 }
 
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-  ({ value, onChange, options, placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, ref) => {
+  ({ value, onChange, options, placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, _ref) => {
     const [open, setOpen] = React.useState(false);
     const [search, setSearch] = React.useState('');
     const [focusedIndex, setFocusedIndex] = React.useState(-1);
@@ -98,7 +98,7 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           const focusable = document.querySelectorAll<HTMLElement>(
             '[data-select-trigger]:not([disabled]), input:not([type="checkbox"]):not([type="radio"]):not([disabled]), select:not([disabled]), textarea:not([disabled])'
           );
-          const idx = Array.from(focusable).indexOf(trigger);
+          const idx = Array.from(focusable).indexOf(trigger as HTMLElement);
           if (idx >= 0 && idx < focusable.length - 1) {
             const nextEl = focusable[idx + 1];
             nextEl?.focus();

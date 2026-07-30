@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, LogOut } from 'lucide-react';
+import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 
 interface Quotation {
@@ -30,6 +31,7 @@ interface QuotationItem {
 }
 
 export function QuotationManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const { shopName, tenantId, role: authRole, userName } = useAuthStore();
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);

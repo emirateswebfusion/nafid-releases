@@ -4,7 +4,7 @@ import {
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
   Smartphone, X, RotateCcw, Maximize2,
-  Store, Package, Monitor, ChevronRight, Shield, FileText, Recycle, TrendingUp
+  Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -12,7 +12,7 @@ import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
-import { Button } from './ui/Button';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
 import { DEFAULT_BILL_SETTINGS, type BillSettings } from '../utils/receiptGenerator';
@@ -147,8 +147,9 @@ function DefaultStockReportViewSelector({ value, onChange }: { value: string; on
   );
 }
 
-export function SettingsManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { role, updateDomain, tenantId } = useAuthStore();
+export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
+  const { role, updateDomain, tenantId: _tenantId } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);

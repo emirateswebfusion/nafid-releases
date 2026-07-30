@@ -2,10 +2,11 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   X, Plus, Minus, TrendingUp, TrendingDown, Clock, Receipt, Banknote,
-  CheckCircle2, AlertTriangle, AlertCircle, Search, Save
+  CheckCircle2, AlertTriangle, Save
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Select } from '../components/ui/Select';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 
 const formatCurrency = (v: any) => {
   const n = Number(v) || 0;
@@ -20,11 +21,12 @@ const formatTime = (d: string) => {
 };
 
 export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
+  useCloseOnEscape(onClose);
   const { tenantId, userId, userName } = useAuthStore();
 
   const [drawer, setDrawer] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   const [showOpeningBal, setShowOpeningBal] = useState(false);
   const [openingBalInput, setOpeningBalInput] = useState<number>(0);

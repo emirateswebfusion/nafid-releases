@@ -264,7 +264,7 @@ function App() {
   // Listen to sync cycle complete to mark sync as done
   useEffect(() => {
     if (!window.electronAPI?.onSyncCycleComplete) return;
-    const cleanup = window.electronAPI.onSyncCycleComplete(() => {
+    const _cleanup = window.electronAPI.onSyncCycleComplete(() => {
       setSyncComplete(true);
       setIsSyncing(false);
     });

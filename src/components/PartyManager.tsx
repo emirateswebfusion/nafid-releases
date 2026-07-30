@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 
 interface Party {
@@ -42,11 +43,6 @@ interface LedgerEntry {
 
 type View = 'list' | 'ledger' | 'party_form' | 'tx_form';
 
-const formatBalance = (balance: number) => {
-  const abs = Math.abs(balance).toFixed(2);
-  return balance >= 0 ? `+${abs}` : `-${abs}`;
-};
-
 const formatDate = (d: string) => {
   if (!d) return '—';
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -68,7 +64,7 @@ const getInitials = (name: string) =>
   name.split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
 const PaymentMethodIcon = ({ method }: { method: string }) => {
-  const map: Record<string, JSX.Element> = {
+  const map: Record<string, React.JSX.Element> = {
     CASH: <Wallet className="w-3.5 h-3.5" />,
     BANK_TRANSFER: <Building2 className="w-3.5 h-3.5" />,
     UPI: <Smartphone className="w-3.5 h-3.5" />,
@@ -79,6 +75,7 @@ const PaymentMethodIcon = ({ method }: { method: string }) => {
 };
 
 export function PartyManager({ onClose }: { onClose: () => void }) {
+  useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role } = useAuthStore();
   const isOwner = role === 'OWNER';
 
@@ -501,7 +498,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   const hue = nameToHue(party.name);
                   const isReceivable = party.balance > 0;
                   const isPayable = party.balance < 0;
-                  const isSettled = party.balance === 0;
+                  const _isSettled = party.balance === 0;
                   return (
                     <div
                       key={party.party_id}
@@ -993,7 +990,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           TX FORM VIEW
       ══════════════════════════════════════════ */}
       {view === 'tx_form' && selectedParty && (
-        <form onSubmit={handleSaveTx} onKeyDown={handleFormKeyDown} className="flex flex-col flex-1 min-h-0 bg-background">
+        <form onSubmit={handleSaveTx} onKeyDown={handleFormKeyDown as unknown as React.KeyboardEventHandler<HTMLFormElement>} className="flex flex-col flex-1 min-h-0 bg-background">
           <div className="flex-1 overflow-y-auto p-5 space-y-4" data-enter-nav>
 
             <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">

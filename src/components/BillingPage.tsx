@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag, ArrowLeftRight, Pencil, LayoutGrid, List
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -121,10 +121,10 @@ export function BillingPage() {
     });
   }, [items]);
 
-  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal, extraBonus, returnDeduction: cartReturnDeduction } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
+  const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal, scrapTotal, extraBonus, returnDeduction: _cartReturnDeduction } = useCartTotals(bosTaxRatePercent, bosTaxInclusive);
 
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
-  const totalItemSavings = items.reduce((sum, item) => {
+  const _totalItemSavings = items.reduce((sum, item) => {
     if (item.isScrap) return sum;
     const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
     const qty = Number(item.quantity) || 0;
@@ -206,7 +206,7 @@ export function BillingPage() {
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
-  const gstSeries = invoiceType === 'GST' && enableThreeInvoiceSeries;
+  const _gstSeries = invoiceType === 'GST' && enableThreeInvoiceSeries;
 
   // Mode flags from cartStore (must be before any destructuring that references them)
   const isReturnMode = useCartStore(s => s.isReturnMode);
@@ -434,7 +434,7 @@ export function BillingPage() {
       ? returnTotal
       : Math.max(0, grandTotal - (storeScrapDeduction || 0) - (storeReturnDeduction || 0));
   const balanceAmount = receivedAmount - displayGrandTotal;
-  const bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
+  const _bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
   useEffect(() => {
     if (initialized.current) return;
@@ -895,7 +895,7 @@ export function BillingPage() {
         }
 
         // Enrich items with product data (barcode, brand, tax rate, uom, hsn, pricing, etc.)
-        const productIds = [...new Set(invoiceItems.map((i: any) => i.product_id).filter(Boolean))];
+        const productIds = [...new Set(invoiceItems.map((i: any) => i.product_id).filter(Boolean))] as string[];
         const productMap: Record<string, any> = {};
         if (productIds.length > 0) {
           try {
@@ -1418,7 +1418,7 @@ export function BillingPage() {
       if (enriched.length === 0) { setHardwareError('All items already returned'); return; }
 
       // Enrich with product data (gst_percent, uom, hsn)
-      const productIds = [...new Set(enriched.map((i: any) => i.product_id).filter(Boolean))];
+      const productIds: string[] = [...new Set(enriched.map((i: any) => i.product_id).filter(Boolean))];
       const productMap: Record<string, any> = {};
       if (productIds.length > 0) {
         try {
@@ -1440,8 +1440,9 @@ export function BillingPage() {
           name: item.name,
           quantity: item.available_to_return,
           base_price: Number(item.unit_price) || 0,
+          purchase_price: Number(item.unit_price) || 0,
+          tax_rate_percent: Number(p?.gst_percent || item.gst_percent) || 0,
           pricing_mode: 'FIXED',
-          gst_percent: Number(p?.gst_percent || item.gst_percent) || 0,
           isReturnItem: true,
           invoiceItemId: item.item_id,
           originalQuantity: Number(item.quantity) || 0,
@@ -1719,7 +1720,7 @@ export function BillingPage() {
     }
   };
 
-  const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
+  const handleDiscFlatKeyDown = (e: React.KeyboardEvent, _productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       searchRef.current?.focus();
@@ -1891,7 +1892,7 @@ export function BillingPage() {
             upiId: undefined,
             showUpiQr: false,
             showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-            invoiceNumber: scrapInvoiceNum,
+            invoiceNumber: scrapInvoiceNum || '',
             invoiceType: 'SCRAP',
             date: new Date().toLocaleString(),
             billerName: userName || authRole || undefined,
@@ -2370,9 +2371,9 @@ export function BillingPage() {
   };
 
   // Held Bills state
-  const [heldBills, setHeldBills] = useState<any[]>([]);
+  const [_heldBills, setHeldBills] = useState<any[]>([]);
   const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
-  const [heldBillsLoading, setHeldBillsLoading] = useState(false);
+  const [_heldBillsLoading, setHeldBillsLoading] = useState(false);
 
   // Load active held bills from backend
   const loadHeldBills = useCallback(async () => {
@@ -2491,7 +2492,7 @@ export function BillingPage() {
   };
 
   // Recall a held bill — load its items back into cart
-  const handleRecallHeldBill = async (heldInvoice: any) => {
+  const _handleRecallHeldBill = async (heldInvoice: any) => {
     if (!window.electronAPI) return;
     setHeldBillsLoading(true);
     try {
@@ -2567,7 +2568,7 @@ export function BillingPage() {
   };
 
   // Release (delete) a held bill — revert stock, mark as expired
-  const handleReleaseHeldBill = async (invoiceId: string) => {
+  const _handleReleaseHeldBill = async (invoiceId: string) => {
     if (!window.electronAPI) return;
     try {
       const result = await window.electronAPI.dbReleaseHeldBill({ invoice_id: invoiceId });
@@ -3630,7 +3631,7 @@ export function BillingPage() {
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
-                const ppk = item.pieces_per_kg!;
+                const _ppk = item.pieces_per_kg!;
                 const handlePcsChange = (pcsVal: number) => {
                   updatePiecesOverride(item.product_id, pcsVal > 0 ? pcsVal : undefined);
                 };
@@ -4450,7 +4451,7 @@ export function BillingPage() {
                   <span className="text-sm font-semibold text-orange-600">Scrap Items</span>
                   {Object.values(
                     items.filter(i => i.isScrap).reduce((acc, s) => {
-                      const key = s.scrap_category_id;
+                      const key = s.scrap_category_id || '';
                       if (!acc[key]) acc[key] = { name: s.name, quantity: 0 };
                       acc[key].quantity += Number(s.quantity || 0);
                       return acc;
@@ -4552,7 +4553,7 @@ export function BillingPage() {
                     <span>Save</span>
                   </button>
                   <button
-                    onClick={handleSaveQuotation}
+                    onClick={() => handleSaveQuotation()}
                     disabled={quotationSaving || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-blue-500 text-white font-black text-sm shadow-md hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
@@ -4811,7 +4812,7 @@ export function BillingPage() {
             <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
               Returns with Pending Balance
             </div>
-            {returnDeductionResults.map((r, i) => (
+            {returnDeductionResults.map((r, _i) => (
               <button
                 key={r.return_number}
                 onClick={async () => {
@@ -4853,7 +4854,7 @@ export function BillingPage() {
             <div className="px-3 py-1.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border">
               Pending Scrap Invoices
             </div>
-            {scrapDeductionResults.map((inv, i) => (
+            {scrapDeductionResults.map((inv, _i) => (
               <button
                 key={inv.invoice_number}
                 onClick={async () => {
@@ -5341,7 +5342,7 @@ export function BillingPage() {
                 </section>
               </div>
               <div className="flex items-center justify-end px-5 py-3 border-t border-border bg-background">
-                <button type="button" data-enter-submit onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
+                <button type="button" data-enter-submit onClick={async () => { await handleCreateAndAddProduct(); }} disabled={!newProductName.trim()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
                   Add to Inventory

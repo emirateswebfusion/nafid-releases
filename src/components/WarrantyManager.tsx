@@ -1,9 +1,10 @@
 ﻿import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar, LogOut } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 
 interface Warranty {
@@ -21,6 +22,7 @@ interface Warranty {
 }
 
 export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const { shopName, tenantId } = useAuthStore();
   const [warranties, setWarranties] = useState<Warranty[]>([]);
   const [loading, setLoading] = useState(true);

@@ -2,14 +2,14 @@
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
-  CheckCircle2, AlertCircle, Plus, Save, ChevronDown, ChevronUp,
-  Receipt, Tag, RefreshCw, Check, Eye, Download, Pencil, Send, LayoutGrid, List
+  CheckCircle2, AlertCircle, Plus, Save,
+  Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { Skeleton } from './ui/Skeleton';
-import { Modal } from './ui/Modal';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 
 interface PurchaseBill {
@@ -68,7 +68,8 @@ const formatDate = (d: string) => {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-export function PurchaseBillManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const { tenantId } = useAuthStore();
 
   const [bills, setBills] = useState<PurchaseBill[]>([]);
@@ -1227,7 +1228,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     tax_rate_percent?: number;
     hsn_sac_code?: string;
   }>>([]);
-  const [isSaving, setIsSaving] = useState(false);
+  const [_isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
   const productFormDialogRef = useRef<HTMLDivElement>(null);
@@ -1255,7 +1256,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
-  const [newProductPcs, setNewProductPcs] = useState('');
+  const [_newProductPcs, setNewProductPcs] = useState('');
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
 
@@ -2217,7 +2218,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                     </section>
                   </div>
                   <div className="flex items-center justify-end px-5 py-3 border-t border-border/50 bg-background">
-                    <button type="button" data-enter-submit onClick={handleCreateAndAddProduct} disabled={!newProductName.trim()}
+                    <button type="button" data-enter-submit onClick={() => handleCreateAndAddProduct()} disabled={!newProductName.trim()}
                       className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                       <Save className="w-3.5 h-3.5" />
                       {editingProductItemId ? 'Update Product' : 'Add to Inventory'}

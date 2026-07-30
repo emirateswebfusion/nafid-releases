@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { ArrowLeft, X, Package, AlertCircle, Minus, Plus, FileText, Undo2 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 
 function formatCurrency(amount: number): string {
@@ -38,8 +39,9 @@ export function CreateReturn({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  useCloseOnEscape(onClose);
   const { tenantId, userId, role } = useAuthStore();
-  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  const [, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selections, setSelections] = useState<ReturnItemSelection[]>([]);
   const [reason, setReason] = useState('');

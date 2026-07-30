@@ -31,6 +31,9 @@ export interface IElectronAPI {
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number }) => Promise<{ success: boolean; error?: string }>;
+  dbGetCustomers: (params: { tenant_id: string }) => Promise<any[]>;
+  dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
+  dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetGrades: (tenantId: string) => Promise<any[]>;
   dbAddGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateGrade: (grade: any) => Promise<{ success: boolean; error?: string }>;
@@ -43,7 +46,9 @@ export interface IElectronAPI {
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => Promise<{ success: boolean; error?: string }>;
-  printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string }>;
+  printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string; skipped?: boolean }>;
+  dbDeleteInvoice: (invoice_id: string) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateScrapInvoiceHeader: (args: any) => Promise<{ success: boolean; error?: string }>;
   openCashDrawer: (tenant_id: string) => Promise<{ success: boolean; error?: string }>;
   printBarcode: (tenant_id: string, barcode: string, price?: number, name?: string, quantity?: number, sp?: number, spType?: 'SP' | 'OFF') => Promise<{ success: boolean; error?: string }>;
   printBulkBarcodes: (tenant_id: string, items: Array<{ barcode: string; price?: number; name?: string; quantity: number; sp?: number; spType?: 'SP' | 'OFF' }>) => Promise<{ success: boolean; error?: string }>;
@@ -68,6 +73,7 @@ export interface IElectronAPI {
   dbGetNextServerInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string; offline?: boolean }>;
   dbGetNextInvoiceNumber: (payload: { tenant_id: string; prefix?: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; counter?: number; error?: string }>;
   dbPeekNextInvoiceNumber: (payload: { tenant_id: string; series?: string }) => Promise<{ success: boolean; invoiceNumber?: string; error?: string }>;
+  dbFindCustomers: (params: { tenant_id: string; name?: string; phone?: string }) => Promise<any[]>;
   dbGetParties: (tenant_id: string) => Promise<any[]>;
   dbAddParty: (party: any) => Promise<{ success: boolean; error?: string }>;
   dbUpdateParty: (party: any) => Promise<{ success: boolean; error?: string }>;
@@ -95,6 +101,7 @@ export interface IElectronAPI {
   dbUpdateScrapTransaction: (args: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapTransaction: (args: { tenant_id: string; transaction_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapInvoice: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateScrapInvoiceFull: (payload: { tenant_id: string; scrap_invoice_number: string | null; party_name: string | null; customer_phone: string | null; customer_address: string | null; payment_status: string; items: any[] }) => Promise<{ success: boolean; error?: string }>;
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;
@@ -126,6 +133,8 @@ export interface IElectronAPI {
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
+  dbCashierGetCategories: (params: { tenant_id: string }) => Promise<any[]>;
+  dbCashierAddCategory: (params: { tenant_id: string; name: string; type: string }) => Promise<{ success: boolean; error?: string }>;
 
   // Purchase Bills
   dbGetNextPurchaseBillNumber: (payload: { tenant_id: string }) => Promise<{ success: boolean; billNumber?: string; counter?: number; error?: string }>;

@@ -1,12 +1,11 @@
 ﻿import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
-  Search, Loader2, User, X, CheckCircle2, AlertCircle,
-  Phone, MapPin, Receipt, TrendingUp, Star, Clock, BookOpen, FileText, IndianRupee, Calendar, ArrowLeft, Gift, LogOut
+  Search, User, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut
 } from 'lucide-react';
 import clsx from 'clsx';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
-import { Modal } from './ui/Modal';
 
 interface Customer {
   customer_id: string;
@@ -53,7 +52,7 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function formatDateTime(d: string) {
+function _formatDateTime(d: string) {
   if (!d) return '—';
   return new Date(d).toLocaleString('en-IN');
 }
@@ -61,7 +60,8 @@ function formatDateTime(d: string) {
 type View = 'list' | 'detail';
 
 export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { tenantId, userId, userName } = useAuthStore();
+  useCloseOnEscape(onClose);
+  const { tenantId } = useAuthStore();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);

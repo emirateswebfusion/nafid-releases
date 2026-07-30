@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useDeferredValue } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity, Receipt, BarChart3, Building2 } from 'lucide-react';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
@@ -54,6 +55,7 @@ const CACHE_TTL = 5 * 60 * 1000;
 const reportCache = new Map<string, { products: Product[]; grades: any[]; timestamp: number }>();
 
 export function StockReport({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+  useCloseOnEscape(onClose);
   const { shopName, tenantId } = useAuthStore();
   const [products, setProducts] = useState<Product[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
@@ -308,7 +310,17 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     for (const p of filteredProducts) {
       const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
       const bq = billQtyMap.get(p.product_id);
-      const weightStr = p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-';
+      const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
+      const unitWeightGrams = Number(da?.weight_grams) || 0;
+      const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
+      const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : Number(p.current_stock);
+      const rate = getMrp(p);
+      let finalSellingPrice = rate;
+      if (p.offer_price) finalSellingPrice = Number(p.offer_price);
+      else if (p.discount_flat) finalSellingPrice = rate - Number(p.discount_flat);
+      else if (p.discount_percent) finalSellingPrice = rate * (1 - Number(p.discount_percent) / 100);
+      finalSellingPrice = Math.max(finalSellingPrice, 0);
+      const weightStr = totalWeight > 0 ? totalWeight.toFixed(2) + ' KG' + (totalPcs > 0 ? ' (' + totalPcs + ' pcs)' : '') : '-';
       const row: string[] = [
         p.name,
         p.category || '-',
@@ -317,7 +329,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       ];
       if (viewMode !== 'estimate') row.push(bq ? Number(bq.gst_qty).toFixed(0) : '0');
       if (viewMode !== 'gst') row.push(bq ? Number(bq.estimate_qty).toFixed(0) : '0');
-      row.push(weightStr, formatCurrency(Number(p.purchase_price) || 0), formatCurrency(getMrp(p)), formatCurrency(p.finalSellingPrice ?? getMrp(p)));
+      row.push(weightStr, formatCurrency(Number(p.purchase_price) || 0), formatCurrency(rate), formatCurrency(finalSellingPrice));
       rows.push(row);
     }
     const csvContent = rows.map(r => r.map(c => `"${c.replace(/"/g, '""')}"`).join(',')).join('\n');

@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Undo2, Search, X, Package, User, FileText, AlertCircle, CheckCircle2, LogOut, Phone, Trash } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
+import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Modal } from './ui/Modal';
 
 interface ReturnInvoice {
@@ -43,7 +44,8 @@ function formatDate(dateStr: string) {
 }
 
 export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
-  const { tenantId, userName, userId } = useAuthStore();
+  useCloseOnEscape(onClose);
+  const { tenantId, userName: _userName, userId: _userId } = useAuthStore();
   const [returns, setReturns] = useState<ReturnInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
