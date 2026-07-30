@@ -1,3 +1,13 @@
+# Vendora v1.5.2 Release Notes
+
+## What's Changed
+- Implemented core billing interface with cart management, payment processing, and multi-series invoicing
+- Added PurchaseBillManager and BillingPage components with electron main process integration
+- Implemented ScrapManager component for scrap inventory management
+- Added background cloud synchronization worker and core POS utilities
+- Implemented inventory management, staff management, and system settings components
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.1...v1.5.2
+
 # Vendora v1.4.3 Release Notes
 
 ## What's Changed
