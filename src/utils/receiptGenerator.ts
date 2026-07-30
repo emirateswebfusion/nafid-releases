@@ -1671,8 +1671,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Barcode ───────────────────────────────────────────────────────────────
-    const bcChars = '|'.repeat(Math.min(INNER - 2, 18));
-    text += B_LINE(centerText(bcChars, INNER));
+    text += `[[BARCODE:${data.invoiceNumber}]]\n`;
     text += B_MID();
 
     // ── Footer ────────────────────────────────────────────────────────────────

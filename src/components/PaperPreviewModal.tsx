@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import QRCode from 'qrcode';
+import Barcode from 'react-barcode';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type ReceiptData, type ReceiptItem } from '../utils/receiptGenerator';
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
 
@@ -89,7 +90,7 @@ function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSe
 }
 
 const FONT_MAP: Record<string, string> = {
-  courier: '"Courier New", monospace',
+  courier: 'Consolas, "Courier New", monospace',
   consolas: 'Consolas, monospace',
   lucida: '"Lucida Console", monospace',
   'lucida-sans': '"Lucida Sans Typewriter", "Lucida Console", monospace',
@@ -98,7 +99,8 @@ const FONT_MAP: Record<string, string> = {
 
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
-  | { type: 'qr'; payload: string };
+  | { type: 'qr'; payload: string }
+  | { type: 'barcode'; payload: string };
 
 function parseReceiptToRows(input: string): ReceiptRow[] {
   const lines = input.split('\n');
@@ -111,6 +113,14 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
         rows.push({ type: 'qr', payload: match[1] });
+        return;
+      }
+    }
+
+    if (line.includes('[[BARCODE:')) {
+      const match = line.match(/\[\[BARCODE:([^\]]+)\]\]/);
+      if (match) {
+        rows.push({ type: 'barcode', payload: match[1] });
         return;
       }
     }
@@ -292,16 +302,32 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
               <div
                 style={{
                   margin: '0 auto',
-                  padding: '10px 8px',
+                  padding: thermalStyle === 'boxed' ? '12px 8px' : '10px 8px',
                   background: '#fff',
                   minHeight: '200px',
                   display: 'flex',
                   flexDirection: 'column',
-                  alignItems: 'stretch'
+                  alignItems: 'stretch',
+                  border: thermalStyle === 'boxed' ? '2.5px solid black' : 'none',
+                  boxSizing: 'border-box',
                 }}
               >
                 {rows.map((row, index) => {
                   if (row.type === 'text') {
+                    let displayValue = row.value.replace(/\r/g, '');
+                    if (thermalStyle === 'boxed') {
+                      const firstChar = displayValue.charAt(0);
+                      const lastChar = displayValue.charAt(displayValue.length - 1);
+                      if ((firstChar === '┌' && lastChar === '┐') || (firstChar === '└' && lastChar === '┘')) {
+                        return null;
+                      }
+                      if (firstChar === '├' && lastChar === '┤') {
+                        return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '1.5px solid black', margin: '3px -8px', padding: 0 }} />;
+                      }
+                      if (firstChar === '│' && lastChar === '│') {
+                        displayValue = displayValue.substring(1, displayValue.length - 1);
+                      }
+                    }
                     return (
                       <pre
                         key={`text-${index}`}
@@ -313,12 +339,28 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                           fontFamily: FONT_MAP[receiptFont] || '"Courier New", monospace',
                           color: '#000',
                           fontWeight: 700,
-                          lineHeight: thermalStyle === 'boxed' ? 1.05 * row.lhMultiplier : 1.3,
+                          lineHeight: thermalStyle === 'boxed' ? 0.98 * row.lhMultiplier : 1.3,
                           textAlign: 'left',
+                          fontVariantNumeric: 'tabular-nums',
+                          letterSpacing: '0px',
                         }}
                       >
-                        {row.value}
+                        {displayValue}
                       </pre>
+                    );
+                  }
+
+                  if (row.type === 'barcode') {
+                    return (
+                      <div key={`bc-${index}`} style={{
+                        width: '100%',
+                        padding: '6px 0',
+                        display: 'flex',
+                        justifyContent: 'center',
+                        boxSizing: 'border-box',
+                      }}>
+                        <Barcode value={row.payload} format="CODE128" width={1.2} height={40} displayValue={true} margin={0} />
+                      </div>
                     );
                   }
 

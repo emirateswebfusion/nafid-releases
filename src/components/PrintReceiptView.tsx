@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import QRCode from 'qrcode';
+import Barcode from 'react-barcode';
 import { useAuthStore } from '../store/authStore';
 
 const FONT_MAP: Record<string, string> = {
-  courier: '"Courier New", monospace',
+  courier: 'Consolas, "Courier New", monospace',
   consolas: 'Consolas, monospace',
   lucida: '"Lucida Console", monospace',
   'lucida-sans': '"Lucida Sans Typewriter", "Lucida Console", monospace',
@@ -35,7 +36,8 @@ const printStyles = `
 
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
-  | { type: 'qr'; payload: string };
+  | { type: 'qr'; payload: string }
+  | { type: 'barcode'; payload: string };
 
 function parseReceiptToRows(input: string): ReceiptRow[] {
   const lines = input.split('\n');
@@ -49,6 +51,14 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
         rows.push({ type: 'qr', payload: match[1] });
+        return;
+      }
+    }
+
+    if (line.includes('[[BARCODE:')) {
+      const match = line.match(/\[\[BARCODE:([^\]]+)\]\]/);
+      if (match) {
+        rows.push({ type: 'barcode', payload: match[1] });
         return;
       }
     }
@@ -146,14 +156,37 @@ export function PrintReceiptView({ text }: { text: string }) {
   if (!receiptText) return null;
 
   const isBillStyle = receiptText.includes('│') || receiptText.includes('┌');
-  const lh = isBillStyle ? 1.05 : 1.2;
+  const lh = isBillStyle ? 0.98 : 1.2;
 
   return (
     <div style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <style>{printStyles}</style>
-      <div style={{ padding: '4px 0 4px 6px', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'stretch' }}>
+      <div style={{
+        padding: isBillStyle ? '6px 6px' : '4px 6px',
+        width: isBillStyle ? 'max-content' : '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        border: isBillStyle ? '2.5px solid black' : 'none',
+        boxSizing: 'border-box',
+        backgroundColor: 'white',
+      }}>
         {rows.map((row, index) => {
           if (row.type === 'text') {
+            let displayValue = row.value.replace(/\r/g, '');
+            if (isBillStyle) {
+              const firstChar = displayValue.charAt(0);
+              const lastChar = displayValue.charAt(displayValue.length - 1);
+              if ((firstChar === '┌' && lastChar === '┐') || (firstChar === '└' && lastChar === '┘')) {
+                return null;
+              }
+              if (firstChar === '├' && lastChar === '┤') {
+                return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '1.5px solid black', margin: '2px -6px', padding: 0 }} />;
+              }
+              if (firstChar === '│' && lastChar === '│') {
+                displayValue = displayValue.substring(1, displayValue.length - 1);
+              }
+            }
             return (
               <pre key={`text-${index}`} style={{
                 margin: 0,
@@ -165,9 +198,25 @@ export function PrintReceiptView({ text }: { text: string }) {
                 fontWeight: 700,
                 lineHeight: lh * row.lhMultiplier,
                 textAlign: 'left',
+                fontVariantNumeric: 'tabular-nums',
+                letterSpacing: '0px',
               }}>
-                {row.value}
+                {displayValue}
               </pre>
+            );
+          }
+
+          if (row.type === 'barcode') {
+            return (
+              <div key={`bc-${index}`} style={{
+                width: '100%',
+                padding: '6px 0',
+                display: 'flex',
+                justifyContent: 'center',
+                boxSizing: 'border-box',
+              }}>
+                <Barcode value={row.payload} format="CODE128" width={1.2} height={40} displayValue={true} margin={0} />
+              </div>
             );
           }
 
