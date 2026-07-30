@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag, ArrowLeftRight, Pencil
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, Tag, ArrowLeftRight, Pencil, LayoutGrid, List
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
@@ -172,9 +172,13 @@ export function BillingPage() {
   const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
   const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(true);
   const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
+  const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
+  });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
+  const getNumericPart = (s: string) => (s.match(/\d+/g) || []).join('');
   const [scrapDeductionSearchQuery, setScrapDeductionSearchQuery] = useState('');
   const [scrapDeductionResults, setScrapDeductionResults] = useState<any[]>([]);
 
@@ -722,10 +726,13 @@ export function BillingPage() {
       const list = await window.electronAPI.dbGetScrapInvoiceList({ tenant_id: tid });
       if (Array.isArray(list)) {
         const q = scrapDeductionSearchQuery.toUpperCase();
-        const filtered = list.filter(inv =>
-          String(inv.invoice_number).toUpperCase().includes(q) &&
-          inv.payment_status === 'PENDING'
-        );
+        const getNumPart = getNumericPart;
+        const filtered = list.filter(inv => {
+          const invNum = String(inv.invoice_number).toUpperCase();
+          const numPart = getNumPart(invNum);
+          return (invNum.includes(q) || (q.length >= 1 && getNumPart(q).length > 0 && numPart.includes(getNumPart(q)))) &&
+            inv.payment_status === 'PENDING';
+        });
         setScrapDeductionResults(filtered.slice(0, 8));
         if (filtered.length > 0 && scrapDeductionInputRef.current) {
           const rect = scrapDeductionInputRef.current.getBoundingClientRect();
@@ -753,9 +760,12 @@ export function BillingPage() {
       const list = await window.electronAPI.dbGetPendingReturnInvoices({ tenant_id: tid, search: returnDeductionSearchQuery });
       if (Array.isArray(list)) {
         const q = returnDeductionSearchQuery.toUpperCase();
-        const filtered = list.filter((r: any) =>
-          String(r.return_number).toUpperCase().includes(q)
-        );
+        const getNumPart = getNumericPart;
+        const filtered = list.filter((r: any) => {
+          const retNum = String(r.return_number).toUpperCase();
+          const numPart = getNumPart(retNum);
+          return retNum.includes(q) || (q.length >= 1 && getNumPart(q).length > 0 && numPart.includes(getNumPart(q)));
+        });
         setReturnDeductionResults(filtered.slice(0, 8));
         if (filtered.length > 0 && returnDeductionInputRef.current) {
           const rect = returnDeductionInputRef.current.getBoundingClientRect();
@@ -4173,6 +4183,27 @@ export function BillingPage() {
                                       await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
                                     }
                                   } else {
+                                    const getNumPart = getNumericPart;
+                                    const numQ = getNumPart(q);
+                                    const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                    if (Array.isArray(list)) {
+                                      const match = list.find(inv =>
+                                        inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                      );
+                                      if (match) {
+                                        const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                        if (detailRes && detailRes.totalAmount) {
+                                          setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                          setScrapDeductionSearchQuery('');
+                                          setScrapDeductionResults([]);
+                                          setScrapDeductionDropdownStyle(null);
+                                          if (window.electronAPI) {
+                                            await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number, payment_status: 'SETTLED' });
+                                          }
+                                          return;
+                                        }
+                                      }
+                                    }
                                     setHardwareError(`Scrap invoice "${q}" not found`);
                                   }
                                 } catch (e) {
@@ -4236,6 +4267,25 @@ export function BillingPage() {
                                       setHardwareError('Return already fully adjusted');
                                     }
                                   } else {
+                                    const getNumPart = getNumericPart;
+                                    const numQ = getNumPart(q);
+                                    const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                    if (Array.isArray(list)) {
+                                      const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                      if (match) {
+                                        const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                        if (detailRes && detailRes.grand_total) {
+                                          const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                          if (remaining > 0) {
+                                            setReturnDeduction(remaining, match.return_number);
+                                            setReturnDeductionSearchQuery('');
+                                            setReturnDeductionResults([]);
+                                            setReturnDeductionDropdownStyle(null);
+                                            return;
+                                          }
+                                        }
+                                      }
+                                    }
                                     setHardwareError(`Return "${q}" not found`);
                                   }
                                 } catch (e) {
@@ -4296,6 +4346,27 @@ export function BillingPage() {
                                       await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
                                     }
                                   } else {
+                                    const getNumPart = getNumericPart;
+                                    const numQ = getNumPart(q);
+                                    const list = await window.electronAPI!.dbGetScrapInvoiceList({ tenant_id: tenantId || '' });
+                                    if (Array.isArray(list)) {
+                                      const match = list.find(inv =>
+                                        inv.payment_status === 'PENDING' && getNumPart(String(inv.invoice_number)).includes(numQ)
+                                      );
+                                      if (match) {
+                                        const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
+                                        if (detailRes && detailRes.totalAmount) {
+                                          setScrapDeduction(detailRes.totalAmount, match.invoice_number);
+                                          setScrapDeductionSearchQuery('');
+                                          setScrapDeductionResults([]);
+                                          setScrapDeductionDropdownStyle(null);
+                                          if (window.electronAPI) {
+                                            await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number, payment_status: 'SETTLED' });
+                                          }
+                                          return;
+                                        }
+                                      }
+                                    }
                                     setHardwareError(`Scrap invoice "${q}" not found`);
                                   }
                                 } catch (e) {
@@ -4330,6 +4401,25 @@ export function BillingPage() {
                                       setHardwareError('Return already fully adjusted');
                                     }
                                   } else {
+                                    const getNumPart = getNumericPart;
+                                    const numQ = getNumPart(q);
+                                    const list = await window.electronAPI!.dbGetPendingReturnInvoices({ tenant_id: tenantId || '' });
+                                    if (Array.isArray(list)) {
+                                      const match = list.find((r: any) => getNumPart(String(r.return_number)).includes(numQ));
+                                      if (match) {
+                                        const detailRes = await window.electronAPI!.dbGetReturnInvoiceByNumber({ tenant_id: tenantId || '', return_number: match.return_number });
+                                        if (detailRes && detailRes.grand_total) {
+                                          const remaining = detailRes.grand_total - (detailRes.adjusted_amount || 0);
+                                          if (remaining > 0) {
+                                            setReturnDeduction(remaining, match.return_number);
+                                            setReturnDeductionSearchQuery('');
+                                            setReturnDeductionResults([]);
+                                            setReturnDeductionDropdownStyle(null);
+                                            return;
+                                          }
+                                        }
+                                      }
+                                    }
                                     setHardwareError(`Return "${q}" not found`);
                                   }
                                 } catch (e) {
@@ -4817,6 +4907,15 @@ export function BillingPage() {
                   <span className="text-xs font-black text-primary uppercase tracking-wider">New Product</span>
                 </div>
                 <div className="flex items-center gap-1.5">
+                  <button type="button" onClick={() => {
+                    const next = productFormView === 'grid' ? 'list' : 'grid';
+                    setProductFormView(next);
+                    localStorage.setItem('productFormView', next);
+                  }}
+                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/30"
+                    title={productFormView === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
+                    {productFormView === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+                  </button>
                   <button type="button" onClick={resetProductForm}
                     className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
                     title="Close">
@@ -4833,72 +4932,131 @@ export function BillingPage() {
                     </div>
                     <span className="text-xs font-black text-primary uppercase tracking-wider">1. Basic Details</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
+                  {productFormView === 'list' ? (
+                    <div className="flex gap-3 items-start">
+                      <div className="flex-1 min-w-[140px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Name *</label>
                         <input ref={firstInputRef} type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
                       </div>
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
+                      <div className="flex-1 min-w-[90px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Code</label>
                         <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 font-mono tracking-widest uppercase text-sm" />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                          {newProductIsCustomCategory ? (
-                            <div className="flex gap-2 items-center">
-                              <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
-                                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                              <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
-                            </div>
-                          ) : (
-                            <Select
-                              value={configuredCategories.includes(newProductCategory) ? newProductCategory : (newProductCategory ? 'CUSTOM' : '')}
-                              onChange={v => {
-                                if (v === 'CUSTOM') {
-                                  setNewProductIsCustomCategory(true);
-                                  setNewProductCategory('');
-                                } else {
-                                  setNewProductCategory(v);
-                                }
-                              }}
-                              placeholder="-- Select Category --"
-                              options={[
-                                ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
-                                { value: 'CUSTOM', label: 'Custom...' }
-                              ]}
-                              triggerClassName="rounded-xl h-[46px]"
-                            />
-                          )}
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
-                          <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
-                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                        </div>
+                      <div className="flex-1 min-w-[110px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Category</label>
+                        {newProductIsCustomCategory ? (
+                          <div className="flex gap-1 items-center">
+                            <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Category"
+                              className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
+                            <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-xs font-bold text-red-500 shrink-0 cursor-pointer">✕</button>
+                          </div>
+                        ) : (
+                          <Select
+                            value={configuredCategories.includes(newProductCategory) ? newProductCategory : (newProductCategory ? 'CUSTOM' : '')}
+                            onChange={v => {
+                              if (v === 'CUSTOM') { setNewProductIsCustomCategory(true); setNewProductCategory(''); }
+                              else { setNewProductCategory(v); }
+                            }}
+                            placeholder="Select"
+                            options={[
+                              ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
+                              { value: 'CUSTOM', label: 'Custom...' }
+                            ]}
+                            triggerClassName="rounded-lg h-[40px] text-sm"
+                          />
+                        )}
                       </div>
-                    </div>
-                    <div className="bg-muted/20 p-4 rounded-xl border border-border flex flex-col justify-center shadow-sm">
-                      <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                          <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
+                      <div className="flex-1 min-w-[90px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Brand</label>
+                        <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
+                      </div>
+                      <div className="flex-1 min-w-[120px]">
+                        <div className="flex justify-between items-center mb-1">
+                          <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
                           <button type="button" onClick={async () => {
                             if (!window.electronAPI || !tenantId) return;
                             const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
                             if (gen.success && gen.barcode) setNewProductBarcode(gen.barcode);
                           }}
-                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all cursor-pointer">
-                            <RefreshCw className="w-3 h-3" /> Auto Generate
+                            className="text-[10px] font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full cursor-pointer">
+                            <RefreshCw className="w-2.5 h-2.5 inline-block" /> Auto
                           </button>
                         </div>
                         <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 font-mono tracking-widest text-sm" />
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Name *</label>
+                          <input ref={firstInputRef} type="text" value={newProductName} onChange={e => setNewProductName(e.target.value)}
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Item Code</label>
+                          <input type="text" maxLength={10} value={newProductItemCode} onChange={e => setNewProductItemCode(e.target.value.toUpperCase())}
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm uppercase text-sm" />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
+                            {newProductIsCustomCategory ? (
+                              <div className="flex gap-2 items-center">
+                                <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
+                                  className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                                <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
+                              </div>
+                            ) : (
+                              <Select
+                                value={configuredCategories.includes(newProductCategory) ? newProductCategory : (newProductCategory ? 'CUSTOM' : '')}
+                                onChange={v => {
+                                  if (v === 'CUSTOM') {
+                                    setNewProductIsCustomCategory(true);
+                                    setNewProductCategory('');
+                                  } else {
+                                    setNewProductCategory(v);
+                                  }
+                                }}
+                                placeholder="-- Select Category --"
+                                options={[
+                                  ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
+                                  { value: 'CUSTOM', label: 'Custom...' }
+                                ]}
+                                triggerClassName="rounded-xl h-[46px]"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Brand / Mfg</label>
+                            <input type="text" value={newProductBrand} onChange={e => setNewProductBrand(e.target.value)}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="bg-muted/20 p-4 rounded-xl border border-border flex flex-col justify-center shadow-sm">
+                        <div>
+                          <div className="flex justify-between items-center mb-1.5">
+                            <label className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Barcode *</label>
+                            <button type="button" onClick={async () => {
+                              if (!window.electronAPI || !tenantId) return;
+                              const gen = await window.electronAPI.dbGenerateBarcode({ tenant_id: tenantId, item_code: newProductItemCode || undefined });
+                              if (gen.success && gen.barcode) setNewProductBarcode(gen.barcode);
+                            }}
+                              className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all cursor-pointer">
+                              <RefreshCw className="w-3 h-3" /> Auto Generate
+                            </button>
+                          </div>
+                          <input type="text" value={newProductBarcode} onChange={e => setNewProductBarcode(e.target.value)}
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* 2. Inventory & Pricing */}
@@ -4960,64 +5118,52 @@ export function BillingPage() {
                     </div>
                     <span className="text-xs font-black text-blue-500 uppercase tracking-wider">3. Discount & Offers</span>
                   </div>
-                  <div className="grid grid-cols-2 gap-6">
-                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-foreground">Discount</h4>
-                        <span className="text-xs text-muted-foreground">Applies to MRP</span>
+                  {productFormView === 'list' ? (
+                    <div className="flex gap-3 items-start">
+                      <div className="flex-1 min-w-[100px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc %</label>
+                        <input type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={newProductDiscountPercent}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewProductDiscountPercent(val);
+                            if (val) {
+                              const mrp = Number(newProductBasePrice) || 0;
+                              const pct = parseFloat(val);
+                              const flat = mrp > 0 && !isNaN(pct) ? ((mrp * pct) / 100).toFixed(2) : '';
+                              setNewProductDiscountFlat(flat);
+                            } else {
+                              setNewProductDiscountFlat('');
+                            }
+                            setNewProductOfferPrice('');
+                          }}
+                          disabled={!!newProductOfferPrice}
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 no-spinners text-sm" />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
-                          <input type="number" step="0.01"
-                            onWheel={e => (e.target as HTMLInputElement).blur()}
-                            value={newProductDiscountPercent}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setNewProductDiscountPercent(val);
-                              if (val) {
-                                const mrp = Number(newProductBasePrice) || 0;
-                                const pct = parseFloat(val);
-                                const flat = mrp > 0 && !isNaN(pct) ? ((mrp * pct) / 100).toFixed(2) : '';
-                                setNewProductDiscountFlat(flat);
-                              } else {
-                                setNewProductDiscountFlat('');
-                              }
-                              setNewProductOfferPrice('');
-                            }}
-                            disabled={!!newProductOfferPrice}
-                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
-                          <input type="number" step="0.01"
-                            onWheel={e => (e.target as HTMLInputElement).blur()}
-                            value={newProductDiscountFlat}
-                            onChange={e => {
-                              const val = e.target.value;
-                              setNewProductDiscountFlat(val);
-                              if (val) {
-                                const mrp = Number(newProductBasePrice) || 0;
-                                const flat = parseFloat(val);
-                                const pct = mrp > 0 && !isNaN(flat) ? ((flat / mrp) * 100).toFixed(2) : '';
-                                setNewProductDiscountPercent(pct);
-                              } else {
-                                setNewProductDiscountPercent('');
-                              }
-                              setNewProductOfferPrice('');
-                            }}
-                            disabled={!!newProductOfferPrice}
-                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
-                        </div>
+                      <div className="flex-1 min-w-[100px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Disc ₹</label>
+                        <input type="number" step="0.01"
+                          onWheel={e => (e.target as HTMLInputElement).blur()}
+                          value={newProductDiscountFlat}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setNewProductDiscountFlat(val);
+                            if (val) {
+                              const mrp = Number(newProductBasePrice) || 0;
+                              const flat = parseFloat(val);
+                              const pct = mrp > 0 && !isNaN(flat) ? ((flat / mrp) * 100).toFixed(2) : '';
+                              setNewProductDiscountPercent(pct);
+                            } else {
+                              setNewProductDiscountPercent('');
+                            }
+                            setNewProductOfferPrice('');
+                          }}
+                          disabled={!!newProductOfferPrice}
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 no-spinners text-sm" />
                       </div>
-                    </div>
-                    <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-bold text-foreground">Offer</h4>
-                        <span className="text-xs text-muted-foreground">Overrides MRP</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                      <div className="flex-1 min-w-[110px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Offer Price ₹</label>
                         <input type="number" step="0.01"
                           onWheel={e => (e.target as HTMLInputElement).blur()}
                           value={newProductOfferPrice}
@@ -5027,10 +5173,82 @@ export function BillingPage() {
                             setNewProductDiscountFlat('');
                           }}
                           disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 no-spinners text-sm" />
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-foreground">Discount</h4>
+                          <span className="text-xs text-muted-foreground">Applies to MRP</span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Percentage (%)</label>
+                            <input type="number" step="0.01"
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              value={newProductDiscountPercent}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setNewProductDiscountPercent(val);
+                                if (val) {
+                                  const mrp = Number(newProductBasePrice) || 0;
+                                  const pct = parseFloat(val);
+                                  const flat = mrp > 0 && !isNaN(pct) ? ((mrp * pct) / 100).toFixed(2) : '';
+                                  setNewProductDiscountFlat(flat);
+                                } else {
+                                  setNewProductDiscountFlat('');
+                                }
+                                setNewProductOfferPrice('');
+                              }}
+                              disabled={!!newProductOfferPrice}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Flat Amount (₹)</label>
+                            <input type="number" step="0.01"
+                              onWheel={e => (e.target as HTMLInputElement).blur()}
+                              value={newProductDiscountFlat}
+                              onChange={e => {
+                                const val = e.target.value;
+                                setNewProductDiscountFlat(val);
+                                if (val) {
+                                  const mrp = Number(newProductBasePrice) || 0;
+                                  const flat = parseFloat(val);
+                                  const pct = mrp > 0 && !isNaN(flat) ? ((flat / mrp) * 100).toFixed(2) : '';
+                                  setNewProductDiscountPercent(pct);
+                                } else {
+                                  setNewProductDiscountPercent('');
+                                }
+                                setNewProductOfferPrice('');
+                              }}
+                              disabled={!!newProductOfferPrice}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-3 bg-muted/10 p-4 rounded-xl border border-border">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-sm font-bold text-foreground">Offer</h4>
+                          <span className="text-xs text-muted-foreground">Overrides MRP</span>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Final Offer Price (₹)</label>
+                          <input type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={newProductOfferPrice}
+                            onChange={e => {
+                              setNewProductOfferPrice(e.target.value);
+                              setNewProductDiscountPercent('');
+                              setNewProductDiscountFlat('');
+                            }}
+                            disabled={!!newProductDiscountPercent || !!newProductDiscountFlat}
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm disabled:opacity-50 no-spinners text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </section>
 
                 {/* 4. Taxes & Config */}
@@ -5041,55 +5259,85 @@ export function BillingPage() {
                     </div>
                     <span className="text-xs font-black text-orange-500 uppercase tracking-wider">4. Taxes & Config</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
-                      <div
-                        onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
-                        onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
-                        data-focusable-checkbox
-                        tabIndex={-1}
-                        className={clsx(
-                          'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
-                          newProductIsGstApplicable
-                            ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                            : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
-                        )}
-                      >
-                        <input
-                          type="checkbox"
-                          id="gst"
-                          checked={newProductIsGstApplicable}
-                          onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                  {productFormView === 'list' ? (
+                    <div className="flex gap-3 items-start">
+                      <div className="min-w-[140px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">GST Applicable</label>
+                        <div
+                          onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                          data-focusable-checkbox
+                          tabIndex={-1}
                           className={clsx(
-                            'w-3.5 h-3.5 rounded pointer-events-none',
-                            newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground'
+                            'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
+                            newProductIsGstApplicable
+                              ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                              : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
                           )}
+                        >
+                          <input type="checkbox" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                            className="w-3 h-3 rounded pointer-events-none accent-primary" />
+                          <span className={clsx('font-bold text-xs select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
+                            {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-[120px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">HSN / SAC Code</label>
+                        <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
+                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 font-mono tracking-widest text-sm" />
+                      </div>
+                      <div className="flex-1 min-w-[100px]">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tax Rate %</label>
+                        <Select
+                          value={String(newProductTaxRate)}
+                          onChange={v => setNewProductTaxRate(parseFloat(v))}
+                          disabled={!newProductIsGstApplicable}
+                          options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                          triggerClassName="rounded-lg h-[40px] text-sm"
                         />
-                        <label htmlFor="gst" className={clsx(
-                          'font-bold text-xs cursor-pointer select-none',
-                          newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground'
-                        )}>
-                          {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
-                        </label>
                       </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
-                      <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
-                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                  ) : (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                        <div
+                          onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                          data-focusable-checkbox
+                          tabIndex={-1}
+                          className={clsx(
+                            'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                            newProductIsGstApplicable
+                              ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                              : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                          )}
+                        >
+                          <input type="checkbox" id="gst" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                            className={clsx('w-3.5 h-3.5 rounded pointer-events-none', newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground')} />
+                          <label htmlFor="gst" className={clsx('font-bold text-xs cursor-pointer select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
+                            {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
+                          </label>
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
+                        <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
+                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
+                        <Select
+                          value={String(newProductTaxRate)}
+                          onChange={v => setNewProductTaxRate(parseFloat(v))}
+                          disabled={!newProductIsGstApplicable}
+                          options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                          triggerClassName="rounded-xl h-[46px]"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
-                      <Select
-                        value={String(newProductTaxRate)}
-                        onChange={v => setNewProductTaxRate(parseFloat(v))}
-                        disabled={!newProductIsGstApplicable}
-                        options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
-                        triggerClassName="rounded-xl h-[46px]"
-                      />
-                    </div>
-                  </div>
+                  )}
                 </section>
               </div>
               <div className="flex items-center justify-end px-5 py-3 border-t border-border bg-background">

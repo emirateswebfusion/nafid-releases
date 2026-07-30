@@ -138,6 +138,22 @@ export function InventoryManager({ onClose, isRestricted }: { onClose: () => voi
   }, []);
 
   useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === ' ' && view === 'list') {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
+        if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
+          e.preventDefault();
+          openAdd();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [view]);
+
+  useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' })
         .then((val: any) => {

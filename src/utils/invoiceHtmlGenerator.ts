@@ -142,9 +142,9 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       ${data.sgst != null && data.sgst > 0 ? `<tr><td colspan="4" class="text-right">SGST</td><td class="text-right">₹${data.sgst.toFixed(2)}</td></tr>` : ''}
       ${data.igst != null && data.igst > 0 ? `<tr><td colspan="4" class="text-right">IGST</td><td class="text-right">₹${data.igst.toFixed(2)}</td></tr>` : ''}
       ${data.discount > 0 ? `<tr><td colspan="4" class="text-right">Discount${data.discountType === 'PERCENTAGE' && data.discountValue ? ` (${data.discountValue}%)` : ''}</td><td class="text-right" style="color:#dc2626">-₹${data.discount.toFixed(2)}</td></tr>` : ''}
-      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
+      <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
+      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
-      <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0)).toFixed(2)}</td></tr>
       ${data.receivedAmount != null && data.balanceAmount != null ? `
       <tr><td colspan="4" class="text-right">Received</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>
       <tr><td colspan="4" class="text-right">Balance</td><td class="text-right">₹${data.balanceAmount.toFixed(2)}</td></tr>` : ''}
@@ -233,9 +233,9 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       ${data.sgst != null && data.sgst > 0 ? `<div class="row"><span>SGST</span><span>₹${data.sgst.toFixed(2)}</span></div>` : ''}
       ${data.igst != null && data.igst > 0 ? `<div class="row"><span>IGST</span><span>₹${data.igst.toFixed(2)}</span></div>` : ''}
       ${data.discount > 0 ? `<div class="row"><span>Discount${data.discountType === 'PERCENTAGE' && data.discountValue ? ` (${data.discountValue}%)` : ''}</span><span style="color:#dc2626">-₹${data.discount.toFixed(2)}</span></div>` : ''}
-      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
+      <div class="row total"><span>Grand Total</span><span>₹${data.grandTotal.toFixed(2)}</span></div>
+      ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap Return Amount (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<div class="row"><span>Return Credit (${data.returnInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</span></div>` : ''}
-      <div class="row total"><span>Grand Total</span><span>₹${Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0)).toFixed(2)}</span></div>
       ${data.receivedAmount != null && data.balanceAmount != null ? `
       <div class="row"><span>Received</span><span>₹${data.receivedAmount.toFixed(2)}</span></div>
       <div class="row"><span>Balance</span><span>₹${data.balanceAmount.toFixed(2)}</span></div>` : ''}
@@ -331,9 +331,9 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         ${data.sgst != null && data.sgst > 0 ? `<tr><td colspan="4" class="text-right">SGST</td><td class="text-right">₹${data.sgst.toFixed(2)}</td></tr>` : ''}
         ${data.igst != null && data.igst > 0 ? `<tr><td colspan="4" class="text-right">IGST</td><td class="text-right">₹${data.igst.toFixed(2)}</td></tr>` : ''}
         ${data.discount > 0 ? `<tr><td colspan="4" class="text-right">Discount${data.discountType === 'PERCENTAGE' && data.discountValue ? ` (${data.discountValue}%)` : ''}</td><td class="text-right" style="color:#b91c1c">-₹${data.discount.toFixed(2)}</td></tr>` : ''}
-        ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
+        <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
+        ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
         ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
-        <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0)).toFixed(2)}</td></tr>
         ${data.receivedAmount != null && data.balanceAmount != null ? `
         <tr><td colspan="4" class="text-right">Received</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>
         <tr><td colspan="4" class="text-right">Balance</td><td class="text-right">₹${data.balanceAmount.toFixed(2)}</td></tr>` : ''}
