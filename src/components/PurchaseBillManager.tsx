@@ -1259,7 +1259,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPartyCreateForm(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+            className="relative w-full max-w-3xl bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
             onKeyDown={handlePartyFormKeyDown}
           >
