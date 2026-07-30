@@ -16,7 +16,7 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '..
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
-import { CashRegisterPanel } from './CashRegisterPanel';
+import { CashierSettlement } from './CashierSettlement';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -5363,7 +5363,7 @@ export function BillingPage() {
           </div>
         </>
       )}        {cashRegisterOpen && (
-        <CashRegisterPanel onClose={() => setCashRegisterOpen(false)} />
+        <CashierSettlement onClose={() => setCashRegisterOpen(false)} />
       )}
     </div>
   );
