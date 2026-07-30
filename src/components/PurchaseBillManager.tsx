@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
+import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Package, X, Trash, FileText, Calendar, User,
@@ -1274,9 +1274,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               <button
                 type="button"
                 onClick={() => setShowPartyCreateForm(false)}
-                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+                title="Close"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-destructive" />
               </button>
             </div>
 
@@ -2124,11 +2125,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       <span className="text-xs font-black text-primary uppercase tracking-wider">{editingProductItemId ? 'Edit Product' : 'New Product'}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <button type="button" onClick={resetProductForm}
-                        className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-                        title="Close">
-                        <X className="w-4 h-4 text-destructive" />
-                      </button>
                       <button type="button" onClick={() => {
                         const next = productFormView === 'grid' ? 'list' : 'grid';
                         setProductFormView(next);
@@ -2137,6 +2133,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         className="p-2 rounded-xl border border-border/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
                         title={productFormView === 'grid' ? 'Switch to List View' : 'Switch to Grid View'}>
                         {productFormView === 'grid' ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+                      </button>
+                      <button type="button" onClick={resetProductForm}
+                        className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+                        title="Close">
+                        <X className="w-4 h-4 text-destructive" />
                       </button>
                     </div>
                   </div>
