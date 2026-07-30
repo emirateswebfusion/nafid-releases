@@ -4,12 +4,13 @@
   "engines": {
     "node": ">=18.0.0"
   },
-  "version": "1.5.4",
+  "version": "1.5.5",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "concurrently --kill-others \"vite\" \"pnpm run build:electron && wait-on tcp:5173 && electron .\"",
     "build:electron": "tsc -p tsconfig.electron.json",
     "build": "tsc -b && vite build && npm run build:electron",
+    "package": "npm run build && electron-builder build --config electron-builder.config.js --win --publish always",
     "package:win": "npm run build && electron-builder build --config electron-builder.config.js --win",
     "package:mac": "npm run build && electron-builder build --config electron-builder.config.js --mac",
     "package:all": "npm run build && electron-builder build --config electron-builder.config.js --win --mac",
