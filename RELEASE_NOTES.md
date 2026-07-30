@@ -1,3 +1,9 @@
+# Vendora v1.5.4 Release Notes
+
+## What's Changed
+- [Release notes to be filled with this release's changes]
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.3...v1.5.4
+
 # Vendora v1.5.3 Release Notes
 
 ## What's Changed
