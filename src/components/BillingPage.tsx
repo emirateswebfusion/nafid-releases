@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -4481,7 +4481,7 @@ export function BillingPage() {
                 <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
                 {refundAmount > 0 && (
                   <p className="text-[10px] font-black text-orange-600 mt-1">
-                    Refund: {formatCurrency(refundAmount)}
+                    Refund Amount: {formatCurrency(refundAmount)}
                   </p>
                 )}
               </div>

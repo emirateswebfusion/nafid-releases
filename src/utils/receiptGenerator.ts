@@ -307,8 +307,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGrandTotal = data.grandTotal - (data.returnDeduction || 0);
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
@@ -320,8 +321,20 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
     text += FRAME + '\n';
     text += centerText('** GRAND TOTAL **', charsPerLine) + '\n';
-    text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+    text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
     text += FRAME + '\n';
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += centerText('** REFUND AMOUNT **', charsPerLine) + '\n';
+        text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+        text += FRAME + '\n';
+      } else {
+        text += centerText('** NET PAYABLE **', charsPerLine) + '\n';
+        text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+        text += FRAME + '\n';
+      }
+    }
 
     if (data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
@@ -432,8 +445,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight('Extra / Bonus', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
     } else if (data.discount > 0) text += `${padRight('Discount', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
 
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGrandTotal = data.grandTotal - (data.returnDeduction || 0);
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
@@ -444,7 +458,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     text += '\n';
     text += DASH + '\n';
-    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(netPayable.toFixed(2), totalW)}\n`;
+    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += `${padRight('** REFUND AMOUNT **', labelW)}  ${padLeft(refundAmount.toFixed(2), totalW)}\n`;
+      } else {
+        text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(netPayable.toFixed(2), totalW)}\n`;
+      }
+    }
 
     if (data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
@@ -567,8 +588,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGrandTotal = data.grandTotal - (data.returnDeduction || 0);
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
@@ -580,8 +602,20 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
     text += THIN + '\n';
     text += centerText('>> ** GRAND TOTAL ** <<', charsPerLine) + '\n';
-    text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+    text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
     text += THIN + '\n';
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += centerText('>> ** REFUND AMOUNT ** <<', charsPerLine) + '\n';
+        text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+        text += THIN + '\n';
+      } else {
+        text += centerText('>> ** NET PAYABLE ** <<', charsPerLine) + '\n';
+        text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+        text += THIN + '\n';
+      }
+    }
 
     if (data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
@@ -715,8 +749,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`₹-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGrandTotal = data.grandTotal - (data.returnDeduction || 0);
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total :', labelW)}  ${padLeft(`₹${data.grandTotal.toFixed(2)}`, totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount :', labelW)}  ${padLeft(`₹-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
@@ -727,11 +762,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     text += '\n';
     text += DASH + '\n';
-    text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(`₹${netPayable.toFixed(2)}`, totalW)}\n`;
+    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(`₹${data.grandTotal.toFixed(2)}`, totalW)}\n`;
     text += DASH + '\n';
 
-    // ── Amount in Words ──
-    text += `Amount In Words: \n${numberToIndianWords(Math.max(0, netPayable))} Only.\n`;
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += `${padRight('** REFUND AMOUNT **', labelW)}  ${padLeft(`₹${refundAmount.toFixed(2)}`, totalW)}\n`;
+        text += DASH + '\n';
+        text += `Amount In Words: \n${numberToIndianWords(refundAmount)} Only.\n`;
+      } else {
+        text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(`₹${netPayable.toFixed(2)}`, totalW)}\n`;
+        text += DASH + '\n';
+        text += `Amount In Words: \n${numberToIndianWords(netPayable)} Only.\n`;
+      }
+    } else {
+      text += `Amount In Words: \n${numberToIndianWords(data.grandTotal)} Only.\n`;
+    }
     text += '\n';
 
     // ── Payment ──
@@ -866,21 +912,34 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
     }
 
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGrandTotal = data.grandTotal - (data.returnDeduction || 0);
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total:', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount:', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
     if (data.returnDeduction && data.returnDeduction > 0) {
-      text += `${padRight('Return Credit:', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
+      text += `${padRight('Return Credit:', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`
     }
 
     text += '\n';
     text += FRAME + '\n';
     text += centerText('***** GRAND TOTAL *****', charsPerLine) + '\n';
-    text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+    text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
     text += FRAME + '\n';
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += centerText('***** REFUND AMOUNT *****', charsPerLine) + '\n';
+        text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+        text += FRAME + '\n';
+      } else {
+        text += centerText('***** NET PAYABLE *****', charsPerLine) + '\n';
+        text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+        text += FRAME + '\n';
+      }
+    }
 
     if (data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Amount Received:', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
@@ -1001,14 +1060,29 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `DISCOUNT (${data.discountValue}%)` : 'DISCOUNT';
       dotLine(dLabel, `-${data.discount.toFixed(2)}`);
     }
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0));
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     dotLine('Grand Total', data.grandTotal.toFixed(2));
     if (data.scrapDeduction && data.scrapDeduction > 0) dotLine('Scrap Return Amount', `-${data.scrapDeduction.toFixed(2)}`);
+    if (data.returnDeduction && data.returnDeduction > 0) dotLine('Return Credit', `-${data.returnDeduction.toFixed(2)}`);
     text += '\n';
     text += DASH + '\n';
     text += centerText('** GRAND TOTAL **', charsPerLine) + '\n';
-    text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+    text += centerText(`₹ ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
     text += DASH + '\n';
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += centerText('** REFUND AMOUNT **', charsPerLine) + '\n';
+        text += centerText(`₹ ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+        text += DASH + '\n';
+      } else {
+        text += centerText('** NET PAYABLE **', charsPerLine) + '\n';
+        text += centerText(`₹ ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+        text += DASH + '\n';
+      }
+    }
 
     // ── Payment ──
     if (data.receivedAmount != null && data.balanceAmount != null) {
@@ -1093,11 +1167,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.extraBonus && data.extraBonus > 0 && data.invoiceType === 'SCRAP') {
       text += `${padRight('EXTRA / BONUS', labelW)}  ${padLeft(`+${data.extraBonus.toFixed(2)}`, totalW)}\n`;
     } else     if (data.discount > 0) text += `${padRight('DISCOUNT', labelW)}  ${padLeft(`-${data.discount.toFixed(2)}`, totalW)}\n`;
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0));
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) text += `${padRight('Scrap Return Amount', labelW)}  ${padLeft(`-${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
+    if (data.returnDeduction && data.returnDeduction > 0) text += `${padRight('Return Credit', labelW)}  ${padLeft(`-${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
     text += '\n';
-    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(netPayable.toFixed(2), totalW)}\n`;
+    text += `${padRight('** GRAND TOTAL **', labelW)}  ${padLeft(data.grandTotal.toFixed(2), totalW)}\n`;
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += `${padRight('** REFUND AMOUNT **', labelW)}  ${padLeft(refundAmount.toFixed(2), totalW)}\n`;
+      } else {
+        text += `${padRight('** NET PAYABLE **', labelW)}  ${padLeft(netPayable.toFixed(2), totalW)}\n`;
+      }
+    }
     text += '\n';
 
     // ── Payment ──
@@ -1209,16 +1293,33 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const dLabel = data.discountType === 'PERCENTAGE' && data.discountValue ? `Discount (${data.discountValue}%)` : 'Discount';
       text += `${padRight(dLabel, labelW)}  ${padLeft(`-\u20B9${data.discount.toFixed(2)}`, totalW)}\n`;
     }
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0));
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     text += `${padRight('Grand Total', labelW)}  ${padLeft(`\u20B9${data.grandTotal.toFixed(2)}`, totalW)}\n`;
     if (data.scrapDeduction && data.scrapDeduction > 0) {
       text += `${padRight('Scrap Return Amount', labelW)}  ${padLeft(`-\u20B9${data.scrapDeduction.toFixed(2)}`, totalW)}\n`;
     }
+    if (data.returnDeduction && data.returnDeduction > 0) {
+      text += `${padRight('Return Credit', labelW)}  ${padLeft(`-\u20B9${data.returnDeduction.toFixed(2)}`, totalW)}\n`;
+    }
     text += '\n';
     text += THICK + '\n';
     text += centerText('* * * GRAND TOTAL * * *', charsPerLine) + '\n';
-    text += centerText(`\u20B9 ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+    text += centerText(`\u20B9 ${data.grandTotal.toFixed(2)}`, charsPerLine) + '\n';
     text += THICK + '\n';
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        text += centerText('* * * REFUND AMOUNT * * *', charsPerLine) + '\n';
+        text += centerText(`\u20B9 ${refundAmount.toFixed(2)}`, charsPerLine) + '\n';
+        text += THICK + '\n';
+      } else {
+        text += centerText('* * * NET PAYABLE * * *', charsPerLine) + '\n';
+        text += centerText(`\u20B9 ${netPayable.toFixed(2)}`, charsPerLine) + '\n';
+        text += THICK + '\n';
+      }
+    }
 
     // ── Payment ──
     if (data.receivedAmount != null && data.balanceAmount != null) {
@@ -1461,10 +1562,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Totals ────────────────────────────────────────────────────────────────
     // Format: │ Label                    |   123.00│
     // val field is right-aligned within valW chars; label fills the rest
-    const netPayable = Math.max(0, data.grandTotal - (data.scrapDeduction || 0) - (data.returnDeduction || 0));
-    const finalGT = data.grandTotal - (data.returnDeduction || 0);
-    const roundOff = Math.round(netPayable) - netPayable;
+    const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
+    const netPayable = Math.max(0, data.grandTotal - totalDeductions);
+    const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
     const netTotal = Math.round(netPayable);
+    const roundOff = Math.round(netPayable) - netPayable;
+    const refundTotal = Math.round(refundAmount);
+    const refundRoundOff = Math.round(refundAmount) - refundAmount;
 
     // Align totals vertical separator exactly with the table's Amount column divider
     const VAL_W = amtW;                     // width of value field aligns with Amount col
@@ -1483,8 +1587,20 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     if (data.scrapDeduction && data.scrapDeduction > 0) text += tRow('Scrap Return Amount', `-${data.scrapDeduction.toFixed(2)}`);
     if (data.returnDeduction && data.returnDeduction > 0) text += tRow('Return Credit', `-${data.returnDeduction.toFixed(2)}`);
-    if (Math.abs(roundOff) >= 0.005) text += tRow('Round Off', `${roundOff >= 0 ? '+' : ''}${roundOff.toFixed(2)}`);
-    text += tRow('Net Total', `${Math.max(0, netTotal).toFixed(2)}`);
+
+    if (totalDeductions > 0) {
+      if (refundAmount > 0) {
+        if (Math.abs(refundRoundOff) >= 0.005) text += tRow('Round Off', `${refundRoundOff >= 0 ? '+' : ''}${refundRoundOff.toFixed(2)}`);
+        text += tRow('Refund Amount', `${Math.max(0, refundTotal).toFixed(2)}`);
+      } else {
+        if (Math.abs(roundOff) >= 0.005) text += tRow('Round Off', `${roundOff >= 0 ? '+' : ''}${roundOff.toFixed(2)}`);
+        text += tRow('Net Total', `${Math.max(0, netTotal).toFixed(2)}`);
+      }
+    } else {
+      const gtRoundOff = Math.round(data.grandTotal) - data.grandTotal;
+      if (Math.abs(gtRoundOff) >= 0.005) text += tRow('Round Off', `${gtRoundOff >= 0 ? '+' : ''}${gtRoundOff.toFixed(2)}`);
+      text += tRow('Net Total', `${Math.max(0, Math.round(data.grandTotal)).toFixed(2)}`);
+    }
 
     // ── You Saved ─────────────────────────────────────────────────────────────
     if (data.invoiceType !== 'SCRAP') {

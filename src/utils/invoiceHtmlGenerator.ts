@@ -80,7 +80,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     </tr>
   `).join('');
 
-  const isGst = data.invoiceType === 'GST';
+
 
   return `<!DOCTYPE html>
 <html><head><title>${title} - ${data.shopName}</title>
@@ -145,6 +145,11 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
       ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
+      ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
+      <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#ea580c">Refund Amount</td><td class="text-right" style="font-weight:bold;color:#ea580c">₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</td></tr>
+      ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
+      <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#16a34a">Net Payable</td><td class="text-right" style="font-weight:bold;color:#16a34a">₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</td></tr>
+      ` : ''}
       ${data.receivedAmount != null && data.balanceAmount != null ? `
       <tr><td colspan="4" class="text-right">Received</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>
       <tr><td colspan="4" class="text-right">Balance</td><td class="text-right">₹${data.balanceAmount.toFixed(2)}</td></tr>` : ''}
@@ -167,7 +172,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
     </tr>
   `).join('');
 
-  const isGst = data.invoiceType === 'GST';
+
 
   return `<!DOCTYPE html>
 <html><head><title>${title} - ${data.shopName}</title>
@@ -236,6 +241,11 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <div class="row total"><span>Grand Total</span><span>₹${data.grandTotal.toFixed(2)}</span></div>
       ${data.scrapDeduction && data.scrapDeduction > 0 ? `<div class="row"><span>Scrap Return Amount (${data.scrapInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.scrapDeduction.toFixed(2)}</span></div>` : ''}
       ${data.returnDeduction && data.returnDeduction > 0 ? `<div class="row"><span>Return Credit (${data.returnInvoiceNumber || ''})</span><span style="color:#dc2626">-₹${data.returnDeduction.toFixed(2)}</span></div>` : ''}
+      ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
+      <div class="row" style="font-weight:bold;color:#ea580c"><span>Refund Amount</span><span>₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</span></div>
+      ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
+      <div class="row" style="font-weight:bold;color:#16a34a"><span>Net Payable</span><span>₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</span></div>
+      ` : ''}
       ${data.receivedAmount != null && data.balanceAmount != null ? `
       <div class="row"><span>Received</span><span>₹${data.receivedAmount.toFixed(2)}</span></div>
       <div class="row"><span>Balance</span><span>₹${data.balanceAmount.toFixed(2)}</span></div>` : ''}
@@ -261,7 +271,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
     </tr>
   `).join('');
 
-  const isGst = data.invoiceType === 'GST';
+
 
   return `<!DOCTYPE html>
 <html><head><title>${title} - ${data.shopName}</title>
@@ -334,6 +344,11 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         <tr class="grand-total"><td colspan="4" class="text-right">Grand Total</td><td class="text-right">₹${data.grandTotal.toFixed(2)}</td></tr>
         ${data.scrapDeduction && data.scrapDeduction > 0 ? `<tr><td colspan="4" class="text-right">Scrap Return Amount (${data.scrapInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.scrapDeduction.toFixed(2)}</td></tr>` : ''}
         ${data.returnDeduction && data.returnDeduction > 0 ? `<tr><td colspan="4" class="text-right">Return Credit (${data.returnInvoiceNumber || ''})</td><td class="text-right" style="color:#b91c1c">-₹${data.returnDeduction.toFixed(2)}</td></tr>` : ''}
+        ${((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > data.grandTotal ? `
+        <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#c2410c">Refund Amount</td><td class="text-right" style="font-weight:bold;color:#c2410c">₹${(((data.scrapDeduction || 0) + (data.returnDeduction || 0)) - data.grandTotal).toFixed(2)}</td></tr>
+        ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
+        <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#15803d">Net Payable</td><td class="text-right" style="font-weight:bold;color:#15803d">₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</td></tr>
+        ` : ''}
         ${data.receivedAmount != null && data.balanceAmount != null ? `
         <tr><td colspan="4" class="text-right">Received</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>
         <tr><td colspan="4" class="text-right">Balance</td><td class="text-right">₹${data.balanceAmount.toFixed(2)}</td></tr>` : ''}
