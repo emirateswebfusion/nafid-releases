@@ -136,7 +136,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   // ── Party Create Dialog ──
   const [showPartyCreateForm, setShowPartyCreateForm] = useState(false);
   const [newPartyForm, setNewPartyForm] = useState({
-    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE',
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '',
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -396,6 +396,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         gstin: newPartyForm.gstin.trim() || null,
         balance: parseFloat(newPartyForm.opening_balance) || 0,
         balance_type: newPartyForm.balance_type,
+        notes: newPartyForm.notes.trim() || null,
         created_by: userId,
         created_by_name: userName || undefined,
       });
@@ -408,12 +409,30 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setSupplierId(partyId);
       setSupplierSearch('');
       setShowPartyCreateForm(false);
-      setNewPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' });
+      setNewPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '' });
     } catch {
       setStatusMessage({ text: 'Failed to create party', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
     } finally {
       setIsSavingParty(false);
+    }
+  };
+
+  const handlePartyFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'Enter') return;
+    if (e.defaultPrevented) return;
+    const target = e.target as HTMLElement;
+    if (target.tagName !== 'INPUT' && target.tagName !== 'TEXTAREA') return;
+    e.preventDefault();
+    const container = target.closest('[data-enter-nav]');
+    if (!container) return;
+    const focusable = container.querySelectorAll<HTMLElement>('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-enter-submit]');
+    const idx = Array.from(focusable).indexOf(target as HTMLInputElement);
+    if (idx >= 0 && idx < focusable.length - 1) {
+      const nextEl = focusable[idx + 1];
+      nextEl?.focus();
+    } else if (idx >= 0) {
+      (e.currentTarget as HTMLElement).querySelector<HTMLElement>('[data-enter-submit]')?.click();
     }
   };
 
@@ -1240,8 +1259,9 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setShowPartyCreateForm(false)}>
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" />
           <div
-            className="relative w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+            className="relative w-full max-w-lg bg-background border border-border rounded-2xl shadow-2xl overflow-hidden flex flex-col"
             onClick={e => e.stopPropagation()}
+            onKeyDown={handlePartyFormKeyDown}
           >
             {/* Header */}
             <div className="shrink-0 px-6 py-4 border-b border-border/60 flex items-center justify-between bg-card">
@@ -1261,7 +1281,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 max-h-[70vh]" data-enter-nav>
               {/* Party Name */}
               <div>
                 <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Party Name *</label>
@@ -1317,6 +1337,18 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 </div>
               </div>
 
+              {/* Notes */}
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Notes</label>
+                <textarea
+                  placeholder="Internal notes about this party (optional)"
+                  rows={2}
+                  value={newPartyForm.notes}
+                  onChange={e => setNewPartyForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm resize-none"
+                />
+              </div>
+
               {/* Opening Balance */}
               <div className="bg-card border border-border/60 rounded-xl p-4">
                 <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/50">
@@ -1370,13 +1402,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             <div className="shrink-0 border-t border-border/60 bg-card px-6 py-4 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setShowPartyCreateForm(false)}
-                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
+                data-enter-submit
                 disabled={isSavingParty || !newPartyForm.name.trim()}
                 onClick={handleCreateParty}
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
