@@ -746,15 +746,25 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
         customer_name, customer_phone, customer_gstin, customer_state, customer_address,
         subtotal, tax_total,
         discount_total, discount_type, discount_value, grand_total, payment_method,
-        received_amount, balance_amount, user_id, sync_status, created_at
+        received_amount, balance_amount, user_id, sync_status, created_at,
+        scrap_deduction, scrap_invoice_number,
+        return_deduction, return_invoice_number,
+        customer_id, points_earned, points_redeemed, points_redeemed_discount,
+        previous_points_balance, remaining_points_balance
       ) VALUES (
         @invoice_id, @tenant_id, @invoice_number, @invoice_type,
         @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
         @subtotal, @tax_total,
         @discount_total, @discount_type, @discount_value, @grand_total, @payment_method,
-        @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at
+        @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at,
+        @scrap_deduction, @scrap_invoice_number,
+        @return_deduction, @return_invoice_number,
+        @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
+        @previous_points_balance, @remaining_points_balance
       )
       ON CONFLICT(invoice_id) DO UPDATE SET
+        customer_name = EXCLUDED.customer_name,
+        customer_phone = EXCLUDED.customer_phone,
         customer_gstin = EXCLUDED.customer_gstin,
         customer_state = EXCLUDED.customer_state,
         customer_address = EXCLUDED.customer_address,
@@ -766,6 +776,16 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
         discount_type = EXCLUDED.discount_type,
         discount_value = EXCLUDED.discount_value,
         grand_total = EXCLUDED.grand_total,
+        scrap_deduction = EXCLUDED.scrap_deduction,
+        scrap_invoice_number = EXCLUDED.scrap_invoice_number,
+        return_deduction = EXCLUDED.return_deduction,
+        return_invoice_number = EXCLUDED.return_invoice_number,
+        customer_id = EXCLUDED.customer_id,
+        points_earned = EXCLUDED.points_earned,
+        points_redeemed = EXCLUDED.points_redeemed,
+        points_redeemed_discount = EXCLUDED.points_redeemed_discount,
+        previous_points_balance = EXCLUDED.previous_points_balance,
+        remaining_points_balance = EXCLUDED.remaining_points_balance,
         sync_status = 'SYNCED'
     `);
 
@@ -813,6 +833,16 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
               customer_gstin: currentInv.customer_gstin || null,
               customer_state: currentInv.customer_state || null,
               customer_address: currentInv.customer_address || null,
+              scrap_deduction: currentInv.scrap_deduction ?? 0,
+              scrap_invoice_number: currentInv.scrap_invoice_number || null,
+              return_deduction: currentInv.return_deduction ?? 0,
+              return_invoice_number: currentInv.return_invoice_number || null,
+              customer_id: currentInv.customer_id || null,
+              points_earned: currentInv.points_earned ?? 0,
+              points_redeemed: currentInv.points_redeemed ?? 0,
+              points_redeemed_discount: currentInv.points_redeemed_discount ?? 0,
+              previous_points_balance: currentInv.previous_points_balance ?? 0,
+              remaining_points_balance: currentInv.remaining_points_balance ?? 0,
             });
             success = true;
           } catch (e: any) {

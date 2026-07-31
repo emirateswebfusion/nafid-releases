@@ -1642,7 +1642,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Amount in Words ───────────────────────────────────────────────────────
     text += B_LINE(' Amount in Words:');
     {
-      const amountWords = `${numberToIndianWords(Math.max(0, netTotal))} ONLY`;
+      const amountWords = `${numberToIndianWords(refundAmount > 0 ? refundTotal : Math.max(0, netTotal))} ONLY`;
       // Wrap long words string across multiple lines (INNER - 1 usable chars per line)
       const wordLineW = INNER - 1;
       let remaining = amountWords;
@@ -1670,8 +1670,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += B_MID();
     }
 
-    // ── Barcode ───────────────────────────────────────────────────────────────
-    text += `[[BARCODE:${data.invoiceNumber}]]\n`;
+    // ── Prominent Total/Refund ────────────────────────────────────────────────
+    const finalAmountLabel = refundAmount > 0 ? 'Refund Amount' : 'Net Total';
+    const finalAmountValue = refundAmount > 0 ? Math.max(0, refundTotal) : Math.max(0, netTotal);
+    text += `[[PROMINENT:${finalAmountLabel}: \u20B9${finalAmountValue.toFixed(2)}]]\n`;
     text += B_MID();
 
     // ── Footer ────────────────────────────────────────────────────────────────

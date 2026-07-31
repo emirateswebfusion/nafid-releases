@@ -380,12 +380,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (!selectedInvoice || !window.electronAPI) return;
     try {
       const { tenantId } = useAuthStore.getState();
-      const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+      const [shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
       ]);
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
@@ -396,11 +397,26 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
       const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
       const returnD = Number(selectedInvoice.return_deduction) || 0;
-      const baseGrandTotal = Number(selectedInvoice.grand_total) + scrapD + returnD;
+      
+      let baseGrandTotal = Number(selectedInvoice.grand_total);
+      if (invoiceType !== 'SCRAP') {
+        const sub = Number(selectedInvoice.subtotal) || 0;
+        const tax = Number(selectedInvoice.tax_total) || 0;
+        const disc = Number(selectedInvoice.discount_total) || 0;
+        const ptsDisc = Number(selectedInvoice.points_redeemed_discount) || 0;
+        baseGrandTotal = Math.max(0, sub + tax - disc - ptsDisc);
+      }
+
+      const isInterState = shopStateVal && selectedInvoice.customer_state && (shopStateVal !== selectedInvoice.customer_state);
+      const taxVal = Number(selectedInvoice.tax_total) || 0;
+      const cgst = isInterState ? undefined : taxVal / 2;
+      const sgst = isInterState ? undefined : taxVal / 2;
+      const igst = isInterState ? taxVal : undefined;
 
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+        shopState: billSettings.showShopState ? (shopStateVal || undefined) : undefined,
         shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
         shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
@@ -412,6 +428,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total })),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
+        cgst: cgst,
+        sgst: sgst,
+        igst: igst,
         discount: selectedInvoice.discount_total,
         discountType: selectedInvoice.discount_type,
         discountValue: selectedInvoice.discount_value,
@@ -1300,69 +1319,117 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             </div>
 
             {/* Totals */}
-            <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
-              <div className="px-4 py-3 space-y-2 bg-card">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground font-semibold">Subtotal</span>
-                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground font-semibold">Tax (GST)</span>
-                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.tax_total))}</span>
-                </div>
-                {Number(selectedInvoice.discount_total) > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-rose-500 font-semibold">
-                      Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
-                    </span>
-                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
-                  </div>
-                )}
-                {Number(selectedInvoice.scrap_deduction) > 0 && (
-                  <div className="flex justify-between text-xs items-center">
-                    <span className="text-orange-500 font-semibold flex items-center gap-1">
-                      Scrap Credit
-                      {selectedInvoice.scrap_invoice_number && (
-                        <span className="font-bold">
-                          ({selectedInvoice.scrap_invoice_number})
-                        </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-orange-500 font-bold">-{formatCurrency(Number(selectedInvoice.scrap_deduction))}</span>
-                      {selectedInvoice.scrap_invoice_number && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            useCartStore.getState().setPendingScrapInvoiceToEdit(selectedInvoice.scrap_invoice_number);
-                            useCartStore.getState().setRole('BILLER');
-                            window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber: selectedInvoice.scrap_invoice_number } }));
-                            setDrawerOpen(false);
-                            onClose();
-                          }}
-                          className="px-2 py-0.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all cursor-pointer flex items-center gap-1"
-                          title="Edit Scrap Invoice in Billing Page"
-                        >
-                          <Edit3 className="w-3 h-3" /> Edit Scrap
-                        </button>
-                      )}
+            {(() => {
+              const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
+              const returnD = Number(selectedInvoice.return_deduction) || 0;
+              const totalDeductions = scrapD + returnD;
+              const sub = Number(selectedInvoice.subtotal) || 0;
+              const tax = Number(selectedInvoice.tax_total) || 0;
+              const disc = Number(selectedInvoice.discount_total) || 0;
+              const ptsDisc = Number(selectedInvoice.points_redeemed_discount) || 0;
+              const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+
+              const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+              const netPayable = Math.max(0, preDeductionTotal - totalDeductions);
+
+              return (
+                <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
+                  <div className="px-4 py-3 space-y-2 bg-card">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground font-semibold">Subtotal</span>
+                      <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
                     </div>
+                    {tax > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground font-semibold">Tax (GST)</span>
+                        <span className="font-bold text-foreground">{formatCurrency(tax)}</span>
+                      </div>
+                    )}
+                    {disc > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">
+                          Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
+                        </span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(disc)}</span>
+                      </div>
+                    )}
+                    {ptsDisc > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">Points Discount</span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(ptsDisc)}</span>
+                      </div>
+                    )}
+                    {scrapD > 0 && (
+                      <div className="flex justify-between text-xs items-center">
+                        <span className="text-orange-500 font-semibold flex items-center gap-1">
+                          Scrap Credit
+                          {selectedInvoice.scrap_invoice_number && (
+                            <span className="font-bold">
+                              ({selectedInvoice.scrap_invoice_number})
+                            </span>
+                          )}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-orange-500 font-bold">-{formatCurrency(scrapD)}</span>
+                          {selectedInvoice.scrap_invoice_number && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                useCartStore.getState().setPendingScrapInvoiceToEdit(selectedInvoice.scrap_invoice_number);
+                                useCartStore.getState().setRole('BILLER');
+                                window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber: selectedInvoice.scrap_invoice_number } }));
+                                setDrawerOpen(false);
+                                onClose();
+                              }}
+                              className="px-2 py-0.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 text-orange-600 dark:text-orange-400 font-bold text-[11px] border border-orange-500/20 transition-all cursor-pointer flex items-center gap-1"
+                              title="Edit Scrap Invoice in Billing Page"
+                            >
+                              <Edit3 className="w-3 h-3" /> Edit Scrap
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {returnD > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">
+                          Return Credit {selectedInvoice.return_invoice_number ? `(${selectedInvoice.return_invoice_number})` : ''}
+                        </span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(returnD)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-                {Number(selectedInvoice.return_deduction) > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-rose-500 font-semibold">
-                      Return Credit {selectedInvoice.return_invoice_number ? `(${selectedInvoice.return_invoice_number})` : ''}
-                    </span>
-                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.return_deduction))}</span>
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
-                <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
-                <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
-              </div>
-            </div>
+                  {refundAmount > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-t border-primary/10">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Grand Total</span>
+                        <span className="text-sm font-bold text-foreground">{formatCurrency(preDeductionTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Refund Amount</span>
+                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(refundAmount)}</span>
+                      </div>
+                    </>
+                  ) : totalDeductions > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-t border-primary/10">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Grand Total</span>
+                        <span className="text-sm font-bold text-foreground">{formatCurrency(preDeductionTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                        <span className="text-xs font-black text-primary uppercase tracking-widest">Net Total</span>
+                        <span className="text-lg font-black text-foreground">{formatCurrency(netPayable)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                      <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
+                      <span className="text-lg font-black text-foreground">{formatCurrency(preDeductionTotal)}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </Modal>

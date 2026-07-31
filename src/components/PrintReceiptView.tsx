@@ -37,6 +37,7 @@ const printStyles = `
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
   | { type: 'qr'; payload: string }
+  | { type: 'prominent'; value: string }
   | { type: 'barcode'; payload: string };
 
 function parseReceiptToRows(input: string): ReceiptRow[] {
@@ -51,6 +52,14 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
         rows.push({ type: 'qr', payload: match[1] });
+        return;
+      }
+    }
+
+    if (line.includes('[[PROMINENT:')) {
+      const match = line.match(/\[\[PROMINENT:([^\]]+)\]\]/);
+      if (match) {
+        rows.push({ type: 'prominent', value: match[1] });
         return;
       }
     }
@@ -203,6 +212,31 @@ export function PrintReceiptView({ text }: { text: string }) {
               }}>
                 {displayValue}
               </pre>
+            );
+          }
+
+          if (row.type === 'prominent') {
+            return (
+              <div key={`prominent-${index}`} style={{
+                width: '100%',
+                padding: '6px 0',
+                display: 'flex',
+                justifyContent: 'center',
+                boxSizing: 'border-box',
+                borderTop: '1px dashed black',
+                borderBottom: '1px dashed black',
+                margin: '4px 0',
+              }}>
+                <span style={{
+                  fontSize: '12pt',
+                  fontWeight: 800,
+                  fontFamily,
+                  color: 'black',
+                  textAlign: 'center',
+                }}>
+                  {row.value}
+                </span>
+              </div>
             );
           }
 
