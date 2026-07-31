@@ -466,8 +466,22 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     // When editing, save the matching bill type form
     if (editingBill) {
       const activeRef = editingBill.bill_type === 'GST' ? gstRef : estRef;
-      if (activeRef.current) {
+      const otherRef = editingBill.bill_type === 'GST' ? estRef : gstRef;
+
+      // Save/update the active/original bill if it still has items
+      if (activeRef.current && activeRef.current.hasItems) {
         const ok = await activeRef.current.save();
+        if (ok) savedCount++;
+      } else {
+        // If activeRef has no items, but otherRef has items, delete the original bill
+        if (otherRef.current?.hasItems && window.electronAPI) {
+          await window.electronAPI.dbDeletePurchaseBill(editingBill.purchase_bill_id);
+        }
+      }
+
+      // Also save the other ref if it has items (creates a new bill of the other type)
+      if (otherRef.current?.hasItems) {
+        const ok = await otherRef.current.save();
         if (ok) savedCount++;
       }
     } else {
@@ -941,18 +955,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
           {/* ── Save Button ── */}
           <div className="border-t border-border/80 bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
-            {editingBill && (
-              <button
-                onClick={() => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
-                title="Cancel"
-                className="flex items-center justify-center w-10 h-10 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-95 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+
             <button
               onClick={handleSaveAll}
-              disabled={isSavingAll || (editingBill ? !editHasItems : (!gstHasItems && !estHasItems))}
+              disabled={isSavingAll || !(gstHasItems || estHasItems) || (editingBill && !editHasItems)}
               className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
             >
               <Save className="w-4 h-4" />
