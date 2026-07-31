@@ -1574,10 +1574,10 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
 
     const upsertItem = db.prepare(`
       INSERT INTO purchase_bill_items (
-        item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount,
+        item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price,
         is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at
       ) VALUES (
-        @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount,
+        @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount, @selling_price, @offer_price,
         @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, 'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(item_id) DO UPDATE SET
@@ -1586,6 +1586,8 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
         quantity = excluded.quantity,
         purchase_price = excluded.purchase_price,
         total_amount = excluded.total_amount,
+        selling_price = excluded.selling_price,
+        offer_price = excluded.offer_price,
         is_gst_applicable = excluded.is_gst_applicable,
         tax_rate_percent = excluded.tax_rate_percent,
         hsn_sac_code = excluded.hsn_sac_code,
@@ -1624,6 +1626,8 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
                 quantity: item.quantity ?? 0,
                 purchase_price: item.purchase_price ?? 0,
                 total_amount: item.total_amount ?? 0,
+                selling_price: item.selling_price ?? 0,
+                offer_price: item.offer_price ?? 0,
                 is_gst_applicable: item.is_gst_applicable === false ? 0 : 1,
                 tax_rate_percent: item.tax_rate_percent ?? 0,
                 hsn_sac_code: item.hsn_sac_code || null,

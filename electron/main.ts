@@ -3236,6 +3236,7 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
     purchase_price: number;
     total_amount: number;
     selling_price?: number | null;
+    offer_price?: number | null;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -3253,19 +3254,23 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
       `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType);
 
       const stmt = db.prepare(`
-        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
       const updateStock = billType === 'ESTIMATE' ? db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ? WHERE product_id = ? AND tenant_id = ?`) : null;
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
+      const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
         if (updateStock) {
           updateStock.run(item.quantity, item.purchase_price, item.product_id, bill.tenant_id);
         }
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+        }
+        if (item.offer_price != null) {
+          updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
         }
       }
 
@@ -3329,7 +3334,7 @@ ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset
 ipcMain.handle('db:getPurchaseBillItems', (event, purchase_bill_id: string) => {
   try {
     const db = getDb();
-    return db.prepare('SELECT pbi.*, p.sku_barcode, p.item_code FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
+    return db.prepare('SELECT pbi.*, p.sku_barcode, p.item_code, p.base_price as product_base_price, p.offer_price as product_offer_price, p.current_stock as product_stock FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
   } catch (error: any) {
     console.error('[db:getPurchaseBillItems]', error);
     return { error: 'Operation failed' };
@@ -3356,6 +3361,7 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
     purchase_price: number;
     total_amount: number;
     selling_price?: number | null;
+    offer_price?: number | null;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -3375,15 +3381,19 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(bill.purchase_bill_id);
 
       const stmt = db.prepare(`
-        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
+      const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
+        }
+        if (item.offer_price != null) {
+          updateOfferPrice.run(item.offer_price, item.product_id, bill.tenant_id);
         }
       }
 

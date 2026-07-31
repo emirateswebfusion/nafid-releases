@@ -360,6 +360,8 @@ export function initDb() {
         quantity REAL NOT NULL DEFAULT 0,
         purchase_price REAL NOT NULL DEFAULT 0,
         total_amount REAL NOT NULL DEFAULT 0,
+        selling_price REAL DEFAULT 0,
+        offer_price REAL DEFAULT 0,
         is_gst_applicable INTEGER DEFAULT 1,
         tax_rate_percent REAL DEFAULT 0,
         hsn_sac_code TEXT,
@@ -499,7 +501,7 @@ export function initDb() {
         'purchase_bill_id', 'tenant_id', 'bill_number', 'supplier_id', 'supplier_name', 'bill_date', 'invoice_number', 'notes', 'total_amount', 'bill_type', 'sync_status', 'created_at', 'updated_at'
     ],
     purchase_bill_items: [
-        'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
+        'item_id', 'purchase_bill_id', 'tenant_id', 'product_id', 'name', 'quantity', 'purchase_price', 'total_amount', 'selling_price', 'offer_price', 'is_gst_applicable', 'tax_rate_percent', 'hsn_sac_code', 'sync_status', 'created_at', 'updated_at'
     ],
     cash_drawer: [
         'drawer_id', 'tenant_id', 'business_date', 'opening_balance', 'cash_sales', 'cash_in', 'cash_out',

@@ -60,6 +60,7 @@ interface Product {
   is_gst_applicable?: number;
   tax_rate_percent?: number;
   hsn_sac_code?: string;
+  offer_price?: number | null;
 }
 
 const formatDate = (d: string) => {
@@ -1428,6 +1429,7 @@ interface PurchaseBillFormHandle {
     quantity: string;
     purchase_price: string;
     selling_price: string;
+    offer_price?: string;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -1453,6 +1455,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     quantity: string;
     purchase_price: string;
     selling_price: string;
+    offer_price?: string;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -1476,6 +1479,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     quantity: string;
     purchase_price: string;
     selling_price: string;
+    offer_price?: string;
+    stock?: string;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -1512,7 +1517,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
 
-  const openProductEditor = (item: typeof billItems[0]) => {
+  const openProductEditor = async (item: typeof billItems[0]) => {
     setEditingProductItemId(item.product_id);
     setNewProductName(item.name);
     setNewProductItemCode('');
@@ -1520,18 +1525,43 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductBrand('');
     setNewProductCategory('');
     setNewProductUom('Pcs');
-    setNewProductPurchasePrice(item.purchase_price);
-    setNewProductBasePrice(item.selling_price);
+    setNewProductPurchasePrice(item.purchase_price || '');
+    setNewProductBasePrice(item.selling_price || '');
     setNewProductStock('');
     setNewProductReorderLevel('');
     setNewProductHsn(item.hsn_sac_code || '');
     setNewProductTaxRate(item.tax_rate_percent ?? 18);
     setNewProductDiscountPercent('');
     setNewProductDiscountFlat('');
-    setNewProductOfferPrice('');
+    setNewProductOfferPrice(item.offer_price && Number(item.offer_price) > 0 ? String(item.offer_price) : '');
     setNewProductIsGstApplicable(item.is_gst_applicable !== 0);
     setNewProductPcs('');
     setShowProductCreateForm(true);
+    // Populate full product details (MRP/Sale Price, Offer Price, Discounts, Stock, etc.)
+    if (window.electronAPI && tenantId) {
+      try {
+        const product = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] });
+        const p = Array.isArray(product) ? product[0] : null;
+        if (p) {
+          setNewProductName(p.name ?? item.name);
+          setNewProductItemCode(p.item_code || '');
+          setNewProductBarcode(p.sku_barcode || '');
+          setNewProductBrand(p.brand_manufacturer || '');
+          setNewProductCategory(p.category || '');
+          setNewProductUom(p.uom || 'Pcs');
+          if (!item.purchase_price || Number(item.purchase_price) <= 0) setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : '');
+          if (!item.selling_price || Number(item.selling_price) <= 0) setNewProductBasePrice(p.base_price != null ? String(p.base_price) : '');
+          setNewProductStock(p.current_stock != null ? String(p.current_stock) : '');
+          setNewProductReorderLevel(p.reorder_level != null ? String(p.reorder_level) : '');
+          setNewProductHsn(p.hsn_sac_code || '');
+          setNewProductTaxRate(p.tax_rate_percent ?? 18);
+          setNewProductIsGstApplicable(p.is_gst_applicable !== 0);
+          setNewProductDiscountPercent(p.discount_percent != null && p.discount_percent > 0 ? String(p.discount_percent) : '');
+          setNewProductDiscountFlat(p.discount_flat != null && p.discount_flat > 0 ? String(p.discount_flat) : '');
+          if (!item.offer_price || Number(item.offer_price) <= 0) setNewProductOfferPrice(p.offer_price != null && p.offer_price > 0 ? String(p.offer_price) : '');
+        }
+      } catch { /* non-fatal: keep bill-line values */ }
+    }
   };
 
   useEffect(() => {
@@ -1549,7 +1579,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 name: item.name,
                 quantity: String(item.quantity),
                 purchase_price: String(item.purchase_price),
-                selling_price: item.selling_price != null ? String(item.selling_price) : '',
+                selling_price: item.selling_price != null && Number(item.selling_price) > 0
+                  ? String(item.selling_price)
+                  : (item.product_base_price != null && Number(item.product_base_price) > 0 ? String(item.product_base_price) : ''),
+                offer_price: item.offer_price != null && Number(item.offer_price) > 0
+                  ? String(item.offer_price)
+                  : (item.product_offer_price != null && Number(item.product_offer_price) > 0 ? String(item.product_offer_price) : ''),
+                stock: item.product_stock != null ? String(item.product_stock) : '',
                 is_gst_applicable: item.is_gst_applicable,
                 tax_rate_percent: item.tax_rate_percent,
                 hsn_sac_code: item.hsn_sac_code,
@@ -1630,6 +1666,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           ? Number(product.grade_rate)
           : (product.base_price || 0)
       ),
+      offer_price: product.offer_price != null && Number(product.offer_price) > 0 ? String(product.offer_price) : '',
+      stock: product.current_stock != null ? String(product.current_stock) : '',
       is_gst_applicable: product.is_gst_applicable,
       tax_rate_percent: product.tax_rate_percent,
       hsn_sac_code: product.hsn_sac_code,
@@ -1642,7 +1680,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setBillItems(prev => prev.filter(i => i.product_id !== productId));
   };
 
-  const updateBillItem = (productId: string, field: 'quantity' | 'purchase_price' | 'selling_price' | 'hsn_sac_code', value: string) => {
+  const updateBillItem = (productId: string, field: 'quantity' | 'purchase_price' | 'selling_price' | 'offer_price' | 'hsn_sac_code', value: string) => {
     setBillItems(prev => prev.map(i => i.product_id === productId ? { ...i, [field]: value } : i));
   };
 
@@ -1807,6 +1845,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 name: newProductName.trim(),
                 purchase_price: String(purchasePrice),
                 selling_price: String(basePrice),
+                offer_price: newProductOfferPrice && Number(newProductOfferPrice) > 0 ? String(newProductOfferPrice) : '',
                 is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
                 tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
                 hsn_sac_code: newProductIsGstApplicable ? newProductHsn : '',
@@ -1865,6 +1904,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         quantity: defaultQty,
         purchase_price: String(purchasePrice),
         selling_price: String(basePrice),
+        offer_price: newProductOfferPrice && Number(newProductOfferPrice) > 0 ? String(newProductOfferPrice) : '',
+        stock: newProductStock || '',
         is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
         tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
         hsn_sac_code: newProductIsGstApplicable ? newProductHsn : '',
@@ -1923,6 +1964,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           purchase_price: Number(item.purchase_price) || 0,
           total_amount: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0),
           selling_price: item.selling_price ? Number(item.selling_price) || null : null,
+          offer_price: item.offer_price ? Number(item.offer_price) || null : null,
           is_gst_applicable: type === 'GST' ? (item.is_gst_applicable ?? 1) : 0,
           tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
           hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
@@ -1956,6 +1998,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     quantity: string;
     purchase_price: string;
     selling_price: string;
+    offer_price?: string;
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
@@ -1988,8 +2031,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   useEffect(() => {
     if (showProductCreateForm) {
       setTimeout(() => firstInputRef.current?.focus(), 50);
-      // Auto-generate barcode — match billing page behavior: increment last product's barcode number
-      if (window.electronAPI && tenantId && !newProductBarcode) {
+      // Auto-generate barcode — match billing page behavior: increment last product's barcode number.
+      // Only for NEW products; editing an existing product must keep its own barcode.
+      if (!editingProductItemId && window.electronAPI && tenantId && !newProductBarcode) {
         window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 1, sortBy: 'created_at' })
           .then((lastProduct: any[]) => {
             if (Array.isArray(lastProduct) && lastProduct.length > 0 && lastProduct[0].sku_barcode) {
@@ -2005,7 +2049,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           .catch(console.error);
       }
     }
-  }, [showProductCreateForm, tenantId]);
+  }, [showProductCreateForm, tenantId, editingProductItemId]);
 
   const isEstimate = type === 'ESTIMATE';
 
@@ -2517,16 +2561,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           <div className="space-y-1.5">
             {isEstimate ? (
               <>
-                <div className="grid grid-cols-[1fr_80px_100px_100px_36px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   <span>Product</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Purchase</span>
-                  <span className="text-right">Selling</span>
+                  <span className="text-right">MRP</span>
+                  <span className="text-right">Offer</span>
                   <span></span>
                   <span></span>
                 </div>
-                {billItems.map(item => (                    <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
-                      <span className="text-xs font-semibold text-foreground truncate">{item.name}</span>
+                {billItems.map(item => (                    <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-foreground truncate">{item.name}</span>
+                        {item.stock !== undefined && item.stock !== '' && (
+                          <span className="block text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
+                        )}
+                      </span>
                       <input
                         type="number" step="0.01" min="0"
                         value={item.quantity}
@@ -2544,6 +2594,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         value={item.selling_price}
                         onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
                         className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.offer_price || ''}
+                        onChange={e => updateBillItem(item.product_id, 'offer_price', e.target.value)}
+                        className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                        placeholder="—"
                       />
                       <div className="flex items-center gap-0.5">
                         <button
@@ -2564,6 +2621,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           quantity: item.quantity,
                           purchase_price: item.purchase_price,
                           selling_price: item.selling_price,
+                          offer_price: item.offer_price,
                           is_gst_applicable: item.is_gst_applicable,
                           tax_rate_percent: item.tax_rate_percent,
                           hsn_sac_code: item.hsn_sac_code,
@@ -2578,12 +2636,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               </>
             ) : (
               <>
-                <div className="grid grid-cols-[1fr_70px_60px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
                   <span>Product</span>
                   <span className="text-center">HSN</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Purchase</span>
-                  <span className="text-right">Sell</span>
+                  <span className="text-right">MRP</span>
+                  <span className="text-right">Offer</span>
                   <span className="text-right">Tax%</span>
                   <span className="text-right">CGST</span>
                   <span className="text-right">SGST</span>
@@ -2597,9 +2656,14 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
                   const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
                   return (
-                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_60px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
-                      <span className="text-xs font-semibold text-foreground truncate leading-tight">
-                        {item.name}
+                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="min-w-0">
+                        <span className="block text-xs font-semibold text-foreground truncate leading-tight">
+                          {item.name}
+                        </span>
+                        {item.stock !== undefined && item.stock !== '' && (
+                          <span className="block text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
+                        )}
                       </span>
                       <input
                         type="text"
@@ -2625,6 +2689,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         value={item.selling_price}
                         onChange={e => updateBillItem(item.product_id, 'selling_price', e.target.value)}
                         className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                      />
+                      <input
+                        type="number" step="0.01" min="0"
+                        value={item.offer_price || ''}
+                        onChange={e => updateBillItem(item.product_id, 'offer_price', e.target.value)}
+                        className="w-full bg-background border border-border/80 rounded-lg px-2 py-1.5 text-right text-xs font-semibold focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none no-spinners h-8"
+                        placeholder="—"
                       />
                       <select
                         value={item.tax_rate_percent ?? 0}
@@ -2681,6 +2752,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           quantity: item.quantity,
                           purchase_price: item.purchase_price,
                           selling_price: item.selling_price,
+                          offer_price: item.offer_price,
                           is_gst_applicable: item.is_gst_applicable,
                           tax_rate_percent: item.tax_rate_percent,
                           hsn_sac_code: item.hsn_sac_code,
