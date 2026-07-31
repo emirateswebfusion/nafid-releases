@@ -958,7 +958,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
             <button
               onClick={handleSaveAll}
-              disabled={isSavingAll || !(gstHasItems || estHasItems) || (editingBill && !editHasItems)}
+              disabled={isSavingAll || !(gstHasItems || estHasItems) || (!!editingBill && !editHasItems)}
               className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
             >
               <Save className="w-4 h-4" />
