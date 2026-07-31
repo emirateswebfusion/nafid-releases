@@ -170,6 +170,27 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const gstOtherAddItem = useMemo(() => estRef.current?.addItem ?? undefined, [estRef.current?.addItem]);
   const estOtherAddItem = useMemo(() => gstRef.current?.addItem ?? undefined, [gstRef.current?.addItem]);
 
+  // Bulk share: copy ALL items from source section to destination section (keeps both in sync)
+  const handleBulkShare = (source: 'GST' | 'ESTIMATE') => {
+    const srcRef = source === 'GST' ? gstRef : estRef;
+    const dstRef = source === 'GST' ? estRef : gstRef;
+    const target = source === 'GST' ? 'Estimate' : 'GST';
+    const items = srcRef.current?.getItems?.() ?? [];
+    if (items.length === 0) {
+      setStatusMessage({ text: `Share failed: no items in ${source} section to share`, type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
+      return;
+    }
+    if (!dstRef.current?.replaceItems) {
+      setStatusMessage({ text: 'Share failed: destination section unavailable', type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
+      return;
+    }
+    dstRef.current.replaceItems(items);
+    setStatusMessage({ text: `${source} items shared to ${target} (${items.length} item${items.length > 1 ? 's' : ''})`, type: 'success' });
+    setTimeout(() => setStatusMessage(null), 3000);
+  };
+
   const loadBillSummaries = async (bills: PurchaseBill[]) => {
     if (!window.electronAPI) return;
     const gstBills = bills.filter(b => b.bill_type === 'GST');
@@ -283,6 +304,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const handleEditBill = async (bill: PurchaseBill) => {
     setEditingBill(bill);
     setEditHasItems(false);
+    setGstHasItems(false);
+    setEstHasItems(false);
     setSupplierName(bill.supplier_name);
     setSupplierSearch('');
     setSupplierId(bill.supplier_id);
@@ -462,6 +485,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setShowAddForm(false);
       setEditingBill(null);
       setEditHasItems(false);
+      setGstHasItems(false);
+      setEstHasItems(false);
       loadBills();
     }
   };
@@ -488,7 +513,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">              <button
-              onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); } : onClose}
+              onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); } : onClose}
               className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-border/40"
               title="Close"
             >
@@ -591,7 +616,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
             {/* New Bill Button */}
             <button
-              onClick={() => setShowAddForm(true)}
+              onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
               className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer"
             >
               <Plus className="w-4 h-4" /> New Purchase Bill
@@ -822,12 +847,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   billType === 'GST' ? "bg-white" : "bg-emerald-500"
                 )} />
                 GST
-                {gstHasItems && (
-                  <span className={clsx(
-                    "text-[10px] px-1.5 py-0.5 rounded-md font-black",
-                    billType === 'GST' ? "bg-white/20 text-white" : "bg-emerald-500/20"
-                  )}>✓</span>
-                )}
+                <span className={clsx(
+                  "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
+                  billType === 'GST' ? "bg-white/20 text-white" : "bg-emerald-500/20",
+                  gstHasItems ? "opacity-100" : "opacity-0"
+                )}>✓</span>
               </button>
               {/* Tab: Estimate */}
               <button
@@ -845,12 +869,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   billType === 'ESTIMATE' ? "bg-white" : "bg-amber-500"
                 )} />
                 Estimate
-                {estHasItems && (
-                  <span className={clsx(
-                    "text-[10px] px-1.5 py-0.5 rounded-md font-black",
-                    billType === 'ESTIMATE' ? "bg-white/20 text-white" : "bg-amber-500/20"
-                  )}>✓</span>
-                )}
+                <span className={clsx(
+                  "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
+                  billType === 'ESTIMATE' ? "bg-white/20 text-white" : "bg-amber-500/20",
+                  estHasItems ? "opacity-100" : "opacity-0"
+                )}>✓</span>
               </button>
             </div>
           </div>
@@ -891,6 +914,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setGstHasItems}
+                onShareAll={() => handleBulkShare('GST')}
                 otherSectionAddItem={gstOtherAddItem}
                 editingData={gstEditingData}
               />
@@ -908,6 +932,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onSaved={() => { setEditingBill(null); setEditHasItems(false); loadBills(); }}
                 onItemsLoaded={() => setEditHasItems(true)}
                 onItemsChange={setEstHasItems}
+                onShareAll={() => handleBulkShare('ESTIMATE')}
                 otherSectionAddItem={estOtherAddItem}
                 editingData={estEditingData}
               />
@@ -918,10 +943,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           <div className="border-t border-border/80 bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
             {editingBill && (
               <button
-                onClick={() => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); }}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted"
+                onClick={() => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
+                title="Cancel"
+                className="flex items-center justify-center w-10 h-10 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted transition-all active:scale-95 cursor-pointer"
               >
-                <X className="w-4 h-4" /> Cancel
+                <X className="w-4 h-4" />
               </button>
             )}
             <button
@@ -1436,6 +1462,30 @@ interface PurchaseBillFormHandle {
     sku_barcode?: string;
     item_code?: string;
   }) => void;
+  getItems: () => Array<{
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+    selling_price: string;
+    offer_price?: string;
+    stock?: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+  }>;
+  replaceItems: (items: Array<{
+    product_id: string;
+    name: string;
+    quantity: string;
+    purchase_price: string;
+    selling_price: string;
+    offer_price?: string;
+    stock?: string;
+    is_gst_applicable?: number;
+    tax_rate_percent?: number;
+    hsn_sac_code?: string;
+  }>) => void;
 }
 
 const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
@@ -1449,6 +1499,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   onSaved: () => void;
   onItemsLoaded?: () => void;
   onItemsChange?: (hasItems: boolean) => void;
+  onShareAll?: () => void;
   otherSectionAddItem?: (item: {
     product_id: string;
     name: string;
@@ -1468,7 +1519,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     invoice_number?: string;
     payment_type: string;
   };
-}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, otherSectionAddItem, editingData }, ref) => {
+}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -2013,6 +2064,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     save: handleSave,
     get hasItems() { return billItems.length > 0; },
     addItem: addItemToSection,
+    getItems: () => billItems.map(i => ({ ...i })),
+    replaceItems: (items) => { setBillItems(items.map(i => ({ ...i }))); },
   }));
 
   useEffect(() => {
@@ -2091,6 +2144,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             size="sm"
           />
         </div>
+        {onShareAll && (
+          <button
+            type="button"
+            onClick={onShareAll}
+            className={clsx(
+              "ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer active:scale-95 border transition-all shrink-0",
+              isEstimate
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
+            )}
+            title={`Share all items to ${isEstimate ? 'GST Bill' : 'Estimate Bill'}`}
+          >
+            <Send className="w-3.5 h-3.5" />
+            Share All
+          </button>
+        )}
       </div>
 
       {/* Products Section */}
