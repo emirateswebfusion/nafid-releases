@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
@@ -833,7 +833,24 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       <span className="text-xs text-muted-foreground truncate text-center block">{inv.customer_name || '—'}</span>
 
                       {/* Amount */}
-                      <span className="text-xs font-black text-foreground text-center tabular-nums block">{formatCurrency(inv.grand_total)}</span>
+                      <span className="text-xs font-black text-foreground text-center tabular-nums block">
+                        {(() => {
+                          const scrapD = Number(inv.scrap_deduction) || 0;
+                          const returnD = Number(inv.return_deduction) || 0;
+                          const totalDeductions = scrapD + returnD;
+                          const sub = Number(inv.subtotal) || 0;
+                          const tax = Number(inv.tax_total) || 0;
+                          const disc = Number(inv.discount_total) || 0;
+                          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
+                          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+                          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+
+                          if (refundAmount > 0) {
+                            return formatCurrency(preDeductionTotal);
+                          }
+                          return formatCurrency(inv.grand_total);
+                        })()}
+                      </span>
 
                       {/* Discount inputs grouped */}
                       <div className="flex items-center border border-amber-500/20 rounded-lg overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
@@ -857,7 +874,32 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       </div>
 
                       {/* Net */}
-                      <span className="text-xs font-black text-primary text-center tabular-nums block">{formatCurrency(net)}</span>
+                      <span className="text-xs font-black text-center tabular-nums block">
+                        {(() => {
+                          const scrapD = Number(inv.scrap_deduction) || 0;
+                          const returnD = Number(inv.return_deduction) || 0;
+                          const totalDeductions = scrapD + returnD;
+                          const sub = Number(inv.subtotal) || 0;
+                          const tax = Number(inv.tax_total) || 0;
+                          const disc = Number(inv.discount_total) || 0;
+                          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
+                          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+                          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+
+                          if (refundAmount > 0) {
+                            return (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Refund Amount">
+                                -{formatCurrency(refundAmount)}
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="text-primary font-bold">
+                              {formatCurrency(net)}
+                            </span>
+                          );
+                        })()}
+                      </span>
 
                       {/* Payment method dropdown */}
                       <div className="flex justify-center">

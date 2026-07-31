@@ -3639,12 +3639,35 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         const date = localDate();
         const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
         if (drawer) {
+          const scrapD = Number(invoice.scrap_deduction) || 0;
+          const returnD = Number(invoice.return_deduction) || 0;
+          const totalDeductions = scrapD + returnD;
+          const sub = Number(invoice.subtotal) || 0;
+          const tax = Number(invoice.tax_total) || 0;
+          const disc = Number(invoice.discount_total) || 0;
+          const ptsDisc = Number(invoice.points_redeemed_discount) || 0;
+          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+
           const newCashSales = Number(drawer.cash_sales) + received;
-          const newCurrentCash = Number(drawer.current_cash) + received;
-          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - Number(drawer.cash_out);
+          let newCashOut = Number(drawer.cash_out);
+          let newCurrentCash = Number(drawer.current_cash) + received;
+
+          if (refundAmount > 0) {
+            const transaction_id = crypto.randomUUID();
+            db.prepare(`
+              INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+            `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', refundAmount, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
+
+            newCashOut += refundAmount;
+            newCurrentCash -= refundAmount;
+          }
+
+          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - newCashOut;
           db.prepare(`
-            UPDATE cash_drawer SET cash_sales = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
-          `).run(newCashSales, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+            UPDATE cash_drawer SET cash_sales = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashSales, newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
         }
       }
       

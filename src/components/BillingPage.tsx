@@ -2,11 +2,12 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
-  Store, LogOut, Settings, Phone, User,
+  Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
+import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
@@ -74,8 +75,23 @@ export function BillingPage() {
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
+  const shopDomain = useCartStore(s => s.shopDomain);
+  const scaleLiveWeight = useScaleStore(s => s.liveWeight);
+  const scaleReading = useScaleStore(s => s.reading);
+  const setScaleReading = useScaleStore(s => s.setReading);
+  const lockScaleWeight = useScaleStore(s => s.lockWeight);
   const [bosTaxRatePercent, setBosTaxRatePercent] = useState(0);
   const [bosTaxInclusive, setBosTaxInclusive] = useState(false);
+
+  // While reading, apply the live scale weight (grams) to the last WEIGHT item in the cart (kg)
+  useEffect(() => {
+    if (!scaleReading) return;
+    const lastWeightItem = [...items].reverse().find(i => i.billing_type === 'WEIGHT' && !i.isScrap && !i.isReturnItem);
+    if (!lastWeightItem) return;
+    const kg = scaleLiveWeight / 1000;
+    if (kg > 0) updateQuantity(lastWeightItem.product_id, +kg.toFixed(3));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scaleLiveWeight, scaleReading]);
 
   // Local state for per-item two-way discount binding (like CashierSettlement)
   const [localDiscPcts, setLocalDiscPcts] = useState<Record<string, number>>({});
@@ -2911,6 +2927,27 @@ export function BillingPage() {
                 </div>
 
                 <div className="flex items-center border border-border rounded-xl overflow-hidden shrink-0">
+                  {shopDomain === 'JEWELRY' && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
+                    <>
+                      <button
+                        onClick={() => scaleReading ? lockScaleWeight() : setScaleReading(true)}
+                        className={clsx(
+                          "flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 border-0",
+                          scaleReading ? "bg-amber-500 text-white hover:bg-amber-600" : "bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
+                        )}
+                        title={scaleReading ? "Lock the current weight" : "Read weight from the connected weighing scale"}
+                      >
+                        <Scale className="w-4 h-4" />
+                        <span className="hidden sm:inline">{scaleReading ? 'Lock' : 'Read Scale'}</span>
+                        {scaleReading && (
+                          <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-white/25 text-white min-w-[52px] text-center">
+                            {scaleLiveWeight > 0 ? `${scaleLiveWeight.toFixed(2)}g` : '...'}
+                          </span>
+                        )}
+                      </button>
+                      <div className="w-px h-5 bg-border/60" />
+                    </>
+                  )}
                   {!isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
                     <button
                       onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}

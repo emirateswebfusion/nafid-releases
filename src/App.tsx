@@ -33,6 +33,7 @@ import { OwnerDashboard } from './components/OwnerDashboard';
 import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
+import { useScaleStore } from './store/scaleStore';
 
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
@@ -383,6 +384,7 @@ function App() {
     window.addEventListener('open-return-mode', handleOpenReturnMode);
     window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
 
+    let unsubscribeScale: (() => void) | undefined;
     if (window.electronAPI) {
       window.electronAPI.onTokenExpired(() => {
         console.log('[App] Token expired event received. Logging out...');
@@ -418,12 +420,15 @@ function App() {
         }
       });
 
-      window.electronAPI.onScaleWeight((weight) => {
-        console.log(`Live Weight: ${weight}g`);
+      unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
+        useScaleStore.getState().setLiveWeight(weight);
       });
     }
 
     return () => {
+      if (unsubscribeScale) {
+        unsubscribeScale();
+      }
       window.removeEventListener('open-inventory-manager', handleOpenInv);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
       window.removeEventListener('open-sales-history', handleOpenHistory);

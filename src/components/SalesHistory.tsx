@@ -201,14 +201,43 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       </td>
       {/* Amount */}
       <td className="px-4 py-3.5 text-right whitespace-nowrap">
-        <div className={clsx('text-sm font-black', isSelected ? 'text-primary' : 'text-foreground')}>
-          {formatCurrency(inv.grand_total)}
-        </div>
-        {Number(inv.discount_total) > 0 && (
-          <div className="text-[10px] text-red-500 font-semibold mt-0.5">
-            -{formatCurrency(Number(inv.discount_total))} off
-          </div>
-        )}
+        {(() => {
+          const scrapD = Number(inv.scrap_deduction) || 0;
+          const returnD = Number(inv.return_deduction) || 0;
+          const totalDeductions = scrapD + returnD;
+          const sub = Number(inv.subtotal) || 0;
+          const tax = Number(inv.tax_total) || 0;
+          const disc = Number(inv.discount_total) || 0;
+          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
+          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+
+          if (inv.invoice_type !== 'SCRAP' && refundAmount > 0) {
+            return (
+              <>
+                <div className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                  -{formatCurrency(refundAmount)}
+                </div>
+                <div className="text-[10px] text-emerald-500 font-semibold mt-0.5">
+                  Refund
+                </div>
+              </>
+            );
+          }
+
+          return (
+            <>
+              <div className={clsx('text-sm font-black', isSelected ? 'text-primary' : 'text-foreground')}>
+                {formatCurrency(inv.grand_total)}
+              </div>
+              {Number(inv.discount_total) > 0 && (
+                <div className="text-[10px] text-red-500 font-semibold mt-0.5">
+                  -{formatCurrency(Number(inv.discount_total))} off
+                </div>
+              )}
+            </>
+          );
+        })()}
       </td>
       {/* Arrow */}
       <td className="px-3 py-3.5 text-right">
