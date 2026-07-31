@@ -1,3 +1,10 @@
+# Vendora v1.5.7 Release Notes
+
+## What's Changed
+- Implemented receipt generation, printing service, and sales history updates
+- Corrected cash register settlement logic
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.6...v1.5.7
+
 # Vendora v1.5.6 Release Notes
 
 ## What's Changed
