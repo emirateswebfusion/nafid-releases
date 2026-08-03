@@ -140,6 +140,8 @@ export function initDb() {
         address TEXT,
         gstin TEXT,
         balance REAL NOT NULL DEFAULT 0,
+        gst_balance REAL NOT NULL DEFAULT 0,
+        estimate_balance REAL NOT NULL DEFAULT 0,
         balance_type TEXT DEFAULT 'RECEIVABLE',
         notes TEXT,
         last_transaction_date DATETIME,
@@ -158,6 +160,8 @@ export function initDb() {
         credit_amount REAL NOT NULL DEFAULT 0,
         debit_amount REAL NOT NULL DEFAULT 0,
         running_balance REAL NOT NULL,
+        balance_type TEXT DEFAULT 'GST',
+        payment_method TEXT,
         reference_number TEXT,
         created_by TEXT,
         created_by_name TEXT,
@@ -444,6 +448,45 @@ export function initDb() {
         FOREIGN KEY (customer_id) REFERENCES customers(customer_id),
         FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
     );
+
+    CREATE TABLE IF NOT EXISTS payment_sources (
+        source_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('BANK', 'CARD', 'UPI')),
+        bank_name TEXT,
+        account_number TEXT,
+        holder_name TEXT,
+        upi_id TEXT,
+        opening_balance REAL NOT NULL DEFAULT 0,
+        current_balance REAL NOT NULL DEFAULT 0,
+        is_default INTEGER DEFAULT 0,
+        is_enabled INTEGER DEFAULT 1,
+        sort_order INTEGER DEFAULT 0,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS payment_source_transactions (
+        transaction_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        type TEXT NOT NULL CHECK(type IN ('CASH_IN', 'CASH_OUT')),
+        amount REAL NOT NULL,
+        category TEXT,
+        reference_number TEXT,
+        notes TEXT,
+        transaction_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        running_balance REAL NOT NULL DEFAULT 0,
+        entered_by TEXT,
+        entered_by_name TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (source_id) REFERENCES payment_sources(source_id)
+    );
   `);
 
   // Migration: Add missing columns if they don't exist (Idempotent)
@@ -477,10 +520,10 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     party_ledger: [
-        'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'reference_number', 'created_by', 'created_by_name', 'sync_status', 'created_at', 'updated_at'
+        'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'balance_type', 'payment_method', 'reference_number', 'created_by', 'created_by_name', 'sync_status', 'created_at', 'updated_at'
     ],
     scrap_categories: [
         'scrap_category_id', 'tenant_id', 'name', 'purchase_price', 'selling_price', 'current_stock', 'unit', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -533,6 +576,16 @@ export function initDb() {
         'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',
         'points_balance_before', 'points_balance_after', 'reference_number', 'description', 'created_by',
         'sync_status', 'created_at'
+    ],
+    payment_sources: [
+        'source_id', 'tenant_id', 'name', 'type', 'bank_name', 'account_number', 'holder_name',
+        'upi_id', 'opening_balance', 'current_balance', 'is_default', 'is_enabled', 'sort_order',
+        'is_deleted', 'sync_status', 'created_at', 'updated_at'
+    ],
+    payment_source_transactions: [
+        'transaction_id', 'tenant_id', 'source_id', 'type', 'amount', 'category', 'reference_number',
+        'notes', 'transaction_date', 'running_balance', 'entered_by', 'entered_by_name',
+        'sync_status', 'created_at', 'updated_at'
     ]
   };
 
@@ -920,6 +973,38 @@ export function initDb() {
 
   // Migration: Rename legacy 'CASHIER' role values to 'BILLER'
   db.exec("UPDATE users SET role = 'BILLER' WHERE role = 'CASHIER'");
+
+  // Migration: Add gst_balance & estimate_balance columns to parties
+  try {
+    const partyCols = db.prepare(`PRAGMA table_info(parties)`).all().map((c: any) => c.name);
+    if (!partyCols.includes('gst_balance')) {
+      console.log('[DB Migration] Adding gst_balance to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN gst_balance REAL NOT NULL DEFAULT 0");
+    }
+    if (!partyCols.includes('estimate_balance')) {
+      console.log('[DB Migration] Adding estimate_balance to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN estimate_balance REAL NOT NULL DEFAULT 0");
+    }
+    // Backfill: existing balances are treated as GST balance (legacy behavior)
+    db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add balance columns to parties:', e.message);
+  }
+
+  // Migration: Add balance_type & payment_method columns to party_ledger
+  try {
+    const ledgerCols = db.prepare(`PRAGMA table_info(party_ledger)`).all().map((c: any) => c.name);
+    if (!ledgerCols.includes('balance_type')) {
+      console.log('[DB Migration] Adding balance_type to party_ledger...');
+      db.exec("ALTER TABLE party_ledger ADD COLUMN balance_type TEXT DEFAULT 'GST'");
+    }
+    if (!ledgerCols.includes('payment_method')) {
+      console.log('[DB Migration] Adding payment_method to party_ledger...');
+      db.exec("ALTER TABLE party_ledger ADD COLUMN payment_method TEXT");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add columns to party_ledger:', e.message);
+  }
 
   // Migration: Add restricted_page column to users
   try {

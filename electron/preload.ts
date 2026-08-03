@@ -171,6 +171,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbDeleteInvoice: (invoice_id: string) => ipcRenderer.invoke('db:deleteInvoice', invoice_id),
   dbGetCustomerLoyaltyTransactions: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerLoyaltyTransactions', args),
 
+  // Payment Methods (BANK / CARD / UPI sources)
+  dbPaymentGetSources: (tenant_id: string) => ipcRenderer.invoke('db:payments:getSources', tenant_id),
+  dbPaymentAddSource: (source: any) => ipcRenderer.invoke('db:payments:addSource', source),
+  dbPaymentUpdateSource: (source: any) => ipcRenderer.invoke('db:payments:updateSource', source),
+  dbPaymentDeleteSource: (params: { source_id: string; tenant_id: string }) => ipcRenderer.invoke('db:payments:deleteSource', params),
+  dbPaymentGetTransactions: (params: { source_id: string; tenant_id: string }) => ipcRenderer.invoke('db:payments:getTransactions', params),
+  dbPaymentAddTransaction: (tx: any) => ipcRenderer.invoke('db:payments:addTransaction', tx),
+
   // Returns
   dbCreateReturn: (payload: any) => ipcRenderer.invoke('db:createReturn', payload),
   dbGetReturns: (filters: any) => ipcRenderer.invoke('db:getReturns', filters),

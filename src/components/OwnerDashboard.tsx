@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2 } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2, Wallet } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -212,6 +212,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-rose-500',
             bgColor: 'bg-rose-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
+        },
+        {
+            id: 'payments',
+            title: 'Payment Methods',
+            desc: 'Manage bank accounts, cards & UPI ids for receiving payments',
+            icon: Wallet,
+            color: 'text-teal-500',
+            bgColor: 'bg-teal-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-payments-page')),
         },
         {
             id: 'customers',

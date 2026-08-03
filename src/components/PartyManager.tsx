@@ -20,6 +20,8 @@ interface Party {
   address: string;
   gstin: string;
   balance: number;
+  gst_balance?: number;
+  estimate_balance?: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
   notes: string;
   last_transaction_date: string;
@@ -34,6 +36,8 @@ interface LedgerEntry {
   credit_amount: number;
   debit_amount: number;
   running_balance: number;
+  balance_type?: 'GST' | 'ESTIMATE';
+  payment_method?: string;
   reference_number: string;
   created_by: string;
   created_by_name: string;
@@ -102,6 +106,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   const [txForm, setTxForm] = useState({
     amount: '', transaction_type: 'CREDIT' as 'CREDIT' | 'DEBIT',
     description: '', transaction_date: '', reference_number: '',
+    balance_type: 'GST' as 'GST' | 'ESTIMATE',
     payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER',
   });
 
@@ -219,6 +224,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           description: txForm.description.trim(),
           transaction_date: txForm.transaction_date || undefined,
           reference_number: txForm.reference_number.trim() || null,
+          balance_type: txForm.balance_type,
+          payment_method: txForm.payment_method,
         });
         showStatus('Transaction updated', 'success');
       } else {
@@ -231,6 +238,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           description: txForm.description.trim(),
           transaction_date: txForm.transaction_date || new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T'),
           reference_number: txForm.reference_number.trim() || null,
+          balance_type: txForm.balance_type,
+          payment_method: txForm.payment_method,
           created_by: userId,
           created_by_name: userName || undefined,
         });
@@ -374,7 +383,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
               <button
                 onClick={() => {
                   setEditingTx(null);
-                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', payment_method: 'CASH' });
+                  setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', balance_type: 'GST', payment_method: 'CASH' });
                   setView('tx_form');
                 }}
                 className="flex items-center gap-1.5 px-3.5 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer"
@@ -842,6 +851,14 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                 <p className="text-[10px] font-bold uppercase tracking-widest mt-1 opacity-80">
                   {selectedParty.balance > 0 ? 'To Receive' : selectedParty.balance < 0 ? 'To Pay' : 'Settled'}
                 </p>
+                <div className="mt-1.5 pt-1.5 border-t border-white/20 flex flex-col items-end gap-0.5">
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
+                    GST: ₹{Math.abs(selectedParty.gst_balance ?? selectedParty.balance).toFixed(2)}
+                  </span>
+                  <span className="text-[10px] font-black uppercase tracking-wider opacity-90">
+                    Est: ₹{Math.abs(selectedParty.estimate_balance ?? 0).toFixed(2)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -865,7 +882,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <button
                     onClick={() => {
                       setEditingTx(null);
-                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', payment_method: 'CASH' });
+                      setTxForm({ amount: '', transaction_type: 'CREDIT', description: '', transaction_date: (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}T${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })(), reference_number: '', balance_type: 'GST', payment_method: 'CASH' });
                       setView('tx_form');
                     }}
                     className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
@@ -906,6 +923,15 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                 {isCredit ? <PlusCircle className="w-3 h-3" /> : <MinusCircle className="w-3 h-3" />}
                                 {isCredit ? 'Paid' : 'Received'}
                               </span>
+                              {/* Balance type badge */}
+                              <span className={clsx(
+                                'inline-flex items-center text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-lg',
+                                (entry.balance_type || 'GST') === 'ESTIMATE'
+                                  ? 'bg-violet-500 text-white'
+                                  : 'bg-sky-500 text-white'
+                              )}>
+                                {entry.balance_type || 'GST'}
+                              </span>
                               {/* Reference badge */}
                               {entry.reference_number && (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-muted-foreground bg-muted border border-border px-2 py-1 rounded-lg">
@@ -923,6 +949,12 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                               <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
                                 <User className="w-3 h-3" />{entry.created_by_name || 'Unknown'}
                               </span>
+                              {entry.payment_method && (
+                                <span className="flex items-center gap-1 text-[11px] text-muted-foreground font-medium">
+                                  <Wallet className="w-3 h-3" />
+                                  {entry.payment_method === 'CASH' ? 'Cash' : entry.payment_method === 'BANK_TRANSFER' ? 'Bank' : entry.payment_method === 'UPI' ? 'UPI' : entry.payment_method === 'CARD' ? 'Card' : 'Other'}
+                                </span>
+                              )}
                             </div>
                           </div>
 
@@ -958,7 +990,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                       description: entry.description,
                                       transaction_date: entry.transaction_date.slice(0, 16),
                                       reference_number: entry.reference_number || '',
-                                      payment_method: 'CASH',
+                                      balance_type: entry.balance_type || 'GST',
+                                      payment_method: (entry.payment_method as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER') || 'CASH',
                                     });
                                     setView('tx_form');
                                   }}
@@ -1031,6 +1064,37 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     )}
                   >
                     <MinusCircle className="w-4 h-4" /> Received
+                  </button>
+                </div>
+              </div>
+
+              {/* Balance type selector */}
+              <div className="mb-5">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Adjust Against</label>
+                <div className="grid grid-cols-2 gap-3 max-w-sm">
+                  <button
+                    type="button"
+                    onClick={() => setTxForm(f => ({ ...f, balance_type: 'GST' }))}
+                    className={clsx(
+                      'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                      txForm.balance_type === 'GST'
+                        ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-400 shadow-sm'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <FileText className="w-4 h-4" /> GST Balance
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTxForm(f => ({ ...f, balance_type: 'ESTIMATE' }))}
+                    className={clsx(
+                      'py-3 px-4 rounded-xl border-2 text-sm font-black transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center gap-2',
+                      txForm.balance_type === 'ESTIMATE'
+                        ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-400 shadow-sm'
+                        : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                    )}
+                  >
+                    <TrendingUp className="w-4 h-4" /> Estimate Balance
                   </button>
                 </div>
               </div>

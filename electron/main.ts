@@ -843,17 +843,17 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
       : -Math.abs(p.balance || 0);
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, bt, p.notes || null);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, p.notes || null);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
       const amount = Math.abs(parseFloat(p.balance));
       const ledgerId = p.party_id + '-OPENING';
       db.prepare(`
-        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, created_by, created_by_name, created_at, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, created_by, created_by_name, created_at, updated_at)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, ?, 'GST', ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `).run(
         ledgerId, p.party_id, p.tenant_id,
         `Opening Balance (${bt === 'RECEIVABLE' ? 'Receivable' : 'Payable'})`,
@@ -901,13 +901,32 @@ ipcMain.handle('db:deleteParty', (event, partyId: string) => {
 ipcMain.handle('db:adjustPartyBalance', (event, { party_id, amount }: { party_id: string; amount: number }) => {
   try {
     const db = getDb();
-    db.prepare("UPDATE parties SET balance = balance + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(amount, party_id);
+    db.prepare("UPDATE parties SET balance = balance + ?, gst_balance = gst_balance + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?").run(amount, amount, party_id);
     return { success: true };
   } catch (error: any) {
     console.error('[db:adjustPartyBalance]', error);
     return { success: false, error: 'Operation failed' };
   }
 });
+
+// Recompute a party's GST / Estimate / total balances from its ledger entries
+function recalcPartyBalances(db: any, partyId: string) {
+  const rows = db.prepare(
+    `SELECT COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
+            COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
+            COALESCE(SUM(credit_amount - debit_amount), 0) AS total
+     FROM party_ledger WHERE party_id = ?`
+  ).get(partyId) as any;
+  const gst = parseFloat(rows.gst) || 0;
+  const estimate = parseFloat(rows.estimate) || 0;
+  const total = gst + estimate;
+  const latest = db.prepare(
+    `SELECT transaction_date FROM party_ledger WHERE party_id = ? ORDER BY transaction_date DESC LIMIT 1`
+  ).get(partyId) as any;
+  db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+    .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
+  return total;
+}
 
 // ── Party Ledger Handlers ────────────────────────────────────────────────
 ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
@@ -923,6 +942,8 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
       credit_amount REAL NOT NULL DEFAULT 0,
       debit_amount REAL NOT NULL DEFAULT 0,
       running_balance REAL NOT NULL,
+      balance_type TEXT DEFAULT 'GST',
+      payment_method TEXT,
       reference_number TEXT,
       created_by TEXT,
       created_by_name TEXT,
@@ -951,11 +972,13 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
     const parsedAmount = Math.abs(parseFloat(entry.amount));
     const creditAmount = entry.transaction_type === 'CREDIT' ? parsedAmount : 0;
     const debitAmount = entry.transaction_type === 'DEBIT' ? parsedAmount : 0;
+    const balanceType = entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
+    const paymentMethod = entry.payment_method || null;
     const newBalance = currentBalance + creditAmount - debitAmount;
 
     db.prepare(`
-      INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(
       entry.ledger_id,
       entry.party_id,
@@ -965,13 +988,17 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
       creditAmount,
       debitAmount,
       newBalance,
+      balanceType,
+      paymentMethod,
       entry.reference_number || null,
       entry.created_by || null,
       entry.created_by_name || null
     );
 
-    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(newBalance, entry.transaction_date || localTimestamp(), entry.party_id);
+    const delta = creditAmount - debitAmount;
+    const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
+    db.prepare(`UPDATE parties SET balance = ?, ${balanceCol} = ${balanceCol} + ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+      .run(newBalance, delta, entry.transaction_date || localTimestamp(), entry.party_id);
 
     return { success: true };
   } catch (error: any) {
@@ -995,6 +1022,7 @@ ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
     db.prepare(`
       UPDATE party_ledger SET 
         transaction_date = ?, description = ?, credit_amount = ?, debit_amount = ?,
+        balance_type = ?, payment_method = ?,
         reference_number = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE ledger_id = ? AND party_id = ?
     `).run(
@@ -1002,12 +1030,14 @@ ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
       entry.description || existing.description,
       creditAmount,
       debitAmount,
+      entry.balance_type === 'ESTIMATE' ? 'ESTIMATE' : (existing.balance_type || 'GST'),
+      entry.payment_method !== undefined ? entry.payment_method : (existing.payment_method || null),
       entry.reference_number !== undefined ? entry.reference_number : existing.reference_number,
       entry.ledger_id,
       entry.party_id
     );
 
-    // Recalculate running balance for all entries
+    // Recalculate running balances for all entries
     const entries = db.prepare(`
       SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
       WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
@@ -1019,13 +1049,7 @@ ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
       db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
     }
 
-    const latest = db.prepare(`
-      SELECT transaction_date FROM party_ledger WHERE party_id = ?
-      ORDER BY transaction_date DESC LIMIT 1
-    `).get(entry.party_id) as any;
-
-    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(running, latest ? latest.transaction_date : null, entry.party_id);
+    recalcPartyBalances(db, entry.party_id);
 
     return { success: true };
   } catch (error: any) {
@@ -1052,13 +1076,7 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
       db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
     }
 
-    const latest = db.prepare(`
-      SELECT transaction_date FROM party_ledger WHERE party_id = ?
-      ORDER BY transaction_date DESC LIMIT 1
-    `).get(party_id) as any;
-
-    db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(running, latest ? latest.transaction_date : null, party_id);
+    recalcPartyBalances(db, party_id);
 
     return { success: true };
   } catch (error: any) {
@@ -1409,6 +1427,203 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
     return { success: false, error: 'Operation failed' };
   }
 });
+
+// ── Payment Methods (BANK / CARD / UPI sources) ──────────────────────────────
+ipcMain.handle('db:payments:getSources', (event, tenant_id: string) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    return db.prepare(`
+      SELECT ps.*,
+        (SELECT COUNT(*) FROM payment_source_transactions pst WHERE pst.source_id = ps.source_id) AS transaction_count,
+        (SELECT MAX(pst.transaction_date) FROM payment_source_transactions pst WHERE pst.source_id = ps.source_id) AS last_transaction_date
+      FROM payment_sources ps
+      WHERE ps.tenant_id = ? AND ps.is_deleted = 0
+      ORDER BY ps.type ASC, ps.sort_order ASC, ps.name COLLATE NOCASE ASC
+    `).all(tenant_id);
+  } catch (error: any) {
+    console.error('[db:payments:getSources]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:payments:addSource', safeHandler((event, s: any) => {
+  try {
+    const db = getDb();
+    if (!s?.tenant_id || !s?.name || !s?.type) return { success: false, error: 'tenant_id, name and type are required' };
+    if (!['BANK', 'CARD', 'UPI'].includes(s.type)) return { success: false, error: 'type must be BANK, CARD or UPI' };
+
+    const tx = db.transaction(() => {
+      const opening = parseFloat(s.opening_balance) || 0;
+      const makeDefault = s.is_default === true || s.is_default === 1;
+      const source_id = s.source_id || crypto.randomUUID();
+
+      if (makeDefault) {
+        db.prepare(`UPDATE payment_sources SET is_default = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND type = ? AND is_deleted = 0`)
+          .run(s.tenant_id, s.type);
+      }
+
+      db.prepare(`
+        INSERT INTO payment_sources (source_id, tenant_id, name, type, bank_name, account_number, holder_name, upi_id, opening_balance, current_balance, is_default, is_enabled, sort_order, is_deleted, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(
+        source_id, s.tenant_id, s.name.trim(), s.type,
+        s.bank_name?.trim() || null, s.account_number?.trim() || null,
+        s.holder_name?.trim() || null, s.upi_id?.trim() || null,
+        opening, opening, makeDefault ? 1 : 0, s.is_enabled === false ? 0 : 1,
+        s.sort_order ?? 0
+      );
+
+      if (opening > 0) {
+        db.prepare(`
+          INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, notes, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
+          VALUES (?, ?, ?, 'CASH_IN', ?, 'Opening Balance', ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
+        `).run(
+          crypto.randomUUID(), s.tenant_id, source_id, opening,
+          `Opening balance for ${s.name.trim()}`, opening, s.created_by || null, s.created_by_name || null
+        );
+      }
+      return source_id;
+    });
+
+    const source_id = tx();
+    return { success: true, source_id };
+  } catch (error: any) {
+    console.error('[db:payments:addSource]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:payments:updateSource', safeHandler((event, s: any) => {
+  try {
+    const db = getDb();
+    if (!s?.source_id || !s?.tenant_id) return { success: false, error: 'source_id and tenant_id are required' };
+
+    const tx = db.transaction(() => {
+      const existing = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0`).get(s.source_id, s.tenant_id) as any;
+      if (!existing) throw new Error('Payment source not found');
+
+      if (s.is_default === true) {
+        db.prepare(`UPDATE payment_sources SET is_default = 0, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND type = ? AND is_deleted = 0`)
+          .run(s.tenant_id, existing.type);
+      }
+
+      let newOpening: number | null = null;
+      if (s.opening_balance !== undefined) {
+        const parsedOpening = parseFloat(s.opening_balance) || 0;
+        if (parsedOpening !== Number(existing.opening_balance)) {
+          const txCount = (db.prepare(`SELECT COUNT(*) as cnt FROM payment_source_transactions WHERE source_id = ?`).get(s.source_id) as any).cnt;
+          if (txCount > 0) throw new Error('Opening balance can only be changed when there are no transactions on this source');
+          newOpening = parsedOpening;
+        }
+      }
+
+      db.prepare(`
+        UPDATE payment_sources SET
+          name = COALESCE(?, name),
+          bank_name = ?, account_number = ?, holder_name = ?, upi_id = ?,
+          is_enabled = COALESCE(?, is_enabled),
+          is_default = COALESCE(?, is_default),
+          sort_order = COALESCE(?, sort_order),
+          opening_balance = COALESCE(?, opening_balance),
+          current_balance = COALESCE(?, current_balance),
+          sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE source_id = ? AND tenant_id = ?
+      `).run(
+        s.name?.trim() || null,
+        s.bank_name !== undefined ? (s.bank_name?.trim() || null) : existing.bank_name,
+        s.account_number !== undefined ? (s.account_number?.trim() || null) : existing.account_number,
+        s.holder_name !== undefined ? (s.holder_name?.trim() || null) : existing.holder_name,
+        s.upi_id !== undefined ? (s.upi_id?.trim() || null) : existing.upi_id,
+        s.is_enabled !== undefined ? (s.is_enabled === true || s.is_enabled === 1 ? 1 : 0) : undefined,
+        s.is_default !== undefined ? (s.is_default === true || s.is_default === 1 ? 1 : 0) : undefined,
+        s.sort_order !== undefined ? s.sort_order : undefined,
+        newOpening,
+        newOpening !== null ? newOpening : undefined,
+        s.source_id, s.tenant_id
+      );
+
+      if (newOpening !== null) {
+        db.prepare(`UPDATE payment_source_transactions SET amount = ?, running_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND category = 'Opening Balance' AND tenant_id = ?`)
+          .run(newOpening, newOpening, s.source_id, s.tenant_id);
+      }
+    });
+
+    tx();
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:payments:updateSource]', error);
+    if (error.message?.includes('Opening balance')) return { success: false, error: error.message };
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:payments:deleteSource', (event, { source_id, tenant_id }: { source_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const result = db.prepare(`UPDATE payment_sources SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`)
+      .run(source_id, tenant_id);
+    if (result.changes === 0) return { success: false, error: 'Payment source not found' };
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:payments:deleteSource]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:payments:getTransactions', (event, { source_id, tenant_id }: { source_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!source_id || !tenant_id) return [];
+    return db.prepare(`
+      SELECT * FROM payment_source_transactions
+      WHERE source_id = ? AND tenant_id = ?
+      ORDER BY transaction_date DESC, created_at DESC
+      LIMIT 500
+    `).all(source_id, tenant_id);
+  } catch (error: any) {
+    console.error('[db:payments:getTransactions]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:payments:addTransaction', safeHandler((event, t: any) => {
+  try {
+    const db = getDb();
+    if (!t?.tenant_id || !t?.source_id) return { success: false, error: 'tenant_id and source_id are required' };
+    if (!['CASH_IN', 'CASH_OUT'].includes(t.type)) return { success: false, error: 'type must be CASH_IN or CASH_OUT' };
+    const amount = Number(t.amount);
+    if (!isFinite(amount) || amount <= 0) return { success: false, error: 'amount must be a positive number' };
+
+    const tx = db.transaction(() => {
+      const source = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0`).get(t.source_id, t.tenant_id) as any;
+      if (!source) throw new Error('Payment source not found');
+
+      const currentBalance = Number(source.current_balance) || 0;
+      const newBalance = t.type === 'CASH_IN' ? currentBalance + amount : currentBalance - amount;
+
+      db.prepare(`
+        INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, notes, reference_number, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, 'PENDING')
+      `).run(
+        t.transaction_id || crypto.randomUUID(), t.tenant_id, t.source_id, t.type, amount,
+        t.category?.trim() || null, t.notes?.trim() || null, t.reference_number?.trim() || null,
+        t.transaction_date || null, newBalance, t.entered_by || null, t.entered_by_name || null
+      );
+
+      db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`)
+        .run(newBalance, t.source_id, t.tenant_id);
+
+      return newBalance;
+    });
+
+    const balance = tx();
+    return { success: true, balance };
+  } catch (error: any) {
+    console.error('[db:payments:addTransaction]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
 
 // ── Diagnostic: Clear stuck PENDING sync records ─────────────────────────────
 ipcMain.handle('sync:clearPending', async (event, { tenant_id, type, records }: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => {
@@ -3276,18 +3491,21 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
 
       // If CREDIT payment and supplier is a known party, create ledger entry
       if (paymentType === 'CREDIT' && bill.supplier_id) {
-        const party = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
+        const party = db.prepare('SELECT balance, gst_balance, estimate_balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
         if (party) {
-          const currentBalance = parseFloat(party.balance) || 0;
+          const balanceType = billType === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
           const ledgerId = crypto.randomUUID();
           const debitAmount = bill.total_amount;
-          const newBalance = currentBalance - debitAmount;
+          const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
+          const currentTypeBalance = parseFloat(party[balanceCol]) || 0;
+          const newTypeBalance = currentTypeBalance - debitAmount;
+          const newBalance = (parseFloat(party.balance) || 0) - debitAmount;
           db.prepare(`
-            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
-          db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-            .run(newBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
+            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
+          db.prepare(`UPDATE parties SET balance = ?, ${balanceCol} = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+            .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
         }
       }
 
@@ -3398,18 +3616,21 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       }
 
       if (paymentType === 'CREDIT' && bill.supplier_id) {
-        const party = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
+        const party = db.prepare('SELECT balance, gst_balance, estimate_balance FROM parties WHERE party_id = ?').get(bill.supplier_id) as any;
         if (party) {
-          const currentBalance = parseFloat(party.balance) || 0;
+          const balanceType = billType === 'ESTIMATE' ? 'ESTIMATE' : 'GST';
           const ledgerId = crypto.randomUUID();
           const debitAmount = bill.total_amount;
-          const newBalance = currentBalance - debitAmount;
+          const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
+          const currentTypeBalance = parseFloat(party[balanceCol]) || 0;
+          const newTypeBalance = currentTypeBalance - debitAmount;
+          const newBalance = (parseFloat(party.balance) || 0) - debitAmount;
           db.prepare(`
-            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, bill.bill_number, 'system', 'System');
-          db.prepare(`UPDATE parties SET balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-            .run(newBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
+            INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `).run(ledgerId, bill.supplier_id, bill.tenant_id, bill.bill_date || localTimestamp(), `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`, 0, debitAmount, newBalance, balanceType, bill.bill_number, 'system', 'System');
+          db.prepare(`UPDATE parties SET balance = ?, ${balanceCol} = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+            .run(newBalance, newTypeBalance, bill.bill_date || localTimestamp(), bill.supplier_id);
         }
       }
 
@@ -3612,8 +3833,8 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
   }
 });
 
-ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, user_id, user_name }: {
-  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; user_id: string; user_name?: string
+ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, payment_source_id, user_id, user_name }: {
+  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; payment_source_id?: string; user_id: string; user_name?: string
 }) => {
   const db = getDb();
   const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'SPLIT'];
@@ -3669,6 +3890,22 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
             UPDATE cash_drawer SET cash_sales = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
           `).run(newCashSales, newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
         }
+      } else if (payment_source_id) {
+        // Non-cash payment against a configured bank / card / UPI source
+        const source = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0 AND is_enabled = 1`).get(payment_source_id, tenant_id) as any;
+        if (source) {
+          const newBalance = Number(source.current_balance) + received;
+          db.prepare(`
+            INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, reference_number, notes, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
+            VALUES (?, ?, ?, 'CASH_IN', ?, 'Invoice Payment', ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
+          `).run(
+            crypto.randomUUID(), tenant_id, payment_source_id, received,
+            invoice.invoice_number, `Invoice ${invoice.invoice_number} settled via ${payment_method}`,
+            newBalance, user_id, user_name || null
+          );
+          db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`)
+            .run(newBalance, payment_source_id, tenant_id);
+        }
       }
       
       db.prepare(`
@@ -3676,7 +3913,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
         crypto.randomUUID(), tenant_id, 'PAYMENT_COMPLETED',
-        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, grand_total }),
+        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, payment_source_id: payment_source_id || null, grand_total }),
         user_id, user_name || null
       );
     });

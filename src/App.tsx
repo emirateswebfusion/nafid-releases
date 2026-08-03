@@ -37,6 +37,7 @@ import { useScaleStore } from './store/scaleStore';
 
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
+import { PaymentMethods } from './components/PaymentMethods';
 import { PrintBarcodeView } from './components/PrintBarcodeView';
 import { PrintReceiptView } from './components/PrintReceiptView';
 import { PrintBulkBarcodeView } from './components/PrintBulkBarcodeView';
@@ -124,6 +125,7 @@ function App() {
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
+  const [showPaymentsPage, setShowPaymentsPage] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
@@ -311,6 +313,7 @@ function App() {
     const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
     const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
     const handleOpenCustomersPage = () => setShowCustomersPage(true);
+    const handleOpenPaymentsPage = () => setShowPaymentsPage(true);
     const handleOpenQuotationEdit = () => {
       useCartStore.getState().setRole('BILLER');
       setShowQuotationManager(false);
@@ -324,6 +327,7 @@ function App() {
       setShowScrapManager(false);
       setShowWarrantyManager(false);
       setShowReturnManager(false);
+      setShowPaymentsPage(false);
     };
 
     // Close all overlays and navigate to BillingPage in return mode
@@ -342,6 +346,7 @@ function App() {
       setShowReturnManager(false);
       setShowPurchaseBillManager(false);
       setShowCustomersPage(false);
+      setShowPaymentsPage(false);
       setShowCashierSettlement(false);
     };
 
@@ -363,6 +368,7 @@ function App() {
       setShowReturnManager(false);
       setShowPurchaseBillManager(false);
       setShowCustomersPage(false);
+      setShowPaymentsPage(false);
       setShowCashierSettlement(false);
     };
 
@@ -379,6 +385,7 @@ function App() {
     window.addEventListener('open-returns-manager', handleOpenReturnManager);
     window.addEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
     window.addEventListener('open-customers-page', handleOpenCustomersPage);
+    window.addEventListener('open-payments-page', handleOpenPaymentsPage);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
     window.addEventListener('open-return-mode', handleOpenReturnMode);
@@ -442,6 +449,7 @@ function App() {
       window.removeEventListener('open-returns-manager', handleOpenReturnManager);
       window.removeEventListener('open-purchase-bills', handleOpenPurchaseBillManager);
       window.removeEventListener('open-customers-page', handleOpenCustomersPage);
+      window.removeEventListener('open-payments-page', handleOpenPaymentsPage);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
       window.removeEventListener('open-return-mode', handleOpenReturnMode);
@@ -608,6 +616,8 @@ function App() {
         <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
       ) : showCustomersPage ? (
         <CustomersPage onClose={() => setShowCustomersPage(false)} />
+      ) : showPaymentsPage ? (
+        <PaymentMethods onClose={() => setShowPaymentsPage(false)} />
       ) : showStaffManager ? (
         <StaffManager onClose={() => setShowStaffManager(false)} />
       ) : showSettingsManager ? (

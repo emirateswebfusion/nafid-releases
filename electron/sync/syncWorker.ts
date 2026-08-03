@@ -260,6 +260,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
         notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
         notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
+        notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
+        notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
 
         notifyProgress(13, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(14, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
@@ -275,6 +277,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(22, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(23, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
         notifyProgress(23.1, sender, undefined, totalRecords); if (await pullReturns(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(23.2, sender, undefined, totalRecords); if (await pullPaymentSources(jwt_token, tenant_id)) dataUpdated = true;
+        notifyProgress(23.3, sender, undefined, totalRecords); if (await pullPaymentSourceTransactions(jwt_token, tenant_id)) dataUpdated = true;
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
       }
@@ -1019,10 +1023,10 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
 
     const upsert = db.prepare(`
       INSERT INTO parties (
-        party_id, tenant_id, name, phone, address, gstin, balance, balance_type, notes, last_transaction_date, is_deleted,
+        party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, is_deleted,
         sync_status, created_at, updated_at
       ) VALUES (
-        @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
+        @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(party_id) DO UPDATE SET
@@ -1031,6 +1035,8 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
         address = excluded.address,
         gstin = excluded.gstin,
         balance = excluded.balance,
+        gst_balance = excluded.gst_balance,
+        estimate_balance = excluded.estimate_balance,
         balance_type = excluded.balance_type,
         notes = excluded.notes,
         last_transaction_date = excluded.last_transaction_date,
@@ -1052,6 +1058,8 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
             address: p.address || null,
             gstin: p.gstin || null,
             balance: p.balance ?? 0,
+            gst_balance: p.gst_balance ?? p.balance ?? 0,
+            estimate_balance: p.estimate_balance ?? 0,
             balance_type: p.balance_type || 'RECEIVABLE',
             notes: p.notes || null,
             last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
@@ -1169,10 +1177,10 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
     const upsert = db.prepare(`
       INSERT INTO party_ledger (
         ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
-        running_balance, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
+        running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
       ) VALUES (
         @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
-        @running_balance, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
+        @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(ledger_id) DO UPDATE SET
         transaction_date = excluded.transaction_date,
@@ -1180,6 +1188,8 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
         credit_amount = excluded.credit_amount,
         debit_amount = excluded.debit_amount,
         running_balance = excluded.running_balance,
+        balance_type = excluded.balance_type,
+        payment_method = excluded.payment_method,
         reference_number = excluded.reference_number,
         created_by = excluded.created_by,
         created_by_name = excluded.created_by_name,
@@ -1199,6 +1209,8 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
             credit_amount: e.credit_amount ?? 0,
             debit_amount: e.debit_amount ?? 0,
             running_balance: e.running_balance ?? 0,
+            balance_type: e.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST',
+            payment_method: e.payment_method || null,
             reference_number: e.reference_number || null,
             created_by: e.created_by || null,
             created_by_name: e.created_by_name || null,
@@ -2041,6 +2053,182 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull returns failed:', err.message);
+    return false;
+  }
+}
+
+// ── Payment Sources Sync (Edge → Cloud) ─────────────────────────────────────────
+async function syncPaymentSources(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM payment_sources WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} payment sources to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE payment_sources SET sync_status = 'SYNCED' WHERE source_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/payment_sources`,
+      token, batch, 'payment_sources', `Payment Sources batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Payment Source Transactions Sync (Edge → Cloud) ─────────────────────────────
+async function syncPaymentSourceTransactions(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM payment_source_transactions WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} payment source transactions to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE payment_source_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/payment_source_transactions`,
+      token, batch, 'payment_source_transactions', `Payment Source Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Payment Sources (Cloud → Edge) ─────────────────────────────────────────
+async function pullPaymentSources(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/payment_sources`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull payment sources failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudRows: any[] = await response.json();
+    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO payment_sources (
+        source_id, tenant_id, name, type, bank_name, account_number, holder_name, upi_id,
+        opening_balance, current_balance, is_default, is_enabled, sort_order, is_deleted,
+        sync_status, created_at, updated_at
+      ) VALUES (
+        @source_id, @tenant_id, @name, @type, @bank_name, @account_number, @holder_name, @upi_id,
+        @opening_balance, @current_balance, @is_default, @is_enabled, @sort_order, @is_deleted,
+        'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(source_id) DO UPDATE SET
+        name = excluded.name, type = excluded.type,
+        bank_name = excluded.bank_name, account_number = excluded.account_number,
+        holder_name = excluded.holder_name, upi_id = excluded.upi_id,
+        opening_balance = excluded.opening_balance, current_balance = excluded.current_balance,
+        is_default = excluded.is_default, is_enabled = excluded.is_enabled,
+        sort_order = excluded.sort_order, is_deleted = excluded.is_deleted,
+        updated_at = excluded.updated_at, sync_status = 'SYNCED'
+      WHERE payment_sources.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((rows: any[]) => {
+      for (const r of rows) {
+        try {
+          upsert.run({
+            source_id: r.source_id, tenant_id: tenantId, name: r.name, type: r.type,
+            bank_name: r.bank_name || null, account_number: r.account_number || null,
+            holder_name: r.holder_name || null, upi_id: r.upi_id || null,
+            opening_balance: r.opening_balance ?? 0, current_balance: r.current_balance ?? 0,
+            is_default: r.is_default ? 1 : 0, is_enabled: r.is_enabled === false ? 0 : 1,
+            sort_order: r.sort_order ?? 0, is_deleted: r.is_deleted ? 1 : 0,
+            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling payment source:', e.message);
+        }
+      }
+    });
+
+    tx(cloudRows);
+    console.log(`[SyncWorker] Pulled ${cloudRows.length} payment sources from cloud.`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull payment sources failed:', err.message);
+    return false;
+  }
+}
+
+// ── Pull Payment Source Transactions (Cloud → Edge) ─────────────────────────────
+async function pullPaymentSourceTransactions(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  try {
+    const response = await fetch(`${getCloudApiBase()}/api/sync/payment_source_transactions`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      console.error(`[SyncWorker] Pull payment source transactions failed: HTTP ${response.status}`);
+      return false;
+    }
+
+    const cloudRows: any[] = await response.json();
+    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
+
+    const upsert = db.prepare(`
+      INSERT INTO payment_source_transactions (
+        transaction_id, tenant_id, source_id, type, amount, category, notes, reference_number,
+        transaction_date, running_balance, entered_by, entered_by_name, sync_status, created_at, updated_at
+      ) VALUES (
+        @transaction_id, @tenant_id, @source_id, @type, @amount, @category, @notes, @reference_number,
+        @transaction_date, @running_balance, @entered_by, @entered_by_name, 'SYNCED', @created_at, @updated_at
+      )
+      ON CONFLICT(transaction_id) DO UPDATE SET
+        type = excluded.type, amount = excluded.amount, category = excluded.category,
+        notes = excluded.notes, reference_number = excluded.reference_number,
+        transaction_date = excluded.transaction_date, running_balance = excluded.running_balance,
+        entered_by = excluded.entered_by, entered_by_name = excluded.entered_by_name,
+        updated_at = excluded.updated_at, sync_status = 'SYNCED'
+      WHERE payment_source_transactions.sync_status != 'PENDING'
+    `);
+
+    const tx = db.transaction((rows: any[]) => {
+      for (const r of rows) {
+        try {
+          upsert.run({
+            transaction_id: r.transaction_id, tenant_id: tenantId, source_id: r.source_id,
+            type: r.type, amount: r.amount ?? 0, category: r.category || null,
+            notes: r.notes || null, reference_number: r.reference_number || null,
+            transaction_date: toSqliteDate(r.transaction_date),
+            running_balance: r.running_balance ?? 0,
+            entered_by: r.entered_by || null, entered_by_name: r.entered_by_name || null,
+            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+          });
+        } catch (e: any) {
+          console.error('[SyncWorker] Error pulling payment source transaction:', e.message);
+        }
+      }
+    });
+
+    tx(cloudRows);
+    console.log(`[SyncWorker] Pulled ${cloudRows.length} payment source transactions from cloud.`);
+    return true;
+  } catch (err: any) {
+    console.error('[SyncWorker] Pull payment source transactions failed:', err.message);
     return false;
   }
 }

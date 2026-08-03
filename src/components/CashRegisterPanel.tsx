@@ -54,6 +54,8 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const [pendingInvoices, setPendingInvoices] = useState<any[]>([]);
   const [pendingSearch, setPendingSearch] = useState('');
   const [rowMethods, setRowMethods] = useState<Record<string, string>>({});
+  const [rowSources, setRowSources] = useState<Record<string, string>>({});
+  const [paymentSources, setPaymentSources] = useState<any[]>([]);
   const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
   const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
   const [pendingInvoiceSelection, setPendingInvoiceSelection] = useState<string | null>(null);
@@ -71,17 +73,19 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
     setLoading(true);
-    const [d, txs, invs, pts] = await Promise.all([
+    const [d, txs, invs, pts, srcs] = await Promise.all([
       window.electronAPI.dbCashierGetDrawer({ tenant_id: tenantId }),
       window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
       window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: pendingSearch || undefined }),
       window.electronAPI.dbGetParties(tenantId),
+      window.electronAPI.dbPaymentGetSources ? window.electronAPI.dbPaymentGetSources(tenantId) : Promise.resolve([]),
     ]);
     if (d && !d.error && d.status === 'CLOSED') { setDrawer(null); }
     else if (d && !d.error) { setDrawer(d); }
     if (Array.isArray(txs)) setTransactions(txs);
     if (Array.isArray(invs)) setPendingInvoices(invs);
     if (Array.isArray(pts)) setParties(pts);
+    if (Array.isArray(srcs)) setPaymentSources(srcs);
     setLoading(false);
   }, [tenantId, pendingSearch]);
 
@@ -100,6 +104,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
         tenant_id: tenantId,
         received_amount: receivedAmount,
         payment_method: method,
+        payment_source_id: rowSources[invoiceId] || undefined,
         user_id: userId,
         user_name: userName || undefined,
       });
@@ -337,16 +342,39 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                       <span className="text-xs font-bold text-foreground truncate text-center">{inv.invoice_number}</span>
                       <span className="text-xs text-muted-foreground truncate text-center">{inv.customer_name || '—'}</span>
                       <span className="text-xs font-black text-foreground text-center tabular-nums">{formatCurrency(inv.grand_total)}</span>
-                      <div className="flex justify-center">
+                      <div className="flex flex-col items-center gap-1">
                         <select
                           value={method}
-                          onChange={(e) => setRowMethods((p: any) => ({ ...p, [inv.invoice_id]: e.target.value }))}
+                          onChange={(e) => {
+                            setRowMethods((p: any) => ({ ...p, [inv.invoice_id]: e.target.value }));
+                            setRowSources((p: any) => ({ ...p, [inv.invoice_id]: '' }));
+                          }}
                           className="text-[10px] font-bold bg-background border border-border rounded-lg px-1.5 py-1 text-foreground outline-none cursor-pointer"
                         >
                           <option value="CASH">Cash</option>
+                          <option value="BANK_TRANSFER">Bank Transfer</option>
                           <option value="CARD">Card</option>
                           <option value="UPI">UPI</option>
                         </select>
+                        {method !== 'CASH' && (
+                          <select
+                            value={rowSources[inv.invoice_id] || ''}
+                            onChange={(e) => setRowSources((p: any) => ({ ...p, [inv.invoice_id]: e.target.value }))}
+                            className="text-[10px] font-semibold bg-background border border-border rounded-lg px-1.5 py-1 text-muted-foreground outline-none cursor-pointer max-w-[140px]"
+                          >
+                            <option value="">{method === 'BANK_TRANSFER' ? 'Bank account...' : method === 'CARD' ? 'Card...' : 'UPI id...'}</option>
+                            {paymentSources
+                              .filter((s: any) =>
+                                s.is_enabled === 1 &&
+                                (method === 'BANK_TRANSFER' ? s.type === 'BANK' : s.type === method)
+                              )
+                              .map((s: any) => (
+                                <option key={s.source_id} value={s.source_id}>
+                                  {s.name}
+                                </option>
+                              ))}
+                          </select>
+                        )}
                       </div>
                       <div className="flex justify-center">
                         <button
