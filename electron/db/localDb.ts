@@ -42,6 +42,7 @@ export function initDb() {
         grade_name TEXT NOT NULL,
         rate REAL NOT NULL DEFAULT 0,
         purchase_price REAL NOT NULL DEFAULT 0,
+        offer_price REAL NOT NULL DEFAULT 0,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -492,7 +493,7 @@ export function initDb() {
   // Migration: Add missing columns if they don't exist (Idempotent)
   const schemaMap: any = {
     product_grades: [
-        'tenant_id', 'category', 'grade_name', 'rate', 'purchase_price', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'tenant_id', 'category', 'grade_name', 'rate', 'purchase_price', 'offer_price', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     products: [
         'tenant_id', 'hsn_sac_code', 'is_gst_applicable', 'uom', 'brand_manufacturer', 

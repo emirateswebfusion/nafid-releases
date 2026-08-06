@@ -781,9 +781,9 @@ ipcMain.handle('db:addGrade', safeHandler((event, g) => {
   try {
     const db = getDb();
     db.prepare(`
-      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, purchase_price, is_deleted, sync_status) 
-      VALUES (?, ?, ?, ?, ?, ?, 0, 'PENDING')
-    `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate, g.purchase_price || 0);
+      INSERT INTO product_grades (grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted, sync_status) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, 0, 'PENDING')
+    `).run(g.grade_id, g.tenant_id, g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price || 0);
     return { success: true };
   } catch (error: any) {
     console.error('[db:addGrade]', error);
@@ -796,9 +796,9 @@ ipcMain.handle('db:updateGrade', safeHandler((event, g) => {
     const db = getDb();
     db.prepare(`
       UPDATE product_grades 
-      SET category = ?, grade_name = ?, rate = ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+      SET category = ?, grade_name = ?, rate = ?, purchase_price = ?, offer_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
       WHERE grade_id = ?
-    `).run(g.category, g.grade_name, g.rate, g.purchase_price || 0, g.grade_id);
+    `).run(g.category, g.grade_name, g.rate, g.purchase_price || 0, g.offer_price || 0, g.grade_id);
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateGrade]', error);

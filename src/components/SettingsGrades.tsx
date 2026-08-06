@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Plus, Trash, Edit2, Check, X, Loader2, Search,
   Folder, Layers, TrendingUp, Tag, ChevronRight,
@@ -18,6 +18,7 @@ interface Grade {
   grade_name: string;
   rate: number;
   purchase_price?: number;
+  offer_price?: number;
 }
 
 export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClose?: () => void; isRestricted?: boolean }) {
@@ -26,8 +27,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
-  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
+  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
+  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,8 +87,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   }, [filteredGrades]);
 
   const handleAdd = async () => {
-    if (!newForm.category.trim() || !newForm.grade_name.trim() || newForm.rate <= 0 || newForm.purchase_price <= 0) {
-      setError('Please fill in all fields (ensure Category, Grade, MRP > 0, and Purchase Price > 0).');
+    if (!newForm.category.trim() || !newForm.grade_name.trim()) {
+      setError('Please fill in Category and Grade name. Purchase, MRP, and Offer are optional (\u2014 set them here or later in the Inventory page).');
       return;
     }
     setError(null);
@@ -99,12 +100,13 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       category: newForm.category.trim(),
       grade_name: newForm.grade_name.trim(),
       rate: newForm.rate,
-      purchase_price: newForm.purchase_price
+      purchase_price: newForm.purchase_price,
+      offer_price: newForm.offer_price
     };
     const res = await window.electronAPI.dbAddGrade(grade);
     if (res.success) {
       setIsAdding(false);
-      setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0 });
+      setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
       await loadGrades();
     } else {
       setError(res.error || 'Failed to add grade');
@@ -113,8 +115,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   };
 
   const handleUpdate = async (id: string) => {
-    if (!editForm.category.trim() || !editForm.grade_name.trim() || editForm.rate <= 0 || editForm.purchase_price <= 0) {
-      setError('Please fill in all fields (ensure Category, Grade, MRP > 0, and Purchase Price > 0).');
+    if (!editForm.category.trim() || !editForm.grade_name.trim()) {
+      setError('Please fill in Category and Grade name. Purchase, MRP, and Offer are optional (\u2014 set them later in the Inventory page).');
       return;
     }
     setError(null);
@@ -124,7 +126,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       category: editForm.category.trim(),
       grade_name: editForm.grade_name.trim(),
       rate: editForm.rate,
-      purchase_price: editForm.purchase_price
+      purchase_price: editForm.purchase_price,
+      offer_price: editForm.offer_price
     });
     if (res.success) {
       setEditingId(null);
@@ -162,7 +165,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           category: newName,
           grade_name: g.grade_name,
           rate: g.rate,
-          purchase_price: g.purchase_price || 0
+          purchase_price: g.purchase_price || 0,
+          offer_price: g.offer_price || 0
         })
       )
     );
@@ -198,7 +202,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
   const startEdit = (grade: Grade) => {
     setEditingId(grade.grade_id);
-    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate, purchase_price: grade.purchase_price || 0 });
+    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate, purchase_price: grade.purchase_price || 0, offer_price: grade.offer_price || 0 });
   };
 
   const handleOpenAdd = () => {
@@ -206,7 +210,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       category: selectedCategory !== 'all' ? selectedCategory : '',
       grade_name: '',
       rate: 0,
-      purchase_price: 0
+      purchase_price: 0,
+      offer_price: 0
     });
     setIsAdding(true);
     setError(null);
@@ -384,7 +389,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-2xl font-black tracking-tight text-foreground font-mono">?{avgPurchasePrice.toFixed(2)}</p>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgPurchasePrice.toFixed(2)}</p>
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Purchase Price</p>
               </div>
             </div>
@@ -393,7 +398,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                 <TrendingUp className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-2xl font-black tracking-tight text-foreground font-mono">?{avgRate.toFixed(2)}</p>
+                <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{avgRate.toFixed(2)}</p>
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider">Average Base MRP</p>
               </div>
             </div>
@@ -540,7 +545,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                             <span className="truncate text-foreground/80">{g.grade_name}</span>
                           </div>
                           <span className="font-mono text-[10px] text-muted-foreground font-semibold">
-                            P: <span className="text-foreground/90 font-extrabold">?{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">?{g.rate.toFixed(1)}</span>
+                            P: <span className="text-foreground/90 font-extrabold">₹{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">₹{g.rate.toFixed(1)}</span>
+                            {g.offer_price ? <> | O: <span className="text-emerald-500 font-extrabold">₹{g.offer_price.toFixed(1)}</span></> : null}
                           </span>
                         </div>
                       ))}
@@ -556,7 +562,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                       <div className="leading-tight text-left">
                         <span className="text-[9px] text-muted-foreground/75 font-bold uppercase tracking-wider block">Avg Price (P / M)</span>
                         <span className="text-xs font-extrabold text-foreground font-mono">
-                          ?{avgCatPurchasePrice.toFixed(1)} / ?{avgCatRate.toFixed(1)}
+                          ₹{avgCatPurchasePrice.toFixed(1)} / ₹{avgCatRate.toFixed(1)}
                         </span>
                       </div>
                       <button
@@ -599,9 +605,9 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                     {filteredGrades.length > 0 && (
                       <>
                         {' '}
-                        � Avg Purchase: <span className="font-mono font-bold text-foreground/80">?{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
+                        ₹ Avg Purchase: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + (g.purchase_price || 0), 0) / filteredGrades.length).toFixed(2)}</span>
                         {' '}
-                        � Avg MRP: <span className="font-mono font-bold text-foreground/80">?{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
+                        ₹ Avg MRP: <span className="font-mono font-bold text-foreground/80">₹{(filteredGrades.reduce((s, g) => s + g.rate, 0) / filteredGrades.length).toFixed(2)}</span>
                       </>
                     )}
                   </p>
@@ -687,10 +693,11 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           ) : (
             <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
               <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
-                <div className="col-span-5">Grade Name</div>
-                <div className="col-span-3">Purchase Price (?/kg)</div>
-                <div className="col-span-2.5">MRP (?/kg)</div>
-                <div className="col-span-1.5 text-right">Actions</div>
+                <div className="col-span-4">Grade Name</div>
+                <div className="col-span-2">Purchase Price (₹/kg)</div>
+                <div className="col-span-2">MRP (₹/kg)</div>
+                <div className="col-span-2">Offer (₹/kg)</div>
+                <div className="col-span-2 text-right">Actions</div>
               </div>
               {filteredGrades.map((grade) => {
                 const isEditing = editingId === grade.grade_id;
@@ -713,10 +720,10 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                             ID: {grade.grade_id.slice(0, 8)}...
                           </span>
                         </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Grade Name
+                              Grade Name *
                             </label>
                             <input
                               value={editForm.grade_name}
@@ -726,10 +733,10 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Purchase Price (?)
+                              Purchase Price (₹)
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">?</span>
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
                               <input
                                 type="number"
                                 value={editForm.purchase_price || ''}
@@ -740,14 +747,28 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                           </div>
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              MRP (?)
+                              MRP (₹)
                             </label>
                             <div className="relative">
-                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">?</span>
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
                               <input
                                 type="number"
                                 value={editForm.rate || ''}
                                 onChange={e => setEditForm({ ...editForm, rate: parseFloat(e.target.value) || 0 })}
+                                className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-1.5">
+                            <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+                              Offer (₹)
+                            </label>
+                            <div className="relative">
+                              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
+                              <input
+                                type="number"
+                                value={editForm.offer_price || ''}
+                                onChange={e => setEditForm({ ...editForm, offer_price: parseFloat(e.target.value) || 0 })}
                                 className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
                               />
                             </div>
@@ -777,19 +798,22 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                     ) : (
                       /* Standard Row View */
                       <div className="px-6 py-4 grid grid-cols-12 items-center gap-3">
-                        <div className="col-span-5 flex items-center gap-3.5 min-w-0">
+                        <div className="col-span-4 flex items-center gap-3.5 min-w-0">
                           <div className="p-2 bg-muted/40 dark:bg-muted/10 rounded-xl border border-border shrink-0 shadow-inner">
                             <Tag className="w-3.5 h-3.5 text-muted-foreground/75" />
                           </div>
                           <span className="text-xs font-bold text-foreground truncate">{grade.grade_name}</span>
                         </div>
-                        <div className="col-span-3 font-mono font-bold text-foreground/80 text-xs">
-                          ?{(grade.purchase_price || 0).toFixed(2)}
+                        <div className="col-span-2 font-mono font-bold text-foreground/80 text-xs">
+                          ₹{(grade.purchase_price || 0).toFixed(2)}
                         </div>
-                        <div className="col-span-2.5 font-mono font-extrabold text-primary text-xs">
-                          ?{grade.rate.toFixed(2)}
+                        <div className="col-span-2 font-mono font-extrabold text-primary text-xs">
+                          ₹{grade.rate.toFixed(2)}
                         </div>
-                        <div className="col-span-1.5 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
+                        <div className="col-span-2 font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
+                          {(grade.offer_price || 0) > 0 ? `₹${(grade.offer_price || 0).toFixed(2)}` : '-'}
+                        </div>
+                        <div className="col-span-2 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
                           <button
                             onClick={() => startEdit(grade)}
                             className="p-2 hover:bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer"
@@ -824,7 +848,16 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       <Modal
         isOpen={isAdding}
         onClose={() => !operating && setIsAdding(false)}
-        closeButton={null}
+        closeButton={
+          <button
+            onClick={() => !operating && setIsAdding(false)}
+            className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+            title="Close"
+            disabled={operating}
+          >
+            <X className="w-4 h-4 text-destructive" />
+          </button>
+        }
         title={
           <div className="flex items-center gap-2 select-none">
             <Tag className="w-5 h-5 text-primary" />
@@ -844,7 +877,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Category name
+                Category name *
               </label>
               <input
                 placeholder="e.g. Steel, Brass, Copper"
@@ -876,7 +909,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
             <div className="grid grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Grade variant
+                  Grade variant *
                 </label>
                 <input
                   placeholder="e.g. Grade A, Scrap"
@@ -886,13 +919,13 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                     Purchase
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">?</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
                     <input
                       type="number"
                       placeholder="0.00"
@@ -907,12 +940,27 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                     MRP
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">?</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
                     <input
                       type="number"
                       placeholder="0.00"
                       value={newForm.rate || ''}
                       onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
+                      className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                    Offer
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                    <input
+                      type="number"
+                      placeholder="0.00"
+                      value={newForm.offer_price || ''}
+                      onChange={e => setNewForm({ ...newForm, offer_price: parseFloat(e.target.value) || 0 })}
                       className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
                     />
                   </div>
@@ -923,14 +971,6 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
         </section>
 
         <div className="flex justify-end gap-2 mt-4">
-          <button
-            type="button"
-            onClick={() => !operating && setIsAdding(false)}
-            disabled={operating}
-            className="flex items-center gap-1.5 px-4 py-2 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm disabled:opacity-50"
-          >
-            Cancel
-          </button>
           <button
             type="button"
             onClick={handleAdd}

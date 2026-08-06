@@ -543,16 +543,18 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
 
     const upsert = db.prepare(`
       INSERT INTO product_grades (
-        grade_id, tenant_id, category, grade_name, rate, is_deleted,
+        grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted,
         sync_status, created_at, updated_at
       ) VALUES (
-        @grade_id, @tenant_id, @category, @grade_name, @rate, @is_deleted,
+        @grade_id, @tenant_id, @category, @grade_name, @rate, @purchase_price, @offer_price, @is_deleted,
         'SYNCED', @created_at, @updated_at
       )
       ON CONFLICT(grade_id) DO UPDATE SET
         category = excluded.category,
         grade_name = excluded.grade_name,
         rate = excluded.rate,
+        purchase_price = excluded.purchase_price,
+        offer_price = excluded.offer_price,
         is_deleted = excluded.is_deleted,
         created_at = COALESCE(product_grades.created_at, excluded.created_at),
         updated_at = excluded.updated_at,
@@ -569,6 +571,8 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
             category: g.category,
             grade_name: g.grade_name,
             rate: g.rate,
+            purchase_price: g.purchase_price ?? 0,
+            offer_price: g.offer_price ?? 0,
             is_deleted: g.is_deleted ? 1 : 0,
             created_at: toSqliteDate(g.created_at),
             updated_at: toSqliteDate(g.updated_at),

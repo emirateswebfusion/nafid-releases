@@ -830,8 +830,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   };
 
   const handleSave = async (retries = 3) => {
-    if (!formData.name || Number(formData.base_price) <= 0) {
-      setStatusMessage({ text: 'Please fill in Name and a valid MRP.', type: 'error' });
+    if (!formData.name) {
+      setStatusMessage({ text: 'Please fill in material Name. Purchase, MRP, and Offer are optional.', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
       return;
     }
@@ -1472,7 +1472,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               <div className="flex gap-4">
                 {[
                   { label: 'Purchase Price', field: 'purchase_price', prefix: '₹' },
-                  { label: 'MRP *', field: 'base_price', prefix: '₹' },
+                  { label: 'MRP', field: 'base_price', prefix: '₹' },
                   { label: 'Current Stock', field: 'current_stock' },
                   { label: 'Low Stock Alert', field: 'reorder_level' },
                 ].map(({ label, field, prefix }) => (
@@ -1490,12 +1490,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                         onWheel={e => (e.target as HTMLInputElement).blur()}
                         value={(formData as any)[field]}
                         onChange={e => handleInputChange(field, e.target.value)}
-                        disabled={(field === 'base_price' || field === 'purchase_price') && !!formData.grade_id}
                         className={clsx(
                           'w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm', 
                           prefix && 'pl-8', 
-                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold',
-                          (field === 'base_price' || field === 'purchase_price') && formData.grade_id && 'opacity-70 cursor-not-allowed'
+                          field === 'base_price' && 'text-emerald-600 dark:text-emerald-400 font-bold'
                         )}
                       />
                     </div>
