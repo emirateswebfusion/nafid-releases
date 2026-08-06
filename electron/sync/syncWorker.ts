@@ -809,9 +809,26 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
         total = excluded.total
     `);
 
+    // Items are replaced per invoice (not just upserted) so items removed from an
+    // edited bill are deleted locally too — otherwise stale lines come back and
+    // reappear on reprints. A locally PENDING edit that differs from the cloud is
+    // never clobbered: its items are left untouched until the edit syncs.
+    const deleteItems = db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
+    const localInvCheck = db.prepare('SELECT sync_status, updated_at FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
+
     const tx = db.transaction((invoices: any[]) => {
       for (const inv of invoices) {
         let currentInv = { ...inv };
+
+        // Never touch a locally-PENDING edit that diverges from the cloud (a change that
+        // hasn't synced yet). Replacing header or items here would resurrect the deleted
+        // lines of an edited bill and/or revert the edit. The push path will sync it later.
+        const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as any;
+        const isDirtyPending = !!prior
+          && prior.sync_status === 'PENDING'
+          && toSqliteDate(currentInv.updated_at) !== prior.updated_at;
+        if (isDirtyPending) continue;
+
         let retryCount = 0;
         let success = false;
         while (retryCount < 2 && !success) {
@@ -861,6 +878,9 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
         }
 
         if (success && Array.isArray(currentInv.items)) {
+          // Replace items per invoice so lines removed from an edited bill are deleted
+          // locally too — otherwise they resurrect and reappear on reprints.
+          deleteItems.run(currentInv.invoice_id, currentInv.tenant_id);
           for (const item of currentInv.items) {
             upsertItem.run({
               item_id: item.item_id,

@@ -1848,7 +1848,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         discount_value = ?, grand_total = ?, payment_method = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
-        sync_status = 'PENDING'
+        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
