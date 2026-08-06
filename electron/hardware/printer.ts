@@ -48,6 +48,7 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
 let currentBulkPrintItems: any[] = [];
 let currentReceiptText: string = '';
 let currentA4Html: string = '';
+let pendingReceiptHeightPx: number = 0; // measured by renderer before printReady; used by printReceiptUSB
 
 function getPrintFormatConfig(tenantId: string) {
   try {
@@ -81,7 +82,10 @@ export function initPrinter() {
     return await event.sender.getPrintersAsync();
   });
 
-  ipcMain.handle('hardware:printReady', (event) => {
+  ipcMain.handle('hardware:printReady', (event, contentHeightPx?: number) => {
+    if (contentHeightPx && contentHeightPx > 0) {
+      pendingReceiptHeightPx = contentHeightPx;
+    }
     ipcMain.emit(`print-ready-${event.sender.id}`);
     return { success: true };
   });
@@ -448,11 +452,21 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
     }, 20000);
 
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
+      // Convert measured content height (CSS px at 96dpi) to physical microns.
+      // 1 CSS px = 1/96 inch; 1 inch = 25400 microns.
+      // Add 8px top + 8px bottom margin (= 16px) then convert, with a 15mm safety buffer.
+      const safetyMm = 15;
+      const measuredMm = pendingReceiptHeightPx > 0
+        ? Math.ceil((pendingReceiptHeightPx + 16) * (25.4 / 96)) + safetyMm
+        : 200;  // fallback: 200mm if height was not measured
+      const pageHeightMicrons = Math.max(80, measuredMm) * 1000;
+      pendingReceiptHeightPx = 0; // reset for next print
+
       printWindow.webContents.print({
         silent: true,
         deviceName: deviceName,
         margins: { marginType: 'none' },
-        pageSize: { width: widthMm * 1000, height: 300000 }
+        pageSize: { width: widthMm * 1000, height: pageHeightMicrons }
       }, (success, failureReason) => {
         clearTimeout(timer);
         setTimeout(() => {

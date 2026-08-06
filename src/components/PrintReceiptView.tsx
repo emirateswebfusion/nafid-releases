@@ -11,43 +11,31 @@ const FONT_MAP: Record<string, string> = {
   monospace: 'monospace',
 };
 
-const printStyles = `
-  @page { margin: 0; size: auto; }
-  html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    background-color: white;
-    display: flex;
-    justify-content: flex-start;
-    align-items: flex-start;
-  }
-  @media print {
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      display: flex;
-      justify-content: flex-start;
-      align-items: flex-start;
-    }
-  }
-`;
-
 type ReceiptRow =
   | { type: 'text'; value: string; lhMultiplier: number }
   | { type: 'qr'; payload: string }
   | { type: 'prominent'; value: string }
   | { type: 'barcode'; payload: string };
 
+// Helper to strip leading and trailing empty lines
 function parseReceiptToRows(input: string): ReceiptRow[] {
   const lines = input.split('\n');
   const rows: ReceiptRow[] = [];
 
-  lines.forEach((line) => {
-    // If line is empty and it's the last line, skip it
-    if (line === '' && rows.length === lines.length - 1) return;
+  // Trim leading empty lines
+  let startIdx = 0;
+  while (startIdx < lines.length && lines[startIdx].trim() === '') {
+    startIdx++;
+  }
+  // Trim trailing empty lines
+  let endIdx = lines.length - 1;
+  while (endIdx >= startIdx && lines[endIdx].trim() === '') {
+    endIdx--;
+  }
 
+  const activeLines = lines.slice(startIdx, endIdx + 1);
+
+  activeLines.forEach((line) => {
     if (line.includes('[[QR:')) {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
@@ -90,8 +78,9 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
 
 export function PrintReceiptView({ text }: { text: string }) {
   const [receiptText, setReceiptText] = useState(text || '');
-  const [fontFamily, setFontFamily] = useState('"Courier New", monospace');
+  const [fontFamily, setFontFamily] = useState('Consolas, "Courier New", monospace');
   const [qrImages, setQrImages] = useState<Record<string, string>>({});
+  const [paperWidth, setPaperWidth] = useState(80); // default to 80mm
 
   const rows = useMemo(() => parseReceiptToRows(receiptText), [receiptText]);
 
@@ -117,6 +106,9 @@ export function PrintReceiptView({ text }: { text: string }) {
         if (printFmt?.receiptFont && FONT_MAP[printFmt.receiptFont]) {
           setFontFamily(FONT_MAP[printFmt.receiptFont]);
         }
+        if (printFmt?.width) {
+          setPaperWidth(Number(printFmt.width));
+        }
       } catch {
         // fallback to default
       }
@@ -127,9 +119,12 @@ export function PrintReceiptView({ text }: { text: string }) {
     if (!receiptText || !isQrReady) return;
     const timer = setTimeout(() => {
       if (window.electronAPI && window.electronAPI.printReady) {
-        window.electronAPI.printReady();
+        // Measure the actual rendered content height so printer.ts can set
+        // an exact page height — eliminates the large blank gap at the bottom.
+        const contentHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
+        window.electronAPI.printReady(contentHeight);
       }
-    }, 100);
+    }, 200); // 200ms: enough for fonts + barcodes to fully paint
     return () => clearTimeout(timer);
   }, [receiptText, isQrReady]);
 
@@ -167,18 +162,67 @@ export function PrintReceiptView({ text }: { text: string }) {
   const isBillStyle = receiptText.includes('│') || receiptText.includes('┌');
   const lh = isBillStyle ? 0.98 : 1.2;
 
+  // ─── Layout constants (ALL in physical mm — avoids 100% resolution ambiguity) ─
+  // CSS calc(100%) in Chromium's print renderer can resolve to BrowserWindow width
+  // (400px) instead of the @page width (80mm). Using absolute mm units is safe:
+  // 1mm = 3.7795 CSS px, ALWAYS, regardless of DPI scaling or window size.
+  //
+  // ─── Layout constants (ALL in physical mm — avoids 100% resolution ambiguity) ─
+  // We constrain the box width to the printer's actual printable area with safety margins
+  // (66mm for 80mm roll, 42mm for 58mm roll) and left-align it with a 3.5mm physical offset,
+  // guaranteeing the right border is never pushed out of the printable area by margins.
+  // ─────────────────────────────────────────────────────────────────────────────
+  const PX_PER_MM       = 96 / 25.4;
+  const charsPerLine    = paperWidth >= 75 ? 36 : 32;
+  const containerWidthMm = paperWidth >= 75 ? 66 : 42;          // 66mm or 42mm
+  const BORDER_PX       = 2;                                     // px each side
+  const INNER_PX        = paperWidth >= 75 ? 8 : 4;              // inner padding px each side
+  
+  const textWidthMm     = containerWidthMm - 2 * (BORDER_PX + INNER_PX) / PX_PER_MM;
+  const fontPt          = Math.floor((textWidthMm / (charsPerLine * 0.353 * 0.60)) * 10) / 10;
+  const fontSize        = `${fontPt}pt`;
+
+  const dynamicPrintStyles = `
+    @page {
+      margin: 0;
+      size: ${paperWidth}mm auto;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: ${paperWidth}mm;
+      background: white;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    @media print {
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: ${paperWidth}mm;
+        background: white;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+    }
+  `;
+
   return (
-    <div style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-      <style>{printStyles}</style>
+    <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+      <style>{dynamicPrintStyles}</style>
       <div style={{
-        padding: isBillStyle ? '6px 6px' : '4px 6px',
-        width: isBillStyle ? 'max-content' : '100%',
+        margin: '2mm 0 2mm 3.5mm', // left margin of 3.5mm to align inside printable area
+        width: `${containerWidthMm}mm`,
+        padding: isBillStyle ? `${INNER_PX}px` : `${INNER_PX}px`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',
-        border: isBillStyle ? '2.5px solid black' : 'none',
+        border: isBillStyle ? `${BORDER_PX}px solid black` : 'none',
         boxSizing: 'border-box',
         backgroundColor: 'white',
+        overflow: 'hidden',  // clip any sub-pixel text overflow inside the border, not past it
       }}>
         {rows.map((row, index) => {
           if (row.type === 'text') {
@@ -190,7 +234,7 @@ export function PrintReceiptView({ text }: { text: string }) {
                 return null;
               }
               if (firstChar === '├' && lastChar === '┤') {
-                return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '1.5px solid black', margin: '2px -6px', padding: 0 }} />;
+                return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: `0 -${INNER_PX}px`, padding: 0 }} />;
               }
               if (firstChar === '│' && lastChar === '│') {
                 displayValue = displayValue.substring(1, displayValue.length - 1);
@@ -200,7 +244,7 @@ export function PrintReceiptView({ text }: { text: string }) {
               <pre key={`text-${index}`} style={{
                 margin: 0,
                 padding: 0,
-                fontSize: '8.2pt',
+                fontSize,
                 fontFamily,
                 whiteSpace: 'pre',
                 color: 'black',
@@ -267,7 +311,7 @@ export function PrintReceiptView({ text }: { text: string }) {
             <pre key={`qr-fallback-${index}`} style={{
               margin: 0,
               padding: 0,
-              fontSize: '8.2pt',
+              fontSize,
               fontFamily,
               whiteSpace: 'pre',
               color: 'black',

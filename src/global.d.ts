@@ -56,7 +56,7 @@ export interface IElectronAPI {
   getPrinters: () => Promise<any[]>;
   getReceiptText: () => Promise<string>;
   getA4Html: () => Promise<string>;
-  printReady: () => Promise<{ success: boolean; error?: string }>;
+  printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;

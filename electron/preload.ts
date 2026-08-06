@@ -51,7 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getReceiptText: () => ipcRenderer.invoke('hardware:getReceiptText'),
   getA4Html: () => ipcRenderer.invoke('hardware:getA4Html'),
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
-  printReady: () => ipcRenderer.invoke('hardware:printReady'),
+  printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
   
   onUpdateStatus: (callback: (status: string) => void) => {

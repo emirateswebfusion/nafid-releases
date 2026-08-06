@@ -107,9 +107,20 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
   const lines = input.split('\n');
   const rows: ReceiptRow[] = [];
 
-  lines.forEach((line) => {
-    if (line === '' && rows.length === lines.length - 1) return;
+  // Trim leading empty lines
+  let startIdx = 0;
+  while (startIdx < lines.length && lines[startIdx].trim() === '') {
+    startIdx++;
+  }
+  // Trim trailing empty lines
+  let endIdx = lines.length - 1;
+  while (endIdx >= startIdx && lines[endIdx].trim() === '') {
+    endIdx--;
+  }
 
+  const activeLines = lines.slice(startIdx, endIdx + 1);
+
+  activeLines.forEach((line) => {
     if (line.includes('[[QR:')) {
       const match = line.match(/\[\[QR:([^\]]+)\]\]/);
       if (match) {
@@ -310,14 +321,14 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
               </div>
               <div
                 style={{
-                  margin: '0 auto',
+                  margin: thermalStyle === 'boxed' ? '6px auto' : '4px auto',
                   padding: thermalStyle === 'boxed' ? '12px 8px' : '10px 8px',
                   background: '#fff',
                   minHeight: '200px',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'stretch',
-                  border: thermalStyle === 'boxed' ? '2.5px solid black' : 'none',
+                  border: thermalStyle === 'boxed' ? '2px solid black' : 'none',
                   boxSizing: 'border-box',
                 }}
               >
@@ -331,7 +342,7 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                         return null;
                       }
                       if (firstChar === '├' && lastChar === '┤') {
-                        return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '1.5px solid black', margin: '3px -8px', padding: 0 }} />;
+                        return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: '0 -8px', padding: 0 }} />;
                       }
                       if (firstChar === '│' && lastChar === '│') {
                         displayValue = displayValue.substring(1, displayValue.length - 1);
