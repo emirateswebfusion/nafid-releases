@@ -1786,7 +1786,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const row = db.prepare(`
       SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE tenant_id = ? AND created_at >= ?
+      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL
     `).get(tenantId, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
@@ -2217,6 +2217,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const inv: any = db.prepare('SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?').get(invoice_id, payload.tenant_id);
           if (!inv) throw new Error('Invoice not found');
           if (inv.invoice_type === 'GST') throw new Error('Invoice is already a GST invoice');
+          if (inv.converted_to_invoice_id) throw new Error('Invoice is already converted');
 
           const oldInvoiceNumber = inv.invoice_number;
 
@@ -2282,7 +2283,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           let newSubtotal = 0;
           let newTotalTax = 0;
-          const updatedItems: { item_id: string; newUnitPrice: number; newTotal: number; newTaxAmount: number }[] = [];
+          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number }[] = [];
           const skippedItems: string[] = [];
 
           for (const item of items) {
@@ -2310,22 +2311,24 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
 
             newTotalTax += itemTax;
-            updatedItems.push({ item_id: item.item_id, newUnitPrice, newTotal, newTaxAmount: itemTax });
+            copyItems.push({
+              item_id: crypto.randomUUID(),
+              source_item_id: item.item_id,
+              product_id: item.product_id,
+              name: item.name,
+              quantity: item.quantity,
+              is_service_item: item.is_service_item ? 1 : 0,
+              newUnitPrice,
+              newTotal,
+              newTaxAmount: itemTax,
+              bosUnitPrice: Number(item.unit_price) || 0,
+              bosTax: Number(item.tax_amount) || 0,
+              bosTotal: Number(item.total) || 0,
+            });
           }
 
-          if (updatedItems.length === 0) {
+          if (copyItems.length === 0) {
             throw new Error('No items have GST purchase records. Conversion requires at least one item with a GST purchase bill entry.');
-          }
-
-          // Delete skipped items from invoice_items
-          if (skippedItems.length > 0) {
-            const skippedIds = items
-              .filter(item => skippedItems.includes(item.name || item.product_id))
-              .map(item => item.item_id);
-            const deleteStmt = db.prepare('DELETE FROM invoice_items WHERE item_id = ?');
-            for (const sid of skippedIds) {
-              deleteStmt.run(sid);
-            }
           }
 
           newSubtotal = Math.round(newSubtotal * 100) / 100;
@@ -2344,39 +2347,81 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const adjustedTax = Math.round(taxableAmount * effectiveTaxRate * 100) / 100;
           const newGrandTotal = Math.round((taxableAmount + adjustedTax) * 100) / 100;
 
-          // Update invoice
+          const newInvoiceId = crypto.randomUUID();
+
+          // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
+          //    No stock movement: stock was already deducted when the BoS was sold.
           db.prepare(`
-            UPDATE invoices SET
-              invoice_type = 'GST',
-              invoice_number = ?,
-              subtotal = ?,
-              tax_total = ?,
-              discount_total = ?,
-              grand_total = ?,
-              sync_status = 'PENDING',
-              updated_at = CURRENT_TIMESTAMP
-            WHERE invoice_id = ?
+            INSERT INTO invoices (
+              invoice_id, tenant_id, user_id, invoice_number, invoice_type,
+              subtotal, tax_total, discount_total, discount_type, discount_value, grand_total,
+              payment_method, received_amount, balance_amount,
+              customer_name, customer_phone, customer_gstin, customer_state, customer_address,
+              sync_status,
+              converted_from_invoice_id, converted_from_invoice_number
+            )
+            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
           `).run(
+            newInvoiceId,
+            inv.tenant_id,
+            inv.user_id,
             newInvoiceNumber,
             newSubtotal,
             adjustedTax,
             newDiscountTotal,
+            inv.discount_type || 'FIXED',
+            inv.discount_value || 0,
             newGrandTotal,
-            invoice_id
+            inv.payment_method || 'CASH',
+            Number(inv.received_amount) || 0,
+            Number(inv.balance_amount) || 0,
+            inv.customer_name || null,
+            inv.customer_phone || null,
+            inv.customer_gstin || null,
+            inv.customer_state || null,
+            inv.customer_address || null,
+            invoice_id,
+            oldInvoiceNumber
           );
 
-          // Update invoice items
-          const updateItemStmt = db.prepare(`
-            UPDATE invoice_items SET
-              unit_price = ?,
-              tax_amount = ?,
-              total = ?
-            WHERE item_id = ?
+          // 2. Copy the priced items — they remember their original BoS values so
+          //    returns refund what the customer actually paid.
+          const insertItemStmt = db.prepare(`
+            INSERT INTO invoice_items (
+              item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item,
+              source_item_id, bos_unit_price, bos_tax_amount, bos_total
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
-          for (const ui of updatedItems) {
-            updateItemStmt.run(ui.newUnitPrice, ui.newTaxAmount, ui.newTotal, ui.item_id);
+          for (const ci of copyItems) {
+            insertItemStmt.run(
+              ci.item_id,
+              newInvoiceId,
+              inv.tenant_id,
+              ci.product_id,
+              ci.name,
+              ci.quantity,
+              ci.newUnitPrice,
+              ci.newTaxAmount,
+              ci.newTotal,
+              ci.is_service_item,
+              ci.source_item_id,
+              ci.bosUnitPrice,
+              ci.bosTax,
+              ci.bosTotal
+            );
           }
+
+          // 3. Mark the BoS as superseded — linked to its GST copy
+          db.prepare(`
+            UPDATE invoices SET
+              converted_to_invoice_id = ?,
+              converted_to_invoice_number = ?,
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE invoice_id = ?
+          `).run(newInvoiceId, newInvoiceNumber, invoice_id);
 
           return {
             old_number: oldInvoiceNumber,
@@ -3149,7 +3194,7 @@ ipcMain.handle('db:getProductBillQuantities', (event, tenantId: string) => {
     return db.prepare(`
       SELECT ii.product_id,
              COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
-             COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' THEN ii.quantity ELSE 0 END), 0) as estimate_qty
+             COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END), 0) as estimate_qty
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.invoice_id
       WHERE ii.tenant_id = ?
@@ -3157,6 +3202,29 @@ ipcMain.handle('db:getProductBillQuantities', (event, tenantId: string) => {
     `).all(tenantId);
   } catch (error: any) {
     console.error('[db:getProductBillQuantities]', error);
+    return [];
+  }
+});
+
+// ── Product Sales Summary (GST qty vs BoS qty sold per product) ─────────────
+ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    return db.prepare(`
+      SELECT ii.product_id,
+             ii.name,
+             COALESCE(SUM(CASE WHEN i.invoice_type = 'GST' THEN ii.quantity ELSE 0 END), 0) as gst_qty,
+             COALESCE(SUM(CASE WHEN i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL THEN ii.quantity ELSE 0 END), 0) as bos_qty,
+             COALESCE(SUM(ii.quantity), 0) as total_qty
+      FROM invoice_items ii
+      JOIN invoices i ON ii.invoice_id = i.invoice_id
+      WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY')
+      GROUP BY ii.product_id, ii.name
+      ORDER BY ii.name COLLATE NOCASE ASC
+    `).all(tenant_id);
+  } catch (error: any) {
+    console.error('[db:getProductSalesSummary]', error);
     return [];
   }
 });
@@ -4206,12 +4274,45 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
   try {
     const db = getDb();
     db.transaction(() => {
+      const inv = db.prepare('SELECT converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
+
+      // A conversion copy never moved stock — do NOT restore it (would double stock).
+      // The superseded BoS owns the deduction.
+      const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
+
       const items = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(invoice_id) as any[];
       const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
-      for (const item of items) {
-        stockStmt.run(item.quantity, item.product_id);
+      if (!isConversionCopy) {
+        for (const item of items) {
+          stockStmt.run(item.quantity, item.product_id);
+        }
       }
       db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);
+
+      // If a copy was deleted, un-supersede its BoS so it can be converted again
+      if (isConversionCopy && inv) {
+        db.prepare(`
+          UPDATE invoices SET
+            converted_to_invoice_id = NULL,
+            converted_to_invoice_number = NULL,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+          WHERE invoice_id = ?
+        `).run(inv.converted_from_invoice_id);
+      }
+
+      // If a BoS was deleted, unlink its GST copy
+      if (!isConversionCopy && inv && inv.converted_to_invoice_id) {
+        db.prepare(`
+          UPDATE invoices SET
+            converted_from_invoice_id = NULL,
+            converted_from_invoice_number = NULL,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+          WHERE invoice_id = ?
+        `).run(inv.converted_to_invoice_id);
+      }
+
       db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(invoice_id);
     })();
     return { success: true };

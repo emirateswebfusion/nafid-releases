@@ -514,10 +514,13 @@ export function initDb() {
         'scrap_deduction', 'scrap_invoice_number',
         'return_deduction', 'return_invoice_number',
         'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance',
-        'held_until', 'is_held', 'hold_note'
+        'held_until', 'is_held', 'hold_note',
+        'converted_from_invoice_id', 'converted_from_invoice_number',
+        'converted_to_invoice_id', 'converted_to_invoice_number'
     ],
     invoice_items: [
-        'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item'
+        'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item',
+        'source_item_id', 'bos_unit_price', 'bos_tax_amount', 'bos_total'
     ],
     users: [
         'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'

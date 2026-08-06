@@ -56,21 +56,41 @@ export function CreateReturn({
     setLoading(true);
     try {
       if (window.electronAPI) {
-        const items = await window.electronAPI.dbGetInvoiceItems(invoice.invoice_id);
-        if (Array.isArray(items)) {
-          setInvoiceItems(items);
-          setSelections(
-            items.map((item: InvoiceItem) => ({
-              invoice_item_id: item.item_id,
-              product_id: item.product_id,
-              name: item.name,
-              max_quantity: item.quantity,
-              quantity: item.quantity,
-              unit_price: item.unit_price,
-              tax_amount: item.tax_amount,
-              total: item.total,
-            }))
-          );
+        let items = await window.electronAPI.dbGetInvoiceItems(invoice.invoice_id);
+        if (!Array.isArray(items)) items = [];
+
+        // Converted GST copy → refund at the original BoS prices the customer paid.
+        // (source_item_id marks lines that were copied from a Bill of Supply.)
+        let isConvertedBos = false;
+        if (invoice.converted_to_invoice_id) {
+          // Superseded BoS → only lines that were NOT copied can be returned here.
+          isConvertedBos = true;
+          const copyItems = await window.electronAPI.dbGetInvoiceItems(invoice.converted_to_invoice_id);
+          const copiedProducts = new Set(Array.isArray(copyItems) ? copyItems.map((c: any) => c.product_id) : []);
+          items = items.filter((it: any) => !copiedProducts.has(it.product_id));
+        }
+
+        const normalized = items.map((item: InvoiceItem & { source_item_id?: string; bos_unit_price?: number; bos_tax_amount?: number; bos_total?: number }) =>
+          item.source_item_id
+            ? { ...item, unit_price: Number(item.bos_unit_price) || 0, tax_amount: Number(item.bos_tax_amount) || 0, total: Number(item.bos_total) || 0 }
+            : item
+        );
+
+        setInvoiceItems(normalized);
+        setSelections(
+          normalized.map((item: InvoiceItem) => ({
+            invoice_item_id: item.item_id,
+            product_id: item.product_id,
+            name: item.name,
+            max_quantity: item.quantity,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            tax_amount: item.tax_amount,
+            total: item.total,
+          }))
+        );
+        if (isConvertedBos && normalized.length === 0) {
+          setError('All items from this Bill of Supply were converted to GST. Return them from the GST copy instead.');
         }
       }
     } catch (err) {

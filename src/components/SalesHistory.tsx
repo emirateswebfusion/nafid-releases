@@ -146,6 +146,8 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
   const { date, time } = formatDate(inv.created_at);
   const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
+  const isConvertedBos = !!inv.converted_to_invoice_id;
+  const isConversionCopy = !!inv.converted_from_invoice_id;
 
   return (
     <tr
@@ -154,7 +156,8 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
         'group cursor-pointer transition-all duration-150 border-b border-border last:border-0',
         isSelected
           ? 'bg-primary/5'
-          : 'hover:bg-muted/30'
+          : 'hover:bg-muted/30',
+        isConvertedBos && 'opacity-55'
       )}
     >
       {/* Invoice # */}
@@ -164,7 +167,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
             <div onClick={(e) => { e.stopPropagation(); onCheck?.(); }} className="flex items-center justify-center cursor-pointer shrink-0">
               <input type="checkbox" checked={isChecked} readOnly
                 className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
-                disabled={inv.invoice_type !== 'BILL_OF_SUPPLY'} />
+                disabled={inv.invoice_type !== 'BILL_OF_SUPPLY' || isConvertedBos} />
             </div>
           )}
           <div className={clsx(
@@ -175,6 +178,16 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
           </div>
           <div>
             <div className="text-xs font-mono font-black text-foreground">{inv.invoice_number}</div>
+            {isConvertedBos && (
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-600 dark:text-amber-400 mt-0.5">
+                <ArrowDownRight className="w-2.5 h-2.5" /> Converted → {inv.converted_to_invoice_number}
+              </div>
+            )}
+            {isConversionCopy && (
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-[9px] font-black text-violet-600 dark:text-violet-400 mt-0.5">
+                <ArrowDownRight className="w-2.5 h-2.5" /> From {inv.converted_from_invoice_number}
+              </div>
+            )}
             <div className={clsx('text-[10px] font-black uppercase', inv.sync_status === 'SYNCED' ? 'text-emerald-500' : 'text-amber-500')}>
               {inv.sync_status}
             </div>
@@ -298,7 +311,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [deleteSaving, setDeleteSaving] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
-    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && selectedInvoiceIds.has(i.invoice_id)),
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && selectedInvoiceIds.has(i.invoice_id)),
     [invoices, selectedInvoiceIds]
   );
 
@@ -447,11 +460,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const summary = {
-    totalSales: invoices.reduce((s, i) => s + (i.grand_total || 0), 0),
-    totalInvoices: invoices.length,
-    totalTax: invoices.reduce((s, i) => s + (i.tax_total || 0), 0),
-    totalDiscount: invoices.reduce((s, i) => s + (i.discount_total || 0), 0),
-    avgOrder: invoices.length > 0 ? invoices.reduce((s, i) => s + (i.grand_total || 0), 0) / invoices.length : 0,
+    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.grand_total || 0), 0),
+    totalInvoices: invoices.filter(i => !i.converted_to_invoice_id).length,
+    totalTax: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
+    totalDiscount: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
+    avgOrder: (() => {
+      const live = invoices.filter(i => !i.converted_to_invoice_id);
+      return live.length > 0 ? live.reduce((s, i) => s + (i.grand_total || 0), 0) / live.length : 0;
+    })(),
   };
 
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);

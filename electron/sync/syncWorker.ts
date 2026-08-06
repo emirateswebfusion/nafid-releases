@@ -898,7 +898,9 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       scrap_deduction, scrap_invoice_number,
       return_deduction, return_invoice_number,
       customer_id, points_earned, points_redeemed, points_redeemed_discount,
-      previous_points_balance, remaining_points_balance
+      previous_points_balance, remaining_points_balance,
+      converted_from_invoice_id, converted_from_invoice_number,
+      converted_to_invoice_id, converted_to_invoice_number
     ) VALUES (
       @invoice_id, @tenant_id, @invoice_number, @invoice_type,
       @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
@@ -908,7 +910,9 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       @scrap_deduction, @scrap_invoice_number,
       @return_deduction, @return_invoice_number,
       @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
-      @previous_points_balance, @remaining_points_balance
+      @previous_points_balance, @remaining_points_balance,
+      @converted_from_invoice_id, @converted_from_invoice_number,
+      @converted_to_invoice_id, @converted_to_invoice_number
     )
     ON CONFLICT(invoice_id) DO UPDATE SET
       customer_name = EXCLUDED.customer_name,
@@ -932,8 +936,16 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       points_earned = EXCLUDED.points_earned,
       points_redeemed = EXCLUDED.points_redeemed,
       points_redeemed_discount = EXCLUDED.points_redeemed_discount,
+      customer_id = EXCLUDED.customer_id,
+      points_earned = EXCLUDED.points_earned,
+      points_redeemed = EXCLUDED.points_redeemed,
+      points_redeemed_discount = EXCLUDED.points_redeemed_discount,
       previous_points_balance = EXCLUDED.previous_points_balance,
       remaining_points_balance = EXCLUDED.remaining_points_balance,
+      converted_from_invoice_id = EXCLUDED.converted_from_invoice_id,
+      converted_from_invoice_number = EXCLUDED.converted_from_invoice_number,
+      converted_to_invoice_id = EXCLUDED.converted_to_invoice_id,
+      converted_to_invoice_number = EXCLUDED.converted_to_invoice_number,
       sync_status = 'SYNCED'
   `);
 
@@ -1016,6 +1028,10 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 points_redeemed_discount: currentInv.points_redeemed_discount ?? 0,
                 previous_points_balance: currentInv.previous_points_balance ?? 0,
                 remaining_points_balance: currentInv.remaining_points_balance ?? 0,
+                converted_from_invoice_id: currentInv.converted_from_invoice_id || null,
+                converted_from_invoice_number: currentInv.converted_from_invoice_number || null,
+                converted_to_invoice_id: currentInv.converted_to_invoice_id || null,
+                converted_to_invoice_number: currentInv.converted_to_invoice_number || null,
               });
               success = true;
             } catch (e: any) {
