@@ -213,7 +213,7 @@ export function PrintReceiptView({ text }: { text: string }) {
     <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <style>{dynamicPrintStyles}</style>
       <div style={{
-        margin: '2mm 0 2mm 3.5mm', // left margin of 3.5mm to align inside printable area
+        margin: '2mm 0 2mm 2mm', // left margin of 2mm to balance left/right gaps and prevent right cut-off
         width: `${containerWidthMm}mm`,
         padding: isBillStyle ? `${INNER_PX}px` : `${INNER_PX}px`,
         display: 'flex',
@@ -234,6 +234,23 @@ export function PrintReceiptView({ text }: { text: string }) {
                 return null;
               }
               if (firstChar === '├' && lastChar === '┤') {
+                // If there are no visible lines after this separator, skip rendering it
+                // to eliminate the double-line at the bottom of the boxed receipt.
+                const hasVisibleAfter = rows.slice(index + 1).some(r => {
+                  if (r.type === 'text') {
+                    const val = r.value.replace(/\r/g, '');
+                    const f = val.charAt(0);
+                    const l = val.charAt(val.length - 1);
+                    if ((f === '┌' && l === '┐') || (f === '└' && l === '┘') || (f === '├' && l === '┤')) {
+                      return false;
+                    }
+                    return val.trim().length > 0;
+                  }
+                  return true;
+                });
+                if (!hasVisibleAfter) {
+                  return null;
+                }
                 return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: `0 -${INNER_PX}px`, padding: 0 }} />;
               }
               if (firstChar === '│' && lastChar === '│') {
