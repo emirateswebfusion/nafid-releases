@@ -2065,17 +2065,21 @@ export function BillingPage() {
       effectiveRate = Math.max(effectiveRate, 0);
       const total = effectiveRate * qty;
       const unitPrice = qty > 0 ? total / qty : effectiveRate;
+      const mrpRate = rate;
       let originalRate: number | undefined;
       let discountLabel: string | undefined;
       if (isAdhocOfferRec) {
-        originalRate = catalogPriceRec;
+        originalRate = mrpRate;
         discountLabel = 'Offer';
       } else if (isAdhocDiscFlatRec) {
-        originalRate = catalogPriceRec;
+        originalRate = mrpRate;
         discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
       } else if (isAdhocDiscPctRec) {
-        originalRate = catalogPriceRec;
+        originalRate = mrpRate;
         discountLabel = `${item.discount_percent}% OFF`;
+      } else if (catalogPriceRec < mrpRate) {
+        originalRate = mrpRate;
+        discountLabel = 'Offer';
       }
       return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel };
     });

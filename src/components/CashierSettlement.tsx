@@ -153,13 +153,54 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     try {
       if (window.electronAPI) {
         const data = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
-        setInvoiceItems(Array.isArray(data) ? data : []);
+        setInvoiceItems(await enrichItemsWithMrp(Array.isArray(data) ? data : []));
       }
     } catch (err) {
       console.error('Failed to load invoice items', err);
     } finally {
       setLoadingItems(false);
     }
+  };
+
+  // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
+  // Mirrors the recovery logic used when editing a bill in BillingPage.
+  const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
+    const nonService = invoiceItems.filter((i: any) => !i.is_service_item);
+    const productIds = [...new Set(nonService.map((i: any) => i.product_id).filter(Boolean))] as string[];
+    const productMap: Record<string, any> = {};
+    if (productIds.length > 0) {
+      try {
+        const { tenantId } = useAuthStore.getState();
+        const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+        if (Array.isArray(products)) {
+          products.forEach((p: any) => { productMap[p.product_id] = p; });
+        }
+      } catch {
+        // ignore product lookup failures
+      }
+    }
+    return invoiceItems.map(item => {
+      const p = item.is_service_item ? null : productMap[item.product_id];
+      if (!p) return item;
+      const mrp = p.pricing_mode === 'GRADE_RATE' && Number(p.grade_rate) > 0 ? Number(p.grade_rate) : (Number(p.base_price) || 0);
+      const soldPrice = Number(item.unit_price) || 0;
+      let originalRate: number | undefined;
+      let discountLabel: string | undefined;
+      if (mrp > 0 && soldPrice < mrp) {
+        const offerPrice = p.offer_price ? Number(p.offer_price) : null;
+        if (offerPrice !== null && Math.abs(offerPrice - soldPrice) < 0.01) {
+          originalRate = mrp;
+          discountLabel = 'Offer';
+        } else {
+          const diff = mrp - soldPrice;
+          if (diff >= 0.05) {
+            originalRate = mrp;
+            discountLabel = `-₹${diff.toFixed(0)}`;
+          }
+        }
+      }
+      return { ...item, originalRate, discountLabel };
+    });
   };
 
   const handleDiscPercentChange = (invoiceId: string, val: string) => {
@@ -1622,7 +1663,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       invoiceNumber: selectedInvoice.invoice_number,
                       date: new Date(selectedInvoice.created_at).toLocaleString(),
                       billerName: selectedInvoice.biller_name,
-                      items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total })),
+                      items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel })),
                       subtotal: selectedInvoice.subtotal,
                       tax: selectedInvoice.tax_total,
                       discount: selectedInvoice.discount_total,
@@ -1740,7 +1781,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
                           <Package className="w-3 h-3" />
                         </div>
-                        <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
+                        <div className="min-w-0">
+                          <span className="font-bold text-foreground truncate block">{item.name || 'Unknown'}</span>
+                          {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
+                            <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
+                              MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
                       <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
