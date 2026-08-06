@@ -3472,15 +3472,16 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
-      const updateStock = billType === 'ESTIMATE' ? db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ? WHERE product_id = ? AND tenant_id = ?`) : null;
+      const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
         stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
-        if (updateStock) {
-          updateStock.run(item.quantity, item.purchase_price, item.product_id, bill.tenant_id);
-        }
+        const actualPurchasePrice = billType === 'GST' && isGst === 1
+          ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
+          : item.purchase_price;
+        updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
         }
@@ -3596,17 +3597,29 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
         WHERE purchase_bill_id = ?
       `).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
+      // Revert stock of previous items before deleting them
+      const oldItems = db.prepare('SELECT product_id, quantity FROM purchase_bill_items WHERE purchase_bill_id = ?').all(bill.purchase_bill_id) as any[];
+      const decreaseStock = db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
+      for (const item of oldItems) {
+        decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
+      }
+
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(bill.purchase_bill_id);
 
       const stmt = db.prepare(`
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
+      const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
         stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        const actualPurchasePrice = billType === 'GST' && isGst === 1
+          ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
+          : item.purchase_price;
+        updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
         }

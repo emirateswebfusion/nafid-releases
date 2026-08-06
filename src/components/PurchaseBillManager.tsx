@@ -227,7 +227,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
         const totalGst = items.reduce((acc, item) => {
           const rate = item.tax_rate_percent || 0;
           if (item.is_gst_applicable === 1 && rate > 0) {
-            return acc + (Number(item.total_amount) * rate) / (100 + rate);
+            return acc + Number(item.total_amount) * (rate / 100);
           }
           return acc;
         }, 0);
@@ -344,7 +344,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           const totalGst = items.reduce((acc, item) => {
             const rate = item.tax_rate_percent || 0;
             if (item.is_gst_applicable === 1 && rate > 0) {
-              return acc + (Number(item.total_amount) * rate) / (100 + rate);
+              return acc + Number(item.total_amount) * (rate / 100);
             }
             return acc;
           }, 0);
@@ -1132,7 +1132,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                       {viewingBillItems.map((item, idx) => {
                         const taxRate = item.tax_rate_percent || 0;
                         const hasGst = item.is_gst_applicable === 1 && taxRate > 0;
-                        const gstAmt = hasGst ? (Number(item.total_amount) * taxRate) / (100 + taxRate) : 0;
+                        const gstAmt = hasGst ? Number(item.total_amount) * (taxRate / 100) : 0;
                         return (
                           <div
                             key={item.item_id || idx}
@@ -1196,7 +1196,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                             )}
 
                             <div className="text-right font-black text-foreground">
-                              ₹{Number(item.total_amount).toFixed(2)}
+                              ₹{(Number(item.total_amount) + gstAmt).toFixed(2)}
                             </div>
                           </div>
                         );
@@ -1240,7 +1240,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                       const totalGst = viewingBillItems.reduce((acc, item) => {
                         const rate = item.tax_rate_percent || 0;
                         if (item.is_gst_applicable === 1 && rate > 0) {
-                          return acc + (Number(item.total_amount) * rate) / (100 + rate);
+                          return acc + Number(item.total_amount) * (rate / 100);
                         }
                         return acc;
                       }, 0);
@@ -1532,6 +1532,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [manualRoundOff, setManualRoundOff] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [billItems, setBillItems] = useState<Array<{
@@ -1653,12 +1654,30 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               }));
               setBillItems(mapped);
               if (mapped.length > 0) onItemsLoaded?.();
+
+              // Calculate the round-off for editing
+              const baseTotal = mapped.reduce((sum: number, i: any) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
+              let unroundedTotal = baseTotal;
+              if (type === 'GST') {
+                const gstTotal = mapped.reduce((acc: number, item: any) => {
+                  const rate = item.tax_rate_percent || 0;
+                  const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+                  if ((item.is_gst_applicable ?? 1) === 1 && rate > 0) {
+                    return acc + itemTotal * (rate / 100);
+                  }
+                  return acc;
+                }, 0);
+                unroundedTotal = baseTotal + gstTotal;
+              }
+              const diff = editingData.total_amount - unroundedTotal;
+              setManualRoundOff(Math.abs(diff) > 0.001 ? diff.toFixed(2) : '0.00');
             }
           })
           .catch(console.error);
       }
     } else {
       setBillItems([]);
+      setManualRoundOff('');
       if (window.electronAPI && tenantId) {
         window.electronAPI.dbGetNextPurchaseBillNumber({ tenant_id: tenantId })
           .then(res => { if (res.success && res.billNumber) setBillNumber(res.billNumber); })
@@ -1746,7 +1765,17 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   };
 
   const getBillTotal = () => {
-    return billItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
+    const baseTotal = billItems.reduce((sum, i) => sum + (Number(i.quantity) || 0) * (Number(i.purchase_price) || 0), 0);
+    if (type !== 'GST') return baseTotal;
+    const gstTotal = billItems.reduce((acc, item) => {
+      const rate = item.tax_rate_percent || 0;
+      const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+      if ((item.is_gst_applicable ?? 1) === 1 && rate > 0) {
+        return acc + itemTotal * (rate / 100);
+      }
+      return acc;
+    }, 0);
+    return baseTotal + gstTotal;
   };
 
   const getPriceCode = () => {
@@ -2001,7 +2030,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
 
     setIsSaving(true);
-    const totalAmount = getBillTotal();
+    const total = getBillTotal();
+    const autoRoundOff = Math.round(total) - total;
+    const currentRoundOff = manualRoundOff !== '' ? (Number(manualRoundOff) || 0) : autoRoundOff;
+    const totalAmount = Math.round(total + currentRoundOff);
     const billId = editingData?.purchase_bill_id || uuidv4();
 
     if (window.electronAPI) {
@@ -2735,10 +2767,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span></span>
                 </div>
                 {billItems.map((item, index) => {
-                  const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+                  const taxableAmt = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
                   const taxRate = item.tax_rate_percent || 0;
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
-                  const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
+                  const gstAmt = hasGst ? taxableAmt * (taxRate / 100) : 0;
+                  const itemTotal = taxableAmt + gstAmt;
                   return (
                     <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                       <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
@@ -2861,14 +2894,18 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           const total = getBillTotal();
           const totalGst = billItems.reduce((acc, item) => {
             const rate = item.tax_rate_percent || 0;
-            const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
+            const taxableAmt = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
             if ((item.is_gst_applicable ?? 1) === 1 && rate > 0) {
-              return acc + (itemTotal * rate) / (100 + rate);
+              return acc + taxableAmt * (rate / 100);
             }
             return acc;
           }, 0);
           const halfGst = totalGst / 2;
           const taxableValue = total - totalGst;
+          
+          const autoRoundOff = Math.round(total) - total;
+          const currentRoundOff = manualRoundOff !== '' ? (Number(manualRoundOff) || 0) : autoRoundOff;
+          const roundedTotal = total + currentRoundOff;
           return (
             <div className="flex justify-end mt-3 pt-2.5 border-t border-border/60">
               <div className="w-64 space-y-1.5">
@@ -2892,22 +2929,56 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                     </div>
                   </>
                 )}
+                <div className="flex justify-between items-center text-xs border-t border-border/40 pt-1">
+                  <span className="text-muted-foreground font-semibold">Round Off</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder={autoRoundOff.toFixed(2)}
+                    value={manualRoundOff}
+                    onChange={e => setManualRoundOff(e.target.value)}
+                    className="w-20 text-right bg-background border border-border/80 rounded px-1.5 py-0.5 text-foreground font-bold text-xs focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
+                  />
+                </div>
                 <div className="flex justify-between text-sm border-t-2 border-emerald-500/40 pt-1.5">
                   <span className="font-black uppercase tracking-wider text-foreground">Grand Total</span>
-                  <span className="text-base font-black text-emerald-600">₹{total.toFixed(2)}</span>
+                  <span className="text-base font-black text-emerald-600">₹{roundedTotal.toFixed(2)}</span>
                 </div>
               </div>
             </div>
           );
         })()}
-        {billItems.length > 0 && isEstimate && (
-          <div className="flex justify-end mt-3 pt-2.5 border-t border-border/60">
-            <div className="text-right">
-              <span className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider">Total</span>
-              <p className="text-base font-black text-amber-600">₹{getBillTotal().toFixed(2)}</p>
+        {billItems.length > 0 && isEstimate && (() => {
+          const total = getBillTotal();
+          const autoRoundOff = Math.round(total) - total;
+          const currentRoundOff = manualRoundOff !== '' ? (Number(manualRoundOff) || 0) : autoRoundOff;
+          const roundedTotal = total + currentRoundOff;
+          return (
+            <div className="flex justify-end mt-3 pt-2.5 border-t border-border/60">
+              <div className="w-64 space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-muted-foreground font-semibold">Subtotal</span>
+                  <span className="font-bold text-foreground">₹{total.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs border-t border-border/40 pt-1">
+                  <span className="text-muted-foreground font-semibold">Round Off</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder={autoRoundOff.toFixed(2)}
+                    value={manualRoundOff}
+                    onChange={e => setManualRoundOff(e.target.value)}
+                    className="w-20 text-right bg-background border border-border/80 rounded px-1.5 py-0.5 text-foreground font-bold text-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500/20"
+                  />
+                </div>
+                <div className="flex justify-between text-sm border-t-2 border-amber-500/40 pt-1.5">
+                  <span className="font-black uppercase tracking-wider text-foreground">Total</span>
+                  <p className="text-base font-black text-amber-600">₹{roundedTotal.toFixed(2)}</p>
+                </div>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </>
   );
