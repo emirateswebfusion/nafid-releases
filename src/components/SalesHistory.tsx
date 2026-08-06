@@ -14,7 +14,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
@@ -452,7 +452,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (!selectedInvoice || !window.electronAPI) return;
     try {
       const { tenantId } = useAuthStore.getState();
-      const [shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
@@ -486,7 +487,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const igst = isInterState ? taxVal : undefined;
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
+        shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
         shopState: billSettings.showShopState ? (shopStateVal || undefined) : undefined,
         shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
@@ -495,7 +496,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: selectedInvoice.invoice_number,
-        date: new Date(selectedInvoice.created_at).toLocaleString(),
+        date: formatBillDateTime(selectedInvoice.created_at),
         billerName: selectedInvoice.biller_name,
         items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel })),
         subtotal: selectedInvoice.subtotal,

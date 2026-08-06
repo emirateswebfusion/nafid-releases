@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
@@ -288,6 +288,7 @@ export function BillingPage() {
   const [returnProcessed, setReturnProcessed] = useState(false);
 
   const receivedInputRef = useRef<HTMLInputElement>(null);
+  const [shopNameState, setShopNameState] = useState('');
   const [shopGstin, setShopGstin] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');
@@ -471,6 +472,9 @@ export function BillingPage() {
   useEffect(() => {
     if (!window.electronAPI) return;
     window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+      setShopNameState(typeof v === 'string' ? v : '');
+    });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
       setShopGstin(typeof v === 'string' ? v : '');
     });
@@ -1593,7 +1597,7 @@ export function BillingPage() {
             </head>
             <body>
               <div class="header">
-                <h1>${shopName || 'Shop'}</h1>
+                <h1>${shopNameState || shopName || 'Shop'}</h1>
                 <p>${shopAddress || ''}</p>
                 <p>Phone: ${shopPhone || ''}</p>
                 ${shopGstin ? `<p>GST: ${shopGstin}</p>` : ''}
@@ -1909,7 +1913,7 @@ export function BillingPage() {
           const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
           const cartState = useCartStore.getState();
           const receiptData: ReceiptData = {
-            shopName: scrapBillSettings.showShopName ? (shopName || 'My Shop') : '',
+            shopName: scrapBillSettings.showShopName ? (shopNameState || shopName || 'My Shop') : '',
             shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
             shopAddress: scrapBillSettings.showShopAddress ? (shopAddress || undefined) : undefined,
             shopPhone: scrapBillSettings.showPhone ? (shopPhone || undefined) : undefined,
@@ -1918,7 +1922,7 @@ export function BillingPage() {
             showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
             invoiceNumber: scrapInvoiceNum || '',
             invoiceType: 'SCRAP',
-            date: new Date().toLocaleString(),
+            date: formatBillDateTime(new Date()),
             billerName: userName || authRole || undefined,
             items: scrapReceiptItems,
             subtotal: scrapTotal,
@@ -2122,7 +2126,7 @@ export function BillingPage() {
       const grandTotalBeforeScrap = Math.max(0, grandTotal - pointsRedeemedDiscount);
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
+        shopName: billSettings.showShopName ? (shopNameState || shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
         shopState: billSettings.showShopState ? (state.shopState || undefined) : undefined,
         shopAddress: billSettings.showShopAddress ? (shopAddress || undefined) : undefined,
@@ -2130,7 +2134,7 @@ export function BillingPage() {
         upiId: upiId || undefined,
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
-        invoiceNumber: invoice_number, date: new Date().toLocaleString(),
+        invoiceNumber: invoice_number, date: formatBillDateTime(new Date()),
         billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
         items: receiptItems,
         subtotal, tax: totalTax,
@@ -2356,13 +2360,13 @@ export function BillingPage() {
         const thermalStyle = printFmt?.style || 'standard';
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
         const returnReceiptData: ReceiptData = {
-          shopName: shopName || 'My Shop',
+          shopName: shopNameState || shopName || 'My Shop',
           shopPhone: shopPhone || undefined,
           shopAddress: shopAddress || undefined,
           invoiceNumber: returnNumber,
           referenceInvoiceNumber: selectedReturnInvoice.invoice_number,
           refundMethod: returnRefundMethod.replace('_', ' '),
-          date: new Date().toLocaleString(),
+          date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().userName || undefined,
           items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total })),
           subtotal: returnSubtotal,

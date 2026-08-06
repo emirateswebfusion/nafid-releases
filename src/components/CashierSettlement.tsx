@@ -11,7 +11,7 @@ import { Modal } from './ui/Modal';
 import { useAuthStore } from '../store/authStore';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
@@ -1661,7 +1661,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
                       showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
                       invoiceNumber: selectedInvoice.invoice_number,
-                      date: new Date(selectedInvoice.created_at).toLocaleString(),
+                      date: formatBillDateTime(selectedInvoice.created_at),
                       billerName: selectedInvoice.biller_name,
                       items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel })),
                       subtotal: selectedInvoice.subtotal,

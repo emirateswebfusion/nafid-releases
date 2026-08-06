@@ -348,10 +348,24 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                         displayValue = displayValue.substring(1, displayValue.length - 1);
                       }
                     }
+                    // Determine if this line is mathematically centered by checking for roughly equal leading and trailing space padding.
+                    // Exclude lines containing internal column separators to protect table column alignment.
+                    let isCentered = false;
+                    let finalValue = displayValue;
+                    const trimmed = displayValue.trim();
+                    if (trimmed && !displayValue.includes('│')) {
+                      const leadingSpaces = displayValue.length - displayValue.trimStart().length;
+                      const trailingSpaces = displayValue.length - displayValue.trimEnd().length;
+                      if (Math.abs(leadingSpaces - trailingSpaces) <= 2) {
+                        isCentered = true;
+                        finalValue = trimmed;
+                      }
+                    }
+
                     return (
                       <pre
                         key={`text-${index}`}
-                        className="font-mono whitespace-pre overflow-hidden select-text"
+                        className="font-mono overflow-hidden select-text"
                         style={{
                           margin: '0 auto',
                           padding: 0,
@@ -360,12 +374,14 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                           color: '#000',
                           fontWeight: 700,
                           lineHeight: thermalStyle === 'boxed' ? 0.98 * row.lhMultiplier : 1.3,
-                          textAlign: 'left',
+                          textAlign: isCentered ? 'center' : 'left',
                           fontVariantNumeric: 'tabular-nums',
                           letterSpacing: '0px',
+                          whiteSpace: isCentered ? 'pre-wrap' : 'pre',
+                          width: '100%',
                         }}
                       >
-                        {displayValue}
+                        {finalValue}
                       </pre>
                     );
                   }

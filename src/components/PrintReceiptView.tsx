@@ -172,7 +172,7 @@ export function PrintReceiptView({ text }: { text: string }) {
   const containerWidthMm = paperWidth >= 75 ? 66 : 42;          // 66mm or 42mm (perfect border width)
   const BORDER_PX       = 2;                                     // px each side
   const INNER_PX_VERT   = 8;                                     // top/bottom padding px inside box
-  const INNER_PX_HORIZ  = 0;                                     // left/right padding px inside box
+  const INNER_PX_HORIZ  = paperWidth >= 75 ? 3 : 2;              // small left/right gap to keep text off the border
   
   const textWidthMm     = containerWidthMm - 2 * (BORDER_PX + INNER_PX_HORIZ) / PX_PER_MM;
   const fontPt          = Math.floor((textWidthMm / (charsPerLine * 0.353 * 0.55)) * 10) / 10;
@@ -253,21 +253,37 @@ export function PrintReceiptView({ text }: { text: string }) {
                 displayValue = displayValue.substring(1, displayValue.length - 1);
               }
             }
+
+            // Determine if this line is mathematically centered by checking for roughly equal leading and trailing space padding.
+            // Exclude lines containing internal column separators to protect table column alignment.
+            let isCentered = false;
+            let finalValue = displayValue;
+            const trimmed = displayValue.trim();
+            if (trimmed && !displayValue.includes('│')) {
+              const leadingSpaces = displayValue.length - displayValue.trimStart().length;
+              const trailingSpaces = displayValue.length - displayValue.trimEnd().length;
+              if (Math.abs(leadingSpaces - trailingSpaces) <= 2) {
+                isCentered = true;
+                finalValue = trimmed;
+              }
+            }
+
             return (
               <pre key={`text-${index}`} style={{
                 margin: 0,
                 padding: 0,
                 fontSize,
                 fontFamily,
-                whiteSpace: 'pre',
+                whiteSpace: isCentered ? 'pre-wrap' : 'pre',
                 color: 'black',
                 fontWeight: 700,
                 lineHeight: lh * row.lhMultiplier,
-                textAlign: 'left',
+                textAlign: isCentered ? 'center' : 'left',
                 fontVariantNumeric: 'tabular-nums',
                 letterSpacing: '0px',
+                width: isCentered ? '100%' : 'auto',
               }}>
-                {displayValue}
+                {finalValue}
               </pre>
             );
           }

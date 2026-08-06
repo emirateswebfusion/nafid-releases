@@ -41,6 +41,15 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   instructions: '',
 };
 
+export function formatBillDateTime(date: Date | string | number): string {
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return String(date);
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}, ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+}
+
 export interface ReceiptData {
   shopName: string;
   shopGstin?: string;
@@ -1412,31 +1421,46 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const bs = data.billSettings;
     text += B_TOP();
 
-    // GSTIN on line 1, phone on line 2 (separate lines)
-    if (bs?.showShopGstin && data.shopGstin) {
-      text += B_LINE(centerText(`GSTIN: ${data.shopGstin}`, INNER));
+    // 1. Shop name — UPPERCASE, centered
+    if (bs?.showShopName) {
+      text += B_LINE(centerText(data.shopName.toUpperCase(), INNER));
     }
+
+    // 2. Address — centered, with clean multi-line wrapping to prevent clipping
+    if (bs?.showShopAddress && data.shopAddress) {
+      const addr = data.shopAddress;
+      const words = addr.split(/\s+/);
+      let currentLine = '';
+      const lines: string[] = [];
+      
+      words.forEach(word => {
+        if ((currentLine + (currentLine ? ' ' : '') + word).length <= INNER) {
+          currentLine += (currentLine ? ' ' : '') + word;
+        } else {
+          if (currentLine) lines.push(currentLine);
+          currentLine = word;
+        }
+      });
+      if (currentLine) lines.push(currentLine);
+      
+      lines.forEach(line => {
+        text += B_LINE(centerText(line, INNER));
+      });
+    }
+
+    // 3. Phone — centered
     if (bs?.showPhone && data.shopPhone) {
       text += B_LINE(centerText(`Ph: ${data.shopPhone}`, INNER));
     }
 
-    // Shop name — UPPERCASE, centered
-    if (bs?.showShopName) text += B_LINE(centerText(data.shopName.toUpperCase(), INNER));
+    // 4. GSTIN — centered
+    if (bs?.showShopGstin && data.shopGstin) {
+      text += B_LINE(centerText(`GSTIN: ${data.shopGstin}`, INNER));
+    }
 
-    // Address — centered, split on comma if needed
-    if (bs?.showShopAddress && data.shopAddress) {
-      const addr = data.shopAddress;
-      if (addr.length <= INNER) {
-        text += B_LINE(centerText(addr, INNER));
-      } else {
-        const mid = addr.lastIndexOf(',', Math.floor(addr.length / 2) + 10);
-        if (mid > 0) {
-          text += B_LINE(centerText(addr.substring(0, mid + 1).trim(), INNER));
-          text += B_LINE(centerText(addr.substring(mid + 1).trim(), INNER));
-        } else {
-          text += B_LINE(centerText(addr.substring(0, INNER), INNER));
-        }
-      }
+    // 5. State — centered
+    if (bs?.showShopState && data.shopState) {
+      text += B_LINE(centerText(`State: ${data.shopState}`, INNER));
     }
 
     text += B_MID();

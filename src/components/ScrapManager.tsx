@@ -1,7 +1,7 @@
-﻿import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import {
   Search, Loader2, Plus,
   Pencil, Trash, X, Save, TrendingUp, TrendingDown, Recycle,
@@ -393,7 +393,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     if (!selectedInvoiceNumber || invoiceDetailTxs.length === 0 || !window.electronAPI) return;
     try {
       const { tenantId } = useAuthStore.getState();
-      const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
@@ -417,7 +418,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
       const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
       const receiptData: ReceiptData = {
-        shopName: scrapBillSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
+        shopName: scrapBillSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
         shopAddress: scrapBillSettings.showShopAddress ? (shopAddr || undefined) : undefined,
         shopPhone: scrapBillSettings.showPhone ? (shopPh || undefined) : undefined,
@@ -426,7 +427,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: selectedInvoiceNumber,
         invoiceType: 'SCRAP',
-        date: new Date(invoiceDetailTxs[0]?.created_at || Date.now()).toLocaleString(),
+        date: formatBillDateTime(invoiceDetailTxs[0]?.created_at || Date.now()),
         items: scrapItems,
         subtotal: totalAmount,
         tax: 0,

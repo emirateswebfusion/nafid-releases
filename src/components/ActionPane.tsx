@@ -9,7 +9,7 @@ import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 export function ActionPane() {
@@ -112,7 +112,7 @@ export function ActionPane() {
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
-          date: new Date().toLocaleString(),
+          date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().role || undefined,
           items: items.map(item => {
             const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
