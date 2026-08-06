@@ -33,6 +33,7 @@ interface PurchaseBillItem {
   purchase_bill_id: string;
   product_id: string;
   name: string;
+  product_name?: string;
   quantity: number;
   purchase_price: number;
   total_amount: number;
@@ -150,6 +151,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
           payment_type: (editingBill as any)?.payment_type || 'CASH',
+          total_amount: Number((editingBill as any)?.total_amount) || 0,
         }
       : undefined,
     [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
@@ -161,6 +163,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           bill_number: editingBill.bill_number,
           invoice_number: editingBill?.invoice_number,
           payment_type: (editingBill as any)?.payment_type || 'CASH',
+          total_amount: Number((editingBill as any)?.total_amount) || 0,
         }
       : undefined,
     [editingBill?.purchase_bill_id, editingBill?.bill_number, editingBill?.invoice_number, editingBill?.bill_type, (editingBill as any)?.payment_type]
@@ -1528,6 +1531,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     bill_number: string;
     invoice_number?: string;
     payment_type: string;
+    total_amount?: number;
   };
 }>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData }, ref) => {
   const [billNumber, setBillNumber] = useState('');
@@ -1669,7 +1673,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 }, 0);
                 unroundedTotal = baseTotal + gstTotal;
               }
-              const diff = editingData.total_amount - unroundedTotal;
+              const diff = (editingData.total_amount ?? 0) - unroundedTotal;
               setManualRoundOff(Math.abs(diff) > 0.001 ? diff.toFixed(2) : '0.00');
             }
           })

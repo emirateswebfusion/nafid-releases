@@ -2192,13 +2192,19 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
     console.log('[convertBosToGst] Starting conversion for', payload.invoice_ids.length, 'invoices');
     const db = getDb();
 
+    // Some settings are stored raw (server-synced) and some JSON-encoded — parse both.
+    const parseSetting = (row: any): any => {
+      if (!row) return null;
+      try { return JSON.parse(row.value); } catch { return row.value; }
+    };
+
     // Get shop state
     const shopStateRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'shop_state');
-    const shopState: string = shopStateRow ? JSON.parse(shopStateRow.value) : 'KL';
+    const shopState: string = shopStateRow ? (parseSetting(shopStateRow) || 'KL') : 'KL';
 
     // Get profit percentage
     const profitPctRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(payload.tenant_id || 'global', 'gst_profit_percentage');
-    const profitPercentage = profitPctRow ? Number(JSON.parse(profitPctRow.value)) : 30;
+    const profitPercentage = profitPctRow ? Number(parseSetting(profitPctRow) || 0) || 30 : 30;
     const multiplier = 1 + (profitPercentage / 100);
 
     const results: { invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string }[] = [];
@@ -2223,11 +2229,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           // Get the next GST invoice number
           const terminalCode: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
-          const tc = terminalCode ? JSON.parse(terminalCode.value) : 'POS1';
+          const tc = terminalCode ? (parseSetting(terminalCode) || 'POS1') : 'POS1';
 
           // Check if three invoice series is enabled
           const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
-          const tripleSeries = tripleSeriesRow ? JSON.parse(tripleSeriesRow.value) : null;
+          const tripleSeries = tripleSeriesRow ? parseSetting(tripleSeriesRow) : null;
 
           let configKey = 'invoice_counter_config';
           let defaultPrefix = `${tc}-`;
@@ -2239,7 +2245,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           } else {
             // Fallback to old dual series check
             const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
-            const dualSeries2 = dualSeriesRow2 ? JSON.parse(dualSeriesRow2.value) : null;
+            const dualSeries2 = dualSeriesRow2 ? parseSetting(dualSeriesRow2) : null;
             if (dualSeries2 && dualSeries2.enabled) {
               configKey = 'gst_invoice_counter_config';
               defaultPrefix = `${dualSeries2.gstTerminalCode || 'GST'}-`;
@@ -3225,6 +3231,27 @@ ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: 
     `).all(tenant_id);
   } catch (error: any) {
     console.error('[db:getProductSalesSummary]', error);
+    return [];
+  }
+});
+
+// ── BoS convertible check: which BoS invoices have ≥1 item with a GST purchase record ──
+ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare(`
+      SELECT i.invoice_id,
+             EXISTS(
+               SELECT 1 FROM invoice_items ii
+               JOIN purchase_bill_items pbi ON pbi.product_id = ii.product_id
+               WHERE ii.invoice_id = i.invoice_id
+             ) AS convertible
+      FROM invoices i
+      WHERE i.tenant_id = ? AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL
+    `).all(tenantId);
+  } catch (error: any) {
+    console.error('[db:getBosConvertibleConvertibles]', error);
     return [];
   }
 });

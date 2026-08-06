@@ -142,12 +142,13 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void }) {
+function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean }) {
   const { date, time } = formatDate(inv.created_at);
   const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
   const isConvertedBos = !!inv.converted_to_invoice_id;
   const isConversionCopy = !!inv.converted_from_invoice_id;
+  const canConvert = inv.invoice_type === 'BILL_OF_SUPPLY' && !isConvertedBos && !!convertible;
 
   return (
     <tr
@@ -163,11 +164,16 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       {/* Invoice # */}
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex items-center gap-2.5">
-          {selectionMode && (
+          {selectionMode && canConvert && (
             <div onClick={(e) => { e.stopPropagation(); onCheck?.(); }} className="flex items-center justify-center cursor-pointer shrink-0">
               <input type="checkbox" checked={isChecked} readOnly
                 className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
                 disabled={inv.invoice_type !== 'BILL_OF_SUPPLY' || isConvertedBos} />
+            </div>
+          )}
+          {selectionMode && inv.invoice_type === 'BILL_OF_SUPPLY' && !canConvert && (
+            <div title="No GST purchase records — cannot be converted" className="flex items-center justify-center w-4 shrink-0 text-muted-foreground/40">
+              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
             </div>
           )}
           <div className={clsx(
@@ -302,6 +308,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
+  const [convertibleMap, setConvertibleMap] = useState<Record<string, boolean>>({});
   const [conversionOpen, setConversionOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
@@ -311,8 +318,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [deleteSaving, setDeleteSaving] = useState(false);
 
   const selectedBosInvoices = useMemo(() =>
-    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && selectedInvoiceIds.has(i.invoice_id)),
-    [invoices, selectedInvoiceIds]
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id] && selectedInvoiceIds.has(i.invoice_id)),
+    [invoices, selectedInvoiceIds, convertibleMap]
   );
 
   const COLLECT_PAYMENT_OPTIONS = [
@@ -363,6 +370,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     const t = setTimeout(() => setReprintSuccess(false), 2500);
     return () => clearTimeout(t);
   }, [reprintSuccess]);
+
+  useEffect(() => {
+    if (!selectionMode || !window.electronAPI) return;
+    let cancelled = false;
+    const { tenantId } = useAuthStore.getState();
+    window.electronAPI.dbGetBosConvertibleInvoices(tenantId || 'global')
+      .then(res => {
+        if (cancelled || !Array.isArray(res)) return;
+        const map: Record<string, boolean> = {};
+        res.forEach(r => { map[r.invoice_id] = !!r.convertible; });
+        setConvertibleMap(map);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [selectionMode]);
 
   const loadInvoices = async (reset = false) => {
     setIsFetching(true);
@@ -1145,7 +1167,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </span>
               <button
                 onClick={() => {
-                  const allBosIds = invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY').map(i => i.invoice_id);
+                  const allBosIds = invoices
+                    .filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id])
+                    .map(i => i.invoice_id);
                   if (allBosIds.every(id => selectedInvoiceIds.has(id))) {
                     setSelectedInvoiceIds(new Set());
                   } else {
@@ -1154,9 +1178,12 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 }}
                 className="text-[11px] font-extrabold text-muted-foreground hover:text-foreground underline underline-offset-2 cursor-pointer"
               >
-                {invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY').every(i => selectedInvoiceIds.has(i.invoice_id))
-                  ? 'Deselect All'
-                  : `Select All (${invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY').length})`}
+                {(() => {
+                  const convertibleBos = invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id]);
+                  return convertibleBos.every(i => selectedInvoiceIds.has(i.invoice_id))
+                    ? 'Deselect All'
+                    : `Select All (${convertibleBos.length})`;
+                })()}
               </button>
               <div className="ml-auto flex items-center gap-2">
                 <button
@@ -1232,8 +1259,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                           onClick={() => { if (!selectionMode) handleSelectInvoice(inv); }}
                           selectionMode={selectionMode}
                           isChecked={selectedInvoiceIds.has(inv.invoice_id)}
+                          convertible={convertibleMap[inv.invoice_id]}
                           onCheck={() => {
-                            if (inv.invoice_type !== 'BILL_OF_SUPPLY') return;
+                            if (inv.invoice_type !== 'BILL_OF_SUPPLY' || !convertibleMap[inv.invoice_id]) return;
                             setSelectedInvoiceIds(prev => {
                               const next = new Set(prev);
                               if (next.has(inv.invoice_id)) next.delete(inv.invoice_id);
