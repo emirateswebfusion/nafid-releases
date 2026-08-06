@@ -488,6 +488,11 @@ export function initDb() {
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (source_id) REFERENCES payment_sources(source_id)
     );
+
+    CREATE TABLE IF NOT EXISTS sync_meta (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+    );
   `);
 
   // Migration: Add missing columns if they don't exist (Idempotent)

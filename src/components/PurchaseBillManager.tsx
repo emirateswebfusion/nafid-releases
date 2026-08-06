@@ -528,10 +528,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           </div>
           <div className="flex items-center gap-2 shrink-0">              <button
               onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); } : onClose}
-              className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-border/40"
+              className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-destructive/30"
               title="Close"
             >
-              <X className="w-4 h-4" />
+              <X className="w-4 h-4 text-destructive" />
             </button>
           </div>
         </div>
@@ -1040,10 +1040,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               </button>
               <button
                 onClick={() => setViewingBill(null)}
-                className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-border/40"
+                className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-destructive/30"
                 title="Close"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-destructive" />
               </button>
               </div>
             </div>
@@ -1104,9 +1104,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   <div className={clsx(
                     "grid gap-3 px-5 py-3 text-[10px] font-black uppercase tracking-widest text-muted-foreground border-b border-border/50 bg-muted/30",
                     viewingBill.bill_type === 'GST'
-                      ? "grid-cols-[minmax(0,3fr)_80px_120px_70px_70px_120px]"
-                      : "grid-cols-[minmax(0,3fr)_80px_120px_120px]"
+                      ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_120px]"
+                      : "grid-cols-[30px_minmax(0,3fr)_80px_120px_120px]"
                   )}>
+                    <div className="text-center">#</div>
                     <div>Product</div>
                     <div className="text-right">Qty</div>
                     <div className="text-right">Rate</div>
@@ -1138,12 +1139,15 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                           className={clsx(
                               "grid gap-3 px-5 py-3.5 items-center text-xs transition-colors hover:bg-muted/20",
                               viewingBill.bill_type === 'GST'
-                                ? "grid-cols-[minmax(0,3fr)_80px_120px_70px_70px_120px]"
-                                : "grid-cols-[minmax(0,3fr)_80px_120px_120px]"
+                                ? "grid-cols-[30px_minmax(0,3fr)_80px_120px_70px_70px_120px]"
+                                : "grid-cols-[30px_minmax(0,3fr)_80px_120px_120px]"
                             )}
                           >
+                            <div className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
+                              {idx + 1}
+                            </div>
                             <div className="min-w-0">
-                              <p className="font-bold text-foreground truncate">{item.name}</p>
+                              <p className="font-bold text-foreground truncate">{item.product_name || item.name}</p>
                               {(item.sku_barcode || item.hsn_sac_code) && (
                                 <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                                   {item.sku_barcode && (
@@ -1633,15 +1637,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             if (Array.isArray(items)) {
               const mapped = items.map((item: any) => ({
                 product_id: item.product_id,
-                name: item.name,
+                name: item.product_name || item.name,
                 quantity: String(item.quantity),
                 purchase_price: String(item.purchase_price),
-                selling_price: item.selling_price != null && Number(item.selling_price) > 0
-                  ? String(item.selling_price)
-                  : (item.product_base_price != null && Number(item.product_base_price) > 0 ? String(item.product_base_price) : ''),
-                offer_price: item.offer_price != null && Number(item.offer_price) > 0
-                  ? String(item.offer_price)
-                  : (item.product_offer_price != null && Number(item.product_offer_price) > 0 ? String(item.product_offer_price) : ''),
+                selling_price: item.product_base_price != null && Number(item.product_base_price) > 0
+                  ? String(item.product_base_price)
+                  : (item.selling_price != null && Number(item.selling_price) > 0 ? String(item.selling_price) : ''),
+                offer_price: item.product_offer_price != null && Number(item.product_offer_price) > 0
+                  ? String(item.product_offer_price)
+                  : (item.offer_price != null && Number(item.offer_price) > 0 ? String(item.offer_price) : ''),
                 stock: item.product_stock != null ? String(item.product_stock) : '',
                 is_gst_applicable: item.is_gst_applicable,
                 tax_rate_percent: item.tax_rate_percent,
@@ -2636,7 +2640,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           <div className="space-y-1.5">
             {isEstimate ? (
               <>
-                <div className="grid grid-cols-[1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span className="text-center">#</span>
                   <span>Product</span>
                   <span className="text-right">Qty</span>
                   <span className="text-right">Purchase</span>
@@ -2645,7 +2650,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span></span>
                   <span></span>
                 </div>
-                {billItems.map(item => (                    <div key={item.product_id} className="grid grid-cols-[1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                {billItems.map((item, index) => (                    <div key={item.product_id} className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-amber-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
+                        {index + 1}
+                      </span>
                       <span className="min-w-0">
                         <span className="block text-xs font-semibold text-foreground truncate">{item.name}</span>
                         {item.stock !== undefined && item.stock !== '' && (
@@ -2711,7 +2719,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               </>
             ) : (
               <>
-                <div className="grid grid-cols-[1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  <span className="text-center">#</span>
                   <span>Product</span>
                   <span className="text-center">HSN</span>
                   <span className="text-right">Qty</span>
@@ -2725,13 +2734,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   <span></span>
                   <span></span>
                 </div>
-                {billItems.map(item => {
+                {billItems.map((item, index) => {
                   const itemTotal = (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0);
                   const taxRate = item.tax_rate_percent || 0;
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
                   const gstAmt = hasGst ? (itemTotal * taxRate) / (100 + taxRate) : 0;
                   return (
-                    <div key={item.product_id} className="grid grid-cols-[1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                    <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
+                      <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
+                        {index + 1}
+                      </span>
                       <span className="min-w-0">
                         <span className="block text-xs font-semibold text-foreground truncate leading-tight">
                           {item.name}

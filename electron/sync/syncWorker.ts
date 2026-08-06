@@ -43,6 +43,11 @@ function readAuthPayload(): any {
 
 const BATCH_SIZE = 20;
 const FETCH_TIMEOUT_MS = 300000;
+const PULL_PAGE_SIZE = 500;
+const PULL_CONCURRENCY = 4;
+const PULL_MAX_RETRIES = 3;
+const PULL_MAX_PAGES = 50;
+const CURSOR_REPLAY_SECONDS = 5;
 let syncInProgress = false;
 let syncPromise: Promise<void> | null = null;
 let currentSyncProgress: { percent: number; label: string; recordsSynced: number; totalRecords: number } | null = null;
@@ -107,6 +112,19 @@ function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?
     const target = getWebContents(sender);
     if (target) target.send('sync:progress', currentSyncProgress);
   }
+}
+
+// Percent-driven progress used during the parallel pull phase, where per-table
+// phase indices would otherwise bounce around as tables finish out of order.
+function notifyPercent(percent: number, label: string, sender?: WebContents, recordsSynced?: number, totalRecords?: number) {
+  currentSyncProgress = {
+    percent: Math.min(100, Math.max(0, Math.round(percent))),
+    label,
+    recordsSynced: recordsSynced ?? 0,
+    totalRecords: totalRecords ?? 0,
+  };
+  const target = getWebContents(sender);
+  if (target) target.send('sync:progress', currentSyncProgress);
 }
 
 export function getSyncProgress(): { percent: number; label: string; recordsSynced: number; totalRecords: number } | null {
@@ -263,24 +281,45 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
 
-        notifyProgress(13, sender, undefined, totalRecords); if (await pullGrades(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(14, sender, undefined, totalRecords); if (await pullProducts(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(15, sender, undefined, totalRecords); if (await pullInvoices(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(16, sender, undefined, totalRecords); if (await pullUsers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(17, sender, undefined, totalRecords); if (await pullSettings(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(18, sender, undefined, totalRecords); if (await pullParties(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(19, sender, undefined, totalRecords); if (await pullPartyLedger(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(19.1, sender, undefined, totalRecords); if (await pullCustomers(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(19.2, sender, undefined, totalRecords); if (await pullLoyaltyTransactions(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(20, sender, undefined, totalRecords); if (await pullScrapCategories(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(21, sender, undefined, totalRecords); if (await pullScrapTransactions(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(22, sender, undefined, totalRecords); if (await pullPurchaseBills(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(23, sender, undefined, totalRecords); if (await pullCashDrawer(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(23.1, sender, undefined, totalRecords); if (await pullReturns(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(23.2, sender, undefined, totalRecords); if (await pullPaymentSources(jwt_token, tenant_id)) dataUpdated = true;
-        notifyProgress(23.3, sender, undefined, totalRecords); if (await pullPaymentSourceTransactions(jwt_token, tenant_id)) dataUpdated = true;
+        // Pull phase — every table is independent, so fetch them concurrently
+        // (bounded by PULL_CONCURRENCY) instead of serially. First login does a
+        // full paginated download; later cycles only pull rows newer than each
+        // table's stored cursor, so steady-state syncs are tiny.
+        const pullTasks: { run: () => Promise<boolean> }[] = [
+          { run: () => pullGrades(jwt_token, tenant_id) },
+          { run: () => pullProducts(jwt_token, tenant_id) },
+          { run: () => pullInvoices(jwt_token, tenant_id) },
+          { run: () => pullUsers(jwt_token, tenant_id) },
+          { run: () => pullSettings(jwt_token, tenant_id) },
+          { run: () => pullParties(jwt_token, tenant_id) },
+          { run: () => pullPartyLedger(jwt_token, tenant_id) },
+          { run: () => pullCustomers(jwt_token, tenant_id) },
+          { run: () => pullLoyaltyTransactions(jwt_token, tenant_id) },
+          { run: () => pullScrapCategories(jwt_token, tenant_id) },
+          { run: () => pullScrapTransactions(jwt_token, tenant_id) },
+          { run: () => pullPurchaseBills(jwt_token, tenant_id) },
+          { run: () => pullCashDrawer(jwt_token, tenant_id) },
+          { run: () => pullReturns(jwt_token, tenant_id) },
+          { run: () => pullPaymentSources(jwt_token, tenant_id) },
+          { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
+        ];
+
+        pullProgressCtx = { done: 0, total: pullTasks.length };
+        for (let i = 0; i < pullTasks.length; i += PULL_CONCURRENCY) {
+          const batch = pullTasks.slice(i, i + PULL_CONCURRENCY);
+          const results = await Promise.all(batch.map(async (t) => {
+            const ok = await t.run();
+            pullProgressCtx!.done++;
+            notifyPercent(38 + 55 * (pullProgressCtx!.done / pullProgressCtx!.total),
+              `Downloaded ${pullProgressCtx!.done}/${pullProgressCtx!.total} datasets`, sender);
+            return ok;
+          }));
+          if (results.some(Boolean)) dataUpdated = true;
+        }
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);
+      } finally {
+        pullProgressCtx = null;
       }
 
       if (dataUpdated) {
@@ -522,394 +561,505 @@ function reconcilePending(
   return count;
 }
 
+// ── Sync metadata (per-tenant pull cursors) ─────────────────────────────────────
+const cursorKey = (tenantId: string, table: string) => `pull_cursor:${tenantId}:${table}`;
+
+function getMeta(key: string): string | null {
+  try {
+    const row = getDb().prepare(`SELECT value FROM sync_meta WHERE key = ?`).get(key) as { value: string } | undefined;
+    return row?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function setMeta(key: string, value: string) {
+  try {
+    getDb().prepare(
+      `INSERT INTO sync_meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+    ).run(key, value);
+  } catch (err: any) {
+    console.error('[SyncWorker] Failed to persist sync meta:', err.message);
+  }
+}
+
+// Walk the cursor back a few seconds so rows written in the same instant as the
+// cursor (or with identical timestamps) are re-fetched and reconciled idempotently.
+function replaySince(cursor: string | null): string | null {
+  if (!cursor) return null;
+  const d = new Date(cursor);
+  if (isNaN(d.getTime())) return cursor;
+  d.setSeconds(d.getSeconds() - CURSOR_REPLAY_SECONDS);
+  return d.toISOString();
+}
+
+// Shared progress context for the parallel pull phase (set by runSyncCycle).
+let pullProgressCtx: { done: number; total: number } | null = null;
+
+// ── Generic paginated + delta pull (Cloud → Edge) ───────────────────────────────
+// Fetches a table in pages of `pageSize`, passing each page to `processPage`
+// (which performs the table-specific upsert inside its own transaction), tracks
+// the newest timestamp seen as the per-table cursor, and only requests rows
+// modified after `cursor - replay window` on subsequent cycles. First sync on a
+// fresh device has no cursor and therefore performs a full paginated download.
+async function pullPaginated(opts: {
+  token: string;
+  tenantId: string;
+  table: string;
+  urlPath: string;
+  label: string;
+  pageSize?: number;
+  tsColumn?: 'updated_at' | 'created_at';
+  onProgress?: (fetched: number) => void;
+  processPage: (rows: any[]) => number;
+}): Promise<{ count: number; reconciled: number; failed: boolean }> {
+  const pageSize = opts.pageSize ?? PULL_PAGE_SIZE;
+  const tsColumn = opts.tsColumn ?? 'updated_at';
+  const since = replaySince(getMeta(cursorKey(opts.tenantId, opts.table)));
+  let offset = 0;
+  let count = 0;
+  let reconciled = 0;
+  let maxTs: string | null = null;
+  let failed = false;
+
+  const fetchPage = async (offsetVal: number): Promise<any[] | null> => {
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offsetVal) });
+    if (since) params.set('since', since);
+    for (let attempt = 1; attempt <= PULL_MAX_RETRIES; attempt++) {
+      try {
+        const response = await fetch(`${getCloudApiBase()}${opts.urlPath}?${params.toString()}`, {
+          method: 'GET',
+          headers: { 'Authorization': `Bearer ${opts.token}` },
+          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        });
+        if (!response.ok) {
+          console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
+          return null;
+        }
+        const rows = await response.json();
+        return Array.isArray(rows) ? rows : [];
+      } catch (err: any) {
+        const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout') || err.message?.includes('aborted');
+        const isNetwork = err.message?.includes('fetch failed') || err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED');
+        if (attempt < PULL_MAX_RETRIES && (isTimeout || isNetwork)) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          console.log(`[SyncWorker] Pull ${opts.label} page ${attempt}/${PULL_MAX_RETRIES} failed (${err.message}). Retrying in ${delay}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        console.error(`[SyncWorker] Pull ${opts.label} failed: ${err.message}`);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  for (let page = 0; page < PULL_MAX_PAGES; page++) {
+    const rows = await fetchPage(offset);
+    if (rows === null) {
+      failed = true;
+      break;
+    }
+    if (rows.length === 0) break;
+
+    reconciled += opts.processPage(rows);
+    count += rows.length;
+    for (const r of rows) {
+      const ts = r?.[tsColumn];
+      if (ts && (!maxTs || String(ts) > maxTs)) maxTs = String(ts);
+    }
+    opts.onProgress?.(count);
+
+    // A page shorter than requested is the last one. A page *longer* than
+    // requested means the server ignored pagination (old server) — consume it
+    // once and stop rather than looping forever over the same data.
+    if (rows.length !== pageSize) break;
+    offset += pageSize;
+  }
+
+  if (maxTs && count > 0) setMeta(cursorKey(opts.tenantId, opts.table), maxTs);
+  return { count, reconciled, failed };
+}
+
+// Progress reporter shared by all pull wrappers during the parallel phase.
+function notifyPullProgress(label: string, fetched: number) {
+  if (pullProgressCtx && pullProgressCtx.total > 0) {
+    const percent = 38 + 55 * ((pullProgressCtx.done + 0.5) / pullProgressCtx.total);
+    notifyPercent(percent, `Downloading ${label}… ${fetched.toLocaleString()} rows`);
+  }
+}
+
 // ── Pull Product Grades (Cloud → Edge) ─────────────────────────────────────────────
 async function pullGrades(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/product_grades`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO product_grades (
+      grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @grade_id, @tenant_id, @category, @grade_name, @rate, @purchase_price, @offer_price, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(grade_id) DO UPDATE SET
+      category = excluded.category,
+      grade_name = excluded.grade_name,
+      rate = excluded.rate,
+      purchase_price = excluded.purchase_price,
+      offer_price = excluded.offer_price,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(product_grades.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE product_grades.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull grades failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudGrades: any[] = await response.json();
-    if (!Array.isArray(cloudGrades) || cloudGrades.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO product_grades (
-        grade_id, tenant_id, category, grade_name, rate, purchase_price, offer_price, is_deleted,
-        sync_status, created_at, updated_at
-      ) VALUES (
-        @grade_id, @tenant_id, @category, @grade_name, @rate, @purchase_price, @offer_price, @is_deleted,
-        'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(grade_id) DO UPDATE SET
-        category = excluded.category,
-        grade_name = excluded.grade_name,
-        rate = excluded.rate,
-        purchase_price = excluded.purchase_price,
-        offer_price = excluded.offer_price,
-        is_deleted = excluded.is_deleted,
-        created_at = COALESCE(product_grades.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE product_grades.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((grades: any[]) => {
-      for (const g of grades) {
-        try {
-          upsert.run({
-            grade_id: g.grade_id,
-            tenant_id: tenantId,
-            category: g.category,
-            grade_name: g.grade_name,
-            rate: g.rate,
-            purchase_price: g.purchase_price ?? 0,
-            offer_price: g.offer_price ?? 0,
-            is_deleted: g.is_deleted ? 1 : 0,
-            created_at: toSqliteDate(g.created_at),
-            updated_at: toSqliteDate(g.updated_at),
-          });
-        } catch (e: any) {
-           console.error('[SyncWorker] Error pulling grade:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'product_grades',
+    urlPath: '/api/sync/product_grades',
+    label: 'grades',
+    onProgress: (fetched) => notifyPullProgress('grades', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((grades: any[]) => {
+        for (const g of grades) {
+          try {
+            upsert.run({
+              grade_id: g.grade_id,
+              tenant_id: tenantId,
+              category: g.category,
+              grade_name: g.grade_name,
+              rate: g.rate,
+              purchase_price: g.purchase_price ?? 0,
+              offer_price: g.offer_price ?? 0,
+              is_deleted: g.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(g.created_at),
+              updated_at: toSqliteDate(g.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling grade:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'product_grades', 'grade_id', rows);
+    },
+  });
 
-    tx(cloudGrades);
-
-    const reconciled = reconcilePending(db, 'product_grades', 'grade_id', cloudGrades);
-    console.log(`[SyncWorker] Pulled ${cloudGrades.length} grades from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull grades failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} grades from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull grades failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Products (Cloud → Edge) ─────────────────────────────────────────────
 async function pullProducts(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/products`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO products (
+      product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
+      purchase_price, base_price, is_gst_applicable, tax_rate_percent,
+      uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
+      discount_percent, discount_flat, offer_price,
+      billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
+      is_service_item, print_status, sync_status, created_at, updated_at
+    ) VALUES (
+      @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
+      @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
+      @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
+      @discount_percent, @discount_flat, @offer_price,
+      @billing_type, @grade_id, @pricing_mode, @average_weight_per_piece, @weight_override_allowed,
+      @is_service_item, @print_status, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(product_id) DO UPDATE SET
+      name = excluded.name,
+      sku_barcode = excluded.sku_barcode,
+      item_code = excluded.item_code,
+      category = excluded.category,
+      hsn_sac_code = excluded.hsn_sac_code,
+      purchase_price = excluded.purchase_price,
+      base_price = excluded.base_price,
+      is_gst_applicable = excluded.is_gst_applicable,
+      tax_rate_percent = excluded.tax_rate_percent,
+      uom = excluded.uom,
+      brand_manufacturer = excluded.brand_manufacturer,
+      current_stock = excluded.current_stock,
+      reorder_level = excluded.reorder_level,
+      is_deleted = excluded.is_deleted,
+      domain_attributes = excluded.domain_attributes,
+      discount_percent = excluded.discount_percent,
+      discount_flat = excluded.discount_flat,
+      offer_price = excluded.offer_price,
+      billing_type = excluded.billing_type,
+      grade_id = excluded.grade_id,
+      pricing_mode = excluded.pricing_mode,
+      average_weight_per_piece = excluded.average_weight_per_piece,
+      weight_override_allowed = excluded.weight_override_allowed,
+      is_service_item = excluded.is_service_item,
+      print_status = COALESCE(excluded.print_status, products.print_status),
+      created_at = COALESCE(products.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE products.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull products failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudProducts: any[] = await response.json();
-    if (!Array.isArray(cloudProducts) || cloudProducts.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO products (
-        product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
-        purchase_price, base_price, is_gst_applicable, tax_rate_percent,
-        uom, brand_manufacturer, current_stock, reorder_level, is_deleted, domain_attributes,
-        discount_percent, discount_flat, offer_price,
-        billing_type, grade_id, pricing_mode, average_weight_per_piece, weight_override_allowed,
-        is_service_item, print_status, sync_status, created_at, updated_at
-      ) VALUES (
-        @product_id, @tenant_id, @name, @sku_barcode, @item_code, @category, @hsn_sac_code,
-        @purchase_price, @base_price, @is_gst_applicable, @tax_rate_percent,
-        @uom, @brand_manufacturer, @current_stock, @reorder_level, @is_deleted, @domain_attributes,
-        @discount_percent, @discount_flat, @offer_price,
-        @billing_type, @grade_id, @pricing_mode, @average_weight_per_piece, @weight_override_allowed,
-        @is_service_item, @print_status, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(product_id) DO UPDATE SET
-        name = excluded.name,
-        sku_barcode = excluded.sku_barcode,
-        item_code = excluded.item_code,
-        category = excluded.category,
-        hsn_sac_code = excluded.hsn_sac_code,
-        purchase_price = excluded.purchase_price,
-        base_price = excluded.base_price,
-        is_gst_applicable = excluded.is_gst_applicable,
-        tax_rate_percent = excluded.tax_rate_percent,
-        uom = excluded.uom,
-        brand_manufacturer = excluded.brand_manufacturer,
-        current_stock = excluded.current_stock,
-        reorder_level = excluded.reorder_level,
-        is_deleted = excluded.is_deleted,
-        domain_attributes = excluded.domain_attributes,
-        discount_percent = excluded.discount_percent,
-        discount_flat = excluded.discount_flat,
-        offer_price = excluded.offer_price,
-        billing_type = excluded.billing_type,
-        grade_id = excluded.grade_id,
-        pricing_mode = excluded.pricing_mode,
-        average_weight_per_piece = excluded.average_weight_per_piece,
-        weight_override_allowed = excluded.weight_override_allowed,
-        is_service_item = excluded.is_service_item,
-        print_status = COALESCE(excluded.print_status, products.print_status),
-        created_at = COALESCE(products.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE products.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((products: any[]) => {
-      for (const p of products) {
-        let currentP = { ...p };
-        let retryCount = 0;
-        let success = false;
-        while (retryCount < 2 && !success) {
-          try {
-            upsert.run({
-              product_id: currentP.product_id,
-              tenant_id: tenantId,
-              name: currentP.name,
-              sku_barcode: currentP.sku_barcode || null,
-              item_code: currentP.item_code || null,
-              category: currentP.category || null,
-              hsn_sac_code: currentP.hsn_sac_code || null,
-              purchase_price: currentP.purchase_price ?? 0,
-              base_price: currentP.base_price,
-              is_gst_applicable: currentP.is_gst_applicable === false ? 0 : 1,
-              tax_rate_percent: currentP.tax_rate_percent ?? 0,
-              uom: currentP.uom || 'Pcs',
-              brand_manufacturer: currentP.brand_manufacturer || null,
-              current_stock: currentP.current_stock ?? 0,
-              reorder_level: currentP.reorder_level ?? 0,
-              is_deleted: currentP.is_deleted ? 1 : 0,
-              domain_attributes: currentP.domain_attributes 
-                ? (typeof currentP.domain_attributes === 'string' ? currentP.domain_attributes : JSON.stringify(currentP.domain_attributes)) 
-                : '{}',
-              discount_percent: currentP.discount_percent ?? null,
-              discount_flat: currentP.discount_flat ?? null,
-              offer_price: currentP.offer_price ?? null,
-              billing_type: currentP.billing_type || 'PIECE',
-              grade_id: currentP.grade_id || null,
-              pricing_mode: currentP.pricing_mode || 'FIXED_PRICE',
-              average_weight_per_piece: currentP.average_weight_per_piece ?? null,
-              weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
-              is_service_item: currentP.is_service_item ? 1 : 0,
-              print_status: currentP.print_status ?? null,
-              created_at: toSqliteDate(currentP.created_at),
-              updated_at: toSqliteDate(currentP.updated_at),
-            });
-            success = true;
-          } catch (e: any) {
-            if (e.message?.includes('UNIQUE constraint failed')) {
-              const suffix = currentP.product_id.substring(0, 4).toUpperCase();
-              if (e.message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
-              if (e.message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
-              if (e.message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
-              retryCount++;
-            } else {
-              throw e;
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'products',
+    urlPath: '/api/sync/products',
+    label: 'products',
+    onProgress: (fetched) => notifyPullProgress('products', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((products: any[]) => {
+        for (const p of products) {
+          let currentP = { ...p };
+          let retryCount = 0;
+          let success = false;
+          while (retryCount < 2 && !success) {
+            try {
+              upsert.run({
+                product_id: currentP.product_id,
+                tenant_id: tenantId,
+                name: currentP.name,
+                sku_barcode: currentP.sku_barcode || null,
+                item_code: currentP.item_code || null,
+                category: currentP.category || null,
+                hsn_sac_code: currentP.hsn_sac_code || null,
+                purchase_price: currentP.purchase_price ?? 0,
+                base_price: currentP.base_price,
+                is_gst_applicable: currentP.is_gst_applicable === false ? 0 : 1,
+                tax_rate_percent: currentP.tax_rate_percent ?? 0,
+                uom: currentP.uom || 'Pcs',
+                brand_manufacturer: currentP.brand_manufacturer || null,
+                current_stock: currentP.current_stock ?? 0,
+                reorder_level: currentP.reorder_level ?? 0,
+                is_deleted: currentP.is_deleted ? 1 : 0,
+                domain_attributes: currentP.domain_attributes 
+                  ? (typeof currentP.domain_attributes === 'string' ? currentP.domain_attributes : JSON.stringify(currentP.domain_attributes)) 
+                  : '{}',
+                discount_percent: currentP.discount_percent ?? null,
+                discount_flat: currentP.discount_flat ?? null,
+                offer_price: currentP.offer_price ?? null,
+                billing_type: currentP.billing_type || 'PIECE',
+                grade_id: currentP.grade_id || null,
+                pricing_mode: currentP.pricing_mode || 'FIXED_PRICE',
+                average_weight_per_piece: currentP.average_weight_per_piece ?? null,
+                weight_override_allowed: currentP.weight_override_allowed ? 1 : 0,
+                is_service_item: currentP.is_service_item ? 1 : 0,
+                print_status: currentP.print_status ?? null,
+                created_at: toSqliteDate(currentP.created_at),
+                updated_at: toSqliteDate(currentP.updated_at),
+              });
+              success = true;
+            } catch (e: any) {
+              if (e.message?.includes('UNIQUE constraint failed')) {
+                const suffix = currentP.product_id.substring(0, 4).toUpperCase();
+                if (e.message.includes('products.name')) currentP.name = `${currentP.name} (Cloud-${suffix})`;
+                if (e.message.includes('products.sku_barcode')) currentP.sku_barcode = `${currentP.sku_barcode}-${suffix}`;
+                if (e.message.includes('products.item_code')) currentP.item_code = `${currentP.item_code}-${suffix}`;
+                retryCount++;
+              } else {
+                throw e;
+              }
             }
           }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'products', 'product_id', rows);
+    },
+  });
 
-    tx(cloudProducts);
-
-    const reconciled = reconcilePending(db, 'products', 'product_id', cloudProducts);
-    console.log(`[SyncWorker] Pulled ${cloudProducts.length} products from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
-
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull products failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} products from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull products failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Invoices (Cloud → Edge) ─────────────────────────────────────────────
 async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/invoices`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsertInv = db.prepare(`
+    INSERT INTO invoices (
+      invoice_id, tenant_id, invoice_number, invoice_type,
+      customer_name, customer_phone, customer_gstin, customer_state, customer_address,
+      subtotal, tax_total,
+      discount_total, discount_type, discount_value, grand_total, payment_method,
+      received_amount, balance_amount, user_id, sync_status, created_at,
+      scrap_deduction, scrap_invoice_number,
+      return_deduction, return_invoice_number,
+      customer_id, points_earned, points_redeemed, points_redeemed_discount,
+      previous_points_balance, remaining_points_balance
+    ) VALUES (
+      @invoice_id, @tenant_id, @invoice_number, @invoice_type,
+      @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
+      @subtotal, @tax_total,
+      @discount_total, @discount_type, @discount_value, @grand_total, @payment_method,
+      @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at,
+      @scrap_deduction, @scrap_invoice_number,
+      @return_deduction, @return_invoice_number,
+      @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
+      @previous_points_balance, @remaining_points_balance
+    )
+    ON CONFLICT(invoice_id) DO UPDATE SET
+      customer_name = EXCLUDED.customer_name,
+      customer_phone = EXCLUDED.customer_phone,
+      customer_gstin = EXCLUDED.customer_gstin,
+      customer_state = EXCLUDED.customer_state,
+      customer_address = EXCLUDED.customer_address,
+      payment_method = EXCLUDED.payment_method,
+      received_amount = EXCLUDED.received_amount,
+      balance_amount = EXCLUDED.balance_amount,
+      user_id = EXCLUDED.user_id,
+      discount_total = EXCLUDED.discount_total,
+      discount_type = EXCLUDED.discount_type,
+      discount_value = EXCLUDED.discount_value,
+      grand_total = EXCLUDED.grand_total,
+      scrap_deduction = EXCLUDED.scrap_deduction,
+      scrap_invoice_number = EXCLUDED.scrap_invoice_number,
+      return_deduction = EXCLUDED.return_deduction,
+      return_invoice_number = EXCLUDED.return_invoice_number,
+      customer_id = EXCLUDED.customer_id,
+      points_earned = EXCLUDED.points_earned,
+      points_redeemed = EXCLUDED.points_redeemed,
+      points_redeemed_discount = EXCLUDED.points_redeemed_discount,
+      previous_points_balance = EXCLUDED.previous_points_balance,
+      remaining_points_balance = EXCLUDED.remaining_points_balance,
+      sync_status = 'SYNCED'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull invoices failed: HTTP ${response.status}`);
-      return false;
-    }
+  const upsertItem = db.prepare(`
+    INSERT INTO invoice_items (
+      item_id, invoice_id, tenant_id, product_id,
+      name, quantity, unit_price, tax_amount, total
+    ) VALUES (
+      @item_id, @invoice_id, @tenant_id, @product_id,
+      @name, @quantity, @unit_price, @tax_amount, @total
+    )
+    ON CONFLICT(item_id) DO UPDATE SET
+      name = excluded.name,
+      quantity = excluded.quantity,
+      unit_price = excluded.unit_price,
+      tax_amount = excluded.tax_amount,
+      total = excluded.total
+  `);
 
-    const cloudInvoices: any[] = await response.json();
-    if (!Array.isArray(cloudInvoices) || cloudInvoices.length === 0) return false;
+  // Items are replaced per invoice (not just upserted) so items removed from an
+  // edited bill are deleted locally too — otherwise stale lines come back and
+  // reappear on reprints. A locally PENDING edit that differs from the cloud is
+  // never clobbered: its items are left untouched until the edit syncs.
+  const deleteItems = db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
+  const localInvCheck = db.prepare('SELECT sync_status, updated_at FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
 
-    const upsertInv = db.prepare(`
-      INSERT INTO invoices (
-        invoice_id, tenant_id, invoice_number, invoice_type,
-        customer_name, customer_phone, customer_gstin, customer_state, customer_address,
-        subtotal, tax_total,
-        discount_total, discount_type, discount_value, grand_total, payment_method,
-        received_amount, balance_amount, user_id, sync_status, created_at,
-        scrap_deduction, scrap_invoice_number,
-        return_deduction, return_invoice_number,
-        customer_id, points_earned, points_redeemed, points_redeemed_discount,
-        previous_points_balance, remaining_points_balance
-      ) VALUES (
-        @invoice_id, @tenant_id, @invoice_number, @invoice_type,
-        @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
-        @subtotal, @tax_total,
-        @discount_total, @discount_type, @discount_value, @grand_total, @payment_method,
-        @received_amount, @balance_amount, @user_id, 'SYNCED', @created_at,
-        @scrap_deduction, @scrap_invoice_number,
-        @return_deduction, @return_invoice_number,
-        @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
-        @previous_points_balance, @remaining_points_balance
-      )
-      ON CONFLICT(invoice_id) DO UPDATE SET
-        customer_name = EXCLUDED.customer_name,
-        customer_phone = EXCLUDED.customer_phone,
-        customer_gstin = EXCLUDED.customer_gstin,
-        customer_state = EXCLUDED.customer_state,
-        customer_address = EXCLUDED.customer_address,
-        payment_method = EXCLUDED.payment_method,
-        received_amount = EXCLUDED.received_amount,
-        balance_amount = EXCLUDED.balance_amount,
-        user_id = EXCLUDED.user_id,
-        discount_total = EXCLUDED.discount_total,
-        discount_type = EXCLUDED.discount_type,
-        discount_value = EXCLUDED.discount_value,
-        grand_total = EXCLUDED.grand_total,
-        scrap_deduction = EXCLUDED.scrap_deduction,
-        scrap_invoice_number = EXCLUDED.scrap_invoice_number,
-        return_deduction = EXCLUDED.return_deduction,
-        return_invoice_number = EXCLUDED.return_invoice_number,
-        customer_id = EXCLUDED.customer_id,
-        points_earned = EXCLUDED.points_earned,
-        points_redeemed = EXCLUDED.points_redeemed,
-        points_redeemed_discount = EXCLUDED.points_redeemed_discount,
-        previous_points_balance = EXCLUDED.previous_points_balance,
-        remaining_points_balance = EXCLUDED.remaining_points_balance,
-        sync_status = 'SYNCED'
-    `);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'invoices',
+    urlPath: '/api/sync/invoices',
+    label: 'invoices',
+    onProgress: (fetched) => notifyPullProgress('invoices', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((invoices: any[]) => {
+        for (const inv of invoices) {
+          let currentInv = { ...inv };
 
-    const upsertItem = db.prepare(`
-      INSERT INTO invoice_items (
-        item_id, invoice_id, tenant_id, product_id,
-        name, quantity, unit_price, tax_amount, total
-      ) VALUES (
-        @item_id, @invoice_id, @tenant_id, @product_id,
-        @name, @quantity, @unit_price, @tax_amount, @total
-      )
-      ON CONFLICT(item_id) DO UPDATE SET
-        name = excluded.name,
-        quantity = excluded.quantity,
-        unit_price = excluded.unit_price,
-        tax_amount = excluded.tax_amount,
-        total = excluded.total
-    `);
+          // Never touch a locally-PENDING edit that diverges from the cloud (a change that
+          // hasn't synced yet). Replacing header or items here would resurrect the deleted
+          // lines of an edited bill and/or revert the edit. The push path will sync it later.
+          const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as any;
+          const isDirtyPending = !!prior
+            && prior.sync_status === 'PENDING'
+            && toSqliteDate(currentInv.updated_at) !== prior.updated_at;
+          if (isDirtyPending) continue;
 
-    // Items are replaced per invoice (not just upserted) so items removed from an
-    // edited bill are deleted locally too — otherwise stale lines come back and
-    // reappear on reprints. A locally PENDING edit that differs from the cloud is
-    // never clobbered: its items are left untouched until the edit syncs.
-    const deleteItems = db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
-    const localInvCheck = db.prepare('SELECT sync_status, updated_at FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
+          let retryCount = 0;
+          let success = false;
+          while (retryCount < 2 && !success) {
+            try {
+              upsertInv.run({
+                invoice_id: currentInv.invoice_id,
+                tenant_id: currentInv.tenant_id,
+                invoice_number: currentInv.invoice_number,
+                invoice_type: currentInv.invoice_type,
+                customer_name: currentInv.customer_name || null,
+                customer_phone: currentInv.customer_phone || null,
+                subtotal: currentInv.subtotal,
+                tax_total: currentInv.tax_total,
+                discount_total: currentInv.discount_total ?? 0,
+                discount_type: currentInv.discount_type || 'FIXED',
+                discount_value: currentInv.discount_value ?? 0,
+                grand_total: currentInv.grand_total,
+                payment_method: currentInv.payment_method || 'PENDING',
+                received_amount: currentInv.received_amount ?? 0,
+                balance_amount: currentInv.balance_amount ?? 0,
+                user_id: currentInv.user_id || null,
+                created_at: toSqliteDate(currentInv.created_at),
+                customer_gstin: currentInv.customer_gstin || null,
+                customer_state: currentInv.customer_state || null,
+                customer_address: currentInv.customer_address || null,
+                scrap_deduction: currentInv.scrap_deduction ?? 0,
+                scrap_invoice_number: currentInv.scrap_invoice_number || null,
+                return_deduction: currentInv.return_deduction ?? 0,
+                return_invoice_number: currentInv.return_invoice_number || null,
+                customer_id: currentInv.customer_id || null,
+                points_earned: currentInv.points_earned ?? 0,
+                points_redeemed: currentInv.points_redeemed ?? 0,
+                points_redeemed_discount: currentInv.points_redeemed_discount ?? 0,
+                previous_points_balance: currentInv.previous_points_balance ?? 0,
+                remaining_points_balance: currentInv.remaining_points_balance ?? 0,
+              });
+              success = true;
+            } catch (e: any) {
+              if (e.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
+                const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
+                currentInv.invoice_number = `${currentInv.invoice_number}-C${suffix}`;
+                retryCount++;
+              } else {
+                throw e;
+              }
+            }
+          }
 
-    const tx = db.transaction((invoices: any[]) => {
-      for (const inv of invoices) {
-        let currentInv = { ...inv };
-
-        // Never touch a locally-PENDING edit that diverges from the cloud (a change that
-        // hasn't synced yet). Replacing header or items here would resurrect the deleted
-        // lines of an edited bill and/or revert the edit. The push path will sync it later.
-        const prior = localInvCheck.get(currentInv.invoice_id, currentInv.tenant_id) as any;
-        const isDirtyPending = !!prior
-          && prior.sync_status === 'PENDING'
-          && toSqliteDate(currentInv.updated_at) !== prior.updated_at;
-        if (isDirtyPending) continue;
-
-        let retryCount = 0;
-        let success = false;
-        while (retryCount < 2 && !success) {
-          try {
-            upsertInv.run({
-              invoice_id: currentInv.invoice_id,
-              tenant_id: currentInv.tenant_id,
-              invoice_number: currentInv.invoice_number,
-              invoice_type: currentInv.invoice_type,
-              customer_name: currentInv.customer_name || null,
-              customer_phone: currentInv.customer_phone || null,
-              subtotal: currentInv.subtotal,
-              tax_total: currentInv.tax_total,
-              discount_total: currentInv.discount_total ?? 0,
-              discount_type: currentInv.discount_type || 'FIXED',
-              discount_value: currentInv.discount_value ?? 0,
-              grand_total: currentInv.grand_total,
-              payment_method: currentInv.payment_method || 'PENDING',
-              received_amount: currentInv.received_amount ?? 0,
-              balance_amount: currentInv.balance_amount ?? 0,
-              user_id: currentInv.user_id || null,
-              created_at: toSqliteDate(currentInv.created_at),
-              customer_gstin: currentInv.customer_gstin || null,
-              customer_state: currentInv.customer_state || null,
-              customer_address: currentInv.customer_address || null,
-              scrap_deduction: currentInv.scrap_deduction ?? 0,
-              scrap_invoice_number: currentInv.scrap_invoice_number || null,
-              return_deduction: currentInv.return_deduction ?? 0,
-              return_invoice_number: currentInv.return_invoice_number || null,
-              customer_id: currentInv.customer_id || null,
-              points_earned: currentInv.points_earned ?? 0,
-              points_redeemed: currentInv.points_redeemed ?? 0,
-              points_redeemed_discount: currentInv.points_redeemed_discount ?? 0,
-              previous_points_balance: currentInv.previous_points_balance ?? 0,
-              remaining_points_balance: currentInv.remaining_points_balance ?? 0,
-            });
-            success = true;
-          } catch (e: any) {
-            if (e.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {
-              const suffix = currentInv.invoice_id.substring(0, 4).toUpperCase();
-              currentInv.invoice_number = `${currentInv.invoice_number}-C${suffix}`;
-              retryCount++;
-            } else {
-              throw e;
+          if (success && Array.isArray(currentInv.items)) {
+            // Replace items per invoice so lines removed from an edited bill are deleted
+            // locally too — otherwise they resurrect and reappear on reprints.
+            deleteItems.run(currentInv.invoice_id, currentInv.tenant_id);
+            for (const item of currentInv.items) {
+              upsertItem.run({
+                item_id: item.item_id,
+                invoice_id: currentInv.invoice_id,
+                tenant_id: currentInv.tenant_id,
+                product_id: item.product_id,
+                name: item.name || null,
+                quantity: item.quantity,
+                unit_price: item.unit_price,
+                tax_amount: item.tax_amount,
+                total: item.total,
+              });
             }
           }
         }
+      });
+      tx(rows);
+      return reconcilePending(db, 'invoices', 'invoice_id', rows);
+    },
+  });
 
-        if (success && Array.isArray(currentInv.items)) {
-          // Replace items per invoice so lines removed from an edited bill are deleted
-          // locally too — otherwise they resurrect and reappear on reprints.
-          deleteItems.run(currentInv.invoice_id, currentInv.tenant_id);
-          for (const item of currentInv.items) {
-            upsertItem.run({
-              item_id: item.item_id,
-              invoice_id: currentInv.invoice_id,
-              tenant_id: currentInv.tenant_id,
-              product_id: item.product_id,
-              name: item.name || null,
-              quantity: item.quantity,
-              unit_price: item.unit_price,
-              tax_amount: item.tax_amount,
-              total: item.total,
-            });
-          }
-        }
-      }
-    });
-
-    tx(cloudInvoices);
-    const reconciled = reconcilePending(db, 'invoices', 'invoice_id', cloudInvoices);
-    console.log(`[SyncWorker] Pulled ${cloudInvoices.length} invoices from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull invoices failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull invoices failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
@@ -1030,82 +1180,76 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
 async function pullParties(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/parties`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO parties (
+      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(party_id) DO UPDATE SET
+      name = excluded.name,
+      phone = excluded.phone,
+      address = excluded.address,
+      gstin = excluded.gstin,
+      balance = excluded.balance,
+      gst_balance = excluded.gst_balance,
+      estimate_balance = excluded.estimate_balance,
+      balance_type = excluded.balance_type,
+      notes = excluded.notes,
+      last_transaction_date = excluded.last_transaction_date,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(parties.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE parties.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull parties failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudParties: any[] = await response.json();
-    if (!Array.isArray(cloudParties) || cloudParties.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO parties (
-        party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, is_deleted,
-        sync_status, created_at, updated_at
-      ) VALUES (
-        @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
-        'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(party_id) DO UPDATE SET
-        name = excluded.name,
-        phone = excluded.phone,
-        address = excluded.address,
-        gstin = excluded.gstin,
-        balance = excluded.balance,
-        gst_balance = excluded.gst_balance,
-        estimate_balance = excluded.estimate_balance,
-        balance_type = excluded.balance_type,
-        notes = excluded.notes,
-        last_transaction_date = excluded.last_transaction_date,
-        is_deleted = excluded.is_deleted,
-        created_at = COALESCE(parties.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE parties.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((parties: any[]) => {
-      for (const p of parties) {
-        try {
-          upsert.run({
-            party_id: p.party_id,
-            tenant_id: tenantId,
-            name: p.name,
-            phone: p.phone || null,
-            address: p.address || null,
-            gstin: p.gstin || null,
-            balance: p.balance ?? 0,
-            gst_balance: p.gst_balance ?? p.balance ?? 0,
-            estimate_balance: p.estimate_balance ?? 0,
-            balance_type: p.balance_type || 'RECEIVABLE',
-            notes: p.notes || null,
-            last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
-            is_deleted: p.is_deleted ? 1 : 0,
-            created_at: toSqliteDate(p.created_at),
-            updated_at: toSqliteDate(p.updated_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling party:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'parties',
+    urlPath: '/api/sync/parties',
+    label: 'parties',
+    onProgress: (fetched) => notifyPullProgress('parties', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((parties: any[]) => {
+        for (const p of parties) {
+          try {
+            upsert.run({
+              party_id: p.party_id,
+              tenant_id: tenantId,
+              name: p.name,
+              phone: p.phone || null,
+              address: p.address || null,
+              gstin: p.gstin || null,
+              balance: p.balance ?? 0,
+              gst_balance: p.gst_balance ?? p.balance ?? 0,
+              estimate_balance: p.estimate_balance ?? 0,
+              balance_type: p.balance_type || 'RECEIVABLE',
+              notes: p.notes || null,
+              last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
+              is_deleted: p.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(p.created_at),
+              updated_at: toSqliteDate(p.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling party:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'parties', 'party_id', rows);
+    },
+  });
 
-    tx(cloudParties);
-
-    const reconciled = reconcilePending(db, 'parties', 'party_id', cloudParties);
-    console.log(`[SyncWorker] Pulled ${cloudParties.length} parties from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull parties failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} parties from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull parties failed.');
   }
+  return result.count > 0;
 }
 
 // ── Party Ledger Sync (Edge → Cloud) ──────────────────────────────────────────
@@ -1169,91 +1313,73 @@ async function pushLoyaltyTransactions(token: string, tenantId: string): Promise
 async function pullPartyLedger(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  const doFetch = async (): Promise<Response> => {
-    return fetch(`${getCloudApiBase()}/api/sync/party-ledger`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  };
+  const upsert = db.prepare(`
+    INSERT INTO party_ledger (
+      ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
+      running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
+    ) VALUES (
+      @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
+      @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(ledger_id) DO UPDATE SET
+      transaction_date = excluded.transaction_date,
+      description = excluded.description,
+      credit_amount = excluded.credit_amount,
+      debit_amount = excluded.debit_amount,
+      running_balance = excluded.running_balance,
+      balance_type = excluded.balance_type,
+      payment_method = excluded.payment_method,
+      reference_number = excluded.reference_number,
+      created_by = excluded.created_by,
+      created_by_name = excluded.created_by_name,
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+  `);
 
-  let response: Response;
-  try {
-    response = await doFetch();
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull party ledger network error:', err.message);
-    return false;
-  }
-
-  if (!response.ok) {
-    if (response.status !== 404) {
-      let body = '';
-      try { body = await response.text(); } catch { /* ignore */ }
-      console.error(`[SyncWorker] Pull party ledger failed: HTTP ${response.status} — ${body}`);
-    }
-    return false;
-  }
-
-  try {
-    const cloudEntries: any[] = await response.json();
-    if (!Array.isArray(cloudEntries) || cloudEntries.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO party_ledger (
-        ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
-        running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
-      ) VALUES (
-        @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
-        @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(ledger_id) DO UPDATE SET
-        transaction_date = excluded.transaction_date,
-        description = excluded.description,
-        credit_amount = excluded.credit_amount,
-        debit_amount = excluded.debit_amount,
-        running_balance = excluded.running_balance,
-        balance_type = excluded.balance_type,
-        payment_method = excluded.payment_method,
-        reference_number = excluded.reference_number,
-        created_by = excluded.created_by,
-        created_by_name = excluded.created_by_name,
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-    `);
-
-    const tx = db.transaction((entries: any[]) => {
-      for (const e of entries) {
-        try {
-          upsert.run({
-            ledger_id: e.ledger_id,
-            party_id: e.party_id,
-            tenant_id: tenantId,
-            transaction_date: toSqliteDate(e.transaction_date),
-            description: e.description,
-            credit_amount: e.credit_amount ?? 0,
-            debit_amount: e.debit_amount ?? 0,
-            running_balance: e.running_balance ?? 0,
-            balance_type: e.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST',
-            payment_method: e.payment_method || null,
-            reference_number: e.reference_number || null,
-            created_by: e.created_by || null,
-            created_by_name: e.created_by_name || null,
-            created_at: toSqliteDate(e.created_at),
-            updated_at: toSqliteDate(e.updated_at),
-          });
-        } catch (err: any) {
-          console.error('[SyncWorker] Error pulling ledger entry:', err.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'party_ledger',
+    urlPath: '/api/sync/party-ledger',
+    label: 'ledger entries',
+    onProgress: (fetched) => notifyPullProgress('ledger entries', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((entries: any[]) => {
+        for (const e of entries) {
+          try {
+            upsert.run({
+              ledger_id: e.ledger_id,
+              party_id: e.party_id,
+              tenant_id: tenantId,
+              transaction_date: toSqliteDate(e.transaction_date),
+              description: e.description,
+              credit_amount: e.credit_amount ?? 0,
+              debit_amount: e.debit_amount ?? 0,
+              running_balance: e.running_balance ?? 0,
+              balance_type: e.balance_type === 'ESTIMATE' ? 'ESTIMATE' : 'GST',
+              payment_method: e.payment_method || null,
+              reference_number: e.reference_number || null,
+              created_by: e.created_by || null,
+              created_by_name: e.created_by_name || null,
+              created_at: toSqliteDate(e.created_at),
+              updated_at: toSqliteDate(e.updated_at),
+            });
+          } catch (err: any) {
+            console.error('[SyncWorker] Error pulling ledger entry:', err.message);
+          }
         }
-      }
-    });
-    tx(cloudEntries);
-    const reconciled = reconcilePending(db, 'party_ledger', 'ledger_id', cloudEntries);
-    console.log(`[SyncWorker] Pulled ${cloudEntries.length} ledger entries from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull party ledger failed:', err.message);
-    return false;
+      });
+      tx(rows);
+      return reconcilePending(db, 'party_ledger', 'ledger_id', rows);
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} ledger entries from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull party ledger failed.');
   }
+  return result.count > 0;
 }
 
 // ── Scrap Categories Sync (Edge → Cloud) ─────────────────────────────────────
@@ -1317,245 +1443,230 @@ async function syncScrapTransactions(token: string, tenantId: string) {
 async function pullScrapCategories(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/scrap_categories`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO scrap_categories (
+      scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @scrap_category_id, @tenant_id, @name, @purchase_price, @selling_price, @current_stock, @unit, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(scrap_category_id) DO UPDATE SET
+      name = excluded.name,
+      purchase_price = excluded.purchase_price,
+      selling_price = excluded.selling_price,
+      unit = excluded.unit,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(scrap_categories.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE scrap_categories.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull scrap categories failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudCategories: any[] = await response.json();
-    if (!Array.isArray(cloudCategories) || cloudCategories.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO scrap_categories (
-        scrap_category_id, tenant_id, name, purchase_price, selling_price, current_stock, unit, is_deleted,
-        sync_status, created_at, updated_at
-      ) VALUES (
-        @scrap_category_id, @tenant_id, @name, @purchase_price, @selling_price, @current_stock, @unit, @is_deleted,
-        'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(scrap_category_id) DO UPDATE SET
-        name = excluded.name,
-        purchase_price = excluded.purchase_price,
-        selling_price = excluded.selling_price,
-        unit = excluded.unit,
-        is_deleted = excluded.is_deleted,
-        created_at = COALESCE(scrap_categories.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE scrap_categories.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((categories: any[]) => {
-      for (const c of categories) {
-        try {
-          upsert.run({
-            scrap_category_id: c.scrap_category_id,
-            tenant_id: tenantId,
-            name: c.name,
-            purchase_price: c.purchase_price ?? 0,
-            selling_price: c.selling_price ?? 0,
-            current_stock: c.current_stock ?? 0,
-            unit: c.unit || 'Kgs',
-            is_deleted: c.is_deleted ? 1 : 0,
-            created_at: toSqliteDate(c.created_at),
-            updated_at: toSqliteDate(c.updated_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling scrap category:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'scrap_categories',
+    urlPath: '/api/sync/scrap_categories',
+    label: 'scrap categories',
+    onProgress: (fetched) => notifyPullProgress('scrap categories', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((categories: any[]) => {
+        for (const c of categories) {
+          try {
+            upsert.run({
+              scrap_category_id: c.scrap_category_id,
+              tenant_id: tenantId,
+              name: c.name,
+              purchase_price: c.purchase_price ?? 0,
+              selling_price: c.selling_price ?? 0,
+              current_stock: c.current_stock ?? 0,
+              unit: c.unit || 'Kgs',
+              is_deleted: c.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(c.created_at),
+              updated_at: toSqliteDate(c.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling scrap category:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'scrap_categories', 'scrap_category_id', rows);
+    },
+  });
 
-    tx(cloudCategories);
-
-    const reconciled = reconcilePending(db, 'scrap_categories', 'scrap_category_id', cloudCategories);
-    console.log(`[SyncWorker] Pulled ${cloudCategories.length} scrap categories from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull scrap categories failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} scrap categories from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull scrap categories failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Scrap Transactions (Cloud → Edge) ─────────────────────────────────
 async function pullScrapTransactions(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/scrap_transactions`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO scrap_transactions (
+      transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, transaction_date, created_at,
+      is_deleted, sync_status
+    ) VALUES (
+      @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @transaction_date, @created_at,
+      COALESCE(@is_deleted, 0), 'SYNCED'
+    )
+    ON CONFLICT(transaction_id) DO UPDATE SET
+      type = excluded.type,
+      quantity = excluded.quantity,
+      rate = excluded.rate,
+      total_amount = excluded.total_amount,
+      party_name = excluded.party_name,
+      customer_phone = excluded.customer_phone,
+      customer_address = excluded.customer_address,
+      notes = excluded.notes,
+      scrap_invoice_number = excluded.scrap_invoice_number,
+      is_deleted = COALESCE(excluded.is_deleted, 0),
+      sync_status = 'SYNCED'
+    WHERE scrap_transactions.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull scrap transactions failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudTransactions: any[] = await response.json();
-    if (!Array.isArray(cloudTransactions) || cloudTransactions.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO scrap_transactions (
-        transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, transaction_date, created_at,
-        is_deleted, sync_status
-      ) VALUES (
-        @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @transaction_date, @created_at,
-        COALESCE(@is_deleted, 0), 'SYNCED'
-      )
-      ON CONFLICT(transaction_id) DO UPDATE SET
-        type = excluded.type,
-        quantity = excluded.quantity,
-        rate = excluded.rate,
-        total_amount = excluded.total_amount,
-        party_name = excluded.party_name,
-        customer_phone = excluded.customer_phone,
-        customer_address = excluded.customer_address,
-        notes = excluded.notes,
-        scrap_invoice_number = excluded.scrap_invoice_number,
-        is_deleted = COALESCE(excluded.is_deleted, 0),
-        sync_status = 'SYNCED'
-      WHERE scrap_transactions.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((transactions: any[]) => {
-      for (const t of transactions) {
-        try {
-          upsert.run({
-            transaction_id: t.transaction_id,
-            tenant_id: tenantId,
-            type: t.type,
-            scrap_category_id: t.scrap_category_id,
-            quantity: t.quantity,
-            rate: t.rate,
-            total_amount: t.total_amount ?? 0,
-            party_name: t.party_name || null,
-            customer_phone: t.customer_phone || null,
-            customer_address: t.customer_address || null,
-            notes: t.notes || null,
-            scrap_invoice_number: t.scrap_invoice_number || null,
-            is_deleted: t.is_deleted ? 1 : 0,
-            transaction_date: toSqliteDate(t.transaction_date),
-            created_at: toSqliteDate(t.created_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling scrap transaction:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'scrap_transactions',
+    urlPath: '/api/sync/scrap_transactions',
+    label: 'scrap transactions',
+    onProgress: (fetched) => notifyPullProgress('scrap transactions', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((transactions: any[]) => {
+        for (const t of transactions) {
+          try {
+            upsert.run({
+              transaction_id: t.transaction_id,
+              tenant_id: tenantId,
+              type: t.type,
+              scrap_category_id: t.scrap_category_id,
+              quantity: t.quantity,
+              rate: t.rate,
+              total_amount: t.total_amount ?? 0,
+              party_name: t.party_name || null,
+              customer_phone: t.customer_phone || null,
+              customer_address: t.customer_address || null,
+              notes: t.notes || null,
+              scrap_invoice_number: t.scrap_invoice_number || null,
+              is_deleted: t.is_deleted ? 1 : 0,
+              transaction_date: toSqliteDate(t.transaction_date),
+              created_at: toSqliteDate(t.created_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling scrap transaction:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'scrap_transactions', 'transaction_id', rows);
+    },
+  });
 
-    tx(cloudTransactions);
-
-    const reconciled = reconcilePending(db, 'scrap_transactions', 'transaction_id', cloudTransactions);
-    console.log(`[SyncWorker] Pulled ${cloudTransactions.length} scrap transactions from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull scrap transactions failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} scrap transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull scrap transactions failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
 async function pullSettings(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/settings`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull settings failed: HTTP ${response.status}`);
-      return false;
-    }
+  const allowedKeys = [
+    'shop_name', 'shop_phone', 'shop_address', 'shop_gstin', 'shop_state',
+    'upi_id', 'show_upi_qr', 'show_product_offers',
+    'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
+    'price_coding', 'barcode_printer_config', 'receipt_printer_config',
+    'a4_printer_config', 'scale_config',
+    'print_format', 'label_code_type',
+    'terminal_code', 'invoice_counter_config',
+    'three_invoice_series', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
+    'isDomainConfirmed',
+  ];
 
-    const cloudSettings: any[] = await response.json();
-    if (!Array.isArray(cloudSettings) || cloudSettings.length === 0) return false;
+  const localStmt = db.prepare(`SELECT key, value FROM settings WHERE tenant_id = ? AND key = ?`);
 
-    const allowedKeys = [
-      'shop_name', 'shop_phone', 'shop_address', 'shop_gstin', 'shop_state',
-      'upi_id', 'show_upi_qr', 'show_product_offers',
-      'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
-      'price_coding', 'barcode_printer_config', 'receipt_printer_config',
-      'a4_printer_config', 'scale_config',
-      'print_format', 'label_code_type',
-      'terminal_code', 'invoice_counter_config',
-      'three_invoice_series', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
-      'isDomainConfirmed',
-    ];
-    const validSettings = cloudSettings.filter(s => allowedKeys.includes(s.key));
+  const upsert = db.prepare(`
+    INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+    VALUES (@tenant_id, @key, @value, 'SYNCED', @updated_at)
+    ON CONFLICT(tenant_id, key) DO UPDATE SET
+      value = excluded.value,
+      sync_status = 'SYNCED',
+      updated_at = excluded.updated_at
+  `);
 
-    if (validSettings.length === 0) return false;
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'tenant_settings',
+    urlPath: '/api/sync/settings',
+    label: 'settings',
+    onProgress: (fetched) => notifyPullProgress('settings', fetched),
+    processPage: (rows) => {
+      const validSettings = rows.filter((s: any) => allowedKeys.includes(s.key));
+      if (validSettings.length === 0) return 0;
 
-    const localStmt = db.prepare(`SELECT key, value FROM settings WHERE tenant_id = ? AND key = ?`);
+      const tx = db.transaction((settings: any[]) => {
+        for (const s of settings) {
+          let valueToSave = s.value;
 
-    const upsert = db.prepare(`
-      INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-      VALUES (@tenant_id, @key, @value, 'SYNCED', @updated_at)
-      ON CONFLICT(tenant_id, key) DO UPDATE SET
-        value = excluded.value,
-        sync_status = 'SYNCED',
-        updated_at = excluded.updated_at
-    `);
+          if (s.key === 'barcode_printer_config' || s.key === 'receipt_printer_config') {
+            const localData = localStmt.get(tenantId, s.key) as any;
+            if (localData && localData.value) {
+              try {
+                const localObj = JSON.parse(localData.value);
+                if (typeof valueToSave === 'string') {
+                  let cloudObj: any;
+                  try {
+                    cloudObj = JSON.parse(valueToSave);
+                  } catch {
+                    cloudObj = { type: valueToSave };
+                  }
+                  if (localObj.deviceName) cloudObj.deviceName = localObj.deviceName;
+                  valueToSave = JSON.stringify(cloudObj);
+                } else if (typeof valueToSave === 'object') {
+                  if (localObj.deviceName) valueToSave.deviceName = localObj.deviceName;
+                  valueToSave = JSON.stringify(valueToSave);
+                }
+              } catch(e) {}
+            } else {
+              if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+            }
+          } else {
+            if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+          }
 
-    const tx = db.transaction((settings: any[]) => {
-      for (const s of settings) {
-        let valueToSave = s.value;
+          if (typeof valueToSave !== 'string') valueToSave = String(valueToSave);
 
-        if (s.key === 'barcode_printer_config' || s.key === 'receipt_printer_config') {
-           const localData = localStmt.get(tenantId, s.key) as any;
-           if (localData && localData.value) {
-             try {
-               const localObj = JSON.parse(localData.value);
-               if (typeof valueToSave === 'string') {
-                 let cloudObj: any;
-                 try {
-                   cloudObj = JSON.parse(valueToSave);
-                 } catch {
-                   // Cloud value is a plain string (e.g. "barcode") — wrap as type field
-                   cloudObj = { type: valueToSave };
-                 }
-                 if (localObj.deviceName) cloudObj.deviceName = localObj.deviceName;
-                 valueToSave = JSON.stringify(cloudObj);
-               } else if (typeof valueToSave === 'object') {
-                 if (localObj.deviceName) valueToSave.deviceName = localObj.deviceName;
-                 valueToSave = JSON.stringify(valueToSave);
-               }
-             } catch(e) {}
-           } else {
-             if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
-           }
-        } else {
-           if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+          upsert.run({
+            tenant_id: s.tenant_id || tenantId,
+            key: s.key,
+            value: valueToSave,
+            updated_at: toSqliteDate(s.updated_at)
+          });
         }
+      });
 
-        if (typeof valueToSave !== 'string') valueToSave = String(valueToSave);
+      tx(validSettings);
+      return validSettings.length;
+    },
+  });
 
-    upsert.run({
-      tenant_id: s.tenant_id || tenantId,
-      key: s.key,
-      value: valueToSave,
-      updated_at: toSqliteDate(s.updated_at)
-    });
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} settings from cloud.`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull settings failed.');
   }
-});
-
-tx(validSettings);
-console.log(`[SyncWorker] Pulled ${validSettings.length} settings from cloud.`);
-return true;
-} catch (err: any) {
-console.error('[SyncWorker] Pull settings failed:', err.message);
-return false;
-}
+  return result.count > 0;
 }
 
 // ── Sync Purchase Bills (Edge → Cloud) ───────────────────────────────────────
@@ -1599,124 +1710,131 @@ async function syncPurchaseBills(token: string, tenantId: string) {
 async function pullPurchaseBills(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/purchase_bills?tenant_id=${tenantId}`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsertBill = db.prepare(`
+    INSERT INTO purchase_bills (
+      purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount,
+      bill_type, payment_type, sync_status, created_at, updated_at
+    ) VALUES (
+      @purchase_bill_id, @tenant_id, @bill_number, @supplier_id, @supplier_name, @bill_date, @invoice_number, @notes, @total_amount,
+      @bill_type, @payment_type, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(purchase_bill_id) DO UPDATE SET
+      bill_number = excluded.bill_number,
+      supplier_id = excluded.supplier_id,
+      supplier_name = excluded.supplier_name,
+      bill_date = excluded.bill_date,
+      invoice_number = excluded.invoice_number,
+      notes = excluded.notes,
+      total_amount = excluded.total_amount,
+      bill_type = excluded.bill_type,
+      payment_type = excluded.payment_type,
+      created_at = COALESCE(purchase_bills.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE purchase_bills.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull purchase bills failed: HTTP ${response.status}`);
-      return false;
-    }
+  const upsertItem = db.prepare(`
+    INSERT INTO purchase_bill_items (
+      item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price,
+      is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at
+    ) VALUES (
+      @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount, @selling_price, @offer_price,
+      @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(item_id) DO UPDATE SET
+      product_id = excluded.product_id,
+      name = excluded.name,
+      quantity = excluded.quantity,
+      purchase_price = excluded.purchase_price,
+      total_amount = excluded.total_amount,
+      selling_price = excluded.selling_price,
+      offer_price = excluded.offer_price,
+      is_gst_applicable = excluded.is_gst_applicable,
+      tax_rate_percent = excluded.tax_rate_percent,
+      hsn_sac_code = excluded.hsn_sac_code,
+      created_at = COALESCE(purchase_bill_items.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE purchase_bill_items.sync_status != 'PENDING'
+  `);
 
-    const cloudBills: any[] = await response.json();
-    if (!Array.isArray(cloudBills) || cloudBills.length === 0) return false;
+  const deleteItems = db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ? AND tenant_id = ?');
+  const localBillCheck = db.prepare('SELECT sync_status, updated_at FROM purchase_bills WHERE purchase_bill_id = ? AND tenant_id = ?');
 
-    const upsertBill = db.prepare(`
-      INSERT INTO purchase_bills (
-        purchase_bill_id, tenant_id, bill_number, supplier_id, supplier_name, bill_date, invoice_number, notes, total_amount,
-        bill_type, payment_type, sync_status, created_at, updated_at
-      ) VALUES (
-        @purchase_bill_id, @tenant_id, @bill_number, @supplier_id, @supplier_name, @bill_date, @invoice_number, @notes, @total_amount,
-        @bill_type, @payment_type, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(purchase_bill_id) DO UPDATE SET
-        bill_number = excluded.bill_number,
-        supplier_id = excluded.supplier_id,
-        supplier_name = excluded.supplier_name,
-        bill_date = excluded.bill_date,
-        invoice_number = excluded.invoice_number,
-        notes = excluded.notes,
-        total_amount = excluded.total_amount,
-        bill_type = excluded.bill_type,
-        payment_type = excluded.payment_type,
-        created_at = COALESCE(purchase_bills.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE purchase_bills.sync_status != 'PENDING'
-    `);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'purchase_bills',
+    urlPath: '/api/sync/purchase_bills',
+    label: 'purchase bills',
+    onProgress: (fetched) => notifyPullProgress('purchase bills', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((bills: any[]) => {
+        for (const bill of bills) {
+          try {
+            // Never touch a locally-PENDING edit that diverges from the cloud (a change that
+            // hasn't synced yet). Replacing header or items here would resurrect the deleted
+            // lines of an edited bill. The push path will sync it later.
+            const prior = localBillCheck.get(bill.purchase_bill_id, tenantId) as any;
+            const isDirtyPending = !!prior
+              && prior.sync_status === 'PENDING'
+              && toSqliteDate(bill.updated_at) !== prior.updated_at;
+            if (isDirtyPending) continue;
 
-    const upsertItem = db.prepare(`
-      INSERT INTO purchase_bill_items (
-        item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price,
-        is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at
-      ) VALUES (
-        @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount, @selling_price, @offer_price,
-        @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(item_id) DO UPDATE SET
-        product_id = excluded.product_id,
-        name = excluded.name,
-        quantity = excluded.quantity,
-        purchase_price = excluded.purchase_price,
-        total_amount = excluded.total_amount,
-        selling_price = excluded.selling_price,
-        offer_price = excluded.offer_price,
-        is_gst_applicable = excluded.is_gst_applicable,
-        tax_rate_percent = excluded.tax_rate_percent,
-        hsn_sac_code = excluded.hsn_sac_code,
-        created_at = COALESCE(purchase_bill_items.created_at, excluded.created_at),
-        updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE purchase_bill_items.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((bills: any[]) => {
-      for (const bill of bills) {
-        try {
-          upsertBill.run({
-            purchase_bill_id: bill.purchase_bill_id,
-            tenant_id: tenantId,
-            bill_number: bill.bill_number,
-            supplier_id: bill.supplier_id || null,
-            supplier_name: bill.supplier_name,
-            bill_date: bill.bill_date || null,
-            invoice_number: bill.invoice_number || null,
-            notes: bill.notes || null,
-            total_amount: bill.total_amount ?? 0,
-            bill_type: bill.bill_type || 'GST',
-            payment_type: bill.payment_type || 'CASH',
-            created_at: toSqliteDate(bill.created_at),
-            updated_at: toSqliteDate(bill.updated_at),
-          });
-          if (Array.isArray(bill.items)) {
-            for (const item of bill.items) {
-              upsertItem.run({
-                item_id: item.item_id,
-                purchase_bill_id: bill.purchase_bill_id,
-                tenant_id: tenantId,
-                product_id: item.product_id,
-                name: item.name,
-                quantity: item.quantity ?? 0,
-                purchase_price: item.purchase_price ?? 0,
-                total_amount: item.total_amount ?? 0,
-                selling_price: item.selling_price ?? 0,
-                offer_price: item.offer_price ?? 0,
-                is_gst_applicable: item.is_gst_applicable === false ? 0 : 1,
-                tax_rate_percent: item.tax_rate_percent ?? 0,
-                hsn_sac_code: item.hsn_sac_code || null,
-                created_at: toSqliteDate(item.created_at),
-                updated_at: toSqliteDate(item.updated_at),
-              });
+            upsertBill.run({
+              purchase_bill_id: bill.purchase_bill_id,
+              tenant_id: tenantId,
+              bill_number: bill.bill_number,
+              supplier_id: bill.supplier_id || null,
+              supplier_name: bill.supplier_name,
+              bill_date: bill.bill_date || null,
+              invoice_number: bill.invoice_number || null,
+              notes: bill.notes || null,
+              total_amount: bill.total_amount ?? 0,
+              bill_type: bill.bill_type || 'GST',
+              payment_type: bill.payment_type || 'CASH',
+              created_at: toSqliteDate(bill.created_at),
+              updated_at: toSqliteDate(bill.updated_at),
+            });
+            if (Array.isArray(bill.items)) {
+              deleteItems.run(bill.purchase_bill_id, tenantId);
+              for (const item of bill.items) {
+                upsertItem.run({
+                  item_id: item.item_id,
+                  purchase_bill_id: bill.purchase_bill_id,
+                  tenant_id: tenantId,
+                  product_id: item.product_id,
+                  name: item.name,
+                  quantity: item.quantity ?? 0,
+                  purchase_price: item.purchase_price ?? 0,
+                  total_amount: item.total_amount ?? 0,
+                  selling_price: item.selling_price ?? 0,
+                  offer_price: item.offer_price ?? 0,
+                  is_gst_applicable: item.is_gst_applicable === false ? 0 : 1,
+                  tax_rate_percent: item.tax_rate_percent ?? 0,
+                  hsn_sac_code: item.hsn_sac_code || null,
+                  created_at: toSqliteDate(item.created_at),
+                  updated_at: toSqliteDate(item.updated_at),
+                });
+              }
             }
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling purchase bill:', e.message);
           }
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling purchase bill:', e.message);
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'purchase_bills', 'purchase_bill_id', rows);
+    },
+  });
 
-    tx(cloudBills);
-
-    const reconciled = reconcilePending(db, 'purchase_bills', 'purchase_bill_id', cloudBills);
-    console.log(`[SyncWorker] Pulled ${cloudBills.length} purchase bills from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull purchase bills failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} purchase bills from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull purchase bills failed.');
   }
+  return result.count > 0;
 }
 
 // ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
@@ -1792,182 +1910,183 @@ async function syncCashCategories(token: string, tenantId: string) {
 async function pullCashDrawer(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/cash_drawer`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO cash_drawer (
+      drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out,
+      current_cash, expected_closing, actual_cash, cash_short, cash_excess, closing_remarks,
+      status, opened_by, closed_by, opened_at, closed_at, sync_status, created_at, updated_at
+    ) VALUES (
+      @drawer_id, @tenant_id, @business_date, @opening_balance, @cash_sales, @cash_in, @cash_out,
+      @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
+      @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(drawer_id) DO UPDATE SET
+      opening_balance = excluded.opening_balance, cash_sales = excluded.cash_sales,
+      cash_in = excluded.cash_in, cash_out = excluded.cash_out,
+      current_cash = excluded.current_cash, expected_closing = excluded.expected_closing,
+      actual_cash = excluded.actual_cash, cash_short = excluded.cash_short,
+      cash_excess = excluded.cash_excess, closing_remarks = excluded.closing_remarks,
+      status = excluded.status, closed_by = excluded.closed_by,
+      closed_at = excluded.closed_at, updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE cash_drawer.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull cash drawer failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudRows: any[] = await response.json();
-    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO cash_drawer (
-        drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out,
-        current_cash, expected_closing, actual_cash, cash_short, cash_excess, closing_remarks,
-        status, opened_by, closed_by, opened_at, closed_at, sync_status, created_at, updated_at
-      ) VALUES (
-        @drawer_id, @tenant_id, @business_date, @opening_balance, @cash_sales, @cash_in, @cash_out,
-        @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
-        @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(drawer_id) DO UPDATE SET
-        opening_balance = excluded.opening_balance, cash_sales = excluded.cash_sales,
-        cash_in = excluded.cash_in, cash_out = excluded.cash_out,
-        current_cash = excluded.current_cash, expected_closing = excluded.expected_closing,
-        actual_cash = excluded.actual_cash, cash_short = excluded.cash_short,
-        cash_excess = excluded.cash_excess, closing_remarks = excluded.closing_remarks,
-        status = excluded.status, closed_by = excluded.closed_by,
-        closed_at = excluded.closed_at, updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE cash_drawer.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((rows: any[]) => {
-      for (const r of rows) {
-        try {
-          upsert.run({
-            drawer_id: r.drawer_id,
-            tenant_id: tenantId,
-            business_date: r.business_date,
-            opening_balance: r.opening_balance ?? 0,
-            cash_sales: r.cash_sales ?? 0,
-            cash_in: r.cash_in ?? 0,
-            cash_out: r.cash_out ?? 0,
-            current_cash: r.current_cash ?? 0,
-            expected_closing: r.expected_closing ?? 0,
-            actual_cash: r.actual_cash ?? null,
-            cash_short: r.cash_short ?? 0,
-            cash_excess: r.cash_excess ?? 0,
-            closing_remarks: r.closing_remarks || null,
-            status: r.status || 'OPEN',
-            opened_by: r.opened_by || null,
-            closed_by: r.closed_by || null,
-            opened_at: toSqliteDate(r.opened_at),
-            closed_at: toSqliteDate(r.closed_at),
-            created_at: toSqliteDate(r.created_at),
-            updated_at: toSqliteDate(r.updated_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling cash drawer:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'cash_drawer',
+    urlPath: '/api/sync/cash_drawer',
+    label: 'cash drawer',
+    onProgress: (fetched) => notifyPullProgress('cash drawer', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((rows: any[]) => {
+        for (const r of rows) {
+          try {
+            upsert.run({
+              drawer_id: r.drawer_id,
+              tenant_id: tenantId,
+              business_date: r.business_date,
+              opening_balance: r.opening_balance ?? 0,
+              cash_sales: r.cash_sales ?? 0,
+              cash_in: r.cash_in ?? 0,
+              cash_out: r.cash_out ?? 0,
+              current_cash: r.current_cash ?? 0,
+              expected_closing: r.expected_closing ?? 0,
+              actual_cash: r.actual_cash ?? null,
+              cash_short: r.cash_short ?? 0,
+              cash_excess: r.cash_excess ?? 0,
+              closing_remarks: r.closing_remarks || null,
+              status: r.status || 'OPEN',
+              opened_by: r.opened_by || null,
+              closed_by: r.closed_by || null,
+              opened_at: toSqliteDate(r.opened_at),
+              closed_at: toSqliteDate(r.closed_at),
+              created_at: toSqliteDate(r.created_at),
+              updated_at: toSqliteDate(r.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling cash drawer:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'cash_drawer', 'drawer_id', rows);
+    },
+  });
 
-    tx(cloudRows);
-
-    const reconciled = reconcilePending(db, 'cash_drawer', 'drawer_id', cloudRows);
-    console.log(`[SyncWorker] Pulled ${cloudRows.length} cash drawer records from cloud.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull cash drawer failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} cash drawer records from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull cash drawer failed.');
   }
+  return result.count > 0;
 }
 
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/customers`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!response.ok) return false;
-    const cloudRows: any[] = await response.json();
-    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
 
-    const upsert = db.prepare(`
-      INSERT INTO customers (customer_id, tenant_id, name, phone, address,
-        total_points_earned, total_points_redeemed, current_points_balance,
-        last_purchase_date, sync_status, created_at, updated_at)
-      VALUES (@customer_id, @tenant_id, @name, @phone, @address,
-        @total_points_earned, @total_points_redeemed, @current_points_balance,
-        @last_purchase_date, 'SYNCED', @created_at, @updated_at)
-      ON CONFLICT(customer_id) DO UPDATE SET
-        name = excluded.name, phone = excluded.phone, address = excluded.address,
-        total_points_earned = excluded.total_points_earned,
-        total_points_redeemed = excluded.total_points_redeemed,
-        current_points_balance = excluded.current_points_balance,
-        last_purchase_date = excluded.last_purchase_date,
-        sync_status = 'SYNCED', updated_at = excluded.updated_at
-    `);
-    const tx = db.transaction((rows: any[]) => {
-      for (const r of rows) {
-        upsert.run({
-          customer_id: r.customer_id, tenant_id: r.tenant_id || tenantId,
-          name: r.name, phone: r.phone || null, address: r.address || null,
-          total_points_earned: r.total_points_earned ?? 0,
-          total_points_redeemed: r.total_points_redeemed ?? 0,
-          current_points_balance: r.current_points_balance ?? 0,
-          last_purchase_date: toSqliteDate(r.last_purchase_date),
-          created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
-        });
-      }
-    });
-    tx(cloudRows);
-    const reconciled = reconcilePending(db, 'customers', 'customer_id', cloudRows);
-    console.log(`[SyncWorker] Pulled ${cloudRows.length} customers.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull customers failed:', err.message);
-    return false;
+  const upsert = db.prepare(`
+    INSERT INTO customers (customer_id, tenant_id, name, phone, address,
+      total_points_earned, total_points_redeemed, current_points_balance,
+      last_purchase_date, sync_status, created_at, updated_at)
+    VALUES (@customer_id, @tenant_id, @name, @phone, @address,
+      @total_points_earned, @total_points_redeemed, @current_points_balance,
+      @last_purchase_date, 'SYNCED', @created_at, @updated_at)
+    ON CONFLICT(customer_id) DO UPDATE SET
+      name = excluded.name, phone = excluded.phone, address = excluded.address,
+      total_points_earned = excluded.total_points_earned,
+      total_points_redeemed = excluded.total_points_redeemed,
+      current_points_balance = excluded.current_points_balance,
+      last_purchase_date = excluded.last_purchase_date,
+      sync_status = 'SYNCED', updated_at = excluded.updated_at
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'customers',
+    urlPath: '/api/sync/customers',
+    label: 'customers',
+    onProgress: (fetched) => notifyPullProgress('customers', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((rows: any[]) => {
+        for (const r of rows) {
+          upsert.run({
+            customer_id: r.customer_id, tenant_id: r.tenant_id || tenantId,
+            name: r.name, phone: r.phone || null, address: r.address || null,
+            total_points_earned: r.total_points_earned ?? 0,
+            total_points_redeemed: r.total_points_redeemed ?? 0,
+            current_points_balance: r.current_points_balance ?? 0,
+            last_purchase_date: toSqliteDate(r.last_purchase_date),
+            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+          });
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'customers', 'customer_id', rows);
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} customers.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull customers failed.');
   }
+  return result.count > 0;
 }
 
 async function pullLoyaltyTransactions(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/loyalty-transactions`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    if (!response.ok) return false;
-    const cloudRows: any[] = await response.json();
-    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
 
-    const upsert = db.prepare(`
-      INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id,
-        transaction_type, points, points_balance_before, points_balance_after,
-        reference_number, description, created_by, sync_status, created_at)
-      VALUES (@transaction_id, @tenant_id, @customer_id, @invoice_id,
-        @transaction_type, @points, @points_balance_before, @points_balance_after,
-        @reference_number, @description, @created_by, 'SYNCED', @created_at)
-      ON CONFLICT(transaction_id) DO UPDATE SET
-        transaction_type = excluded.transaction_type, points = excluded.points,
-        points_balance_before = excluded.points_balance_before,
-        points_balance_after = excluded.points_balance_after,
-        reference_number = excluded.reference_number, description = excluded.description,
-        sync_status = 'SYNCED'
-    `);
-    const tx = db.transaction((rows: any[]) => {
-      for (const r of rows) {
-        upsert.run({
-          transaction_id: r.transaction_id, tenant_id: r.tenant_id || tenantId,
-          customer_id: r.customer_id, invoice_id: r.invoice_id || null,
-          transaction_type: r.transaction_type, points: r.points,
-          points_balance_before: r.points_balance_before ?? 0,
-          points_balance_after: r.points_balance_after ?? 0,
-          reference_number: r.reference_number || null, description: r.description || null,
-          created_by: r.created_by || null, created_at: toSqliteDate(r.created_at),
-        });
-      }
-    });
-    tx(cloudRows);
-    const reconciled = reconcilePending(db, 'loyalty_transactions', 'transaction_id', cloudRows);
-    console.log(`[SyncWorker] Pulled ${cloudRows.length} loyalty transactions.${reconciled > 0 ? ` Reconciled ${reconciled}.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull loyalty transactions failed:', err.message);
-    return false;
+  const upsert = db.prepare(`
+    INSERT INTO loyalty_transactions (transaction_id, tenant_id, customer_id, invoice_id,
+      transaction_type, points, points_balance_before, points_balance_after,
+      reference_number, description, created_by, sync_status, created_at)
+    VALUES (@transaction_id, @tenant_id, @customer_id, @invoice_id,
+      @transaction_type, @points, @points_balance_before, @points_balance_after,
+      @reference_number, @description, @created_by, 'SYNCED', @created_at)
+    ON CONFLICT(transaction_id) DO UPDATE SET
+      transaction_type = excluded.transaction_type, points = excluded.points,
+      points_balance_before = excluded.points_balance_before,
+      points_balance_after = excluded.points_balance_after,
+      reference_number = excluded.reference_number, description = excluded.description,
+      sync_status = 'SYNCED'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'loyalty_transactions',
+    urlPath: '/api/sync/loyalty-transactions',
+    label: 'loyalty transactions',
+    tsColumn: 'created_at',
+    onProgress: (fetched) => notifyPullProgress('loyalty transactions', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((rows: any[]) => {
+        for (const r of rows) {
+          upsert.run({
+            transaction_id: r.transaction_id, tenant_id: r.tenant_id || tenantId,
+            customer_id: r.customer_id, invoice_id: r.invoice_id || null,
+            transaction_type: r.transaction_type, points: r.points,
+            points_balance_before: r.points_balance_before ?? 0,
+            points_balance_after: r.points_balance_after ?? 0,
+            reference_number: r.reference_number || null, description: r.description || null,
+            created_by: r.created_by || null, created_at: toSqliteDate(r.created_at),
+          });
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'loyalty_transactions', 'transaction_id', rows);
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} loyalty transactions.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull loyalty transactions failed.');
   }
+  return result.count > 0;
 }
 
 // ── Sync Returns (Edge → Cloud) ──────────────────────────────────────────
@@ -2007,78 +2126,72 @@ async function syncReturns(token: string, tenantId: string) {
 async function pullReturns(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/returns`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsertReturn = db.prepare(`
+    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, sync_status, created_at, updated_at)
+    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, 'SYNCED', @created_at, @updated_at)
+    ON CONFLICT(return_id) DO UPDATE SET
+      customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
+      subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
+      reason = excluded.reason, return_date = excluded.return_date, updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE returns.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull returns failed: HTTP ${response.status}`);
-      return false;
-    }
+  const upsertItem = db.prepare(`
+    INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
+    VALUES (@return_item_id, @return_id, @tenant_id, @invoice_item_id, @product_id, @name, @quantity, @unit_price, @tax_amount, @total, 'SYNCED', @created_at)
+    ON CONFLICT(return_item_id) DO UPDATE SET
+      name = excluded.name, quantity = excluded.quantity, unit_price = excluded.unit_price,
+      tax_amount = excluded.tax_amount, total = excluded.total, sync_status = 'SYNCED'
+    WHERE return_items.sync_status != 'PENDING'
+  `);
 
-    const cloudReturns: any[] = await response.json();
-    if (!Array.isArray(cloudReturns) || cloudReturns.length === 0) return false;
-
-    const upsertReturn = db.prepare(`
-      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, sync_status, created_at, updated_at)
-      VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, 'SYNCED', @created_at, @updated_at)
-      ON CONFLICT(return_id) DO UPDATE SET
-        customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
-        subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
-        reason = excluded.reason, return_date = excluded.return_date, updated_at = excluded.updated_at,
-        sync_status = 'SYNCED'
-      WHERE returns.sync_status != 'PENDING'
-    `);
-
-    const upsertItem = db.prepare(`
-      INSERT INTO return_items (return_item_id, return_id, tenant_id, invoice_item_id, product_id, name, quantity, unit_price, tax_amount, total, sync_status, created_at)
-      VALUES (@return_item_id, @return_id, @tenant_id, @invoice_item_id, @product_id, @name, @quantity, @unit_price, @tax_amount, @total, 'SYNCED', @created_at)
-      ON CONFLICT(return_item_id) DO UPDATE SET
-        name = excluded.name, quantity = excluded.quantity, unit_price = excluded.unit_price,
-        tax_amount = excluded.tax_amount, total = excluded.total, sync_status = 'SYNCED'
-      WHERE return_items.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((returns: any[]) => {
-      for (const r of returns) {
-        try {
-          upsertReturn.run({
-            return_id: r.return_id, invoice_id: r.invoice_id, tenant_id: tenantId,
-            user_id: r.user_id || null, return_number: r.return_number,
-            customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
-            subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
-            reason: r.reason || null, return_date: toSqliteDate(r.return_date),
-            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
-          });
-          if (Array.isArray(r.items)) {
-            for (const item of r.items) {
-              upsertItem.run({
-                return_item_id: item.return_item_id, return_id: r.return_id, tenant_id: tenantId,
-                invoice_item_id: item.invoice_item_id || null, product_id: item.product_id,
-                name: item.name, quantity: item.quantity, unit_price: item.unit_price,
-                tax_amount: item.tax_amount ?? 0, total: item.total,
-                created_at: toSqliteDate(item.created_at),
-              });
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'returns',
+    urlPath: '/api/sync/returns',
+    label: 'returns',
+    onProgress: (fetched) => notifyPullProgress('returns', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((returns: any[]) => {
+        for (const r of returns) {
+          try {
+            upsertReturn.run({
+              return_id: r.return_id, invoice_id: r.invoice_id, tenant_id: tenantId,
+              user_id: r.user_id || null, return_number: r.return_number,
+              customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
+              subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
+              reason: r.reason || null, return_date: toSqliteDate(r.return_date),
+              created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+            });
+            if (Array.isArray(r.items)) {
+              for (const item of r.items) {
+                upsertItem.run({
+                  return_item_id: item.return_item_id, return_id: r.return_id, tenant_id: tenantId,
+                  invoice_item_id: item.invoice_item_id || null, product_id: item.product_id,
+                  name: item.name, quantity: item.quantity, unit_price: item.unit_price,
+                  tax_amount: item.tax_amount ?? 0, total: item.total,
+                  created_at: toSqliteDate(item.created_at),
+                });
+              }
             }
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling return:', e.message);
           }
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling return:', e.message);
         }
-      }
-    });
+      });
+      tx(rows);
+      return reconcilePending(db, 'returns', 'return_id', rows);
+    },
+  });
 
-    tx(cloudReturns);
-
-    const reconciled = reconcilePending(db, 'returns', 'return_id', cloudReturns);
-    console.log(`[SyncWorker] Pulled ${cloudReturns.length} returns from cloud.${reconciled > 0 ? ` Reconciled ${reconciled} PENDING.` : ''}`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull returns failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} returns from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull returns failed.');
   }
+  return result.count > 0;
 }
 
 // ── Payment Sources Sync (Edge → Cloud) ─────────────────────────────────────────
@@ -2131,128 +2244,120 @@ async function syncPaymentSourceTransactions(token: string, tenantId: string) {
 async function pullPaymentSources(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/payment_sources`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO payment_sources (
+      source_id, tenant_id, name, type, bank_name, account_number, holder_name, upi_id,
+      opening_balance, current_balance, is_default, is_enabled, sort_order, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @source_id, @tenant_id, @name, @type, @bank_name, @account_number, @holder_name, @upi_id,
+      @opening_balance, @current_balance, @is_default, @is_enabled, @sort_order, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(source_id) DO UPDATE SET
+      name = excluded.name, type = excluded.type,
+      bank_name = excluded.bank_name, account_number = excluded.account_number,
+      holder_name = excluded.holder_name, upi_id = excluded.upi_id,
+      opening_balance = excluded.opening_balance, current_balance = excluded.current_balance,
+      is_default = excluded.is_default, is_enabled = excluded.is_enabled,
+      sort_order = excluded.sort_order, is_deleted = excluded.is_deleted,
+      updated_at = excluded.updated_at, sync_status = 'SYNCED'
+    WHERE payment_sources.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull payment sources failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudRows: any[] = await response.json();
-    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO payment_sources (
-        source_id, tenant_id, name, type, bank_name, account_number, holder_name, upi_id,
-        opening_balance, current_balance, is_default, is_enabled, sort_order, is_deleted,
-        sync_status, created_at, updated_at
-      ) VALUES (
-        @source_id, @tenant_id, @name, @type, @bank_name, @account_number, @holder_name, @upi_id,
-        @opening_balance, @current_balance, @is_default, @is_enabled, @sort_order, @is_deleted,
-        'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(source_id) DO UPDATE SET
-        name = excluded.name, type = excluded.type,
-        bank_name = excluded.bank_name, account_number = excluded.account_number,
-        holder_name = excluded.holder_name, upi_id = excluded.upi_id,
-        opening_balance = excluded.opening_balance, current_balance = excluded.current_balance,
-        is_default = excluded.is_default, is_enabled = excluded.is_enabled,
-        sort_order = excluded.sort_order, is_deleted = excluded.is_deleted,
-        updated_at = excluded.updated_at, sync_status = 'SYNCED'
-      WHERE payment_sources.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((rows: any[]) => {
-      for (const r of rows) {
-        try {
-          upsert.run({
-            source_id: r.source_id, tenant_id: tenantId, name: r.name, type: r.type,
-            bank_name: r.bank_name || null, account_number: r.account_number || null,
-            holder_name: r.holder_name || null, upi_id: r.upi_id || null,
-            opening_balance: r.opening_balance ?? 0, current_balance: r.current_balance ?? 0,
-            is_default: r.is_default ? 1 : 0, is_enabled: r.is_enabled === false ? 0 : 1,
-            sort_order: r.sort_order ?? 0, is_deleted: r.is_deleted ? 1 : 0,
-            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling payment source:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'payment_sources',
+    urlPath: '/api/sync/payment_sources',
+    label: 'payment sources',
+    onProgress: (fetched) => notifyPullProgress('payment sources', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((rows: any[]) => {
+        for (const r of rows) {
+          try {
+            upsert.run({
+              source_id: r.source_id, tenant_id: tenantId, name: r.name, type: r.type,
+              bank_name: r.bank_name || null, account_number: r.account_number || null,
+              holder_name: r.holder_name || null, upi_id: r.upi_id || null,
+              opening_balance: r.opening_balance ?? 0, current_balance: r.current_balance ?? 0,
+              is_default: r.is_default ? 1 : 0, is_enabled: r.is_enabled === false ? 0 : 1,
+              sort_order: r.sort_order ?? 0, is_deleted: r.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling payment source:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return rows.length;
+    },
+  });
 
-    tx(cloudRows);
-    console.log(`[SyncWorker] Pulled ${cloudRows.length} payment sources from cloud.`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull payment sources failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} payment sources from cloud.`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull payment sources failed.');
   }
+  return result.count > 0;
 }
 
 // ── Pull Payment Source Transactions (Cloud → Edge) ─────────────────────────────
 async function pullPaymentSourceTransactions(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
-  try {
-    const response = await fetch(`${getCloudApiBase()}/api/sync/payment_source_transactions`, {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${token}` },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
+  const upsert = db.prepare(`
+    INSERT INTO payment_source_transactions (
+      transaction_id, tenant_id, source_id, type, amount, category, notes, reference_number,
+      transaction_date, running_balance, entered_by, entered_by_name, sync_status, created_at, updated_at
+    ) VALUES (
+      @transaction_id, @tenant_id, @source_id, @type, @amount, @category, @notes, @reference_number,
+      @transaction_date, @running_balance, @entered_by, @entered_by_name, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(transaction_id) DO UPDATE SET
+      type = excluded.type, amount = excluded.amount, category = excluded.category,
+      notes = excluded.notes, reference_number = excluded.reference_number,
+      transaction_date = excluded.transaction_date, running_balance = excluded.running_balance,
+      entered_by = excluded.entered_by, entered_by_name = excluded.entered_by_name,
+      updated_at = excluded.updated_at, sync_status = 'SYNCED'
+    WHERE payment_source_transactions.sync_status != 'PENDING'
+  `);
 
-    if (!response.ok) {
-      console.error(`[SyncWorker] Pull payment source transactions failed: HTTP ${response.status}`);
-      return false;
-    }
-
-    const cloudRows: any[] = await response.json();
-    if (!Array.isArray(cloudRows) || cloudRows.length === 0) return false;
-
-    const upsert = db.prepare(`
-      INSERT INTO payment_source_transactions (
-        transaction_id, tenant_id, source_id, type, amount, category, notes, reference_number,
-        transaction_date, running_balance, entered_by, entered_by_name, sync_status, created_at, updated_at
-      ) VALUES (
-        @transaction_id, @tenant_id, @source_id, @type, @amount, @category, @notes, @reference_number,
-        @transaction_date, @running_balance, @entered_by, @entered_by_name, 'SYNCED', @created_at, @updated_at
-      )
-      ON CONFLICT(transaction_id) DO UPDATE SET
-        type = excluded.type, amount = excluded.amount, category = excluded.category,
-        notes = excluded.notes, reference_number = excluded.reference_number,
-        transaction_date = excluded.transaction_date, running_balance = excluded.running_balance,
-        entered_by = excluded.entered_by, entered_by_name = excluded.entered_by_name,
-        updated_at = excluded.updated_at, sync_status = 'SYNCED'
-      WHERE payment_source_transactions.sync_status != 'PENDING'
-    `);
-
-    const tx = db.transaction((rows: any[]) => {
-      for (const r of rows) {
-        try {
-          upsert.run({
-            transaction_id: r.transaction_id, tenant_id: tenantId, source_id: r.source_id,
-            type: r.type, amount: r.amount ?? 0, category: r.category || null,
-            notes: r.notes || null, reference_number: r.reference_number || null,
-            transaction_date: toSqliteDate(r.transaction_date),
-            running_balance: r.running_balance ?? 0,
-            entered_by: r.entered_by || null, entered_by_name: r.entered_by_name || null,
-            created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
-          });
-        } catch (e: any) {
-          console.error('[SyncWorker] Error pulling payment source transaction:', e.message);
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'payment_source_transactions',
+    urlPath: '/api/sync/payment_source_transactions',
+    label: 'payment source transactions',
+    onProgress: (fetched) => notifyPullProgress('payment source transactions', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((rows: any[]) => {
+        for (const r of rows) {
+          try {
+            upsert.run({
+              transaction_id: r.transaction_id, tenant_id: tenantId, source_id: r.source_id,
+              type: r.type, amount: r.amount ?? 0, category: r.category || null,
+              notes: r.notes || null, reference_number: r.reference_number || null,
+              transaction_date: toSqliteDate(r.transaction_date),
+              running_balance: r.running_balance ?? 0,
+              entered_by: r.entered_by || null, entered_by_name: r.entered_by_name || null,
+              created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling payment source transaction:', e.message);
+          }
         }
-      }
-    });
+      });
+      tx(rows);
+      return rows.length;
+    },
+  });
 
-    tx(cloudRows);
-    console.log(`[SyncWorker] Pulled ${cloudRows.length} payment source transactions from cloud.`);
-    return true;
-  } catch (err: any) {
-    console.error('[SyncWorker] Pull payment source transactions failed:', err.message);
-    return false;
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} payment source transactions from cloud.`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull payment source transactions failed.');
   }
+  return result.count > 0;
 }

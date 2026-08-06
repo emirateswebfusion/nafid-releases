@@ -3552,7 +3552,7 @@ ipcMain.handle('db:getPurchaseBills', (event, { tenant_id, search, limit, offset
 ipcMain.handle('db:getPurchaseBillItems', (event, purchase_bill_id: string) => {
   try {
     const db = getDb();
-    return db.prepare('SELECT pbi.*, p.sku_barcode, p.item_code, p.base_price as product_base_price, p.offer_price as product_offer_price, p.current_stock as product_stock FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
+    return db.prepare('SELECT pbi.*, p.name as product_name, p.sku_barcode, p.item_code, p.base_price as product_base_price, p.offer_price as product_offer_price, p.current_stock as product_stock FROM purchase_bill_items pbi LEFT JOIN products p ON pbi.product_id = p.product_id WHERE pbi.purchase_bill_id = ? ORDER BY pbi.created_at ASC').all(purchase_bill_id);
   } catch (error: any) {
     console.error('[db:getPurchaseBillItems]', error);
     return { error: 'Operation failed' };
