@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
   BookOpen, IndianRupee, TrendingUp,
@@ -56,6 +56,17 @@ function formatDate(dateStr: string) {
     date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
     time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
   };
+}
+
+function formatGroupDate(dateStr?: string) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr.replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '-';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+  return `${dd}/${mm}/${yyyy} ${dayName}`;
 }
 
 function groupByDay(invoices: any[]) {
@@ -444,6 +455,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
+
+  const groupedInvoices = useMemo(() => {
+    const groups: { date: string; items: any[] }[] = [];
+    for (const inv of invoices) {
+      const key = formatGroupDate(inv.created_at);
+      const last = groups[groups.length - 1];
+      if (last && last.date === key) last.items.push(inv);
+      else groups.push({ date: key, items: [inv] });
+    }
+    return groups;
+  }, [invoices]);
 
 
 
@@ -1179,24 +1201,33 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   </tr>
                 </thead>
                 <tbody>
-                  {invoices.map((inv) => (
-                    <InvoiceRow
-                      key={inv.invoice_id}
-                      inv={inv}
-                      isSelected={selectedInvoice?.invoice_id === inv.invoice_id}
-                      onClick={() => { if (!selectionMode) handleSelectInvoice(inv); }}
-                      selectionMode={selectionMode}
-                      isChecked={selectedInvoiceIds.has(inv.invoice_id)}
-                      onCheck={() => {
-                        if (inv.invoice_type !== 'BILL_OF_SUPPLY') return;
-                        setSelectedInvoiceIds(prev => {
-                          const next = new Set(prev);
-                          if (next.has(inv.invoice_id)) next.delete(inv.invoice_id);
-                          else next.add(inv.invoice_id);
-                          return next;
-                        });
-                      }}
-                    />
+                  {groupedInvoices.map((group) => (
+                    <Fragment key={group.date}>
+                      <tr className="sticky top-9 z-[5] bg-muted">
+                        <td colSpan={7} className="px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
+                          {group.date}
+                        </td>
+                      </tr>
+                      {group.items.map((inv) => (
+                        <InvoiceRow
+                          key={inv.invoice_id}
+                          inv={inv}
+                          isSelected={selectedInvoice?.invoice_id === inv.invoice_id}
+                          onClick={() => { if (!selectionMode) handleSelectInvoice(inv); }}
+                          selectionMode={selectionMode}
+                          isChecked={selectedInvoiceIds.has(inv.invoice_id)}
+                          onCheck={() => {
+                            if (inv.invoice_type !== 'BILL_OF_SUPPLY') return;
+                            setSelectedInvoiceIds(prev => {
+                              const next = new Set(prev);
+                              if (next.has(inv.invoice_id)) next.delete(inv.invoice_id);
+                              else next.add(inv.invoice_id);
+                              return next;
+                            });
+                          }}
+                        />
+                      ))}
+                    </Fragment>
                   ))}
                   {hasMore && (
                     <tr ref={lastElementRef}>

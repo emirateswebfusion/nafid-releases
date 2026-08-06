@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Fragment } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
@@ -52,6 +52,17 @@ const _formatDate = (d: string) => {
 const formatDateTime = (d: string) => {
   if (!d) return '—';
   return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+};
+
+const formatGroupDate = (dateStr?: string) => {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr.replace(' ', 'T'));
+  if (isNaN(d.getTime())) return '-';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+  return `${dd}/${mm}/${yyyy} ${dayName}`;
 };
 
 const nameToHue = (name: string) => {
@@ -1703,11 +1714,20 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                       </p>
                     </div>
                   ) : (
-                    filteredInvoices.map((inv: any) => {
+                    filteredInvoices.map((inv: any, idx: number) => {
+                      const invDate = formatGroupDate(inv.created_at);
+                      const prevDate = idx > 0 ? formatGroupDate(filteredInvoices[idx - 1].created_at) : null;
+                      const showHeader = invDate !== prevDate;
                       const units = inv.units || 'Kgs';
                       const hasMixedUnits = units.includes(',');
                       return (
-                        <div key={inv.invoice_number} className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center hover:bg-muted/20 transition-all duration-150 group">
+                        <Fragment key={inv.invoice_number}>
+                          {showHeader && (
+                            <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
+                              {invDate}
+                            </div>
+                          )}
+                        <div className="grid grid-cols-12 gap-2 px-4 py-3.5 items-center hover:bg-muted/20 transition-all duration-150 group">
                           {/* Invoice & Customer */}
                           <div className="col-span-3 min-w-0">
                             <div className="flex items-center gap-2">
@@ -1784,6 +1804,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                             )}
                           </div>
                         </div>
+                        </Fragment>
                       );
                     })
                   )}
