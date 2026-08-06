@@ -188,6 +188,7 @@ export function BillingPage() {
   const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
   const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(true);
   const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
+  const [autoPrintBarcode, setAutoPrintBarcode] = useState(true);
   const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
@@ -495,6 +496,9 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' }).then((v: any) => {
+      if (v !== null && v !== undefined) setAutoPrintBarcode(Boolean(v));
     });
     window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableThreeInvoiceSeries(Boolean(v.enabled));
@@ -1260,6 +1264,11 @@ export function BillingPage() {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      if (autoPrintBarcode && window.electronAPI && finalBarcode) {
+        window.electronAPI.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r: any) => {
+          if (!r?.success) console.warn('[BillingPage] Auto barcode print failed:', r?.error || 'No barcode printer configured');
+        }).catch((e: any) => console.warn('[BillingPage] Auto barcode print error:', e?.message || e));
+      }
       handleSelectProduct({
         product_id: productId,
         name: newProductName.trim(),
@@ -2095,7 +2104,7 @@ export function BillingPage() {
         originalRate = mrpRate;
         discountLabel = 'Offer';
       }
-      return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel };
+      return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel, brand: item.brand_manufacturer || undefined };
     });
 
     try {

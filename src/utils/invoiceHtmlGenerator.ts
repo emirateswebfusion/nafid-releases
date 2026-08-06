@@ -7,6 +7,7 @@ export interface InvoiceItemDisplay {
   total: number;
   originalRate?: number;
   discountLabel?: string;
+  brand?: string;
 }
 
 export interface InvoiceData {
@@ -70,15 +71,18 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'mode
 }
 
 function generateStandardHtml(data: InvoiceData, title: string): string {
-  const itemsHtml = data.items.map((item, idx) => `
+  const itemsHtml = data.items.map((item, idx) => {
+    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span class="brand-badge">${item.brand}</span>` : '';
+    return `
     <tr>
       <td class="text-center">${idx + 1}</td>
-      <td>${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td>${item.name}${brandHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td class="text-center">${item.quantity}</td>
       <td class="text-right">₹${item.unit_price.toFixed(2)}</td>
       <td class="text-right">₹${item.total.toFixed(2)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
 
 
@@ -103,6 +107,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   .total-row td { font-weight: bold; border-top: 2px solid #333; }
   .grand-total td { font-size: 14px; font-weight: bold; color: #2563eb; }
   .discount-badge { font-size: 10px; color: #dc2626; font-weight: 600; }
+  .brand-badge { font-size: 10px; color: #6b7280; font-weight: 600; }
   .terms { margin-top: 25px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 10px; color: #666; }
   .footer { text-align: center; font-size: 10px; color: #999; margin-top: 20px; border-top: 1px solid #eee; padding-top: 10px; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } th { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
@@ -162,15 +167,18 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 }
 
 function generateModernHtml(data: InvoiceData, title: string): string {
-  const itemsHtml = data.items.map((item, idx) => `
+  const itemsHtml = data.items.map((item, idx) => {
+    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    return `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
-      <td style="padding:6px 4px;font-size:11px;color:#374151">${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:6px 4px;font-size:11px;color:#374151">${item.name}${brandHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${item.quantity}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${item.unit_price.toFixed(2)}</td>
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${item.total.toFixed(2)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
 
 
@@ -261,15 +269,18 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 }
 
 function generateClassicHtml(data: InvoiceData, title: string): string {
-  const itemsHtml = data.items.map((item, idx) => `
+  const itemsHtml = data.items.map((item, idx) => {
+    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    return `
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${idx + 1}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${item.name}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${item.name}${brandHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${item.quantity}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${item.unit_price.toFixed(2)}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${item.total.toFixed(2)}</td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
 
 

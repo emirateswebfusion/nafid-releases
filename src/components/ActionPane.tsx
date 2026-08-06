@@ -129,7 +129,8 @@ export function ActionPane() {
               name: item.name,
               quantity: pieceCount,
               unit_price: ratePerPiece,
-              total: itemTotal
+              total: itemTotal,
+              brand: item.brand_manufacturer || undefined,
             };
           }),
           subtotal,

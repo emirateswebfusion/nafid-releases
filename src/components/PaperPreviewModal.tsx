@@ -6,11 +6,11 @@ import { generateReceiptText, DEFAULT_BILL_SETTINGS, type BillSettings, type Rec
 import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '../utils/invoiceHtmlGenerator';
 
 const SAMPLE_ITEMS: ReceiptItem[] = [
-  { name: 'Premium Basmati Rice', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: '₹15 off' },
+  { name: 'Premium Basmati Rice', brand: 'India Gate', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: '₹15 off' },
   { name: 'Organic Wheat Flour', quantity: 1, unit_price: 45.00, total: 45.00 },
-  { name: 'Cold Pressed Coconut Oil', quantity: 3, unit_price: 85.00, total: 255.00 },
+  { name: 'Cold Pressed Coconut Oil', brand: 'Parachute', quantity: 3, unit_price: 85.00, total: 255.00 },
   { name: 'Honey (500g)', quantity: 1, unit_price: 120.00, total: 120.00 },
-  { name: 'Green Tea (100packs)', quantity: 2, unit_price: 95.00, total: 190.00, originalRate: 110.00, discountLabel: '10% off' },
+  { name: 'Green Tea (100packs)', brand: 'Tata', quantity: 2, unit_price: 95.00, total: 190.00, originalRate: 110.00, discountLabel: '10% off' },
 ];
 
 const SAMPLE_SUBTOTAL = SAMPLE_ITEMS.reduce((s, i) => s + i.total, 0);

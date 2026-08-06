@@ -312,6 +312,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [conversionOpen, setConversionOpen] = useState(false);
   const [converting, setConverting] = useState(false);
   const [conversionResults, setConversionResults] = useState<{ invoice_id: string; old_number: string; new_number: string; success: boolean; error?: string; skipped_items?: string[] }[] | null>(null);
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = useCallback((text: string, type: 'success' | 'error') => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast({ text, type });
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
   const [isExporting, setIsExporting] = useState(false);
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
@@ -881,6 +888,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
           <CheckCheck className="w-4 h-4 shrink-0" />
           Invoice reprinted successfully!
+        </div>
+      )}
+
+      {/* ─── CONVERSION TOAST ─── */}
+      {toast && (
+        <div className={clsx(
+          'fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold shadow-2xl',
+          toast.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400'
+        )} style={{ animation: 'slideDown 0.25s ease' }}>
+          {toast.type === 'success' ? <CheckCheck className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
+          {toast.text}
         </div>
       )}
 
@@ -1847,6 +1865,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         });
                         if (result.success && result.results) {
                           setConversionResults(result.results);
+                          const ok = result.results.filter((r: any) => r.success).length;
+                          const fail = result.results.length - ok;
+                          if (fail === 0) {
+                            showToast(`Successfully converted ${ok} Bill of Supply invoice${ok !== 1 ? 's' : ''} to GST`, 'success');
+                          } else if (ok === 0) {
+                            showToast(`Conversion failed for ${fail} invoice${fail !== 1 ? 's' : ''}`, 'error');
+                          } else {
+                            showToast(`${ok} converted, ${fail} failed`, 'error');
+                          }
                         } else {
                           setConversionResults(selectedBosInvoices.map(i => ({
                             invoice_id: i.invoice_id,
@@ -1855,6 +1882,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                             success: false,
                             error: result.error || 'Conversion failed',
                           })));
+                          showToast(result.error || 'Conversion failed', 'error');
                         }
                       }
                     } catch (err: any) {
@@ -1865,6 +1893,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         success: false,
                         error: err?.message || 'Unknown error',
                       })));
+                      showToast('Conversion failed: ' + (err?.message || 'Unknown error'), 'error');
                     } finally {
                       setConverting(false);
                       loadInvoices(true);

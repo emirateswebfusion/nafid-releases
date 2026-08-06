@@ -199,7 +199,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           }
         }
       }
-      return { ...item, originalRate, discountLabel };
+      return { ...item, originalRate, discountLabel, brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined };
     });
   };
 
@@ -1663,7 +1663,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       invoiceNumber: selectedInvoice.invoice_number,
                       date: formatBillDateTime(selectedInvoice.created_at),
                       billerName: selectedInvoice.biller_name,
-                      items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel })),
+                      items: invoiceItems.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel, brand: item.brand_manufacturer || undefined })),
                       subtotal: selectedInvoice.subtotal,
                       tax: selectedInvoice.tax_total,
                       discount: selectedInvoice.discount_total,
