@@ -80,7 +80,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
           {hasLabel && item && (
             <>
               {shopName && (
-                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: '0px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: (item.price !== undefined && !isNaN(item.price)) ? '0px' : '6px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
                   {shopName}
                 </div>
               )}
