@@ -652,9 +652,11 @@ export function BillingPage() {
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
+      // GST invoices: only show GST-applicable products (quotations stay unfiltered)
+      const isGstFilter = !isQuotationMode && invoiceType === 'GST';
       // Numeric searches fetch more results so client-side prefix filtering doesn't miss valid barcode matches
       const fetchLimit = /^\d+$/.test(searchQuery) ? 50 : 8;
-      const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit });
+      const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) });
       if (Array.isArray(products)) {
         // Client-side filter: for numeric searches, only show prefix matches on barcode/item_code
         // (backend fix in main.ts requires Electron restart, this works immediately)
@@ -670,7 +672,7 @@ export function BillingPage() {
       }
     }, 150);
     return () => clearTimeout(t);
-  }, [searchQuery, isScrapMode]);
+  }, [searchQuery, isScrapMode, invoiceType, isQuotationMode]);
 
   // Fetch categories when product create form opens
   useEffect(() => {
@@ -2886,7 +2888,7 @@ export function BillingPage() {
                     ref={searchRef}
                     type="text"
                     autoFocus
-                    placeholder={isScrapMode ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationMode ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : "Search products or scan barcode... (Press F2)"}
+                    placeholder={isScrapMode ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationMode ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}

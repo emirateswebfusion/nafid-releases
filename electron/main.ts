@@ -398,13 +398,18 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return [];
 
-    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate)) {
+    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst)) {
       return db.prepare('SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC').all(tenantId);
     }
 
-    const { limit, offset, search, sortBy, barcode, filterDate } = arg;
+    const { limit, offset, search, sortBy, barcode, filterDate, isGst } = arg;
     let query = 'SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0';
     const params: any[] = [tenantId];
+
+    if (isGst !== undefined) {
+       query += ' AND p.is_gst_applicable = ?';
+       params.push(isGst ? 1 : 0);
+    }
 
     if (barcode) {
        query += ' AND (p.sku_barcode = ? OR p.item_code = ?)';
