@@ -1,3 +1,10 @@
+# Vendora v1.5.8 Release Notes
+
+## What's Changed
+- Implemented POS billing system components, receipt rendering, and print template updates
+- Added PurchaseBillManager round-off calculations and tax rate adjustments
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.7...v1.5.8
+
 # Vendora v1.5.7 Release Notes
 
 ## What's Changed
