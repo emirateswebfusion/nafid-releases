@@ -980,6 +980,14 @@ export function BillingPage() {
           setDiscount(Number(invoice.discount_value), invoice.discount_type || 'FIXED');
         }
 
+        // Restore scrap / return credits applied on the original bill
+        if (Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number) {
+          setScrapDeduction(Number(invoice.scrap_deduction), invoice.scrap_invoice_number);
+        }
+        if (Number(invoice.return_deduction) > 0 && invoice.return_invoice_number) {
+          setReturnDeduction(Number(invoice.return_deduction), invoice.return_invoice_number);
+        }
+
         // Add each item to cart
         invoiceItems.forEach((item: any) => {
           const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
