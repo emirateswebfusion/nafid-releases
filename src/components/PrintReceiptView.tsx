@@ -160,26 +160,22 @@ export function PrintReceiptView({ text }: { text: string }) {
   if (!receiptText) return null;
 
   const isBillStyle = receiptText.includes('│') || receiptText.includes('┌');
-  const lh = isBillStyle ? 0.98 : 1.2;
+  const lh = isBillStyle ? 1.15 : 1.2;
 
   // ─── Layout constants (ALL in physical mm — avoids 100% resolution ambiguity) ─
-  // CSS calc(100%) in Chromium's print renderer can resolve to BrowserWindow width
-  // (400px) instead of the @page width (80mm). Using absolute mm units is safe:
-  // 1mm = 3.7795 CSS px, ALWAYS, regardless of DPI scaling or window size.
-  //
-  // ─── Layout constants (ALL in physical mm — avoids 100% resolution ambiguity) ─
-  // We constrain the box width to the printer's actual printable area with safety margins
-  // (66mm for 80mm roll, 42mm for 58mm roll) and left-align it with a 3.5mm physical offset,
-  // guaranteeing the right border is never pushed out of the printable area by margins.
+  // We keep the receipt container box width at exactly 66mm (for 80mm roll) or 42mm (for 58mm roll)
+  // and left-align it with a 2mm offset. This balances left/right gaps and guarantees borders never clip.
+  // To increase the font size without widening the container, we remove the horizontal padding (INNER_PX_HORIZ = 0).
   // ─────────────────────────────────────────────────────────────────────────────
   const PX_PER_MM       = 96 / 25.4;
   const charsPerLine    = paperWidth >= 75 ? 36 : 32;
-  const containerWidthMm = paperWidth >= 75 ? 66 : 42;          // 66mm or 42mm
+  const containerWidthMm = paperWidth >= 75 ? 66 : 42;          // 66mm or 42mm (perfect border width)
   const BORDER_PX       = 2;                                     // px each side
-  const INNER_PX        = paperWidth >= 75 ? 8 : 4;              // inner padding px each side
+  const INNER_PX_VERT   = 8;                                     // top/bottom padding px inside box
+  const INNER_PX_HORIZ  = 0;                                     // left/right padding px inside box
   
-  const textWidthMm     = containerWidthMm - 2 * (BORDER_PX + INNER_PX) / PX_PER_MM;
-  const fontPt          = Math.floor((textWidthMm / (charsPerLine * 0.353 * 0.60)) * 10) / 10;
+  const textWidthMm     = containerWidthMm - 2 * (BORDER_PX + INNER_PX_HORIZ) / PX_PER_MM;
+  const fontPt          = Math.floor((textWidthMm / (charsPerLine * 0.353 * 0.55)) * 10) / 10;
   const fontSize        = `${fontPt}pt`;
 
   const dynamicPrintStyles = `
@@ -213,9 +209,9 @@ export function PrintReceiptView({ text }: { text: string }) {
     <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
       <style>{dynamicPrintStyles}</style>
       <div style={{
-        margin: '2mm 0 2mm 2mm', // left margin of 2mm to balance left/right gaps and prevent right cut-off
+        margin: '2mm 0 2mm 2mm', // Left margin of 2mm (balances left/right gaps)
         width: `${containerWidthMm}mm`,
-        padding: isBillStyle ? `${INNER_PX}px` : `${INNER_PX}px`,
+        padding: isBillStyle ? `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px` : `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px`,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'stretch',
@@ -251,7 +247,7 @@ export function PrintReceiptView({ text }: { text: string }) {
                 if (!hasVisibleAfter) {
                   return null;
                 }
-                return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: `0 -${INNER_PX}px`, padding: 0 }} />;
+                return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: `0 -${INNER_PX_HORIZ}px`, padding: 0 }} />;
               }
               if (firstChar === '│' && lastChar === '│') {
                 displayValue = displayValue.substring(1, displayValue.length - 1);
