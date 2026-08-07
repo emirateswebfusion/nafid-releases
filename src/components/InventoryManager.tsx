@@ -96,6 +96,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [printPrice, setPrintPrice] = useState(true);
   const [printModalProduct, setPrintModalProduct] = useState<Product | null>(null);
   const [adjustingStockId, setAdjustingStockId] = useState<string | null>(null);
+  const [adjustModal, setAdjustModal] = useState<{ product: Product; mode: 'add' | 'reduce' } | null>(null);
+  const [adjustAmount, setAdjustAmount] = useState('');
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
   const [viewMode, setViewMode] = useState<'estimate' | 'gst' | 'combined'>('combined');
   const [showLowStockAlert, setShowLowStockAlert] = useState(true);
@@ -453,29 +455,52 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
-  const handleAdjustStock = async (product: Product, delta: number) => {
-    if (window.electronAPI) {
-      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-      const step = weightUoms.includes(product.uom) ? 0.1 : 1;
-      const adjustedDelta = delta * step;
-      setAdjustingStockId(product.product_id);
-      try {
-        const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta: adjustedDelta });
-        if (res.success) {
-          setProducts(prev => prev.map(p => 
-            p.product_id === product.product_id 
-              ? { ...p, current_stock: Number(p.current_stock) + adjustedDelta } 
-              : p
-          ));
-        } else {
-          alert('Failed to adjust stock: ' + res.error);
-        }
-      } catch (err: any) {
-        console.error('Adjust stock error:', err);
-        alert('Failed to adjust stock. Please try again.');
-      } finally {
-        setAdjustingStockId(null);
+  const openAdjustDialog = (product: Product, mode: 'add' | 'reduce') => {
+    setAdjustAmount('');
+    setAdjustModal({ product, mode });
+  };
+
+  const applyStockAdjust = async (product: Product, delta: number): Promise<boolean> => {
+    if (!window.electronAPI) return false;
+    setAdjustingStockId(product.product_id);
+    try {
+      const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta });
+      if (res.success) {
+        setProducts(prev => prev.map(p =>
+          p.product_id === product.product_id
+            ? { ...p, current_stock: Number(p.current_stock) + delta }
+            : p
+        ));
+        return true;
       }
+      setStatusMessage({ text: 'Failed to adjust stock: ' + res.error, type: 'error' });
+      return false;
+    } catch (err: any) {
+      console.error('Adjust stock error:', err);
+      setStatusMessage({ text: 'Failed to adjust stock. Please try again.', type: 'error' });
+      return false;
+    } finally {
+      setAdjustingStockId(null);
+    }
+  };
+
+  const confirmAdjustStock = async () => {
+    const modal = adjustModal;
+    if (!modal) return;
+    const amount = parseFloat(adjustAmount);
+    if (isNaN(amount) || amount <= 0) {
+      setStatusMessage({ text: 'Enter a valid amount greater than 0', type: 'error' });
+      return;
+    }
+    if (modal.mode === 'reduce' && amount > Number(modal.product.current_stock)) {
+      setStatusMessage({ text: 'Cannot reduce more than the current stock', type: 'error' });
+      return;
+    }
+    const delta = modal.mode === 'add' ? amount : -amount;
+    const ok = await applyStockAdjust(modal.product, delta);
+    if (ok) {
+      setAdjustModal(null);
+      setStatusMessage({ text: `${modal.mode === 'add' ? 'Added' : 'Reduced'} ${amount} ${modal.product.uom} — ${modal.product.name}`, type: 'success' });
     }
   };
 
@@ -1234,7 +1259,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       {/* Stock with +/- */}
                       <div className="col-span-4 flex items-center justify-center gap-1">
                         <button 
-                          onClick={() => handleAdjustStock(p, -1)} 
+                          onClick={() => openAdjustDialog(p, 'reduce')} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-destructive transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                         >
@@ -1256,7 +1281,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                           )}
                         </span>
                         <button 
-                          onClick={() => handleAdjustStock(p, 1)} 
+                          onClick={() => openAdjustDialog(p, 'add')} 
                           disabled={adjustingStockId === p.product_id}
                           className="w-7 h-7 flex items-center justify-center rounded-md bg-background border border-border text-muted-foreground hover:bg-muted hover:text-emerald-500 transition-all active:scale-90 disabled:opacity-50 cursor-pointer"
                         >
@@ -1963,6 +1988,115 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       )}
 
 
+
+      {adjustModal && (
+        <Modal
+          isOpen={true}
+          onClose={() => setAdjustModal(null)}
+          title="Adjust Stock"
+          className="max-w-md"
+          closeButton={null}
+        >
+          <div className="flex flex-col gap-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-bold text-foreground truncate">{adjustModal.product.name}</p>
+                <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                  {adjustModal.product.sku_barcode || adjustModal.product.item_code}
+                </p>
+              </div>
+              <div className="shrink-0 text-right bg-muted/40 border border-border rounded-xl px-3 py-1.5">
+                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Current Stock</p>
+                <p className="text-sm font-black text-foreground">
+                  {Number(adjustModal.product.current_stock).toFixed(['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom) ? 3 : 0)} {adjustModal.product.uom}
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 bg-muted/40 border border-border rounded-xl p-1">
+              <button
+                onClick={() => setAdjustModal({ ...adjustModal, mode: 'add' })}
+                className={clsx(
+                  'px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
+                  adjustModal.mode === 'add'
+                    ? 'bg-emerald-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background'
+                )}
+              >
+                + Add
+              </button>
+              <button
+                onClick={() => setAdjustModal({ ...adjustModal, mode: 'reduce' })}
+                className={clsx(
+                  'px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer',
+                  adjustModal.mode === 'reduce'
+                    ? 'bg-red-500 text-white shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-background'
+                )}
+              >
+                − Reduce
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Amount ({adjustModal.product.uom})
+              </label>
+              <input
+                autoFocus
+                type="number"
+                min="0"
+                step="any"
+                inputMode="decimal"
+                onWheel={e => (e.target as HTMLInputElement).blur()}
+                value={adjustAmount}
+                onChange={e => setAdjustAmount(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
+                placeholder={`Enter amount in ${adjustModal.product.uom}`}
+                className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
+              />
+              <p className="text-xs text-muted-foreground mt-2 font-semibold">
+                {(() => {
+                  const amt = parseFloat(adjustAmount);
+                  if (isNaN(amt) || amt <= 0) return 'Enter an amount to see the new stock';
+                  const newStock = adjustModal.mode === 'add'
+                    ? Number(adjustModal.product.current_stock) + amt
+                    : Number(adjustModal.product.current_stock) - amt;
+                  if (newStock < 0) return 'Resulting stock would be negative';
+                  const decimals = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom) ? 3 : 0;
+                  return `New stock: ${newStock.toFixed(decimals)} ${adjustModal.product.uom}`;
+                })()}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-border mt-1 pt-4">
+              <button
+                onClick={() => setAdjustModal(null)}
+                className="px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmAdjustStock}
+                disabled={adjustingStockId === adjustModal.product.product_id}
+                className={clsx(
+                  'px-5 py-2.5 rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50',
+                  adjustModal.mode === 'add'
+                    ? 'bg-emerald-500 hover:bg-emerald-600 text-white'
+                    : 'bg-red-500 hover:bg-red-600 text-white'
+                )}
+              >
+                {adjustingStockId === adjustModal.product.product_id ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  adjustModal.mode === 'add' ? <Plus className="w-4 h-4" /> : <Minus className="w-4 h-4" />
+                )}
+                {adjustModal.mode === 'add' ? 'Add' : 'Reduce'} Stock
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {printModalProduct && (
         <Modal

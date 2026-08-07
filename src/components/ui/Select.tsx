@@ -117,21 +117,21 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
           onClick={() => !disabled && setOpen(prev => !prev)}
           className={twMerge(
             clsx(
-              'w-full bg-background border border-input rounded-md text-left flex items-center justify-between gap-2 transition-all shadow-sm',
+              'w-full bg-background/50 border border-input rounded-xl text-left flex items-center justify-between gap-2 transition-all duration-200 active:scale-95 shadow-sm font-semibold text-foreground',
               {
-                'h-10 px-3 py-2 text-sm': size === 'default',
-                'h-8 px-2.5 py-1 text-xs': size === 'sm',
-                'h-7 px-2 py-0.5 text-xs': size === 'xs',
+                'h-10 px-3.5 py-2 text-xs': size === 'default',
+                'h-8.5 px-3 py-1.5 text-xs': size === 'sm',
+                'h-7.5 px-2.5 py-1 text-[11px]': size === 'xs',
               },
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              'disabled:cursor-not-allowed disabled:opacity-50',
+              'focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background',
+              'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
               'cursor-pointer',
-              open && 'ring-2 ring-ring ring-offset-2'
+              open && 'border-primary ring-4 ring-primary/10 bg-background'
             ),
             triggerClassName
           )}
         >
-          <span className={clsx('truncate', !selectedOption && 'text-muted-foreground')}>
+          <span className={clsx('truncate', !selectedOption && 'text-muted-foreground/60 font-semibold')}>
             {selectedOption ? selectedOption.label : placeholder}
           </span>
           <ChevronDown className={clsx(
@@ -142,16 +142,16 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
         </button>
 
         {open && (
-          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
             {searchable && (
-              <div className="p-1.5 border-b border-border">
+              <div className="p-2 border-b border-border bg-muted/10">
                 <input
                   ref={searchInputRef}
                   type="text"
                   value={search}
                   onChange={e => { setSearch(e.target.value); setFocusedIndex(0); }}
                   placeholder="Search..."
-                  className="w-full bg-background border border-input rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full bg-background border border-input rounded-xl px-2.5 py-1.5 text-xs font-semibold focus:outline-none focus:ring-4 focus:ring-primary/10"
                 />
               </div>
             )}

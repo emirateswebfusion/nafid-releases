@@ -4,7 +4,7 @@ import { twMerge } from 'tailwind-merge';
 
 export const Card = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={twMerge(clsx('rounded-xl border border-border bg-card text-card-foreground shadow-sm', className))} {...props} />
+    <div ref={ref} className={twMerge(clsx('rounded-3xl border border-border bg-card text-card-foreground shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300', className))} {...props} />
   )
 );
 Card.displayName = 'Card';

@@ -171,3 +171,77 @@
     box-shadow: 0 0 12px rgba(255, 255, 255, 0.08) !important;
   }
 }
+
+@layer utilities {
+  /* Layout & Headers */
+  .premium-page {
+    @apply fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200 select-none;
+  }
+  .premium-header {
+    @apply shrink-0 z-10 border-b border-border bg-card shadow-sm;
+  }
+  .premium-content-wrap {
+    @apply flex-1 overflow-y-auto p-6;
+  }
+  .premium-container-inner {
+    @apply max-w-6xl mx-auto space-y-6;
+  }
+
+  /* Cards & Stats */
+  .premium-card {
+    @apply bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative;
+  }
+  .premium-stat-card {
+    @apply bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none;
+  }
+
+  /* Controls & Buttons */
+  .premium-input {
+    @apply w-full px-3.5 py-2 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground;
+  }
+  .premium-btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+  .premium-btn-outline {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed;
+  }
+
+  /* Action Bars & Search Wrapper */
+  .premium-action-bar {
+    @apply flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm;
+  }
+  .premium-search-wrapper {
+    @apply relative w-full sm:max-w-xs;
+  }
+  .premium-search-input {
+    @apply w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground;
+  }
+
+  /* Navigation Tabs */
+  .premium-tabs-list {
+    @apply flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none;
+  }
+  .premium-tab-trigger {
+    @apply flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0;
+  }
+  .premium-tab-trigger-active {
+    @apply bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold;
+  }
+  .premium-tab-trigger-inactive {
+    @apply text-muted-foreground hover:text-foreground hover:bg-muted/50;
+  }
+
+  /* Tables & Rows */
+  .premium-table-container {
+    @apply bg-card border border-border rounded-[28px] overflow-hidden shadow-sm;
+  }
+  .premium-table-header-row {
+    @apply hidden sm:grid grid-cols-12 gap-3 px-6 py-3 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none;
+  }
+  .premium-table-body-row {
+    @apply border-b border-border last:border-b-0 transition-all duration-200 hover:bg-muted/10;
+  }
+  .premium-table-body-row-editing {
+    @apply bg-primary/[0.03] px-6 py-4 space-y-4 bg-muted/20 dark:bg-muted/10 select-none;
+  }
+}
