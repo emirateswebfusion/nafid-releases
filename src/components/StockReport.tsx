@@ -43,12 +43,15 @@ interface EnrichedProduct extends Product {
   gradeName: string;
   gstQty: number;
   estimateQty: number;
+  gstPurchasedQty: number;
+  gstPaperStock: number;
 }
 
 interface ProductBillQty {
   product_id: string;
   gst_qty: number;
   estimate_qty: number;
+  gst_purchased_qty?: number;
 }
 
 const CACHE_TTL = 5 * 60 * 1000;
@@ -65,7 +68,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
-  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock'>('all');
+  const [stockFilter, setStockFilter] = useState<'all' | 'in_stock' | 'low_stock' | 'out_of_stock' | 'dummy_gst'>('all');
   const [partyFilter, setPartyFilter] = useState('');
   const [parties, setParties] = useState<any[]>([]);
   const [productSupplierMap, setProductSupplierMap] = useState<Map<string, Set<string>>>(new Map());
@@ -233,6 +236,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       if (deferredStock === 'low_stock' &&
           !(Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0 && Number(p.current_stock) > 0)) return false;
       if (deferredStock === 'out_of_stock' && Number(p.current_stock) > 0) return false;
+      if (deferredStock === 'dummy_gst') {
+        const bq = billQtyMap.get(p.product_id);
+        const gstPurchased = bq ? Number(bq.gst_purchased_qty) : 0;
+        const gstSold = bq ? Number(bq.gst_qty) : 0;
+        if (gstPurchased - gstSold <= 0) return false;
+      }
       // Party filter: only show products that have been purchased from the selected party
       if (deferredParty) {
         const suppliers = productSupplierMap.get(p.product_id);
@@ -240,7 +249,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       }
       return true;
     }),
-    [products, deferredSearch, deferredCategory, deferredStock, viewMode, deferredParty, productSupplierMap]
+    [products, deferredSearch, deferredCategory, deferredStock, viewMode, deferredParty, productSupplierMap, billQtyMap]
   );
 
   const {
@@ -280,7 +289,24 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
       const bq = billQtyMap.get(p.product_id);
 
-      const ep: EnrichedProduct = { ...p, rate, finalSellingPrice, totalWeight, totalPcs, isLowStock, isOutOfStock, gradeName: gr?.grade_name || '-', gstQty: bq ? Number(bq.gst_qty) : 0, estimateQty: bq ? Number(bq.estimate_qty) : 0 };
+      const gstQty = bq ? Number(bq.gst_qty) : 0;
+      const gstPurchasedQty = bq ? Number(bq.gst_purchased_qty) : 0;
+      const gstPaperStock = Math.max(0, gstPurchasedQty - gstQty);
+
+      const ep: EnrichedProduct = { 
+        ...p, 
+        rate, 
+        finalSellingPrice, 
+        totalWeight, 
+        totalPcs, 
+        isLowStock, 
+        isOutOfStock, 
+        gradeName: gr?.grade_name || '-', 
+        gstQty, 
+        estimateQty: bq ? Number(bq.estimate_qty) : 0, 
+        gstPurchasedQty, 
+        gstPaperStock 
+      };
 
       const cs = Number(p.current_stock);
       tStock += cs;
@@ -801,6 +827,9 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                 <option value="in_stock">In Stock</option>
                 <option value="low_stock">Low Stock</option>
                 <option value="out_of_stock">Out of Stock</option>
+                {(viewMode === 'gst' || viewMode === 'combined') && (
+                  <option value="dummy_gst">Dummy GST Stock Only</option>
+                )}
               </select>
               <select
                 value={partyFilter}
@@ -830,7 +859,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   )}
                   {stockFilter !== 'all' && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-[11px] font-bold">
-                      {stockFilter === 'in_stock' ? 'In Stock' : stockFilter === 'low_stock' ? 'Low Stock' : 'Out of Stock'}
+                      {stockFilter === 'in_stock' ? 'In Stock' : stockFilter === 'low_stock' ? 'Low Stock' : stockFilter === 'out_of_stock' ? 'Out of Stock' : 'Dummy GST Stock'}
                       <button onClick={() => setStockFilter('all')} className="hover:bg-amber-500/20 rounded p-0.5 transition-colors cursor-pointer"><X className="w-3 h-3" /></button>
                     </span>
                   )}
@@ -962,6 +991,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <th className="text-left px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Grade</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Stock</th>
                     {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Qty</th>}
+                    {viewMode !== 'estimate' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">GST Paper Stock</th>}
                     {viewMode !== 'gst' && <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Est Qty</th>}
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Weight</th>
                     <th className="text-right px-4 py-2.5 font-bold text-[10px] uppercase text-muted-foreground tracking-wider">Purchase</th>
@@ -973,12 +1003,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td className="px-4 py-3" colSpan={viewMode === 'combined' ? 10 : 9}><Skeleton className="h-5 w-full rounded" /></td>
+                        <td className="px-4 py-3" colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9}><Skeleton className="h-5 w-full rounded" /></td>
                       </tr>
                     ))
                   ) : Object.entries(groupedByCategory).length === 0 ? (
                     <tr>
-                      <td colSpan={viewMode === 'combined' ? 10 : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
+                      <td colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9} className="px-4 py-8 text-center text-sm text-muted-foreground">No products found matching your filters</td>
                     </tr>
                     ) : (
                     Object.entries(groupedByCategory).map(([cat, items]) => {
@@ -986,7 +1016,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       return (
                         <React.Fragment key={cat}>
                           <tr className="bg-primary/5">
-                            <td colSpan={viewMode === 'combined' ? 10 : 9} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
+                            <td colSpan={viewMode === 'combined' ? 11 : viewMode === 'gst' ? 10 : 9} className="px-4 py-2 text-xs font-bold text-primary uppercase tracking-wider border-b border-border/30">
                               <div className="flex items-center gap-2">
                                 <span>{cat}</span>
                                 <span className="text-[10px] text-muted-foreground font-semibold">
@@ -1006,7 +1036,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.category || '-'}</td>
                               <td className="px-4 py-2.5 text-sm text-muted-foreground">{p.gradeName}</td>
                               <td className={clsx('px-4 py-2.5 text-right font-bold text-sm', p.isOutOfStock ? 'text-red-500' : p.isLowStock ? 'text-amber-500' : 'text-foreground')}>{Number(p.current_stock).toFixed(0)}</td>
-                              {viewMode !== 'estimate' && <td className="px-4 py-2.5 text-right text-sm text-sky-600 dark:text-sky-400">{p.gstQty.toFixed(0)}</td>}
+                              {viewMode !== 'estimate' && <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.gstQty.toFixed(0)}</td>}
+                              {viewMode !== 'estimate' && <td className="px-4 py-2.5 text-right text-sm font-bold text-sky-600 dark:text-sky-400 tabular-nums">{p.gstPaperStock.toFixed(0)}</td>}
                               {viewMode !== 'gst' && <td className="px-4 py-2.5 text-right text-sm text-amber-600 dark:text-amber-400">{p.estimateQty.toFixed(0)}</td>}
                               <td className="px-4 py-2.5 text-right text-sm text-muted-foreground">{p.totalWeight > 0 ? p.totalWeight.toFixed(2) + ' KG' + (p.totalPcs > 0 ? ' (' + p.totalPcs + ' pcs)' : '') : '-'}</td>
                               <td className="px-4 py-2.5 text-right text-sm text-foreground">{formatCurrency(Number(p.purchase_price) || 0)}</td>
@@ -1022,7 +1053,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                     <tr className="bg-muted/30 border-t-2 border-border">
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                       <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
-                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-bold text-sm text-sky-500">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>}
+                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-bold text-sm text-muted-foreground">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>}
+                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{billQuantities.reduce((s, b) => s + Math.max(0, Number(b.gst_purchased_qty) - Number(b.gst_qty)), 0).toFixed(0)}</td>}
                       {viewMode !== 'gst' && <td className="px-4 py-3 text-right font-bold text-sm text-amber-500">{billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0).toFixed(0)}</td>}
                       <td className="px-4 py-3 text-right"></td>
                       <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>

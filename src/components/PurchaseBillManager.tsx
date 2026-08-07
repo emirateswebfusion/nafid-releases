@@ -934,6 +934,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onShareAll={() => handleBulkShare('GST')}
                 otherSectionAddItem={gstOtherAddItem}
                 editingData={gstEditingData}
+                getOtherSectionItems={() => estRef.current?.getItems?.() || []}
               />
             </div>
             <div className={billType === 'ESTIMATE' ? 'block' : 'hidden'}>
@@ -952,6 +953,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 onShareAll={() => handleBulkShare('ESTIMATE')}
                 otherSectionAddItem={estOtherAddItem}
                 editingData={estEditingData}
+                getOtherSectionItems={() => gstRef.current?.getItems?.() || []}
               />
             </div>
           </div>
@@ -1533,7 +1535,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     payment_type: string;
     total_amount?: number;
   };
-}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData }, ref) => {
+  getOtherSectionItems?: () => any[];
+}>(({ type, tenantId, billDate, supplierName, supplierId, notes, onStatusMessage, onSaved, onItemsLoaded, onItemsChange, onShareAll, otherSectionAddItem, editingData, getOtherSectionItems }, ref) => {
   const [billNumber, setBillNumber] = useState('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [manualRoundOff, setManualRoundOff] = useState<string>('');
@@ -2040,6 +2043,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const totalAmount = Math.round(total + currentRoundOff);
     const billId = editingData?.purchase_bill_id || uuidv4();
 
+    const otherItems = getOtherSectionItems ? getOtherSectionItems() : [];
+    const otherProductIds = new Set(otherItems.map(i => i.product_id));
+
     if (window.electronAPI) {
       const payload = {
         purchase_bill_id: billId,
@@ -2065,6 +2071,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           is_gst_applicable: type === 'GST' ? (item.is_gst_applicable ?? 1) : 0,
           tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
           hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
+          skip_stock_update: type === 'GST' && otherProductIds.has(item.product_id) ? 1 : 0,
         })),
       };
 
