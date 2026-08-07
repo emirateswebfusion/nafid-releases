@@ -183,9 +183,10 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
       </header>
 
       {view === 'list' && (
-        <>
-          <div className="grid grid-cols-3 gap-5 px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm select-none">
-            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+        <div className="flex-1 flex flex-col min-h-0 bg-background select-none max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+          {/* Stats strip */}
+          <div className="grid grid-cols-3 gap-5 bg-card border border-border p-5 rounded-[24px] shrink-0 shadow-sm select-none">
+            <div className="bg-card border border-border/40 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -194,7 +195,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Issued Points</p>
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+            <div className="bg-card border border-border/40 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -203,7 +204,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Redeemed</p>
               </div>
             </div>
-            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+            <div className="bg-card border border-border/40 p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -214,7 +215,8 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
             </div>
           </div>
 
-          <div className="px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm flex items-center justify-between gap-4">
+          {/* Search bar */}
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
             <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
               <input type="text" placeholder="Search by name or phone..."
@@ -231,8 +233,9 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
             </div>
           </div>
 
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto px-6 py-4">
+          {/* List area */}
+          <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
+            <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0 bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6">
               {loading ? (
                 <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
               ) : filteredCustomers.length === 0 ? (
@@ -250,7 +253,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                   {filteredCustomers.map(customer => (
                     <div key={customer.customer_id}
                       onClick={() => loadCustomerDetails(customer)}
-                      className="flex items-center justify-between p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer group select-none">
+                      className="flex items-center justify-between p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer group select-none animate-in fade-in duration-200">
                       <div className="flex items-center gap-3.5 flex-1 min-w-0">
                         <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
                           <User className="w-5 h-5" />
@@ -288,7 +291,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
               )}
             </div>
           </div>
-        </>
+        </div>
       )}
 
       {view === 'detail' && selectedCustomer && (
