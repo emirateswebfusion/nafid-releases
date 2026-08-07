@@ -527,18 +527,20 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
         <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-          <div className="flex items-center gap-3 px-5 py-3">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <BarChart3 className="w-4 h-4" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold text-foreground truncate">Product Sales Summary</h1>
-                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0" />
+          <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+                <BarChart3 className="w-4 h-4" />
               </div>
-              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-                GST vs Bill of Supply quantities sold per product
-              </p>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-sm font-bold text-foreground truncate">Product Sales Summary</h1>
+                  <span className="w-1.5 h-1.5 rounded-full bg-violet-500 animate-pulse shrink-0" />
+                </div>
+                <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+                  GST vs Bill of Supply quantities sold per product
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -658,16 +660,15 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           HEADER
       ══════════════════════════════════════════ */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="flex items-center gap-3 px-5 py-3">
-
-          <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-            <FileText className="w-4 h-4" />
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-sm font-bold text-foreground truncate">Stock Report</h1>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Stock Report</h1>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
             <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
               {loading ? <Skeleton className="h-3 w-16 inline-block align-middle" /> : products.length} products
@@ -676,6 +677,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               )}
             </p>
           </div>
+        </div>
 
           <div className="flex items-center gap-x-0.5 bg-muted/50 rounded-xl p-0.5 shrink-0">
             {([

@@ -132,7 +132,8 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 gap-4 shadow-sm z-30">
+      <header className="shrink-0 border-b border-border bg-card shadow-sm z-30">
+        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 gap-4 select-none">
         <div className="flex items-center gap-3 min-w-0">
           <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
             {view === 'list' ? <User className="w-5 h-5" /> : <Star className="w-5 h-5" />}
@@ -178,6 +179,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
             </button>
           )}
         </div>
+      </div>
       </header>
 
       {view === 'list' && (
