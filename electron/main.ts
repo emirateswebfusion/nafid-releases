@@ -2300,14 +2300,42 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             `).get(item.product_id);
 
             if (!gstPriceRow || !gstPriceRow.avg_price) {
-              skippedItems.push(item.name || item.product_id);
+              skippedItems.push(`${item.name || item.product_id} (No GST Purchase Bill)`);
               continue;
             }
 
             const basePrice = Number(gstPriceRow.avg_price);
             const newUnitPrice = Math.round(basePrice * multiplier * 100) / 100;
-            const qty = Number(item.quantity) || 0;
-            const newTotal = Math.round(newUnitPrice * qty * 100) / 100;
+            const originalQty = Number(item.quantity) || 0;
+
+            // Compute available GST stock for this product:
+            // total purchased on GST
+            const purchasedRow = db.prepare(`
+              SELECT COALESCE(SUM(pbi.quantity), 0) as total_purchased
+              FROM purchase_bill_items pbi
+              JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+              WHERE pbi.product_id = ? AND pb.bill_type = 'GST' AND pb.tenant_id = ?
+            `).get(item.product_id, payload.tenant_id) as any;
+            const totalPurchased = purchasedRow ? Number(purchasedRow.total_purchased) : 0;
+
+            // total sold on GST
+            const soldRow = db.prepare(`
+              SELECT COALESCE(SUM(ii.quantity), 0) as total_sold
+              FROM invoice_items ii
+              JOIN invoices i ON ii.invoice_id = i.invoice_id
+              WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ?
+            `).get(item.product_id, payload.tenant_id) as any;
+            const totalSold = soldRow ? Number(soldRow.total_sold) : 0;
+
+            const availableGst = Math.max(0, totalPurchased - totalSold);
+            const qtyToConvert = Math.min(originalQty, availableGst);
+
+            if (qtyToConvert <= 0) {
+              skippedItems.push(`${item.name || item.product_id} (No GST Stock - 0 of ${originalQty} converted)`);
+              continue;
+            }
+
+            const newTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
             newSubtotal += newTotal;
 
             let taxRate = 0;
@@ -2315,14 +2343,14 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             if (prod) taxRate = Number(prod.tax_rate_percent) || 0;
 
             const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
-
             newTotalTax += itemTax;
+
             copyItems.push({
               item_id: crypto.randomUUID(),
               source_item_id: item.item_id,
               product_id: item.product_id,
               name: item.name,
-              quantity: item.quantity,
+              quantity: qtyToConvert,
               is_service_item: item.is_service_item ? 1 : 0,
               newUnitPrice,
               newTotal,
@@ -2331,10 +2359,14 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               bosTax: Number(item.tax_amount) || 0,
               bosTotal: Number(item.total) || 0,
             });
+
+            if (qtyToConvert < originalQty) {
+              skippedItems.push(`${item.name || item.product_id} (${qtyToConvert} of ${originalQty} converted to GST, original Estimate unchanged)`);
+            }
           }
 
           if (copyItems.length === 0) {
-            throw new Error('No items have GST purchase records. Conversion requires at least one item with a GST purchase bill entry.');
+            throw new Error('No items have GST purchase records or available GST stock. Conversion failed.');
           }
 
           newSubtotal = Math.round(newSubtotal * 100) / 100;
@@ -2419,7 +2451,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             );
           }
 
-          // 3. Mark the BoS as superseded — linked to its GST copy
+          // 3. Mark the BoS as superseded — linked to its GST copy (original Estimate remains untouched)
           db.prepare(`
             UPDATE invoices SET
               converted_to_invoice_id = ?,
@@ -3572,7 +3604,9 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
+      // Two stock statements: ESTIMATE bills update stock+price; GST bills update price only (tax documents, not inventory)
       const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
+      const updatePurchasePriceOnly = db.prepare(`UPDATE products SET purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
@@ -3581,7 +3615,12 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         const actualPurchasePrice = billType === 'GST' && isGst === 1
           ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
           : item.purchase_price;
-        updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+        // Only ESTIMATE bills update inventory stock; GST bills are tax-filing documents only
+        if (billType === 'ESTIMATE') {
+          updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+        } else {
+          updatePurchasePriceOnly.run(actualPurchasePrice, item.product_id, bill.tenant_id);
+        }
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
         }
@@ -3697,11 +3736,16 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
         WHERE purchase_bill_id = ?
       `).run(bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType, bill.purchase_bill_id);
 
-      // Revert stock of previous items before deleting them
+      // Revert stock of previous items before deleting them.
+      // Only ESTIMATE bills update inventory stock — check stored bill_type before reverting.
+      const oldBill = db.prepare('SELECT bill_type FROM purchase_bills WHERE purchase_bill_id = ?').get(bill.purchase_bill_id) as any;
+      const oldBillType = oldBill?.bill_type || 'GST';
       const oldItems = db.prepare('SELECT product_id, quantity FROM purchase_bill_items WHERE purchase_bill_id = ?').all(bill.purchase_bill_id) as any[];
       const decreaseStock = db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
-      for (const item of oldItems) {
-        decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
+      if (oldBillType === 'ESTIMATE') {
+        for (const item of oldItems) {
+          decreaseStock.run(item.quantity, item.product_id, bill.tenant_id);
+        }
       }
 
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(bill.purchase_bill_id);
@@ -3710,7 +3754,9 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
         INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
+      // Two stock statements: ESTIMATE bills update stock+price; GST bills update price only
       const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
+      const updatePurchasePriceOnly = db.prepare(`UPDATE products SET purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
       const updatePrice = db.prepare(`UPDATE products SET base_price = ? WHERE product_id = ? AND tenant_id = ?`);
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
@@ -3719,7 +3765,12 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
         const actualPurchasePrice = billType === 'GST' && isGst === 1
           ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
           : item.purchase_price;
-        updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+        // Only ESTIMATE bills update inventory stock; GST bills are tax-filing documents only
+        if (billType === 'ESTIMATE') {
+          updateStock.run(item.quantity, actualPurchasePrice, item.product_id, bill.tenant_id);
+        } else {
+          updatePurchasePriceOnly.run(actualPurchasePrice, item.product_id, bill.tenant_id);
+        }
         if (item.selling_price != null) {
           updatePrice.run(item.selling_price, item.product_id, bill.tenant_id);
         }

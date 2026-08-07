@@ -1493,6 +1493,7 @@ export function BillingPage() {
           returnSourceInvoiceNumber: invoice.invoice_number,
           uom: p?.uom || 'PCS',
           hsn: p?.hsn || '',
+          brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || null,
         };
       });
       for (const ci of cartItems) {
@@ -2322,6 +2323,7 @@ export function BillingPage() {
         product_id: item.product_id,
         invoice_item_id: item.invoiceItemId || undefined,
         name: item.name,
+        brand_manufacturer: item.brand_manufacturer || null,
         quantity: Number(item.quantity) || 0,
         unit_price: Number(item.originalUnitPrice) || 0,
         tax_amount: ((Number(item.originalTaxAmount) || 0) / Math.max(1, Number(item.originalQuantity) || 1)) * (Number(item.quantity) || 0),
@@ -2379,7 +2381,7 @@ export function BillingPage() {
           refundMethod: returnRefundMethod.replace('_', ' '),
           date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().userName || undefined,
-          items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total })),
+          items: returnItems.map(ri => ({ name: ri.name, quantity: ri.quantity, unit_price: ri.unit_price, total: ri.total, brand: ri.brand_manufacturer || undefined })),
           subtotal: returnSubtotal,
           tax: returnTaxTotal,
           discount: 0,

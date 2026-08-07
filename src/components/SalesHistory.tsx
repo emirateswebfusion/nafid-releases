@@ -468,7 +468,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           }
         }
       }
-      return { ...item, originalRate, discountLabel };
+      return { ...item, originalRate, discountLabel, brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined };
     });
   };
 
@@ -565,7 +565,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
         billerName: selectedInvoice.biller_name,
-        items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel })),
+        items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel, brand: item.brand_manufacturer || undefined })),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
         cgst: cgst,

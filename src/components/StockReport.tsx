@@ -332,6 +332,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     };
   }, [filteredProducts, getMrp, gradeMap]);
 
+
   const handleDownloadCsv = () => {
     const headers = ['Product', 'Category', 'Grade', 'Stock'];
     if (viewMode !== 'estimate') headers.push('GST Qty');
@@ -939,6 +940,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
               </div>
             </div>
           )}
+
 
           {/* Detailed Table */}
           <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
