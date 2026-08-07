@@ -1095,7 +1095,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       
       {/* Action Header inside page */}
       {view === 'list' && (
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
+        <div className="max-w-7xl mx-auto w-full px-6 pt-6 select-none shrink-0">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
           <div className="relative w-full sm:max-w-xs flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
             <input
@@ -1167,11 +1168,12 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             </button>
           </div>
         </div>
+        </div>
       )}
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
       {view === 'list' && (
-        <div className="flex-1 overflow-y-auto p-6 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
+        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-3 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
           <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
             <div className="flex-1 overflow-y-auto">
               <div className="min-w-0 overflow-x-auto">
