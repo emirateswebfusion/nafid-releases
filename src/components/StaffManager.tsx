@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { 
   Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
@@ -264,34 +264,33 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-muted/10 p-6 space-y-6">
         
-        {/* Dashboard Stats Row */}
         {view === 'list' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 shrink-0 max-w-7xl mx-auto w-full">
-            <div className="bg-card p-5 rounded-2xl border border-border/80 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
-              <div className="p-3.5 rounded-xl bg-indigo-500/10 text-indigo-500">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 shrink-0 max-w-7xl mx-auto w-full select-none">
+            <div className="premium-stat-card">
+              <div className="p-3.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <Users className="w-6 h-6" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-extrabold">Total Staff Directory</p>
-                <p className="text-2xl font-black text-foreground mt-0.5">{stats.total}</p>
+              <div className="leading-tight text-left">
+                <p className="text-2xl font-black text-foreground font-mono">{stats.total}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Staff Directory</p>
               </div>
             </div>
-            <div className="bg-card p-5 rounded-2xl border border-border/80 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
-              <div className="p-3.5 rounded-xl bg-purple-500/10 text-purple-500">
+            <div className="premium-stat-card">
+              <div className="p-3.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <Shield className="w-6 h-6" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-extrabold">Administrators</p>
-                <p className="text-2xl font-black text-foreground mt-0.5">{stats.admins}</p>
+              <div className="leading-tight text-left">
+                <p className="text-2xl font-black text-foreground font-mono">{stats.admins}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Administrators</p>
               </div>
             </div>
-            <div className="bg-card p-5 rounded-2xl border border-border/80 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
-              <div className="p-3.5 rounded-xl bg-emerald-500/10 text-emerald-500">
+            <div className="premium-stat-card">
+              <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <User className="w-6 h-6" />
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wider font-extrabold">Restricted Staff</p>
-                <p className="text-2xl font-black text-foreground mt-0.5">{stats.activeStaff}</p>
+              <div className="leading-tight text-left">
+                <p className="text-2xl font-black text-foreground font-mono">{stats.activeStaff}</p>
+                <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Restricted Staff</p>
               </div>
             </div>
           </div>
@@ -299,28 +298,36 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
         {/* Directory List View */}
         {view === 'list' && (
-          <div className="flex-1 flex flex-col min-h-0 max-w-7xl mx-auto w-full bg-card border border-border/85 rounded-2xl shadow-sm overflow-hidden">
+          <div className="flex-1 flex flex-col min-h-0 max-w-7xl mx-auto w-full bg-card border border-border/85 rounded-3xl shadow-sm overflow-hidden select-none">
             
             {/* Table Control Header */}
             <div className="p-5 border-b border-border bg-card flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
               {/* Search & Filtering tab */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                <div className="relative">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <div className="premium-search-wrapper">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
                   <input 
                     type="text" 
                     placeholder="Search by name or email..." 
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="w-full sm:w-80 bg-background border border-border/80 rounded-xl py-2.5 pl-10 pr-3.5 text-xs text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm"
+                    className="premium-search-input w-full sm:w-80"
                   />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
-                <div className="flex bg-muted/40 p-1 rounded-xl border border-border/60">
+                <div className="premium-tabs-list !w-auto">
                   <button 
                     onClick={() => setRoleFilter('ALL')}
                     className={clsx(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                      roleFilter === 'ALL' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      "premium-tab-trigger",
+                      roleFilter === 'ALL' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
                     )}
                   >
                     All
@@ -328,8 +335,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <button 
                     onClick={() => setRoleFilter('OWNER')}
                     className={clsx(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                      roleFilter === 'OWNER' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      "premium-tab-trigger",
+                      roleFilter === 'OWNER' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
                     )}
                   >
                     Admins
@@ -337,8 +344,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <button 
                     onClick={() => setRoleFilter('BILLER')}
                     className={clsx(
-                      "px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                      roleFilter === 'BILLER' ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                      "premium-tab-trigger",
+                      roleFilter === 'BILLER' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
                     )}
                   >
                     Staff
@@ -387,7 +394,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                     return (
                       <div 
                         key={member.user_id} 
-                        className="bg-card border border-border/80 rounded-2xl shadow-sm p-5 hover:border-primary/20 hover:shadow-md transition-all duration-200 flex flex-col justify-between group relative overflow-hidden"
+                        className="premium-card p-5 select-none"
                       >
                         {/* Role Header Badge */}
                         <div className="absolute top-4 right-4">

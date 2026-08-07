@@ -552,35 +552,35 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-muted/[0.02]">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-1">Products Sold</p>
-              <p className="text-xl font-black text-foreground leading-none">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString('en-IN')}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
+            <div className="premium-stat-card flex-col !items-start gap-1">
+              <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString('en-IN')}</p>
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Products Sold</p>
             </div>
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-sky-600 dark:text-sky-400 mb-1">Sold as GST</p>
-              <p className="text-xl font-black text-sky-600 dark:text-sky-400 leading-none">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.gst.toFixed(0)}</p>
+            <div className="premium-stat-card flex-col !items-start gap-1">
+              <p className="text-2xl font-black text-sky-600 dark:text-sky-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.gst.toFixed(0)}</p>
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-sky-500 mt-1">Sold as GST</p>
             </div>
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-amber-600 dark:text-amber-400 mb-1">Sold as BoS</p>
-              <p className="text-xl font-black text-amber-600 dark:text-amber-400 leading-none">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bos.toFixed(0)}</p>
+            <div className="premium-stat-card flex-col !items-start gap-1">
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bos.toFixed(0)}</p>
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-amber-500 mt-1">Sold as BoS</p>
             </div>
-            <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
-              <p className="text-[10px] uppercase tracking-widest font-bold text-muted-foreground mb-1">Products ever sold as BoS</p>
-              <p className="text-xl font-black text-foreground leading-none">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bosProducts.toLocaleString('en-IN')}</p>
+            <div className="premium-stat-card flex-col !items-start gap-1">
+              <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bosProducts.toLocaleString('en-IN')}</p>
+              <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Sold as BoS (Ever)</p>
             </div>
           </div>
 
-          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+          <div className="premium-card p-5 select-none">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <div className="premium-search-wrapper !max-w-xs">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search product..."
                   value={salesSearch}
                   onChange={e => setSalesSearch(e.target.value)}
-                  className="w-full bg-background border border-border rounded-xl px-3.5 py-2.5 pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm"
+                  className="premium-search-input"
                 />
                 {salesSearch && (
                   <button onClick={() => setSalesSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">

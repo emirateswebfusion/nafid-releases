@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, User, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut
@@ -182,73 +182,100 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
       {view === 'list' && (
         <>
-          <div className="grid grid-cols-3 gap-4 px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm">
-            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Points Issued</p>
-              <p className="text-2xl font-black text-primary mt-1">{totalPointsIssued.toFixed(2)}</p>
+          <div className="grid grid-cols-3 gap-5 px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm select-none">
+            <div className="premium-stat-card">
+              <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner">
+                <Gift className="w-5 h-5" />
+              </div>
+              <div className="leading-tight text-left">
+                <p className="text-xl font-black text-foreground font-mono">{totalPointsIssued.toFixed(0)}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Issued Points</p>
+              </div>
             </div>
-            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Points Redeemed</p>
-              <p className="text-2xl font-black text-amber-500 mt-1">{totalPointsRedeemed.toFixed(2)}</p>
+            <div className="premium-stat-card">
+              <div className="p-3 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 shadow-inner">
+                <Gift className="w-5 h-5" />
+              </div>
+              <div className="leading-tight text-left">
+                <p className="text-xl font-black text-foreground font-mono">{totalPointsRedeemed.toFixed(0)}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Redeemed</p>
+              </div>
             </div>
-            <div className="bg-card p-4 rounded-xl border border-border shadow-sm">
-              <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Active Points</p>
-              <p className="text-2xl font-black text-emerald-500 mt-1">{totalPointsActive.toFixed(2)}</p>
+            <div className="premium-stat-card">
+              <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner">
+                <Gift className="w-5 h-5" />
+              </div>
+              <div className="leading-tight text-left">
+                <p className="text-xl font-black text-foreground font-mono">{totalPointsActive.toFixed(0)}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Active Balance</p>
+              </div>
             </div>
           </div>
 
-          <div className="px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <div className="px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm flex items-center justify-between gap-4">
+            <div className="premium-search-wrapper">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
               <input type="text" placeholder="Search by name or phone..."
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="w-full bg-background border border-border rounded-xl py-2.5 pl-10 pr-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
+                className="premium-search-input" />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
           </div>
 
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {loading ? (
-                <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-xl" />)}</div>
+                <div className="space-y-3">{[1,2,3].map(i => <Skeleton key={i} className="h-20 w-full rounded-2xl" />)}</div>
               ) : filteredCustomers.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <User className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p className="text-lg font-black mb-1">{searchQuery ? 'No customers match your search' : 'No customers yet'}</p>
-                  <p className="text-sm">Customer records are created automatically during billing when you enter customer details.</p>
+                <div className="text-center py-20 text-muted-foreground bg-muted/20 rounded-[28px] border border-dashed border-border flex flex-col items-center justify-center gap-4 p-6">
+                  <div className="p-4.5 bg-muted/30 rounded-2xl shadow-inner">
+                    <User className="w-10 h-10 text-muted-foreground/30 stroke-[1.5]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-foreground">{searchQuery ? 'No customers match your search' : 'No customers yet'}</p>
+                    <p className="text-xs text-muted-foreground/75 mt-1 leading-relaxed">Customer records are created automatically during billing when customer details are entered.</p>
+                  </div>
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-3.5">
                   {filteredCustomers.map(customer => (
                     <div key={customer.customer_id}
                       onClick={() => loadCustomerDetails(customer)}
-                      className="flex items-center justify-between p-4 rounded-xl border border-border bg-card hover:border-primary/30 hover:bg-muted/20 transition-all duration-200 shadow-sm cursor-pointer">
-                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                        <div className="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner">
+                      className="flex items-center justify-between p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer group select-none">
+                      <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                        <div className="w-10 h-10 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
                           <User className="w-5 h-5" />
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-black text-foreground truncate text-sm">{customer.name}</p>
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground font-semibold mt-0.5">
+                        <div className="min-w-0 flex-1 leading-tight text-left">
+                          <p className="font-extrabold text-foreground truncate text-sm">{customer.name}</p>
+                          <div className="flex items-center gap-3 text-[11px] text-muted-foreground/75 font-semibold mt-1">
                             {customer.phone && (
                               <span className="flex items-center gap-1">
-                                <Phone className="w-3 h-3" /> {customer.phone}
+                                <Phone className="w-3.5 h-3.5" /> {customer.phone}
                               </span>
                             )}
                             {customer.last_purchase_date && (
                               <span className="flex items-center gap-1">
-                                <Calendar className="w-3 h-3" /> {formatDate(customer.last_purchase_date)}
+                                <Calendar className="w-3.5 h-3.5" /> {formatDate(customer.last_purchase_date)}
                               </span>
                             )}
                           </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 shrink-0">
                         <div className="text-right">
-                          <p className="flex items-center gap-1 text-sm font-black text-emerald-600">
+                          <p className="flex items-center gap-1 text-sm font-black text-emerald-600 dark:text-emerald-400">
                             <Star className="w-3.5 h-3.5" />
                             {customer.current_points_balance.toFixed(0)} pts
                           </p>
-                          <p className="text-[10px] text-muted-foreground font-semibold">
+                          <p className="text-[10px] text-muted-foreground/75 font-bold uppercase tracking-wider mt-0.5">
                             {customer.total_points_earned.toFixed(0)} earned
                           </p>
                         </div>
