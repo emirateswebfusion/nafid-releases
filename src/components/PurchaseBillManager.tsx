@@ -513,7 +513,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="premium-header">
+      <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3 select-none">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <Receipt className="w-4 h-4" />
@@ -559,16 +559,16 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       {/* ── LIST VIEW ── */}
       {!showAddForm && (
         <>
-          <div className="premium-action-bar px-6 py-3.5 shrink-0 select-none">
+          <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
             {/* Search */}
-            <div className="premium-search-wrapper">
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
               <input
                 type="text"
                 placeholder="Search bill or supplier..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="premium-search-input"
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
               {searchQuery && (
                 <button
@@ -583,7 +583,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             {/* Filter Pills */}
             <div className="flex items-center gap-3 flex-wrap">
               {/* Type Filter */}
-              <div className="premium-tabs-list">
+              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none">
                 {(['ALL', 'GST', 'ESTIMATE'] as const).map(type => {
                   const count = type === 'ALL' ? bills.length : bills.filter(b => b.bill_type === type).length;
                   const active = filterType === type;
@@ -593,8 +593,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                       type="button"
                       onClick={() => setFilterType(active ? 'ALL' : type)}
                       className={clsx(
-                        "premium-tab-trigger",
-                        active ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
+                        "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                        active
+                          ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       )}
                     >
                       {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : 'Estimate Only'}
@@ -624,7 +626,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   onClick={handleExportCSV}
                   disabled={isExporting}
                   title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
-                  className="premium-btn-outline"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                   <Download className="w-4 h-4" />
                   <span>Export</span>
@@ -634,19 +636,19 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               {/* New Bill Button */}
               <button
                 onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
-                className="premium-btn-primary"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <Plus className="w-4 h-4" /> New Bill
               </button>
             </div>
           </div>
 
-          <div className="premium-content-wrap max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
-            <div className="premium-table-container flex-1 flex flex-col min-h-0 bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
+          <div className="flex-1 overflow-y-auto p-6 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
+            <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0 bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
               <div className="flex-1 overflow-y-auto">
                 <div className="min-w-0 overflow-x-auto">
                   {/* Table Header */}
-                  <div className="premium-table-header-row grid grid-cols-9 gap-3 px-6 md:px-8 py-3.5 border-b border-border bg-muted/20 dark:bg-muted/10">
+                  <div className="hidden sm:grid grid-cols-9 gap-3 px-6 md:px-8 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
               <div className="col-span-2 text-left">Bill No</div>
               <div className="col-span-2 text-center">Supplier</div>
               <div className="col-span-1 text-center">Inv No</div>
@@ -697,7 +699,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                     <div
                       onClick={() => handleViewBill(bill)}
                       className={clsx(
-                        "premium-table-body-row grid grid-cols-9 gap-3 px-8 py-4.5 items-center bg-card cursor-pointer group",
+                        "border-b border-border last:border-b-0 transition-all duration-200 hover:bg-muted/10 grid grid-cols-9 gap-3 px-8 py-4.5 items-center bg-card cursor-pointer group",
                         viewingBill?.purchase_bill_id === bill.purchase_bill_id && "bg-primary/[0.03] border-l-2 border-l-primary"
                       )}
                     >

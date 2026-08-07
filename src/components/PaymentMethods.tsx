@@ -274,40 +274,42 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-500/5 blur-[120px] pointer-events-none" />
 
       {/* Header */}
-      <div className="relative flex items-center justify-between px-8 py-5 border-b border-border/40 bg-background/50 backdrop-blur-md z-10 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
-            <Wallet className="w-5 h-5 text-white animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-extrabold tracking-tight text-foreground">Payment Methods</h1>
-              <span className="text-[10px] font-bold px-2 py-0.5 bg-primary/10 text-primary border border-primary/20 rounded-full uppercase tracking-wider select-none">Treasury</span>
+      <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
+        <div className="flex items-center justify-between px-8 py-3.5 select-none">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-indigo-600 flex items-center justify-center shadow-lg shadow-primary/20">
+              <Wallet className="w-5 h-5 text-white animate-pulse" />
             </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Configure and audit your accounts, bank cards, and UPI portals.
-            </p>
+            <div className="text-left">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Payment Methods</h1>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+                Configure and audit your accounts, bank cards, and UPI portals.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {isOwner && (
+              <button
+                onClick={openAdd}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Link Account</span>
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4 text-destructive" />
+            </button>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          {isOwner && (
-            <button
-              onClick={openAdd}
-              className="group inline-flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-primary to-indigo-600 text-primary-foreground text-sm font-semibold rounded-xl hover:opacity-95 hover:shadow-lg hover:shadow-primary/10 active:scale-95 transition-all duration-300 cursor-pointer"
-            >
-              <Plus className="w-4 h-4 transition-transform group-hover:rotate-90 duration-300" />
-              <span>Link Account</span>
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border/40 flex items-center justify-center shadow-sm"
-            title="Close"
-          >
-            <X className="w-4.5 h-4.5" />
-          </button>
-        </div>
-      </div>
+      </header>
 
       {/* Status toast */}
       {statusMessage && (
@@ -517,35 +519,43 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
             </div>
 
             {/* Toolbar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-muted/20 p-2 rounded-2xl border border-border/40">
-              {/* Tabs */}
-              <div className="flex items-center gap-1 overflow-x-auto shrink-0 select-none">
-                {(['ALL', 'BANK', 'CARD', 'UPI'] as const).map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setTypeFilter(tab)}
-                    className={clsx(
-                      'px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer whitespace-nowrap',
-                      typeFilter === tab
-                        ? 'bg-background text-foreground shadow-sm border border-border/40 font-extrabold'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-background/40'
-                    )}
-                  >
-                    {tab === 'ALL' ? 'All Channels' : tab === 'BANK' ? 'Bank Accounts' : tab === 'CARD' ? 'Cards' : 'UPI Portals'}
-                  </button>
-                ))}
-              </div>
-
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none mb-6">
               {/* Search */}
-              <div className="relative w-full sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <div className="relative w-full sm:max-w-xs flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search by name, account, upi..."
-                  className="w-full bg-background border border-border/50 rounded-xl pl-9 pr-4 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200"
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
                 />
+                {search && (
+                  <button
+                    onClick={() => setSearch('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 text-destructive" />
+                  </button>
+                )}
+              </div>
+
+              {/* Tabs */}
+              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none shrink-0">
+                {(['ALL', 'BANK', 'CARD', 'UPI'] as const).map(tab => (
+                  <button
+                    key={tab}
+                    onClick={() => setTypeFilter(tab)}
+                    className={clsx(
+                      "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      typeFilter === tab
+                        ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                    )}
+                  >
+                    {tab === 'ALL' ? 'All Channels' : tab === 'BANK' ? 'Banks' : tab === 'CARD' ? 'Cards' : 'UPI'}
+                  </button>
+                ))}
               </div>
             </div>
 

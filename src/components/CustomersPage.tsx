@@ -183,7 +183,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
       {view === 'list' && (
         <>
           <div className="grid grid-cols-3 gap-5 px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm select-none">
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -192,7 +192,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Issued Points</p>
               </div>
             </div>
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -201,7 +201,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Redeemed</p>
               </div>
             </div>
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner">
                 <Gift className="w-5 h-5" />
               </div>
@@ -213,11 +213,11 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
           </div>
 
           <div className="px-6 py-4 border-b border-border bg-card shrink-0 shadow-sm flex items-center justify-between gap-4">
-            <div className="premium-search-wrapper">
+            <div className="relative w-full sm:max-w-xs">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
               <input type="text" placeholder="Search by name or phone..."
                 value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-                className="premium-search-input" />
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground" />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}

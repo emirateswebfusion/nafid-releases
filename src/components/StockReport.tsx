@@ -553,34 +553,34 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-muted/[0.02]">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
-            <div className="premium-stat-card flex-col !items-start gap-1">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString('en-IN')}</p>
               <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Products Sold</p>
             </div>
-            <div className="premium-stat-card flex-col !items-start gap-1">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <p className="text-2xl font-black text-sky-600 dark:text-sky-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.gst.toFixed(0)}</p>
               <p className="text-[9px] uppercase tracking-wider font-extrabold text-sky-500 mt-1">Sold as GST</p>
             </div>
-            <div className="premium-stat-card flex-col !items-start gap-1">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <p className="text-2xl font-black text-amber-600 dark:text-amber-400 leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bos.toFixed(0)}</p>
               <p className="text-[9px] uppercase tracking-wider font-extrabold text-amber-500 mt-1">Sold as BoS</p>
             </div>
-            <div className="premium-stat-card flex-col !items-start gap-1">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.bosProducts.toLocaleString('en-IN')}</p>
               <p className="text-[9px] uppercase tracking-wider font-extrabold text-muted-foreground mt-1">Sold as BoS (Ever)</p>
             </div>
           </div>
 
-          <div className="premium-card p-5 select-none">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative p-5 select-none">
             <div className="flex items-center gap-3 flex-wrap">
-              <div className="premium-search-wrapper !max-w-xs">
+              <div className="relative w-full sm:max-w-xs !max-w-xs">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search product..."
                   value={salesSearch}
                   onChange={e => setSalesSearch(e.target.value)}
-                  className="premium-search-input"
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
                 />
                 {salesSearch && (
                   <button onClick={() => setSalesSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -793,16 +793,16 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           </div>
 
           {/* Filters */}
-          <div className="bg-card border border-border rounded-2xl p-4 shadow-sm">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative p-5 select-none">
             <div className="flex items-center gap-3">
-              <div className="relative flex-1 max-w-xs">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+              <div className="relative w-full sm:max-w-xs flex-1 !max-w-xs">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search name, barcode, code..."
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
-                  className={clsx("w-full bg-background border border-border rounded-xl px-3.5 py-2.5 pl-10 pr-9 text-sm text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-2 focus:ring-primary/15 focus:outline-none transition-all duration-200 shadow-sm")}
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
                 />
                 {searchQuery && (
                   <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
@@ -882,7 +882,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           </div>
 
           {/* Category Breakdown */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm">
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative p-5 select-none">
             <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">
               <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                 <Package className="w-4 h-4" />
@@ -972,8 +972,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
 
           {/* Detailed Table */}
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="px-5 py-3 border-b border-border">
+          <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm bg-card border border-border rounded-[28px] shadow-sm overflow-hidden select-none">
+            <div className="px-5 py-4.5 border-b border-border bg-muted/20 dark:bg-muted/10">
               <div className="flex items-center gap-2.5">
                 <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                   <Package className="w-3.5 h-3.5" />

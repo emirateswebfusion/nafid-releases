@@ -266,7 +266,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         
         {view === 'list' && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 shrink-0 max-w-7xl mx-auto w-full select-none">
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <Users className="w-6 h-6" />
               </div>
@@ -275,7 +275,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Staff Directory</p>
               </div>
             </div>
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3.5 rounded-2xl bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <Shield className="w-6 h-6" />
               </div>
@@ -284,7 +284,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Administrators</p>
               </div>
             </div>
-            <div className="premium-stat-card">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3.5 rounded-2xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <User className="w-6 h-6" />
               </div>
@@ -304,14 +304,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
             <div className="p-5 border-b border-border bg-card flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
               {/* Search & Filtering tab */}
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                <div className="premium-search-wrapper">
+                <div className="relative w-full sm:max-w-xs">
                   <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
                   <input 
                     type="text" 
                     placeholder="Search by name or email..." 
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
-                    className="premium-search-input w-full sm:w-80"
+                    className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground w-full sm:w-80"
                   />
                   {searchQuery && (
                     <button
@@ -322,12 +322,12 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                     </button>
                   )}
                 </div>
-                <div className="premium-tabs-list !w-auto">
+                <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none !w-auto">
                   <button 
                     onClick={() => setRoleFilter('ALL')}
                     className={clsx(
-                      "premium-tab-trigger",
-                      roleFilter === 'ALL' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
+                      "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      roleFilter === 'ALL' ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     All
@@ -335,8 +335,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <button 
                     onClick={() => setRoleFilter('OWNER')}
                     className={clsx(
-                      "premium-tab-trigger",
-                      roleFilter === 'OWNER' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
+                      "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      roleFilter === 'OWNER' ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     Admins
@@ -344,8 +344,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <button 
                     onClick={() => setRoleFilter('BILLER')}
                     className={clsx(
-                      "premium-tab-trigger",
-                      roleFilter === 'BILLER' ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
+                      "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
+                      roleFilter === 'BILLER' ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold" : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                     )}
                   >
                     Staff
@@ -394,7 +394,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                     return (
                       <div 
                         key={member.user_id} 
-                        className="premium-card p-5 select-none"
+                        className="bg-card border border-border rounded-3xl p-6 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300 flex flex-col justify-between group relative p-5 select-none"
                       >
                         {/* Role Header Badge */}
                         <div className="absolute top-4 right-4">

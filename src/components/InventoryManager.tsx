@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
 import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3 } from 'lucide-react';
@@ -1093,28 +1093,26 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       
       {/* Action Header inside page */}
       {view === 'list' && (
-        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
-          <div className="flex-1 w-full">
-            <div className="relative">
-              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Search by name, barcode, brand, or category..."
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-9 py-2.5 bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => { setSearchQuery(''); }}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 hover:bg-muted rounded-full text-muted-foreground transition-colors border border-destructive/30"
-                >
-                  <X className="w-4 h-4 text-destructive" />
-                </button>
-              )}
-            </div>
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
+          <div className="relative w-full sm:max-w-xs flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search by name, barcode, brand, or category..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5 text-destructive" />
+              </button>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 bg-muted/50 rounded-xl p-0.5 shrink-0">
+          <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none w-full max-w-fit shadow-inner select-none shrink-0">
             {([
               { mode: 'estimate' as const, label: 'Estimate', icon: Receipt, color: 'text-amber-500' },
               { mode: 'gst' as const,      label: 'GST',      icon: FileText, color: 'text-sky-500' },
@@ -1127,14 +1125,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   window.electronAPI?.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: mode }).catch(console.error);
                 }}
                 className={clsx(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer',
+                  "flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                   viewMode === mode
-                    ? 'bg-primary text-primary-foreground shadow-sm'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                    ? "bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
-                <Icon className={clsx('w-3 h-3', viewMode === mode ? 'text-primary-foreground' : color)} />
-                {label}
+                <Icon className={clsx('w-3.5 h-3.5', viewMode === mode ? 'text-primary' : color)} />
+                <span>{label}</span>
               </button>
             ))}
           </div>
@@ -1159,10 +1157,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               className="min-w-[180px]"
               triggerClassName="border-border hover:border-muted-foreground/30 shadow-none px-4 py-2.5 rounded-xl h-auto text-sm font-medium"
             />
-            <button onClick={downloadCsv} className="p-2.5 text-muted-foreground hover:text-primary hover:bg-primary/5 border border-border rounded-xl transition-all active:scale-95 cursor-pointer" title="Download CSV">
+            <button onClick={downloadCsv} className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary hover:text-secondary-foreground transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0" title="Download CSV">
               <Save className="w-4 h-4" />
             </button>
-            <button onClick={openAdd} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
+            <button onClick={openAdd} className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed shrink-0">
               <Plus className="w-4 h-4" /> Add Product
             </button>
           </div>
@@ -1171,16 +1169,19 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
       {view === 'list' && (
-        <div className="flex flex-col flex-1 min-h-0 bg-background">
-          {/* Table Header */}
-          <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40">
-            <div className="col-span-3">Product</div>
-            <div className="col-span-1 text-right">Purchase</div>
-            <div className="col-span-2 text-right">MRP</div>
-            <div className="col-span-1 text-right text-emerald-500">Final</div>
-            <div className="col-span-4 text-center">Stock</div>
-            <div className="col-span-1 text-center">Actions</div>
-          </div>
+        <div className="flex-1 overflow-y-auto p-6 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
+          <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+            <div className="flex-1 overflow-y-auto">
+              <div className="min-w-0 overflow-x-auto">
+                {/* Table Header */}
+                <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
+                  <div className="col-span-3 text-xs font-black text-muted-foreground uppercase tracking-widest">Product</div>
+                  <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Purchase</div>
+                  <div className="col-span-2 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">MRP</div>
+                  <div className="col-span-1 text-right text-xs font-black text-emerald-500 uppercase tracking-widest">Final</div>
+                  <div className="col-span-4 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Stock</div>
+                  <div className="col-span-1 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Actions</div>
+                </div>
 
           {/* Rows */}
           <div className="flex-1 overflow-y-auto divide-y divide-border relative">
@@ -1258,7 +1259,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
                   return (
-                    <div key={p.product_id} className="grid grid-cols-12 gap-1 px-4 py-3 items-center bg-card border-b border-border/40 hover:border-primary/30 hover:shadow-sm transition-all duration-150 group">
+                    <div key={p.product_id} className="border-b border-border last:border-b-0 transition-all duration-200 hover:bg-muted/10 grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card group">
                       <div className="col-span-3">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
@@ -1375,6 +1376,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               </button>
             </div>
           )}
+        </div>
+        </div>
+        </div>
         </div>
       )}
 
