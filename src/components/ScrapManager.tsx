@@ -824,62 +824,59 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           </div>
         </header>
 
-        {/* ══════════════════════════════════════════
-            LIST VIEW
-        ══════════════════════════════════════════ */}
         {view === 'list' && (
-          <div className="flex flex-col flex-1 min-h-0">
-
-            {/* Gradient stats */}
-            <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#f97316 0%,#ea580c 100%)' }}>
-                  <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                    <Recycle className="w-4 h-4 text-white" />
-                  </div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Categories</p>
-                  <p className="text-xl font-black text-white leading-none">{categories.length}</p>
-                  <p className="text-[11px] text-white/60 mt-1.5 font-medium">Scrap types tracked</p>
+          <div className="flex-1 flex flex-col min-h-0 bg-background select-none max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+            {/* Themed stats cards */}
+            <div className="grid grid-cols-3 gap-5 select-none shrink-0">
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-orange-500/10 to-orange-500/5 text-orange-600 dark:text-orange-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Recycle className="w-5 h-5" />
                 </div>
-
-                <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)' }}>
-                  <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                    <Package className="w-4 h-4 text-white" />
-                  </div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Total Stock</p>
-                  <p className="text-xl font-black text-white leading-none">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)}`}</p>
-                  <p className="text-[11px] text-white/60 mt-1.5 font-medium">Units in inventory</p>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{categories.length}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Categories</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Scrap types tracked</p>
                 </div>
+              </div>
 
-                <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)' }}>
-                  <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-                  <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                    <TrendingUp className="w-4 h-4 text-white" />
-                  </div>
-                  <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Est. Value</p>
-                  <p className="text-xl font-black text-white leading-none">{formatCurrency(estimatedValue)}</p>
-                  <p className="text-[11px] text-white/60 mt-1.5 font-medium">At purchase rate</p>
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{isNaN(totalStock) ? '-' : `${totalStock.toFixed(1)}`}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Stock</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Units in inventory</p>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <TrendingUp className="w-5 h-5" />
+                </div>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(estimatedValue)}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Est. Value</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">At purchase rate</p>
                 </div>
               </div>
             </div>
 
             {/* Search */}
-            <div className="shrink-0 px-5 py-3 border-b border-border bg-background">
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
+              <div className="relative w-full sm:max-w-xs flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search scrap categories..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className={clsx(fieldCls, 'pl-10')}
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
                 />
                 {search && (
                   <button
                     onClick={() => setSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground transition-colors"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -888,119 +885,130 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </div>
 
             {/* Category list */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
-                </div>
-              ) : filteredCategories.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-                  <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                    <RecycleIcon className="w-8 h-8 text-muted-foreground/50" />
+            <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
+              <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6 flex-1 flex flex-col min-h-0">
+                {loading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-[72px] w-full rounded-xl" />)}
                   </div>
-                  <div>
-                    <p className="text-base font-bold text-foreground">
-                      {search ? 'No results found' : 'No scrap categories yet'}
-                    </p>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                      {search ? `No categories match "${search}"` : 'Add your first category to start tracking scrap'}
-                    </p>
-                  </div>
-                  {!search && isOwner && (
-                    <button
-                      onClick={() => { resetCategoryForm(); setView('category_form'); }}
-                      className="mt-2 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-bold shadow-sm hover:bg-primary/90 transition-all active:scale-95 cursor-pointer"
-                    >
-                      <Plus className="w-4 h-4" /> Add First Category
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {filteredCategories.map(cat => {
-                    const hue = nameToHue(cat.name);
-                    const stock = Number(cat.current_stock);
-                    const outOfStock = stock <= 0;
-                    return (
-                      <div
-                        key={cat.scrap_category_id}
-                        className="group flex items-center gap-3.5 p-3.5 rounded-xl border border-border bg-card hover:border-orange-500/30 hover:shadow-md hover:shadow-orange-500/5 transition-all duration-200 cursor-pointer"
-                        onClick={() => openTransaction(cat)}
+                ) : filteredCategories.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+                    <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+                      <RecycleIcon className="w-8 h-8 text-muted-foreground/50" />
+                    </div>
+                    <div>
+                      <p className="text-base font-bold text-foreground">
+                        {search ? 'No results found' : 'No scrap categories yet'}
+                      </p>
+                      <p className="text-sm text-muted-foreground mt-0.5">
+                        {search ? `No categories match "${search}"` : 'Add your first category to start tracking scrap'}
+                      </p>
+                    </div>
+                    {!search && isOwner && (
+                      <button
+                        onClick={() => {
+                          setEditingCategory(null);
+                          setFormData({
+                            name: '',
+                            purchase_price: '',
+                            selling_price: '',
+                            current_stock: '0',
+                            unit: 'Kgs',
+                          });
+                          setView('category_form');
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-primary text-primary-foreground font-black text-sm hover:bg-primary/95 transition-all shadow-sm cursor-pointer active:scale-95 mt-2"
                       >
+                        <Plus className="w-4 h-4" /> Add Category
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {filteredCategories.map(cat => {
+                      const stock = Number(cat.current_stock) || 0;
+                      const outOfStock = stock <= 0;
+                      return (
                         <div
-                          className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 text-white font-black text-sm shadow-inner select-none"
-                          style={{ background: `hsl(${hue}, 65%, 52%)` }}
+                          key={cat.scrap_category_id}
+                          onClick={() => {
+                            setSelectedCategory(cat);
+                            loadTransactions(cat.scrap_category_id);
+                            setView('transaction');
+                          }}
+                          className="flex items-center justify-between p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer group select-none animate-in fade-in duration-200"
                         >
-                          {getInitials(cat.name)}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-sm text-foreground truncate">{cat.name}</p>
-                          </div>
-                          <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground font-medium">
-                            <span className="flex items-center gap-1">
-                              <Package className="w-3 h-3" />{stock.toFixed(1)} {cat.unit}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <TrendingUp className="w-3 h-3" />Buy: {formatCurrency(cat.purchase_price)}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="text-right shrink-0">
-                          <p className={clsx(
-                            'text-base font-black leading-none',
-                            outOfStock ? 'text-muted-foreground' : 'text-emerald-600 dark:text-emerald-400'
-                          )}>
-                            {formatCurrency(cat.selling_price)}
-                          </p>
-                          <span className={clsx(
-                             'inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md border',
-                             outOfStock
-                               ? 'bg-muted border-border text-muted-foreground'
-                               : 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
-                           )}>
-                             {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
-                           </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
-                          {isOwner && (
-                            <button
-                              onClick={() => {
-                                setEditingCategory(cat);
-                                setFormData({
-                                  name: cat.name,
-                                  purchase_price: cat.purchase_price.toString(),
-                                  selling_price: cat.selling_price.toString(),
-                                  current_stock: cat.current_stock.toString(),
-                                  unit: cat.unit || 'Kgs',
-                                });
-                                setView('category_form');
-                              }}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
-                              title="Edit"
+                          <div className="flex items-center gap-3.5 flex-1 min-w-0">
+                            <div
+                              className="w-11 h-11 rounded-2xl flex items-center justify-center text-white font-extrabold text-sm shadow-sm shrink-0 select-none group-hover:scale-105 transition-transform"
+                              style={{ background: `linear-gradient(135deg, hsl(${nameToHue(cat.name)},60%,50%), hsl(${nameToHue(cat.name)},60%,40%))` }}
                             >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          {isOwner && (
-                            <button
-                              onClick={() => handleDeleteCategory(cat)}
-                              className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
-                              title="Delete"
-                            >
-                              <Trash className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                          <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-0.5" />
+                              {getInitials(cat.name)}
+                            </div>
+                            <div className="min-w-0 flex-1 leading-tight text-left">
+                              <p className="font-extrabold text-foreground truncate text-sm">{cat.name}</p>
+                              <div className="flex items-center gap-3 text-[11px] text-muted-foreground/75 font-semibold mt-1 flex-wrap">
+                                <span className="flex items-center gap-1">
+                                  Buy: {formatCurrency(cat.purchase_price)}/{cat.unit || 'Kg'}
+                                </span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-border" />
+                                <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold">
+                                  Sell: {formatCurrency(cat.selling_price)}/{cat.unit || 'Kg'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-4 shrink-0">
+                            <div className="text-right">
+                              <span className={clsx(
+                                'inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-black border tracking-wide',
+                                outOfStock
+                                  ? 'bg-muted border-border text-muted-foreground'
+                                  : 'bg-emerald-500/10 dark:bg-emerald-500/20 border-emerald-500/20 text-emerald-600 dark:text-emerald-400'
+                              )}>
+                                {outOfStock ? 'Out of Stock' : `${stock.toFixed(1)} ${cat.unit}`}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-1" onClick={e => e.stopPropagation()}>
+                              {isOwner && (
+                                <button
+                                  onClick={() => {
+                                    setEditingCategory(cat);
+                                    setFormData({
+                                      name: cat.name,
+                                      purchase_price: cat.purchase_price.toString(),
+                                      selling_price: cat.selling_price.toString(),
+                                      current_stock: cat.current_stock.toString(),
+                                      unit: cat.unit || 'Kgs',
+                                    });
+                                    setView('category_form');
+                                  }}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all active:scale-95 cursor-pointer"
+                                  title="Edit"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleDeleteCategory(cat)}
+                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all active:scale-95 cursor-pointer"
+                                  title="Delete"
+                                >
+                                  <Trash className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <ChevronRight className="w-4 h-4 text-muted-foreground/40 ml-0.5" />
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -1646,44 +1654,55 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             INVOICES VIEW
         ══════════════════════════════════════════ */}
         {view === 'invoices' && (
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            {/* Top Metrics Cards */}
-            <div className="shrink-0 px-5 py-3 border-b border-border bg-card/40">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="p-3.5 rounded-xl bg-orange-500/10 border border-orange-500/20">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-orange-500">Total Invoices</p>
-                  <p className="text-xl font-black text-foreground mt-0.5">{invoices.length}</p>
+          <div className="flex-1 flex flex-col min-h-0 bg-background select-none max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+            {/* Themed stats cards */}
+            <div className="grid grid-cols-3 gap-5 select-none shrink-0">
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-orange-500/10 to-orange-500/5 text-orange-600 dark:text-orange-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Layers className="w-5 h-5" />
                 </div>
-                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-emerald-600 dark:text-emerald-400">Total Scrap Value</p>
-                  <p className="text-xl font-black text-foreground mt-0.5">
-                    {formatCurrency(invoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}
-                  </p>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{invoices.length}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Invoices</p>
                 </div>
-                <div className="p-3.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
-                  <p className="text-[10px] uppercase font-bold tracking-wider text-blue-500">Total Items Collected</p>
-                  <p className="text-xl font-black text-foreground mt-0.5">
-                    {invoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}
-                  </p>
+              </div>
+
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <IndianRupee className="w-5 h-5" />
+                </div>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(invoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Scrap Value</p>
+                </div>
+              </div>
+
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{invoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Items Collected</p>
                 </div>
               </div>
             </div>
 
             {/* Filter / Search Bar */}
-            <div className="shrink-0 px-5 py-3 border-b border-border bg-background flex items-center justify-between gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
+              <div className="relative w-full sm:max-w-xs flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search invoice number, customer name, phone..."
                   value={invoiceSearch}
                   onChange={e => setInvoiceSearch(e.target.value)}
-                  className={clsx(fieldCls, 'pl-10')}
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
                 />
                 {invoiceSearch && (
                   <button
                     onClick={() => setInvoiceSearch('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1692,8 +1711,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </div>
 
             {/* Invoices List */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              <div className="border border-border rounded-2xl overflow-hidden shadow-sm bg-card">
+            <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
+              <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6 flex-1 flex flex-col min-h-0">
                 <div className="grid grid-cols-12 gap-2 px-4 py-3 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border bg-muted/40">
                   <div className="col-span-3">Invoice & Customer</div>
                   <div className="col-span-2 text-center">Date & Status</div>

@@ -472,48 +472,43 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
         ) : (
           <div className="max-w-5xl mx-auto space-y-6">
             {/* Summary strip */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 select-none">
               {/* Total Balance Card */}
-              <div className="relative overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 border border-slate-800/80 rounded-2xl p-5 shadow-lg group">
-                <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all duration-500" />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-slate-400 font-bold uppercase tracking-wider">
-                    <Wallet className="w-4 h-4 text-primary" /> Total Balance
-                  </div>
-                  <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">Live</span>
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Wallet className="w-5 h-5" />
                 </div>
-                <div className="mt-3.5 flex items-baseline gap-1">
-                  <span className="text-3xl font-black tracking-tight text-white">{formatCurrency(totalBalance)}</span>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(totalBalance)}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Balance</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Combined liquid assets across all systems</p>
                 </div>
-                <p className="text-[10px] text-slate-400 mt-2">Combined liquid assets across all systems</p>
               </div>
 
               {/* Accounts Card */}
-              <div className="relative overflow-hidden bg-card border border-border/50 rounded-2xl p-5 shadow-sm group">
-                <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/15 transition-all duration-500" />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-wider">
-                    <Landmark className="w-4 h-4 text-indigo-500" /> Accounts
-                  </div>
-                  <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-md">Linked</span>
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Landmark className="w-5 h-5" />
                 </div>
-                <div className="mt-3.5 text-3xl font-black text-foreground tracking-tight">{sources.length}</div>
-                <p className="text-[10px] text-muted-foreground mt-2">Active cash flow channels configured</p>
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{sources.length}</p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Accounts</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Active cash flow channels configured</p>
+                </div>
               </div>
 
               {/* Default Card */}
-              <div className="relative overflow-hidden bg-card border border-border/50 rounded-2xl p-5 shadow-sm group">
-                <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/15 transition-all duration-500" />
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground font-bold uppercase tracking-wider">
-                    <Star className="w-4 h-4 text-amber-500 animate-spin-slow" /> Primary Source
-                  </div>
-                  <span className="text-[10px] font-bold text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">Default</span>
+              <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+                <div className="p-3 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                  <Star className="w-5 h-5" />
                 </div>
-                <div className="mt-3.5 text-lg font-bold text-foreground truncate select-none leading-9">
-                  {sources.find(s => s.is_default === 1)?.name || <span className="text-muted-foreground font-normal">None Set</span>}
+                <div className="leading-tight text-left min-w-0 flex-1">
+                  <p className="text-2xl font-black text-foreground font-mono truncate">
+                    {sources.find(s => s.is_default === 1)?.name || <span className="text-muted-foreground text-sm">None Set</span>}
+                  </p>
+                  <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Primary Source</p>
+                  <p className="text-[10px] text-muted-foreground/60 mt-0.5">Automatically handles POS collections</p>
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-2">Automatically handles POS collections</p>
               </div>
             </div>
 

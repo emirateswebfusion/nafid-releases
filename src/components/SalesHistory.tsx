@@ -94,15 +94,24 @@ function StatCard({
   bgClass: string;
   sub?: string;
 }) {
+  const gradMap: Record<string, string> = {
+    'text-emerald-500': 'from-emerald-500/10 to-emerald-500/5',
+    'text-blue-500': 'from-blue-500/10 to-blue-500/5',
+    'text-violet-500': 'from-violet-500/10 to-violet-500/5',
+    'text-rose-500': 'from-rose-500/10 to-rose-500/5',
+    'text-amber-500': 'from-amber-500/10 to-amber-500/5',
+  };
+  const gradient = gradMap[colorClass] || 'from-primary/10 to-primary/5';
+
   return (
-    <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border border-border bg-card dark:bg-card shadow-sm group hover:shadow-md hover:border-primary/20 transition-all duration-300 min-w-0">
-      <div className={clsx('p-1.5 rounded-lg shrink-0', bgClass)}>
-        <Icon className={clsx('w-3.5 h-3.5', colorClass)} />
+    <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none min-w-0 flex-1">
+      <div className={clsx('p-3 rounded-xl shrink-0 shadow-inner bg-gradient-to-br', gradient)}>
+        <Icon className={clsx('w-5 h-5', colorClass)} />
       </div>
-      <div className="min-w-0 flex-1">
-        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground leading-none mb-0.5">{label}</div>
-        <div className="text-sm font-black text-foreground leading-none truncate">{value}</div>
-        {sub && <div className="text-[9px] text-muted-foreground mt-0.5 font-medium leading-none">{sub}</div>}
+      <div className="leading-tight text-left min-w-0 flex-1">
+        <p className="text-xl font-black text-foreground font-mono truncate">{value}</p>
+        <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">{label}</p>
+        {sub && <p className="text-[9px] text-muted-foreground/60 mt-0.5">{sub}</p>}
       </div>
     </div>
   );

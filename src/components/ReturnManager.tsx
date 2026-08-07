@@ -177,88 +177,115 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       )}
 
       {/* Statistics Panel */}
-      <div className="grid grid-cols-3 gap-4 px-5 py-4 border-b border-border bg-card shrink-0 shadow-sm">
-        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Returns</p>
-          <p className="text-2xl font-black text-primary mt-1">{returns.length}</p>
-        </div>
-        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Refunded</p>
-          <p className="text-2xl font-black text-rose-500 mt-1">{formatCurrency(totalRefunded)}</p>
-        </div>
-        <div className="bg-card p-4 rounded-xl border border-border shadow-sm flex flex-col justify-between">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Today's Refunds</p>
-          <p className="text-2xl font-black text-amber-500 mt-1">{formatCurrency(todayRefundedAmount)}</p>
-        </div>
-      </div>
+      <div className="flex-1 flex flex-col min-h-0 bg-background select-none max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+        {/* Themed Stats Cards */}
+        <div className="grid grid-cols-3 gap-5 select-none shrink-0">
+          <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+            <div className="p-3 bg-gradient-to-br from-rose-500/10 to-rose-500/5 text-rose-600 dark:text-rose-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+              <Undo2 className="w-5 h-5" />
+            </div>
+            <div className="leading-tight text-left min-w-0 flex-1">
+              <p className="text-2xl font-black text-foreground font-mono truncate">{returns.length}</p>
+              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Returns</p>
+            </div>
+          </div>
 
-      {/* Main List Area */}
-      <div className="flex-1 flex flex-col overflow-hidden bg-card/10">
+          <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+            <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+              <IndianRupee className="w-5 h-5" />
+            </div>
+            <div className="leading-tight text-left min-w-0 flex-1">
+              <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(totalRefunded)}</p>
+              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Refunded</p>
+            </div>
+          </div>
+
+          <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+            <div className="p-3 bg-gradient-to-br from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+              <Clock className="w-5 h-5" />
+            </div>
+            <div className="leading-tight text-left min-w-0 flex-1">
+              <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(todayRefundedAmount)}</p>
+              <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Today's Refunds</p>
+            </div>
+          </div>
+        </div>
+
         {/* Search */}
-        <div className="shrink-0 p-4 border-b border-border bg-card">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
+          <div className="relative w-full sm:max-w-xs flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
             <input
               type="text"
               placeholder="Search return #, customer name or phone..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 h-10 text-xs font-medium bg-background border border-border rounded-xl outline-none transition-all focus:border-primary focus:ring-4 focus:ring-primary/10"
+              className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
             />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
         {/* List Grid */}
-        <div className="flex-1 overflow-y-auto p-5">
-          {loading ? (
-            <div className="flex flex-col gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="px-4 py-3.5 rounded-xl border border-border bg-card shadow-sm flex items-center gap-4">
-                  <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
-                  <div className="flex-1">
-                    <Skeleton className="h-3.5 w-28 mb-1.5" />
-                    <Skeleton className="h-3 w-40" />
-                  </div>
-                  <Skeleton className="h-3.5 w-16 shrink-0" />
-                </div>
-              ))}
-            </div>
-          ) : returns.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-20">
-              <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
-                <Undo2 className="w-6 h-6 opacity-40" />
-              </div>
-              <p className="text-xs font-bold">No returns found</p>
-            </div>
-          ) : (
-            <div className="flex flex-col gap-2 pb-10">
-              {returns.map((r) => (
-                <button
-                  key={r.return_id}
-                  onClick={() => handleViewReturn(r)}
-                  className="w-full text-left px-4 py-3.5 rounded-xl border border-border bg-card hover:border-rose-500/20 hover:bg-muted/30 transition-all duration-150 cursor-pointer flex items-center justify-between shadow-sm"
-                >
-                  <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-8 h-8 rounded-xl bg-rose-500/10 flex items-center justify-center shrink-0">
-                      <Undo2 className="w-4 h-4 text-rose-500" />
+        <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
+          <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm p-6 flex-1 flex flex-col min-h-0">
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="px-4.5 py-4 rounded-3xl border border-border bg-card shadow-sm flex items-center gap-4">
+                    <Skeleton className="w-10 h-10 rounded-2xl shrink-0" />
+                    <div className="flex-1">
+                      <Skeleton className="h-3.5 w-28 mb-1.5" />
+                      <Skeleton className="h-3 w-40" />
                     </div>
-                    <div className="min-w-0">
-                      <span className="text-xs font-black text-foreground tracking-wide font-mono block">{r.return_number}</span>
-                      <span className="text-[10px] text-muted-foreground font-medium truncate block">
-                        {r.customer_name || 'Walk-in Customer'}
+                    <Skeleton className="h-3.5 w-16 shrink-0" />
+                  </div>
+                ))}
+              </div>
+            ) : returns.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center mb-3">
+                  <Undo2 className="w-6 h-6 opacity-40" />
+                </div>
+                <p className="text-xs font-bold">No returns found</p>
+              </div>
+            ) : (
+              <div className="space-y-3.5">
+                {returns.map((r) => (
+                  <button
+                    key={r.return_id}
+                    onClick={() => handleViewReturn(r)}
+                    className="w-full text-left p-4.5 rounded-3xl border border-border bg-card hover:border-primary/20 hover:shadow-md transition-all duration-300 shadow-sm cursor-pointer flex items-center justify-between group select-none animate-in fade-in duration-200"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-2xl bg-rose-500/10 text-rose-500 flex items-center justify-center shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                        <Undo2 className="w-5 h-5 text-rose-500" />
+                      </div>
+                      <div className="min-w-0 flex-1 leading-tight text-left">
+                        <span className="text-sm font-extrabold text-foreground tracking-wide font-mono block">{r.return_number}</span>
+                        <span className="text-[11px] text-muted-foreground/75 font-semibold mt-1 truncate block">
+                          {r.customer_name || 'Walk-in Customer'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6 shrink-0 ml-4">
+                      <span className="text-[10px] font-bold text-muted-foreground hidden sm:block">{formatDate(r.return_date)}</span>
+                      <span className="text-sm font-black text-rose-500">
+                        -{formatCurrency(r.grand_total)}
                       </span>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-6 shrink-0 ml-4">
-                    <span className="text-[10px] font-bold text-muted-foreground hidden sm:block">{formatDate(r.return_date)}</span>
-                    <span className="text-sm font-black text-rose-500">
-                      -{formatCurrency(r.grand_total)}
-                    </span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

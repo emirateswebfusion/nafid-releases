@@ -763,36 +763,45 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
         <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
 
-          {/* Gradient Stats Cards */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#2563eb 100%)' }}>
-              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                <Package className="w-4 h-4 text-white" />
+          {/* Themed Stats Cards */}
+          <div className="grid grid-cols-3 gap-5 select-none">
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+              <div className="p-3 bg-gradient-to-br from-blue-500/10 to-blue-500/5 text-blue-600 dark:text-blue-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                <Package className="w-5 h-5" />
               </div>
-              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Total Products</p>
-              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-20" /> : totalProducts.toLocaleString('en-IN')}</p>
-              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-24" /> : `${products.length} total in system`}</p>
+              <div className="leading-tight text-left min-w-0 flex-1">
+                <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-20" /> : totalProducts.toLocaleString('en-IN')}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Products</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">{loading ? <Skeleton className="h-3 w-24" /> : `${products.length} total in system`}</p>
+              </div>
             </div>
 
-            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: 'linear-gradient(135deg,#10b981 0%,#059669 100%)' }}>
-              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                <TrendingUp className="w-4 h-4 text-white" />
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+              <div className="p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform">
+                <TrendingUp className="w-5 h-5" />
               </div>
-              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Stock Value</p>
-              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalSellingValue)}</p>
-              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-20" /> : 'At selling price'}</p>
+              <div className="leading-tight text-left min-w-0 flex-1">
+                <p className="text-2xl font-black text-foreground font-mono truncate">{loading ? <Skeleton className="h-7 w-28" /> : formatCurrency(totalSellingValue)}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Stock Value</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">At selling price</p>
+              </div>
             </div>
 
-            <div className="relative overflow-hidden rounded-xl p-4 shadow-sm" style={{ background: loading ? 'linear-gradient(135deg,#6b7280 0%,#4b5563 100%)' : outOfStockCount > 0 ? 'linear-gradient(135deg,#f59e0b 0%,#d97706 100%)' : 'linear-gradient(135deg,#10b981 0%,#059669 100%)' }}>
-              <div className="absolute -right-4 -bottom-4 w-20 h-20 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-              <div className="absolute right-3 top-3 p-1.5 rounded-lg" style={{ background: 'rgba(255,255,255,0.22)' }}>
-                <Activity className="w-4 h-4 text-white" />
+            <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
+              <div className={clsx(
+                "p-3 rounded-xl shrink-0 shadow-inner group-hover:scale-105 transition-transform bg-gradient-to-br",
+                loading ? "from-gray-500/10 to-gray-500/5 text-gray-500" : outOfStockCount > 0 ? "from-amber-500/10 to-amber-500/5 text-amber-600 dark:text-amber-400" : "from-emerald-500/10 to-emerald-500/5 text-emerald-600 dark:text-emerald-400"
+              )}>
+                <Activity className="w-5 h-5" />
               </div>
-              <p className="text-[10px] uppercase tracking-widest font-bold text-white/70 mb-1.5">Stock Health</p>
-              <p className="text-xl font-black text-white leading-none">{loading ? <Skeleton className="h-7 w-16" /> : totalStock.toFixed(0)}</p>
-              <p className="text-[11px] text-white/60 mt-1.5 font-medium">{loading ? <Skeleton className="h-3 w-28" /> : (outOfStockCount > 0 ? `${outOfStockCount} out of stock` : 'All in stock')}</p>
+              <div className="leading-tight text-left min-w-0 flex-1">
+                <p className={clsx(
+                  "text-2xl font-black font-mono truncate",
+                  loading ? "text-foreground" : outOfStockCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"
+                )}>{loading ? <Skeleton className="h-7 w-16" /> : totalStock.toFixed(0)}</p>
+                <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Stock Health</p>
+                <p className="text-[10px] text-muted-foreground/60 mt-0.5">{loading ? <Skeleton className="h-3 w-28" /> : (outOfStockCount > 0 ? `${outOfStockCount} out of stock` : 'All in stock')}</p>
+              </div>
             </div>
           </div>
 
