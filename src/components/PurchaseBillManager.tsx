@@ -2226,7 +2226,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 placeholder="Search products..."
                 value={productSearch}
                 onChange={e => searchProducts(e.target.value)}
-                onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); } }}
+                onKeyDown={e => { if (e.key === ' ' && productSearch.trim() === '') { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); } }}
                 className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
               />
             </div>
