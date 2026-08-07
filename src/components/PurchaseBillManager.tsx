@@ -513,12 +513,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       {/* ═══════════════════════════════════════════════════
           HEADER
       ═══════════════════════════════════════════════════ */}
-      <header className="shrink-0 z-30 border-b border-border/60 bg-card/95 backdrop-blur-sm shadow-sm">
-        <div className="flex items-center gap-3 px-5 py-3">
+      <header className="premium-header">
+        <div className="flex items-center gap-3 px-5 py-3 select-none">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <Receipt className="w-4 h-4" />
           </div>
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 text-left">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
                 {showAddForm ? (editingBill ? `Edit Purchase Bill - ${editingBill.bill_number}` : 'New Purchase Bill') : 'Purchase Bills'}
@@ -529,9 +529,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               {showAddForm ? 'Record a purchase entry' : `${bills.length} purchase bills`}
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">              <button
+          <div className="flex items-center gap-2 shrink-0">
+            <button
               onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); } : onClose}
-              className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-muted rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-destructive/30"
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
             >
               <X className="w-4 h-4 text-destructive" />
@@ -558,25 +559,31 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       {/* ── LIST VIEW ── */}
       {!showAddForm && (
         <>
-          <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card/50 shrink-0 shadow-sm">
+          <div className="premium-action-bar px-6 py-3.5 shrink-0 select-none">
             {/* Search */}
-            <div className="flex-1 max-w-sm">
-              <div className="relative">
-                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <input
-                  type="text"
-                  placeholder="Search bill or supplier..."
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
-                />
-              </div>
+            <div className="premium-search-wrapper">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45" />
+              <input
+                type="text"
+                placeholder="Search bill or supplier..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="premium-search-input"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
             </div>
 
             {/* Filter Pills */}
             <div className="flex items-center gap-3 flex-wrap">
               {/* Type Filter */}
-              <div className="flex items-center gap-1.5 bg-muted/40 border border-border/60 rounded-xl p-1">
+              <div className="premium-tabs-list">
                 {(['ALL', 'GST', 'ESTIMATE'] as const).map(type => {
                   const count = type === 'ALL' ? bills.length : bills.filter(b => b.bill_type === type).length;
                   const active = filterType === type;
@@ -586,25 +593,17 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                       type="button"
                       onClick={() => setFilterType(active ? 'ALL' : type)}
                       className={clsx(
-                        "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer",
-                        active
-                          ? type === 'ALL'
-                            ? "bg-background text-foreground shadow-sm border border-border/60"
-                            : type === 'GST'
-                              ? "bg-emerald-500 text-white shadow-sm"
-                              : "bg-amber-500 text-white shadow-sm"
-                          : "text-muted-foreground hover:text-foreground"
+                        "premium-tab-trigger",
+                        active ? "premium-tab-trigger-active" : "premium-tab-trigger-inactive"
                       )}
                     >
                       {type === 'ALL' ? 'All Type' : type === 'GST' ? 'GST Only' : 'Estimate Only'}
                       {!loading && (
                         <span className={clsx(
-                          "text-[10px] px-1.5 py-0.5 rounded-md font-black min-w-[18px] text-center",
+                          "text-[10px] px-1.5 py-0.5 rounded-md font-black min-w-[18px] text-center ml-1.5",
                           active
-                            ? type === 'ALL'
-                              ? "bg-muted text-muted-foreground"
-                              : "bg-white/20 text-white"
-                            : "bg-muted/80 text-muted-foreground"
+                            ? "bg-primary/25 text-primary"
+                            : "bg-muted-foreground/15 text-muted-foreground"
                         )}>
                           {count}
                         </span>
@@ -618,32 +617,36 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
             </div>
 
-            {/* Export Button */}
-            {!showAddForm && filteredBills.length > 0 && (
-              <button
-                onClick={handleExportCSV}
-                disabled={isExporting}
-                title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
-                className="px-3.5 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-xl text-sm font-bold flex items-center gap-2 transition-all border border-emerald-500/20 active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                <Download className="w-4 h-4" />
-                Export {filterType !== 'ALL' ? filterType : ''} CSV
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* Export Button */}
+              {!showAddForm && filteredBills.length > 0 && (
+                <button
+                  onClick={handleExportCSV}
+                  disabled={isExporting}
+                  title={`Export ${filteredBills.length} filtered bill${filteredBills.length !== 1 ? 's' : ''} to CSV`}
+                  className="premium-btn-outline"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export</span>
+                </button>
+              )}
 
-            {/* New Bill Button */}
-            <button
-              onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
-              className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> New Purchase Bill
-            </button>
+              {/* New Bill Button */}
+              <button
+                onClick={() => { setShowAddForm(true); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); }}
+                className="premium-btn-primary"
+              >
+                <Plus className="w-4 h-4" /> New Bill
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="flex-1 overflow-y-auto"><div className="min-w-0 overflow-x-auto">
-            {/* Table Header */}
-            <div className="grid grid-cols-9 gap-3 px-4 md:px-8 py-2.5 md:py-3 text-[10px] md:text-xs font-black text-muted-foreground uppercase tracking-wider border-b border-border/60 shrink-0 bg-muted/40">
+          <div className="premium-content-wrap max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
+            <div className="premium-table-container flex-1 flex flex-col min-h-0 bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
+              <div className="flex-1 overflow-y-auto">
+                <div className="min-w-0 overflow-x-auto">
+                  {/* Table Header */}
+                  <div className="premium-table-header-row grid grid-cols-9 gap-3 px-6 md:px-8 py-3.5 border-b border-border bg-muted/20 dark:bg-muted/10">
               <div className="col-span-2 text-left">Bill No</div>
               <div className="col-span-2 text-center">Supplier</div>
               <div className="col-span-1 text-center">Inv No</div>
@@ -694,8 +697,8 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                     <div
                       onClick={() => handleViewBill(bill)}
                       className={clsx(
-                        "grid grid-cols-9 gap-3 px-8 py-4 items-center bg-card border-b border-border/40 hover:border-primary/40 hover:shadow-md transition-all duration-150 group cursor-pointer",
-                        viewingBill?.purchase_bill_id === bill.purchase_bill_id && "border-l-2 border-l-primary bg-muted/30"
+                        "premium-table-body-row grid grid-cols-9 gap-3 px-8 py-4.5 items-center bg-card cursor-pointer group",
+                        viewingBill?.purchase_bill_id === bill.purchase_bill_id && "bg-primary/[0.03] border-l-2 border-l-primary"
                       )}
                     >
                       <div className="col-span-2 flex items-center gap-2.5 text-left">
@@ -790,6 +793,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 {bills.length} purchase bill{bills.length !== 1 ? 's' : ''}
               </div>
             )}
+          </div>
           </div>
           </div>
           </div>

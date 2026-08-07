@@ -143,6 +143,13 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   }, []);
 
+  // Auto-hide toast/status messages
+  useEffect(() => {
+    if (!statusMessage) return;
+    const t = setTimeout(() => setStatusMessage(null), 4000);
+    return () => clearTimeout(t);
+  }, [statusMessage]);
+
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
