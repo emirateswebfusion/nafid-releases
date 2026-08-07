@@ -19,7 +19,7 @@ export interface IElectronAPI {
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
-  dbAdjustStock: (args: { product_id: string; delta: number }) => Promise<{ success: boolean; error?: string }>;
+  dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => Promise<{ success: boolean; error?: string }>;
   dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;
   dbUpdatePrintStatus: (productIds: string[]) => Promise<{ success: boolean; error?: string }>;
   dbResetPrintStatus: (tenantId: string) => Promise<{ success: boolean; error?: string }>;

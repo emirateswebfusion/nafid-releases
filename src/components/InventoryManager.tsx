@@ -462,17 +462,25 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setAdjustModal({ product, mode });
   };
 
-  const applyStockAdjust = async (product: Product, delta: number): Promise<boolean> => {
+  const applyStockAdjust = async (product: Product, delta: number, pcsDelta?: number): Promise<boolean> => {
     if (!window.electronAPI) return false;
     setAdjustingStockId(product.product_id);
     try {
-      const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta });
+      const res = await window.electronAPI.dbAdjustStock({ product_id: product.product_id, delta, pcsDelta });
       if (res.success) {
-        setProducts(prev => prev.map(p =>
-          p.product_id === product.product_id
-            ? { ...p, current_stock: Number(p.current_stock) + delta }
-            : p
-        ));
+        setProducts(prev => prev.map(p => {
+          if (p.product_id !== product.product_id) return p;
+          const next = { ...p, current_stock: Number(p.current_stock) + delta };
+          if (pcsDelta !== undefined) {
+            try {
+              const da = JSON.parse(p.domain_attributes || '{}');
+              const cur = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
+              da.pcs_stock = Math.max(0, cur + pcsDelta);
+              next.domain_attributes = JSON.stringify(da);
+            } catch { /* keep as is */ }
+          }
+          return next;
+        }));
         return true;
       }
       setStatusMessage({ text: 'Failed to adjust stock: ' + res.error, type: 'error' });
@@ -489,20 +497,30 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const confirmAdjustStock = async () => {
     const modal = adjustModal;
     if (!modal) return;
-    const amount = parseFloat(adjustAmount);
-    if (isNaN(amount) || amount <= 0) {
-      setStatusMessage({ text: 'Enter a valid amount greater than 0', type: 'error' });
+    const kgAmt = parseFloat(adjustAmount);
+    const pcsAmt = parseFloat(adjustPcs);
+    const hasKg = !isNaN(kgAmt) && kgAmt > 0;
+    const hasPcs = !isNaN(pcsAmt) && pcsAmt > 0;
+    if (!hasKg && !hasPcs) {
+      setStatusMessage({ text: 'Enter a valid amount in weight or pcs', type: 'error' });
       return;
     }
-    if (modal.mode === 'reduce' && amount > Number(modal.product.current_stock)) {
+    if (hasKg && modal.mode === 'reduce' && kgAmt > Number(modal.product.current_stock)) {
       setStatusMessage({ text: 'Cannot reduce more than the current stock', type: 'error' });
       return;
     }
-    const delta = modal.mode === 'add' ? amount : -amount;
-    const ok = await applyStockAdjust(modal.product, delta);
+    if (hasPcs && modal.mode === 'reduce' && pcsAmt > adjustCurrentPcs) {
+      setStatusMessage({ text: 'Cannot reduce more than the current pcs', type: 'error' });
+      return;
+    }
+    const sign = modal.mode === 'add' ? 1 : -1;
+    const ok = await applyStockAdjust(modal.product, hasKg ? sign * kgAmt : 0, hasPcs ? sign * pcsAmt : undefined);
     if (ok) {
       setAdjustModal(null);
-      setStatusMessage({ text: `${modal.mode === 'add' ? 'Added' : 'Reduced'} ${amount} ${modal.product.uom} — ${modal.product.name}`, type: 'success' });
+      const parts: string[] = [];
+      if (hasKg) parts.push(`${kgAmt} ${modal.product.uom}`);
+      if (hasPcs) parts.push(`${pcsAmt} Pcs`);
+      setStatusMessage({ text: `${modal.mode === 'add' ? 'Added' : 'Reduced'} ${parts.join(' + ')} — ${modal.product.name}`, type: 'success' });
     }
   };
 
@@ -912,6 +930,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         } else if (!rawPcs) {
           delete da.pcs_per_kg;
         }
+        if (da.pcs_stock === undefined) {
+          da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
+        }
         return JSON.stringify(da);
       })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
@@ -1019,37 +1040,13 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   }, {});
 
   const adjustProduct = adjustModal?.product ?? null;
-  const adjustWeightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'];
-  const adjustIsWeightUom = adjustProduct ? adjustWeightUoms.includes(adjustProduct.uom) : false;
-  const adjustPcsPerKg = (() => {
+  const adjustCurrentPcs = (() => {
     if (!adjustProduct) return 0;
     try {
       const da = JSON.parse(adjustProduct.domain_attributes || '{}');
-      return Number(da.pcs_per_kg) || 0;
+      return Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
     } catch { return 0; }
   })();
-  const adjustUomToKg = adjustProduct?.uom === 'Grams' ? 0.001 : 1;
-  const adjustShowPcs = adjustIsWeightUom && adjustPcsPerKg > 0;
-
-  const handleAdjustAmountChange = (val: string) => {
-    setAdjustAmount(val);
-    if (adjustShowPcs && val !== '' && !isNaN(parseFloat(val)) && parseFloat(val) > 0) {
-      setAdjustPcs(String(Math.round(parseFloat(val) * adjustUomToKg * adjustPcsPerKg)));
-    } else {
-      setAdjustPcs('');
-    }
-  };
-
-  const handleAdjustPcsChange = (val: string) => {
-    setAdjustPcs(val);
-    if (val !== '' && !isNaN(parseFloat(val)) && parseFloat(val) > 0) {
-      const factor = adjustUomToKg * adjustPcsPerKg;
-      const unitVal = parseFloat(val) / factor;
-      setAdjustAmount(adjustProduct?.uom === 'Grams' ? unitVal.toFixed(1) : unitVal.toFixed(3));
-    } else {
-      setAdjustAmount('');
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
@@ -1245,7 +1242,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
                   const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
                   const pcsPerKg = Number(da.pcs_per_kg) || 0;
-                  const totalPcs = pcsPerKg > 0 ? Math.round(Number(p.current_stock) * pcsPerKg) : (Number(da.pcs) || 0);
+                  const totalPcs = da.pcs_stock !== undefined
+                    ? (Number(da.pcs_stock) || 0)
+                    : (pcsPerKg > 0 ? Math.round(Number(p.current_stock) * pcsPerKg) : (Number(da.pcs) || 0));
                   const isWeightUom = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom);
                   const formattedStock = isWeightUom 
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
@@ -2074,74 +2073,60 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             </div>
 
             <div className="space-y-3">
-              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                Amount ({adjustModal.product.uom})
-              </label>
-              {adjustShowPcs ? (
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                      {adjustModal.product.uom}
-                    </label>
-                    <input
-                      autoFocus
-                      type="number"
-                      min="0"
-                      step="any"
-                      inputMode="decimal"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={adjustAmount}
-                      onChange={e => handleAdjustAmountChange(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
-                      placeholder={`${adjustModal.product.uom}`}
-                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                      Pcs (auto-converts)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      onWheel={e => (e.target as HTMLInputElement).blur()}
-                      value={adjustPcs}
-                      onChange={e => handleAdjustPcsChange(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
-                      placeholder="Pcs"
-                      className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
-                    />
-                    <p className="text-[10px] text-muted-foreground/70 font-semibold mt-1">
-                      {adjustPcsPerKg} pcs = 1 Kg
-                    </p>
-                  </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                    {adjustModal.product.uom}
+                  </label>
+                  <input
+                    autoFocus
+                    type="number"
+                    min="0"
+                    step="any"
+                    inputMode="decimal"
+                    onWheel={e => (e.target as HTMLInputElement).blur()}
+                    value={adjustAmount}
+                    onChange={e => setAdjustAmount(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
+                    placeholder={`0.000`}
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
+                  />
+                  <p className="text-[10px] text-muted-foreground/70 font-semibold mt-1">
+                    Current: {Number(adjustModal.product.current_stock).toFixed(3)} {adjustModal.product.uom}
+                  </p>
                 </div>
-              ) : (
-                <input
-                  autoFocus
-                  type="number"
-                  min="0"
-                  step="any"
-                  inputMode="decimal"
-                  onWheel={e => (e.target as HTMLInputElement).blur()}
-                  value={adjustAmount}
-                  onChange={e => setAdjustAmount(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
-                  placeholder={`Enter amount in ${adjustModal.product.uom}`}
-                  className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
-                />
-              )}
+                <div>
+                  <label className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                    Pcs
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    onWheel={e => (e.target as HTMLInputElement).blur()}
+                    value={adjustPcs}
+                    onChange={e => setAdjustPcs(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); confirmAdjustStock(); } }}
+                    placeholder="0"
+                    className="w-full bg-background border border-border rounded-xl px-4 py-3 text-lg font-black text-foreground focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all no-spinners"
+                  />
+                  <p className="text-[10px] text-muted-foreground/70 font-semibold mt-1">
+                    Current: {adjustCurrentPcs} Pcs
+                  </p>
+                </div>
+              </div>
               <p className="text-xs text-muted-foreground mt-2 font-semibold">
                 {(() => {
-                  const amt = parseFloat(adjustAmount);
-                  if (isNaN(amt) || amt <= 0) return 'Enter an amount to see the new stock';
-                  const newStock = adjustModal.mode === 'add'
-                    ? Number(adjustModal.product.current_stock) + amt
-                    : Number(adjustModal.product.current_stock) - amt;
-                  if (newStock < 0) return 'Resulting stock would be negative';
-                  const decimals = ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(adjustModal.product.uom) ? 3 : 0;
-                  return `New stock: ${newStock.toFixed(decimals)} ${adjustModal.product.uom}`;
+                  const kgAmt = parseFloat(adjustAmount);
+                  const pcsAmt = parseFloat(adjustPcs);
+                  const hasKg = !isNaN(kgAmt) && kgAmt > 0;
+                  const hasPcs = !isNaN(pcsAmt) && pcsAmt > 0;
+                  if (!hasKg && !hasPcs) return 'Enter an amount in weight or pcs to see the new stock';
+                  const sign = adjustModal.mode === 'add' ? 1 : -1;
+                  const newKg = hasKg ? Number(adjustModal.product.current_stock) + sign * kgAmt : Number(adjustModal.product.current_stock);
+                  const newPcs = hasPcs ? adjustCurrentPcs + sign * pcsAmt : adjustCurrentPcs;
+                  if (newKg < 0 || newPcs < 0) return 'Resulting stock would be negative';
+                  return `New stock: ${newKg.toFixed(3)} ${adjustModal.product.uom}${hasPcs ? ` • ${newPcs} Pcs` : ''}`;
                 })()}
               </p>
             </div>

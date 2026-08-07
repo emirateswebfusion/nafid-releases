@@ -14,7 +14,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbEnsureServiceItem: (params: { tenant_id: string }) => ipcRenderer.invoke('db:ensureServiceItem', params),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
   dbDeleteProduct: (product_id: string) => ipcRenderer.invoke('db:deleteProduct', product_id),
-  dbAdjustStock: (args: { product_id: string; delta: number }) => ipcRenderer.invoke('db:adjustStock', args),
+  dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => ipcRenderer.invoke('db:adjustStock', args),
   dbBulkImportProducts: (products: any[]) => ipcRenderer.invoke('db:bulkImportProducts', products),
   dbUpdatePrintStatus: (productIds: string[]) => ipcRenderer.invoke('db:updatePrintStatus', productIds),
   dbResetPrintStatus: (tenant_id: string) => ipcRenderer.invoke('db:resetPrintStatus', tenant_id),

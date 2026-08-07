@@ -756,14 +756,28 @@ ipcMain.handle('db:getPendingPrintProducts', (event, { tenant_id, limit, date, d
   }
 });
 
-ipcMain.handle('db:adjustStock', (event, { product_id, delta }) => {
+ipcMain.handle('db:adjustStock', (event, { product_id, delta, pcsDelta }) => {
   try {
     const db = getDb();
-    db.prepare(`
-      UPDATE products 
-      SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-      WHERE product_id = ?
-    `    ).run(delta, product_id);
+    if (pcsDelta != null) {
+      const row = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?').get(product_id) as any;
+      let da: Record<string, any> = {};
+      try { da = JSON.parse(row?.domain_attributes || '{}'); } catch { /* keep empty */ }
+      const current = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
+      da.pcs_stock = Math.max(0, current + pcsDelta);
+      db.prepare(`
+        UPDATE products 
+        SET domain_attributes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE product_id = ?
+      `).run(JSON.stringify(da), product_id);
+    }
+    if (delta != null) {
+      db.prepare(`
+        UPDATE products 
+        SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE product_id = ?
+      `).run(delta, product_id);
+    }
     return { success: true };
   } catch (error: any) {
     console.error('[db:adjustStock]', error);
