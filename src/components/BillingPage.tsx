@@ -671,7 +671,17 @@ export function BillingPage() {
               return barcode.startsWith(searchQuery) || code.startsWith(searchQuery);
             })
           : products;
-        setResults(filtered);
+        // Collapse duplicate service charge items to a single row
+        const deduped: any[] = [];
+        let serviceFound = false;
+        for (const p of filtered) {
+          if (Number(p.is_service_item) === 1) {
+            if (serviceFound) continue;
+            serviceFound = true;
+          }
+          deduped.push(p);
+        }
+        setResults(deduped);
         setSelectedIndex(0);
       }
     }, 150);

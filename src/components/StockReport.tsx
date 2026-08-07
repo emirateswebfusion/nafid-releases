@@ -29,6 +29,7 @@ interface Product {
   grade_id?: string;
   pricing_mode?: string;
   sync_status: string;
+  is_service_item?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -116,7 +117,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
   const loadData = useCallback(async (forceRefresh = false) => {
     const cached = reportCache.get(cacheKey);
     if (!forceRefresh && cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      setProducts(cached.products);
+      setProducts(cached.products.filter((p: any) => Number(p.is_service_item) !== 1));
       setGrades(cached.grades);
       setLastUpdated(new Date(cached.timestamp));
       setLoading(false);
@@ -134,9 +135,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           window.electronAPI.dbGetParties(cacheKey).catch(() => null),
         ]);
         if (Array.isArray(prodRes) && Array.isArray(gradeRes)) {
-          setProducts(prodRes);
+          const nonServiceProducts = prodRes.filter((p: any) => Number(p.is_service_item) !== 1);
+          setProducts(nonServiceProducts);
           setGrades(gradeRes);
-          reportCache.set(cacheKey, { products: prodRes, grades: gradeRes, timestamp: Date.now() });
+          reportCache.set(cacheKey, { products: nonServiceProducts, grades: gradeRes, timestamp: Date.now() });
           setLastUpdated(new Date());
         }
         if (Array.isArray(partiesRes)) setParties(partiesRes);
@@ -181,7 +183,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     let cancelled = false;
     setSalesLoading(true);
     window.electronAPI.dbGetProductSalesSummary({ tenant_id: tenantId || 'global' })
-      .then((res) => { if (!cancelled && Array.isArray(res)) setSalesSummary(res); })
+      .then((res) => {
+        if (!cancelled && Array.isArray(res))
+          setSalesSummary(res.filter((r: any) => Number(r.is_service_item) !== 1 && (r.name || '') !== 'Service Charge'));
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setSalesLoading(false); });
     return () => { cancelled = true; };
