@@ -2607,6 +2607,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         {[
                           { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
                           { label: 'MRP *', field: 'basePrice', prefix: '₹' },
+                          { label: 'Current Stock', field: 'stock' },
                           { label: 'Low Stock Alert', field: 'reorderLevel' },
                         ].map(({ label, field, prefix }) => (
                           <div key={field} className="flex-1 min-w-0">
