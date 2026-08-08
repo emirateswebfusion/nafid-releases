@@ -87,8 +87,12 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   }, [filteredGrades]);
 
   const handleAdd = async () => {
-    if (!newForm.category.trim() || !newForm.grade_name.trim()) {
-      setError('Please fill in Category and Grade name. Purchase, MRP, and Offer are optional (\u2014 set them here or later in the Inventory page).');
+    if (!newForm.category.trim()) {
+      setError('Please fill in Category. Grade Variant, Purchase, MRP, and Offer are optional.');
+      return;
+    }
+    if (!newForm.grade_name.trim() && grades.some(g => g.category === newForm.category.trim() && !g.grade_name.trim())) {
+      setError('This category already has a general grade. Add a named variant instead.');
       return;
     }
     setError(null);
@@ -115,8 +119,12 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   };
 
   const handleUpdate = async (id: string) => {
-    if (!editForm.category.trim() || !editForm.grade_name.trim()) {
-      setError('Please fill in Category and Grade name. Purchase, MRP, and Offer are optional (\u2014 set them later in the Inventory page).');
+    if (!editForm.category.trim()) {
+      setError('Please fill in Category. Grade Variant, Purchase, MRP, and Offer are optional.');
+      return;
+    }
+    if (!editForm.grade_name.trim() && grades.some(g => g.grade_id !== id && g.category === editForm.category.trim() && !g.grade_name.trim())) {
+      setError('This category already has a general grade. Add a named variant instead.');
       return;
     }
     setError(null);
@@ -289,7 +297,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
       {/* Sticky Page Header */}
       <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
-        <div className="max-w-6xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <Tags className="w-4 h-4" />
           </div>
@@ -319,7 +327,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
         <div className="p-6">
-          <div className="max-w-6xl mx-auto space-y-6">
+          <div className="max-w-7xl mx-auto space-y-6">
 
       {/* Top scrollable category selection pills - styled like the hardware tabs */}
       {categories.length > 0 && (
@@ -542,7 +550,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                         <div key={g.grade_id} className="flex justify-between items-center text-[11px] font-semibold text-muted-foreground/90">
                           <div className="flex items-center gap-1.5 min-w-0">
                             <div className="w-1.5 h-1.5 rounded-full bg-border shrink-0" />
-                            <span className="truncate text-foreground/80">{g.grade_name}</span>
+                            <span className="truncate text-foreground/80">{g.grade_name || '(General)'}</span>
                           </div>
                           <span className="font-mono text-[10px] text-muted-foreground font-semibold">
                             P: <span className="text-foreground/90 font-extrabold">₹{(g.purchase_price || 0).toFixed(1)}</span> | M: <span className="text-primary font-extrabold">₹{g.rate.toFixed(1)}</span>
@@ -723,7 +731,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
                           <div className="space-y-1.5">
                             <label className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
-                              Grade Name *
+                              Grade Name (optional)
                             </label>
                             <input
                               value={editForm.grade_name}
@@ -802,7 +810,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                           <div className="p-2 bg-muted/40 dark:bg-muted/10 rounded-xl border border-border shrink-0 shadow-inner">
                             <Tag className="w-3.5 h-3.5 text-muted-foreground/75" />
                           </div>
-                          <span className="text-xs font-bold text-foreground truncate">{grade.grade_name}</span>
+                          <span className="text-xs font-bold text-foreground truncate">{grade.grade_name || '(General)'}</span>
                         </div>
                         <div className="col-span-2 font-mono font-bold text-foreground/80 text-xs">
                           ₹{(grade.purchase_price || 0).toFixed(2)}
@@ -906,64 +914,65 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-6">
-              <div className="space-y-3">
-                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                  Grade variant *
-                </label>
-                <input
-                  placeholder="e.g. Grade A, Scrap"
-                  value={newForm.grade_name}
-                  onChange={e => setNewForm({ ...newForm, grade_name: e.target.value })}
-                  className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
-                />
-              </div>
+            <div>
+              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                Grade variant (optional)
+              </label>
+              <input
+                placeholder="e.g. Grade A, Scrap"
+                value={newForm.grade_name}
+                onChange={e => setNewForm({ ...newForm, grade_name: e.target.value })}
+                className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
+              />
+              <p className="text-xs text-muted-foreground/70 mt-1">
+                Optional — leave blank for a general grade under this category.
+              </p>
+            </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Purchase
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={newForm.purchase_price || ''}
-                      onChange={e => setNewForm({ ...newForm, purchase_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
-                    />
-                  </div>
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Purchase
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newForm.purchase_price || ''}
+                    onChange={e => setNewForm({ ...newForm, purchase_price: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
+                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    MRP
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={newForm.rate || ''}
-                      onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
-                    />
-                  </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  MRP
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newForm.rate || ''}
+                    onChange={e => setNewForm({ ...newForm, rate: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
+                  />
                 </div>
-                <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
-                    Offer
-                  </label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
-                    <input
-                      type="number"
-                      placeholder="0.00"
-                      value={newForm.offer_price || ''}
-                      onChange={e => setNewForm({ ...newForm, offer_price: parseFloat(e.target.value) || 0 })}
-                      className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
-                    />
-                  </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
+                  Offer
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newForm.offer_price || ''}
+                    onChange={e => setNewForm({ ...newForm, offer_price: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
+                  />
                 </div>
               </div>
             </div>

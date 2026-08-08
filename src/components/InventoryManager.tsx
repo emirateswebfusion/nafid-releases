@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3 } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2 } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -106,6 +106,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [isAddingGrade, setIsAddingGrade] = useState(false);
+  const [savingGrade, setSavingGrade] = useState(false);
+  const [newGradeForm, setNewGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [nameSuggestions, setNameSuggestions] = useState<Product[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
@@ -117,6 +120,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const nameContainerRef = useRef<HTMLDivElement>(null);
 
   const configuredCategories = Array.from(new Set(grades.map(g => g.category)));
+
+  const categoryGrades = grades.filter(g => g.category === formData.category);
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -655,6 +660,38 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     (s.phone && s.phone.includes(supplierSearch))
   );
 
+  const handleCreateGrade = async () => {
+    if (!formData.category.trim() || !newGradeForm.grade_name.trim()) return;
+    setSavingGrade(true);
+    const { tenantId } = useAuthStore.getState();
+    const gradeId = uuidv4();
+    const res = await window.electronAPI.dbAddGrade({
+      grade_id: gradeId,
+      tenant_id: tenantId || '',
+      category: formData.category.trim(),
+      grade_name: newGradeForm.grade_name.trim(),
+      rate: Number(newGradeForm.rate) || 0,
+      purchase_price: Number(newGradeForm.purchase_price) || 0,
+      offer_price: Number(newGradeForm.offer_price) || 0,
+    });
+    if (res.success) {
+      const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
+      if (Array.isArray(fresh)) setGrades(fresh);
+      handleInputChange('grade_id', gradeId);
+      handleInputChange('base_price', Number(newGradeForm.rate) || 0);
+      handleInputChange('purchase_price', Number(newGradeForm.purchase_price) || 0);
+      handleInputChange('offer_price', Number(newGradeForm.offer_price) || 0);
+      setIsAddingGrade(false);
+      setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
+      setStatusMessage({ text: `Grade "${newGradeForm.grade_name.trim()}" created and applied.`, type: 'success' });
+      setTimeout(() => setStatusMessage(null), 3000);
+    } else {
+      setStatusMessage({ text: 'Failed to create grade: ' + (res.error || 'Operation failed'), type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
+    }
+    setSavingGrade(false);
+  };
+
   const getEffectiveMrp = (data: any = formData) => {
     const appliedGrade = data.grade_id ? grades.find(g => g.grade_id === data.grade_id) : null;
     const gradeRate = appliedGrade ? Number(appliedGrade.rate) : null;
@@ -1002,6 +1039,28 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           setProducts(prev => [payload as Product, ...prev]);
           setTotalCount(prev => prev !== null ? prev + 1 : null);
         }
+
+        // Auto-register custom categories in the Categories & Grades page so they can be managed there
+        if (formData.category.trim() && !configuredCategories.includes(formData.category.trim())) {
+          const cat = formData.category.trim();
+          const existing = await window.electronAPI.dbGetGrades(tenantId || 'global');
+          if (Array.isArray(existing) && !existing.some(g => g.category === cat && !String(g.grade_name || '').trim())) {
+            const gradeRes = await window.electronAPI.dbAddGrade({
+              grade_id: uuidv4(),
+              tenant_id: tenantId || '',
+              category: cat,
+              grade_name: '',
+              rate: Number(formData.base_price) || 0,
+              purchase_price: Number(formData.purchase_price) || 0,
+              offer_price: Number(formData.offer_price) || 0,
+            });
+            if (gradeRes.success) {
+              const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
+              if (Array.isArray(fresh)) setGrades(fresh);
+            }
+          }
+        }
+
         setView('list');
       } else if (!formData.sku_barcode && res.error?.includes('sku_barcode') && retries > 0) {
         setLoading(false);
@@ -1487,32 +1546,115 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       <input type="text" value={formData.brand_manufacturer} onChange={e => handleInputChange('brand_manufacturer', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
                     </div>
                   </div>
-                  {grades.filter(g => g.category === formData.category).length > 0 && (
+                  {formData.category.trim() && (
                     <div className="mt-4">
-                      <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Grade</label>
-                      <Select
-                        value={formData.grade_id}
-                        onChange={v => handleInputChange('grade_id', v)}
-                        placeholder="Select grade..."
-                        searchable
-                        options={grades.filter(g => g.category === formData.category).map(g => ({
-                          value: g.grade_id,
-                          label: g.grade_name + ' (₹' + g.rate + ')'
-                        }))}
-                        renderOption={(option, isSelected) => {
-                          const grade = grades.find(g => g.grade_id === option.value);
-                          return (
-                            <>
-                              <div className="flex-1 min-w-0">
-                                <div className={clsx('text-sm truncate', isSelected && 'font-medium')}>{grade?.grade_name || option.label}</div>
-                                <div className="text-xs text-muted-foreground">₹{Number(grade?.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                              </div>
-                              {isSelected && <Check className="w-4 h-4 shrink-0 text-primary" />}
-                            </>
-                          );
-                        }}
-                        triggerClassName="rounded-xl h-[46px]"
-                      />
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Grade</label>
+                        {!isAddingGrade && (
+                          <button
+                            type="button"
+                            onClick={() => setIsAddingGrade(true)}
+                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-1 rounded-full transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" /> New Grade
+                          </button>
+                        )}
+                      </div>
+                      {categoryGrades.length > 0 && !isAddingGrade && (
+                        <Select
+                          value={formData.grade_id}
+                          onChange={v => handleInputChange('grade_id', v)}
+                          placeholder="No grade (manual pricing)"
+                          searchable
+                          options={categoryGrades.map(g => ({
+                            value: g.grade_id,
+                            label: (g.grade_name || '(General)') + ' (₹' + g.rate + ')'
+                          }))}
+                          renderOption={(option, isSelected) => {
+                            const grade = grades.find(g => g.grade_id === option.value);
+                            return (
+                              <>
+                                <div className="flex-1 min-w-0">
+                                  <div className={clsx('text-sm truncate', isSelected && 'font-medium')}>{grade?.grade_name || '(General)'}</div>
+                                  <div className="text-xs text-muted-foreground">₹{Number(grade?.rate || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                                </div>
+                                {isSelected && <Check className="w-4 h-4 shrink-0 text-primary" />}
+                              </>
+                            );
+                          }}
+                          triggerClassName="rounded-xl h-[46px]"
+                        />
+                      )}
+                      {isAddingGrade && (
+                        <div className="bg-muted/20 dark:bg-muted/10 border border-border/80 rounded-xl p-3 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="col-span-2">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Grade Name *</label>
+                              <input
+                                value={newGradeForm.grade_name}
+                                onChange={e => setNewGradeForm({ ...newGradeForm, grade_name: e.target.value })}
+                                placeholder="e.g. Grade A, Scrap, Heavy"
+                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Purchase ₹</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={newGradeForm.purchase_price}
+                                onChange={e => setNewGradeForm({ ...newGradeForm, purchase_price: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">MRP ₹</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={newGradeForm.rate}
+                                onChange={e => setNewGradeForm({ ...newGradeForm, rate: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Offer ₹</label>
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={newGradeForm.offer_price}
+                                onChange={e => setNewGradeForm({ ...newGradeForm, offer_price: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+                              className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCreateGrade}
+                              disabled={savingGrade || !newGradeForm.grade_name.trim()}
+                              className="px-3 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/95 transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                            >
+                              {savingGrade ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              Save Grade
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

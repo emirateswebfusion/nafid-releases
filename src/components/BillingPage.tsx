@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -193,6 +193,11 @@ export function BillingPage() {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
+  const [newProductGrades, setNewProductGrades] = useState<any[]>([]);
+  const [newProductGradeId, setNewProductGradeId] = useState('');
+  const [newProductIsAddingGrade, setNewProductIsAddingGrade] = useState(false);
+  const [newProductSavingGrade, setNewProductSavingGrade] = useState(false);
+  const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [isPastBillMode, setIsPastBillMode] = useState(false);
   const [pastBillResults, setPastBillResults] = useState<any[]>([]);
   const getNumericPart = (s: string) => (s.match(/\d+/g) || []).join('');
@@ -697,6 +702,11 @@ export function BillingPage() {
             const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
             setConfiguredCategories(cats);
           }
+        })
+        .catch(console.error);
+      window.electronAPI.dbGetGrades(tenantId)
+        .then((res: any[]) => {
+          if (Array.isArray(res)) setNewProductGrades(res);
         })
         .catch(console.error);
     }
@@ -1206,6 +1216,9 @@ export function BillingPage() {
     setNewProductBarcode('');
     setNewProductBrand('');
     setNewProductCategory('');
+    setNewProductGradeId('');
+    setNewProductIsAddingGrade(false);
+    setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
     setNewProductUom('Pcs');
     setNewProductPurchasePrice('');
     setNewProductBasePrice('');
@@ -1218,6 +1231,32 @@ export function BillingPage() {
     setNewProductOfferPrice('');
     setNewProductIsGstApplicable(true);
     setNewProductIsCustomCategory(false);
+  };
+
+  const handleCreateNewGrade = async () => {
+    if (!window.electronAPI || !tenantId || !newProductCategory.trim() || !newProductGradeForm.grade_name.trim()) return;
+    setNewProductSavingGrade(true);
+    const gradeId = uuidv4();
+    const res = await window.electronAPI.dbAddGrade({
+      grade_id: gradeId,
+      tenant_id: tenantId,
+      category: newProductCategory.trim(),
+      grade_name: newProductGradeForm.grade_name.trim(),
+      rate: Number(newProductGradeForm.rate) || 0,
+      purchase_price: Number(newProductGradeForm.purchase_price) || 0,
+      offer_price: Number(newProductGradeForm.offer_price) || 0,
+    });
+    if (res.success) {
+      const fresh = await window.electronAPI.dbGetGrades(tenantId);
+      if (Array.isArray(fresh)) setNewProductGrades(fresh);
+      setNewProductGradeId(gradeId);
+      if (!newProductBasePrice && newProductGradeForm.rate) setNewProductBasePrice(newProductGradeForm.rate);
+      setNewProductIsAddingGrade(false);
+      setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
+    } else {
+      setHardwareError('Failed to create grade: ' + (res.error || ''));
+    }
+    setNewProductSavingGrade(false);
   };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
@@ -1249,6 +1288,7 @@ export function BillingPage() {
     }
     const purchasePrice = Number(newProductPurchasePrice) || 0;
     const basePrice = Number(newProductBasePrice) || purchasePrice;
+    const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
       tenant_id: tenantId,
@@ -1269,7 +1309,8 @@ export function BillingPage() {
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
       billing_type: 'PIECE',
-      pricing_mode: 'FIXED_PRICE',
+      grade_id: selectedGrade?.grade_id || null,
+      pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       is_deleted: 0,
       sync_status: 'PENDING',
     });
@@ -1286,7 +1327,9 @@ export function BillingPage() {
         purchase_price: purchasePrice,
         tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
         billing_type: 'PIECE',
-        pricing_mode: 'FIXED_PRICE',
+        pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
+        grade_id: selectedGrade?.grade_id || null,
+        grade_rate: selectedGrade ? Number(selectedGrade.rate) : null,
         sku_barcode: finalBarcode,
         brand_manufacturer: newProductBrand,
         discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
@@ -5038,7 +5081,10 @@ export function BillingPage() {
                           <div className="flex gap-1 items-center">
                             <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Category"
                               className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 text-sm" />
-                            <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-xs font-bold text-red-500 shrink-0 cursor-pointer">✕</button>
+                            <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} title="Cancel custom category"
+                              className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 shrink-0 cursor-pointer transition-all">
+                              <X className="w-4 h-4" />
+                            </button>
                           </div>
                         ) : (
                           <Select
@@ -5097,7 +5143,10 @@ export function BillingPage() {
                               <div className="flex gap-2 items-center">
                                 <input type="text" value={newProductCategory} onChange={e => setNewProductCategory(e.target.value)} placeholder="Enter category"
                                   className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" />
-                                <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0 cursor-pointer">Cancel</button>
+                                <button type="button" onClick={() => { setNewProductIsCustomCategory(false); setNewProductCategory(''); }} title="Cancel custom category"
+                                  className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 shrink-0 cursor-pointer transition-all">
+                                  <X className="w-4 h-4" />
+                                </button>
                               </div>
                             ) : (
                               <Select
@@ -5143,6 +5192,107 @@ export function BillingPage() {
                             className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none font-mono tracking-widest shadow-sm text-sm" />
                         </div>
                       </div>
+                    </div>
+                  )}
+
+                  {/* Grade selection / creation */}
+                  {newProductCategory.trim() && (
+                    <div className="mt-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">Grade</label>
+                        {!newProductIsAddingGrade && (
+                          <button
+                            type="button"
+                            onClick={() => setNewProductIsAddingGrade(true)}
+                            className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1 bg-primary/10 px-2 py-0.5 rounded-full transition-all cursor-pointer"
+                          >
+                            <Plus className="w-3 h-3" /> New Grade
+                          </button>
+                        )}
+                      </div>
+                      {newProductGrades.filter(g => g.category === newProductCategory).length > 0 && !newProductIsAddingGrade && (
+                        <Select
+                          value={newProductGradeId}
+                          onChange={v => setNewProductGradeId(v)}
+                          placeholder="No grade (manual pricing)"
+                          searchable
+                          options={newProductGrades.filter(g => g.category === newProductCategory).map(g => ({
+                            value: g.grade_id,
+                            label: (g.grade_name || '(General)') + ' (₹' + g.rate + ')'
+                          }))}
+                          triggerClassName="rounded-lg h-[40px] text-sm"
+                        />
+                      )}
+                      {newProductIsAddingGrade && (
+                        <div className="bg-muted/20 dark:bg-muted/10 border border-border/80 rounded-xl p-3 space-y-2">
+                          <div className="grid grid-cols-3 gap-2">
+                            <div className="col-span-3">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Grade Name *</label>
+                              <input
+                                value={newProductGradeForm.grade_name}
+                                onChange={e => setNewProductGradeForm({ ...newProductGradeForm, grade_name: e.target.value })}
+                                placeholder="e.g. Grade A, Scrap, Heavy"
+                                className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Purchase ₹</label>
+                              <input
+                                type="number" step="0.01"
+                                onWheel={e => (e.target as HTMLInputElement).blur()}
+                                value={newProductGradeForm.purchase_price}
+                                onChange={e => setNewProductGradeForm({ ...newProductGradeForm, purchase_price: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">MRP ₹</label>
+                              <input
+                                type="number" step="0.01"
+                                onWheel={e => (e.target as HTMLInputElement).blur()}
+                                value={newProductGradeForm.rate}
+                                onChange={e => setNewProductGradeForm({ ...newProductGradeForm, rate: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Offer ₹</label>
+                              <input
+                                type="number" step="0.01"
+                                onWheel={e => (e.target as HTMLInputElement).blur()}
+                                value={newProductGradeForm.offer_price}
+                                onChange={e => setNewProductGradeForm({ ...newProductGradeForm, offer_price: e.target.value })}
+                                placeholder="0.00"
+                                className="w-full bg-background border border-border/80 rounded-lg p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+                              className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted rounded-lg transition-all duration-200 cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleCreateNewGrade}
+                              disabled={newProductSavingGrade || !newProductGradeForm.grade_name.trim()}
+                              className="px-3 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-lg hover:bg-primary/95 transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                            >
+                              {newProductSavingGrade ? (
+                                <Loader2 className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <Check className="w-3 h-3" />
+                              )}
+                              Save Grade
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </section>
