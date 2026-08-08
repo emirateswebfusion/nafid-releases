@@ -911,19 +911,7 @@ export function BillingPage() {
     }
   }, [showProductCreateForm]);
 
-  useEffect(() => {
-    const handler = (e: CustomEvent) => {
-      const productId = e.detail?.product_id;
-      if (productId) {
-        setTimeout(() => {
-          const input = qtyRefs.current[productId];
-          if (input) { input.focus(); input.select(); }
-        }, 0);
-      }
-    };
-    window.addEventListener('product-added', handler as EventListener);
-    return () => window.removeEventListener('product-added', handler as EventListener);
-  }, []);
+
 
   // Listen for Edit Bill from Sales History — loads items directly into cart
   useEffect(() => {
@@ -1487,6 +1475,135 @@ export function BillingPage() {
     }
   };
 
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const playBeep = () => {
+      try {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 1350; // high-pitched clear beep
+        gain.gain.setValueAtTime(0.08, audioCtx.currentTime); // safe volume
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.08); // fade fast
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.08);
+      } catch (e) {
+        console.warn('Audio feedback failed:', e);
+      }
+    };
+
+    const unsubscribe = window.electronAPI.onBarcodeScanned(async (code: string) => {
+      if (!code) return;
+      console.log("[BillingPage] Barcode scanned from hardware:", code);
+      
+      // Determine what mode we are in
+      if (isReturnMode) {
+        // Search invoices for returns
+        try {
+          const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, search: code });
+          if (Array.isArray(invoices) && invoices.length > 0) {
+            // Find an exact match by invoice number
+            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
+            if (exactMatch) {
+              handleSelectReturnInvoice(exactMatch);
+              playBeep();
+            } else {
+              setSearchQuery(code);
+              setReturnSearchResults(invoices.filter((inv: any) => inv.invoice_type !== 'SCRAP' && inv.invoice_type !== 'RETURN'));
+            }
+          }
+        } catch (e) {
+          console.error("Failed to search invoices for return barcode:", e);
+        }
+      } else if (isPastBillMode) {
+        // Search past bills by invoice number
+        try {
+          const invoices = await window.electronAPI.dbGetInvoices({ tenant_id: tenantId, search: code });
+          if (Array.isArray(invoices) && invoices.length > 0) {
+            const exactMatch = invoices.find((inv: any) => inv.invoice_number === code);
+            if (exactMatch) {
+              handleSelectPastBill(exactMatch);
+              playBeep();
+            } else {
+              setSearchQuery(code);
+              setPastBillResults(invoices);
+            }
+          }
+        } catch (e) {
+          console.error("Failed to search past bills for barcode:", e);
+        }
+      } else {
+        // Normal billing mode: search product by barcode/item_code
+        try {
+          const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code });
+          if (Array.isArray(products) && products.length > 0) {
+            // Add the product directly to the cart
+            const prod = products[0];
+            
+            // Replicate the piece-per-kg logic from handleSelectProduct
+            let piecesPerKg;
+            if (prod.billing_type === 'WEIGHT' && prod.domain_attributes) {
+              try {
+                const da = typeof prod.domain_attributes === 'string'
+                  ? JSON.parse(prod.domain_attributes)
+                  : prod.domain_attributes;
+                const storedPpk = Number(da.pcs_per_kg) || 0;
+                const totalPcs = Number(da.pcs) || 0;
+                const stockKg = Number(prod.current_stock) || 0;
+                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
+              } catch {}
+            }
+
+            addItem({
+              product_id: prod.product_id,
+              name: prod.name,
+              base_price: prod.base_price,
+              purchase_price: prod.pricing_mode === 'GRADE_RATE' && prod.grade_purchase_price !== undefined && prod.grade_purchase_price !== null
+                ? Number(prod.grade_purchase_price)
+                : (prod.purchase_price ?? 0),
+              tax_rate_percent: prod.tax_rate_percent ?? 0,
+              billing_type: prod.billing_type,
+              pieces_per_kg: piecesPerKg,
+              grade_id: prod.grade_id,
+              pricing_mode: prod.pricing_mode,
+              grade_rate: prod.grade_rate,
+              discount_percent: prod.discount_percent ?? null,
+              discount_flat: prod.discount_flat ?? null,
+              offer_price: prod.offer_price ?? null,
+              sku_barcode: prod.sku_barcode || null,
+              brand_manufacturer: prod.brand_manufacturer || null,
+              isServiceItem: Number(prod.is_service_item) ? true : undefined,
+            });
+            syncActiveSnapshot();
+            playBeep();
+
+            // Keep focus on search input for next scan!
+            setSearchQuery('');
+            setResults([]);
+            setTimeout(() => {
+              searchRef.current?.focus();
+            }, 50);
+          } else {
+            // Fallback: put the scanned code in search query to let the user see no products matched
+            setSearchQuery(code);
+            setResults([]);
+            setHardwareError(`Product not found for barcode: ${code}`);
+            setTimeout(() => setHardwareError(null), 3000);
+          }
+        } catch (e) {
+          console.error("Failed to query product for barcode:", e);
+        }
+      }
+    });
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, [tenantId, isReturnMode, isPastBillMode, addItem, handleSelectReturnInvoice, handleSelectPastBill, syncActiveSnapshot]);
+
   const handleReturnFromPastBill = async (invoice: any) => {
     if (!window.electronAPI) return;
     try {
@@ -1776,7 +1893,7 @@ export function BillingPage() {
     return () => window.removeEventListener('keydown', handler);
   }, [showProductCreateForm, isScrapMode, isReturnMode, isPastBillMode, isQuotationMode]);
 
-  const handleSearchKey = (e: React.KeyboardEvent) => {
+  const handleSearchKey = async (e: React.KeyboardEvent) => {
     const maxLen = isScrapMode ? scrapSearchResults.length : isPastBillMode ? pastBillResults.length : results.length;
     if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, maxLen - 1)); e.preventDefault(); }
     else if (e.key === 'ArrowUp') { setSelectedIndex(i => Math.max(i - 1, 0)); e.preventDefault(); }
@@ -1787,11 +1904,33 @@ export function BillingPage() {
         if (returnSearchResults[selectedIndex]) handleSelectReturnInvoice(returnSearchResults[selectedIndex]);
       } else if (isPastBillMode) {
         if (pastBillResults[selectedIndex]) handleSelectPastBill(pastBillResults[selectedIndex]);
-      } else if (results[selectedIndex]) {
-        handleSelectProduct(results[selectedIndex]);
-      } else if (!showProductCreateForm && searchQuery.length >= 2 && !isQuotationMode) {
-        setShowProductCreateForm(true);
-        setNewProductName(searchQuery);
+      } else {
+        // Normal billing / quotation mode:
+        const trimmedQuery = searchQuery.trim();
+        if (trimmedQuery.length >= 2 && !isQuotationMode && window.electronAPI) {
+          try {
+            const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: trimmedQuery });
+            if (Array.isArray(products) && products.length > 0) {
+              e.preventDefault();
+              handleSelectProduct(products[0]);
+              // Keep focus in the search field
+              setTimeout(() => {
+                searchRef.current?.focus();
+                searchRef.current?.select();
+              }, 50);
+              return;
+            }
+          } catch (err) {
+            console.error('[BillingPage] Direct barcode lookup error:', err);
+          }
+        }
+
+        if (results[selectedIndex]) {
+          handleSelectProduct(results[selectedIndex]);
+        } else if (!showProductCreateForm && searchQuery.length >= 2 && !isQuotationMode) {
+          setShowProductCreateForm(true);
+          setNewProductName(searchQuery);
+        }
       }
     }
     else if (e.key === ' ' && searchQuery.trim() === '' && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode) { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); }

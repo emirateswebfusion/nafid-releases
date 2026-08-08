@@ -104,7 +104,7 @@ function App() {
     }
   }, []);
 
-  const { currentUserRole, addItem } = useCartStore();
+  const { currentUserRole } = useCartStore();
   const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
@@ -398,35 +398,6 @@ function App() {
         useAuthStore.getState().logout();
       });
 
-      window.electronAPI.onBarcodeScanned(async (code) => {
-        const { tenantId } = useAuthStore.getState();
-        const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: code, limit: 1 });
-        if (Array.isArray(products) && products.length > 0) {
-          const match = products[0];
-          let piecesPerKg;
-          if (match.billing_type === 'WEIGHT' && match.domain_attributes) {
-            try {
-              const da = typeof match.domain_attributes === 'string' ? JSON.parse(match.domain_attributes) : match.domain_attributes;
-              const storedPpk = Number(da.pcs_per_kg) || 0;
-              const totalPcs = Number(da.pcs) || 0;
-              const stockKg = Number(match.current_stock) || 0;
-              // Prefer stored ratio; fall back to computing from original pcs/stock
-              piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
-            } catch {}
-          }
-          addItem({
-            product_id: match.product_id,
-            name: match.name,
-            base_price: match.base_price,
-            purchase_price: match.purchase_price ?? 0,
-            tax_rate_percent: match.tax_rate_percent ?? 0,
-            billing_type: match.billing_type,
-            pieces_per_kg: piecesPerKg,
-          });
-          window.dispatchEvent(new CustomEvent('product-added', { detail: { product_id: match.product_id } }));
-        }
-      });
-
       unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
         useScaleStore.getState().setLiveWeight(weight);
       });
@@ -455,7 +426,7 @@ function App() {
       window.removeEventListener('open-return-mode', handleOpenReturnMode);
       window.removeEventListener('edit-scrap-invoice', handleOpenScrapEdit);
     };
-  }, [addItem]);
+  }, []);
 
   if (printBarcodeData) {
     return <PrintBarcodeView barcode={printBarcodeData} price={printBarcodePrice ? parseFloat(printBarcodePrice) : undefined} sp={printBarcodeSp ? parseFloat(printBarcodeSp) : undefined} spType={printBarcodeSpType as 'SP' | 'OFF' | undefined} name={printBarcodeName || undefined} quantity={printBarcodeQuantity} columns={printBarcodeColumns} codeType={printBarcodeCodeType} />;

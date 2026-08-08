@@ -61,7 +61,7 @@ export interface IElectronAPI {
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
-  onBarcodeScanned: (callback: (code: string) => void) => void;
+  onBarcodeScanned: (callback: (code: string) => void) => () => void;
   onScaleWeight: (callback: (weight: number) => void) => () => void;
   onSyncDataUpdated: (callback: () => void) => void;
   onSyncCycleComplete: (callback: () => void) => void;

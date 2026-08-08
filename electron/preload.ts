@@ -64,7 +64,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('update-info', (_event, info) => callback(info));
   },
   onBarcodeScanned: (callback: (code: string) => void) => {
-    ipcRenderer.on('hardware:barcode', (_event, code) => callback(code));
+    const listener = (_event: any, code: string) => callback(code);
+    ipcRenderer.on('hardware:barcode', listener);
+    return () => {
+      ipcRenderer.removeListener('hardware:barcode', listener);
+    };
   },
   onScaleWeight: (callback: (weight: number) => void) => {
     const listener = (_event: any, weight: number) => callback(weight);
