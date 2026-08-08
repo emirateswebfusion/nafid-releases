@@ -21,7 +21,7 @@ module.exports = {
   appId: 'com.vendora.pos',
   productName: 'Vendora',
   copyright: 'Copyright © 2026 Vendora',
-  npmRebuild: true,
+  npmRebuild: false,
   directories: {
     output: 'dist/release',
     buildResources: 'build'
