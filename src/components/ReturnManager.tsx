@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';

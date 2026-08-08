@@ -7,7 +7,7 @@ import {
   Pencil, Trash, X, Save, TrendingUp, TrendingDown, Recycle,
   CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
   IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
-  ChevronRight, Activity, FileText
+  ChevronRight, Activity, FileText, Layers
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';

@@ -531,28 +531,39 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     }
   };
 
+  const encodePurchasePriceCode = (price: any) => {
+    if (!priceCoding || price === '' || price === null || price === undefined) return '';
+    const numeric = Number(price);
+    if (isNaN(numeric) || numeric <= 0) return '';
+    let code = '';
+    for (const char of String(numeric)) {
+      if (char === '.') code += '.';
+      else if (priceCoding[char]) code += priceCoding[char];
+    }
+    return code;
+  };
+
+  const stripPurchasePriceCode = (barcode: string, price: any) => {
+    const code = encodePurchasePriceCode(price);
+    // Strip the new dotted format first, then the legacy dotless format
+    for (const candidate of [code, code.replace(/\./g, '')]) {
+      if (candidate && barcode.endsWith(candidate)) {
+        return barcode.substring(0, barcode.length - candidate.length);
+      }
+    }
+    return barcode;
+  };
+
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
       const next = { ...prev, [field]: value };
       
       if (field === 'purchase_price' && priceCoding) {
-        const oldPriceStr = String(prev.purchase_price).replace(/\D/g, '');
-        let oldCode = '';
-        for (const char of oldPriceStr) {
-          if (priceCoding[char]) oldCode += priceCoding[char];
-        }
-        
-        const newPriceStr = String(value).replace(/\D/g, '');
-        let newCode = '';
-        for (const char of newPriceStr) {
-          if (priceCoding[char]) newCode += priceCoding[char];
-        }
+        const newCode = encodePurchasePriceCode(value);
 
         let currentBarcode = prev.sku_barcode || '';
         
-        if (oldCode && currentBarcode.endsWith(oldCode)) {
-          currentBarcode = currentBarcode.substring(0, currentBarcode.length - oldCode.length);
-        }
+        currentBarcode = stripPurchasePriceCode(currentBarcode, prev.purchase_price);
         
         if (newCode) {
            currentBarcode = currentBarcode + newCode;
@@ -687,10 +698,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     let priceCode = '';
     
     if (priceCoding && formData.purchase_price) {
-      const priceStr = String(formData.purchase_price).replace(/\D/g, '');
-      for (const char of priceStr) {
-        if (priceCoding[char]) priceCode += priceCoding[char];
-      }
+      priceCode = encodePurchasePriceCode(formData.purchase_price);
     }
 
     if (prefix.length + priceCode.length > 10) {
@@ -905,10 +913,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       
       let priceCode = '';
       if (priceCoding && formData.purchase_price) {
-        const priceStr = String(formData.purchase_price).replace(/\D/g, '');
-        for (const char of priceStr) {
-          if (priceCoding[char]) priceCode += priceCoding[char];
-        }
+        priceCode = encodePurchasePriceCode(formData.purchase_price);
       }
       finalBarcode = code + priceCode;
       // Don't just setFormData, pass it directly to payload since state update is async

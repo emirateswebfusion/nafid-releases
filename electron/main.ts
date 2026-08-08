@@ -3865,6 +3865,22 @@ ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
   }
 });
 
+ipcMain.handle('db:productHasEstimateBills', (event, { product_id, tenant_id }: { product_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    const row = db.prepare(`
+      SELECT 1 FROM purchase_bill_items pbi
+      JOIN purchase_bills pb ON pb.purchase_bill_id = pbi.purchase_bill_id
+      WHERE pbi.product_id = ? AND pbi.tenant_id = ? AND pb.bill_type = 'ESTIMATE'
+      LIMIT 1
+    `).get(product_id, tenant_id);
+    return { success: true, hasEstimate: !!row };
+  } catch (error: any) {
+    console.error('[db:productHasEstimateBills]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 ipcMain.handle('db:getPurchaseBillProducts', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
   try {
     const db = getDb();

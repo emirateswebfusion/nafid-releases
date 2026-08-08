@@ -808,13 +808,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
 
       {/* ── ADD FORM ── */}
       {showAddForm && (
-        <div className="flex flex-col flex-1 min-h-0">
-          {/* ── Shared Info Bar ── */}
-          <div className="flex items-center gap-4 px-6 py-3 bg-card border-b border-border/80 shrink-0 shadow-sm">
+        <div className="max-w-7xl mx-auto w-full px-6 pt-6 pb-6 select-none flex flex-col flex-1 min-h-0">
+          {/* ── Shared Info Card ── */}
+          <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0">
+            <div className="flex items-center gap-4 flex-wrap">
             <input
               type="date" value={billDate}
               onChange={e => setBillDate(e.target.value)}
-              className="bg-background border border-border/80 rounded-lg px-3 py-2 text-sm text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shrink-0"
+              className="bg-background/50 border border-border rounded-xl px-3 py-2.5 text-xs font-semibold text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all shrink-0"
             />
             <div className="relative flex-1">
               <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/50" />
@@ -829,7 +830,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                   const match = suppliers.find(s => s.name.toLowerCase() === e.target.value.toLowerCase());
                   if (match) { setSupplierName(match.name); setSupplierId(match.party_id); }
                 }}
-                className="w-full pl-10 pr-8 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-300"
+                className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
               />
               {supplierSearch && filteredSuppliers.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
@@ -852,31 +853,31 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             <button
               type="button"
               onClick={() => { setNewPartyForm(prev => ({ ...prev, name: supplierSearch || '' })); setShowPartyCreateForm(true); }}
-              className="p-2 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer shrink-0"
+              className="p-2.5 rounded-xl text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 transition-all active:scale-95 cursor-pointer shrink-0 shadow-inner"
               title="Create Party"
             >
               <UserPlus className="w-4 h-4" />
             </button>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none shadow-inner select-none shrink-0">
               {/* Tab: GST */}
               <button
                 type="button"
                 onClick={() => setBillType('GST')}
                 className={clsx(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                  "flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                   billType === 'GST'
-                    ? "bg-emerald-500 text-white border-emerald-500 shadow-sm"
-                    : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20"
+                    ? "bg-background shadow-md shadow-foreground/[0.03] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 font-extrabold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
                 <span className={clsx(
                   "w-1.5 h-1.5 rounded-full shrink-0",
-                  billType === 'GST' ? "bg-white" : "bg-emerald-500"
+                  billType === 'GST' ? "bg-emerald-500" : "bg-muted-foreground/40"
                 )} />
                 GST
                 <span className={clsx(
                   "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
-                  billType === 'GST' ? "bg-white/20 text-white" : "bg-emerald-500/20",
+                  billType === 'GST' ? "bg-emerald-500/15 text-emerald-600" : "bg-muted-foreground/15 text-muted-foreground",
                   gstHasItems ? "opacity-100" : "opacity-0"
                 )}>✓</span>
               </button>
@@ -885,29 +886,31 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 type="button"
                 onClick={() => setBillType('ESTIMATE')}
                 className={clsx(
-                  "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all cursor-pointer",
+                  "flex items-center justify-center gap-1.5 py-2 px-4 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0",
                   billType === 'ESTIMATE'
-                    ? "bg-amber-500 text-white border-amber-500 shadow-sm"
-                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 hover:bg-amber-500/20"
+                    ? "bg-background shadow-md shadow-foreground/[0.03] text-amber-600 dark:text-amber-400 border-amber-500/30 font-extrabold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                 )}
               >
                 <span className={clsx(
                   "w-1.5 h-1.5 rounded-full shrink-0",
-                  billType === 'ESTIMATE' ? "bg-white" : "bg-amber-500"
+                  billType === 'ESTIMATE' ? "bg-amber-500" : "bg-muted-foreground/40"
                 )} />
                 Estimate
                 <span className={clsx(
                   "flex items-center justify-center w-4 h-4 rounded-md text-[10px] font-black transition-opacity",
-                  billType === 'ESTIMATE' ? "bg-white/20 text-white" : "bg-amber-500/20",
+                  billType === 'ESTIMATE' ? "bg-amber-500/15 text-amber-600" : "bg-muted-foreground/15 text-muted-foreground",
                   estHasItems ? "opacity-100" : "opacity-0"
                 )}>✓</span>
               </button>
             </div>
-          </div>
+            </div>
 
-          {/* ── Notes Bar ── */}
-          <div className="flex items-center gap-3 px-6 py-2.5 bg-card/60 border-b border-border/50 shrink-0">
-            <Tag className="w-4 h-4 text-muted-foreground/50 shrink-0" />
+          {/* ── Notes Row ── */}
+          <div className="mt-3.5 pt-3.5 border-t border-border/50 flex items-center gap-3">
+            <div className="p-1.5 rounded-lg bg-primary/10 text-primary shrink-0">
+              <Tag className="w-3.5 h-3.5" />
+            </div>
             <input
               type="text"
               placeholder="Notes / Remarks (optional)"
@@ -924,10 +927,11 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
+            </div>
           </div>
 
           {/* ── Both sections mounted, only active tab visible (preserves state & refs) ── */}
-          <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+          <div className="flex-1 overflow-y-auto py-5 space-y-4">
             <div className={billType === 'GST' ? 'block' : 'hidden'}>
               <PurchaseBillFormSection
                 ref={gstRef}
@@ -969,12 +973,12 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           </div>
 
           {/* ── Save Button ── */}
-          <div className="border-t border-border/80 bg-card px-6 py-4 shrink-0 flex items-center justify-end gap-3 shadow-sm">
+          <div className="bg-card border border-border rounded-[28px] shadow-sm px-6 py-4 shrink-0 flex items-center justify-end gap-3">
 
             <button
               onClick={handleSaveAll}
               disabled={isSavingAll || !(gstHasItems || estHasItems) || (!!editingBill && !editHasItems)}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-lg font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all duration-200 active:scale-95 py-2.5 px-6 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Save className="w-4 h-4" />
               {isSavingAll ? 'Saving...' : editingBill ? 'Update Purchase Bill' : 'Save Purchase Bill'}
@@ -1595,6 +1599,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [_newProductPcs, setNewProductPcs] = useState('');
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
+  const [sharedEstimateMode, setSharedEstimateMode] = useState(false);
 
   const openProductEditor = async (item: typeof billItems[0]) => {
     setEditingProductItemId(item.product_id);
@@ -1641,6 +1646,18 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         }
       } catch { /* non-fatal: keep bill-line values */ }
     }
+    // Rule C: if the product is purchased via Estimate too (present in the other section
+    // or already has saved Estimate bills), its barcode purchase code must stay on the raw
+    // Estimate base — GST-section edits must never inflate it.
+    try {
+      const inOtherSection = (getOtherSectionItems ? getOtherSectionItems() : []).some(i => i.product_id === item.product_id);
+      let hasEstimateBills = false;
+      if (window.electronAPI && tenantId) {
+        const res = await window.electronAPI.dbProductHasEstimateBills({ product_id: item.product_id, tenant_id: tenantId });
+        hasEstimateBills = !!(res && res.success && res.hasEstimate);
+      }
+      setSharedEstimateMode(inOtherSection || hasEstimateBills);
+    } catch { setSharedEstimateMode(false); }
   };
 
   useEffect(() => {
@@ -1795,36 +1812,82 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     return baseTotal + gstTotal;
   };
 
-  const getPriceCode = () => {
-    if (!priceCoding || !newProductPurchasePrice) return '';
-    const priceStr = String(newProductPurchasePrice).replace(/\D/g, '');
+  const getEffectivePurchaseRate = () => {
+    const base = Number(newProductPurchasePrice) || 0;
+    if (base <= 0) return 0;
+    if (type === 'ESTIMATE' || sharedEstimateMode) return base;
+    const rate = newProductIsGstApplicable ? (newProductTaxRate || 0) : 0;
+    return rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
+  };
+
+  const encodePrice = (rate: number) => {
+    if (!priceCoding || rate <= 0) return '';
     let code = '';
-    for (const char of priceStr) {
-      if (priceCoding[char]) code += priceCoding[char];
+    for (const char of String(rate)) {
+      if (char === '.') code += '.';
+      else if (priceCoding[char]) code += priceCoding[char];
     }
     return code;
   };
 
+  const applyBarcodePriceCode = (oldCode: string, newCode: string) => {
+    let barcode = newProductBarcode;
+    // Strip the new dotted format first, then the legacy dotless format
+    for (const candidate of [oldCode, oldCode.replace(/\./g, '')]) {
+      if (candidate && barcode.endsWith(candidate)) {
+        barcode = barcode.substring(0, barcode.length - candidate.length);
+        break;
+      }
+    }
+    if (newCode) barcode += newCode;
+    if (barcode !== newProductBarcode) setNewProductBarcode(barcode);
+  };
+
+  const getPriceCode = () => {
+    if (!priceCoding || !newProductPurchasePrice) return '';
+    return encodePrice(getEffectivePurchaseRate());
+  };
+
   const handlePurchasePriceChange = (val: string) => {
     setNewProductPurchasePrice(val);
-    if (priceCoding) {
-      const oldPriceStr = String(newProductPurchasePrice).replace(/\D/g, '');
-      let oldCode = '';
-      for (const char of oldPriceStr) {
-        if (priceCoding[char]) oldCode += priceCoding[char];
-      }
-      const newPriceStr = String(val).replace(/\D/g, '');
-      let newCode = '';
-      for (const char of newPriceStr) {
-        if (priceCoding[char]) newCode += priceCoding[char];
-      }
-      let barcode = newProductBarcode;
-      if (oldCode && barcode.endsWith(oldCode)) {
-        barcode = barcode.substring(0, barcode.length - oldCode.length);
-      }
-      if (newCode) barcode += newCode;
-      if (barcode !== newProductBarcode) setNewProductBarcode(barcode);
-    }
+    if (!priceCoding) return;
+    const rate = (type === 'ESTIMATE' || sharedEstimateMode) ? 0 : (newProductIsGstApplicable ? (newProductTaxRate || 0) : 0);
+    const toEffective = (base: number) => base > 0 && rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
+    const oldBase = Number(newProductPurchasePrice) || 0;
+    const newBase = Number(val) || 0;
+    applyBarcodePriceCode(
+      encodePrice(toEffective(oldBase)),
+      encodePrice(toEffective(newBase))
+    );
+  };
+
+  const handleTaxRateChange = (val: string) => {
+    const oldRate = newProductTaxRate;
+    const newRate = parseFloat(val);
+    setNewProductTaxRate(newRate);
+    if (!priceCoding || type === 'ESTIMATE' || sharedEstimateMode) return;
+    const base = Number(newProductPurchasePrice) || 0;
+    if (base <= 0) return;
+    const gst = newProductIsGstApplicable;
+    const toEffective = (r: number) => gst && r > 0 ? Math.round(base * (1 + r / 100) * 100) / 100 : base;
+    applyBarcodePriceCode(
+      encodePrice(toEffective(oldRate)),
+      encodePrice(toEffective(newRate))
+    );
+  };
+
+  const handleGstApplicableChange = (val: boolean) => {
+    const oldGst = newProductIsGstApplicable;
+    setNewProductIsGstApplicable(val);
+    if (!priceCoding || type === 'ESTIMATE' || sharedEstimateMode) return;
+    const base = Number(newProductPurchasePrice) || 0;
+    if (base <= 0) return;
+    const rate = newProductTaxRate || 0;
+    const toEffective = (g: boolean) => g && rate > 0 ? Math.round(base * (1 + rate / 100) * 100) / 100 : base;
+    applyBarcodePriceCode(
+      encodePrice(toEffective(oldGst)),
+      encodePrice(toEffective(val))
+    );
   };
 
   const handleDiscountPercentChange = (val: string) => {
@@ -1877,6 +1940,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const resetProductForm = () => {
     setShowProductCreateForm(false);
     setEditingProductItemId(null);
+    setSharedEstimateMode(false);
     setNewProductName('');
     setNewProductItemCode('');
     setNewProductBarcode('');
@@ -1990,7 +2054,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       uom: newProductUom,
       purchase_price: purchasePrice,
       base_price: basePrice,
-      current_stock: Number(newProductStock) || 0,
+      current_stock: 0,
       reorder_level: Number(newProductReorderLevel) || 0,
       is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
       tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
@@ -2004,7 +2068,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       sync_status: 'PENDING',
     });
     if (res.success) {
-      const defaultQty = String(Number(newProductStock) || 1);
+      const defaultQty = '1';
       setBillItems(prev => [...prev, {
         product_id: productId,
         name: newProductName.trim(),
@@ -2171,29 +2235,30 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   return (
     <>
-      {/* Bill Info Bar */}
-      <div className={clsx("flex items-center gap-3 px-4 py-3 rounded-xl border-l-4", isEstimate ? "border-amber-500 bg-amber-500/[0.03]" : "border-emerald-500 bg-emerald-500/[0.03]")}>
+      {/* Bill Info Card */}
+      <div className={clsx("bg-card border border-border rounded-[28px] shadow-sm overflow-hidden", isEstimate ? "border-amber-500/25" : "border-emerald-500/25")}>
+        <div className={clsx("flex items-center gap-4 px-6 py-3.5 border-b border-border/60 flex-wrap", isEstimate ? "bg-amber-500/[0.04]" : "bg-emerald-500/[0.04]")}>
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">
+          <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">
             Bill No {isEstimate ? '(Estimate)' : '(GST)'}
           </label>
           <input
             type="text" value={billNumber}
             onChange={e => setBillNumber(e.target.value)}
-            className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+            className="w-36 bg-background/50 border border-border rounded-xl px-2.5 py-2 text-xs font-mono tracking-wider text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all"
           />
         </div>
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Invoice No</label>
+          <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">Invoice No</label>
           <input
             type="text" value={invoiceNumber}
             onChange={e => setInvoiceNumber(e.target.value)}
             placeholder="Supplier inv #"
-            className="w-36 bg-background border border-border/80 rounded-lg px-2.5 py-1.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none"
+            className="w-36 bg-background/50 border border-border rounded-xl px-2.5 py-2 text-xs font-mono tracking-wider text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background focus:outline-none transition-all"
           />
         </div>
         <div>
-          <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-0.5">Payment</label>
+          <label className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 block mb-1">Payment</label>
           <Select
             value={paymentType}
             onChange={v => setPaymentType(v as any)}
@@ -2203,7 +2268,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               { value: 'UPI', label: 'UPI' },
               { value: 'BANK_TRANSFER', label: 'Bank Transfer' },
             ]}
-            triggerClassName="w-28 bg-background border border-border/80 rounded-lg px-2.5 text-sm font-mono tracking-wider text-foreground focus:border-primary focus:ring-1 focus:ring-primary/10 focus:outline-none shadow-none"
+            triggerClassName="w-28 bg-background/50 border border-border rounded-xl px-2.5 text-xs font-mono tracking-wider text-foreground focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none shadow-none"
             size="sm"
           />
         </div>
@@ -2212,7 +2277,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             type="button"
             onClick={onShareAll}
             className={clsx(
-              "ml-auto flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold cursor-pointer active:scale-95 border transition-all shrink-0",
+              "ml-auto flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold cursor-pointer active:scale-95 border transition-all shrink-0",
               isEstimate
                 ? "border-amber-500/40 bg-amber-500/10 text-amber-600 hover:bg-amber-500/20"
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20"
@@ -2223,10 +2288,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             Share All
           </button>
         )}
+        </div>
       </div>
 
       {/* Products Section */}
-      <div className="p-4">
+      <div className="p-5">
         <div ref={searchRef} className="relative mb-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
@@ -2237,13 +2303,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 value={productSearch}
                 onChange={e => searchProducts(e.target.value)}
                 onKeyDown={e => { if (e.key === ' ' && productSearch.trim() === '') { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); } }}
-                className="w-full bg-background border border-border/80 focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-lg py-2 pl-9 pr-3 text-sm font-medium text-foreground transition-all"
+                className="w-full bg-background/50 border border-border rounded-xl py-2.5 pl-9 pr-3 text-xs font-semibold text-foreground placeholder:text-muted-foreground/40 focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all"
               />
             </div>
             <button
               type="button"
               onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all text-sm font-bold shrink-0 cursor-pointer active:scale-95 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20"
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl transition-all text-xs font-bold shrink-0 cursor-pointer active:scale-95 border border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 shadow-sm"
               title="Add new product"
             >
               <Plus className="w-4 h-4" />
@@ -2457,7 +2523,6 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         {[
                           { label: 'Purchase Price', field: 'purchasePrice', prefix: '₹' },
                           { label: 'MRP *', field: 'basePrice', prefix: '₹' },
-                          { label: 'Current Stock', field: 'stock' },
                           { label: 'Low Stock Alert', field: 'reorderLevel' },
                         ].map(({ label, field, prefix }) => (
                           <div key={field} className="flex-1 min-w-0">
@@ -2594,8 +2659,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           <div className="min-w-[140px]">
                             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">GST Applicable</label>
                             <div
-                              onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
-                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                              onClick={() => handleGstApplicableChange(!newProductIsGstApplicable)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); handleGstApplicableChange(!newProductIsGstApplicable); } }}
                               data-focusable-checkbox
                               tabIndex={-1}
                               className={clsx(
@@ -2605,7 +2670,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
                               )}
                             >
-                              <input type="checkbox" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                              <input type="checkbox" checked={newProductIsGstApplicable} onChange={e => handleGstApplicableChange(e.target.checked)}
                                 className="w-3 h-3 rounded pointer-events-none accent-primary" />
                               <span className={clsx('font-bold text-xs select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
                                 {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
@@ -2621,7 +2686,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tax Rate %</label>
                             <Select
                               value={String(newProductTaxRate)}
-                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              onChange={v => handleTaxRateChange(v)}
                               disabled={!newProductIsGstApplicable}
                               options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
                               triggerClassName="rounded-lg h-[40px] text-sm"
@@ -2633,8 +2698,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           <div>
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
                             <div
-                              onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
-                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                              onClick={() => handleGstApplicableChange(!newProductIsGstApplicable)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); handleGstApplicableChange(!newProductIsGstApplicable); } }}
                               data-focusable-checkbox
                               tabIndex={-1}
                               className={clsx(
@@ -2644,7 +2709,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   : 'bg-muted/30 border-border/80 text-muted-foreground hover:bg-muted/50 hover:border-border'
                               )}
                             >
-                              <input type="checkbox" id="gst" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                              <input type="checkbox" id="gst" checked={newProductIsGstApplicable} onChange={e => handleGstApplicableChange(e.target.checked)}
                                 className={clsx('w-3.5 h-3.5 rounded pointer-events-none', newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground')} />
                               <label htmlFor="gst" className={clsx('font-bold text-xs cursor-pointer select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
                                 {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
@@ -2660,7 +2725,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
                             <Select
                               value={String(newProductTaxRate)}
-                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              onChange={v => handleTaxRateChange(v)}
                               disabled={!newProductIsGstApplicable}
                               options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
                               triggerClassName="rounded-xl h-[46px]"
@@ -2693,7 +2758,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           <div className="space-y-1.5">
             {isEstimate ? (
               <>
-                <div className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[30px_1fr_80px_100px_100px_100px_36px_36px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
                   <span className="text-center">#</span>
                   <span>Product</span>
                   <span className="text-right">Qty</span>
@@ -2772,7 +2837,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
               </>
             ) : (
               <>
-                <div className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                <div className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 border-b border-border/40 mb-1.5">
                   <span className="text-center">#</span>
                   <span>Product</span>
                   <span className="text-center">HSN</span>
