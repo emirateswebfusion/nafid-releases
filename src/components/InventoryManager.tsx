@@ -1585,76 +1585,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                           triggerClassName="rounded-xl h-[46px]"
                         />
                       )}
-                      {isAddingGrade && (
-                        <div className="bg-muted/20 dark:bg-muted/10 border border-border/80 rounded-xl p-3 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <div className="col-span-2">
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Grade Name *</label>
-                              <input
-                                value={newGradeForm.grade_name}
-                                onChange={e => setNewGradeForm({ ...newGradeForm, grade_name: e.target.value })}
-                                placeholder="e.g. Grade A, Scrap, Heavy"
-                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Purchase ₹</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={newGradeForm.purchase_price}
-                                onChange={e => setNewGradeForm({ ...newGradeForm, purchase_price: e.target.value })}
-                                placeholder="0.00"
-                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">MRP ₹</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={newGradeForm.rate}
-                                onChange={e => setNewGradeForm({ ...newGradeForm, rate: e.target.value })}
-                                placeholder="0.00"
-                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Offer ₹</label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={newGradeForm.offer_price}
-                                onChange={e => setNewGradeForm({ ...newGradeForm, offer_price: e.target.value })}
-                                placeholder="0.00"
-                                className="w-full bg-background border border-border/80 rounded-xl p-2.5 text-sm text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners font-mono"
-                              />
-                            </div>
-                          </div>
-                          <div className="flex justify-end gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-                              className="px-3 py-1.5 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleCreateGrade}
-                              disabled={savingGrade || !newGradeForm.grade_name.trim()}
-                              className="px-3 py-1.5 text-xs font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/95 transition-all flex items-center gap-1.5 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-                            >
-                              {savingGrade ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : (
-                                <Check className="w-3 h-3" />
-                              )}
-                              Save Grade
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
@@ -2183,7 +2113,107 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         </div>
       )}
 
-
+      {isAddingGrade && (
+        <Modal
+          isOpen={isAddingGrade}
+          onClose={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+          title="Create New Grade"
+          className="max-w-lg backdrop-blur-none"
+        >
+          <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
+            <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
+              Grade for category: <span className="font-bold text-foreground">{formData.category}</span>
+            </p>
+            <section className="bg-background border border-border/80 rounded-xl p-4 shadow-sm">
+              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border/60">
+                <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
+                  <Tag className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-black text-blue-500 uppercase tracking-wider">Grade Details</span>
+              </div>
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Grade Name *</label>
+                  <input
+                    autoFocus
+                    placeholder="e.g. Grade A, Scrap, Heavy"
+                    value={newGradeForm.grade_name}
+                    onChange={e => setNewGradeForm({ ...newGradeForm, grade_name: e.target.value })}
+                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Purchase (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                      <input
+                        type="number" step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        placeholder="0.00"
+                        value={newGradeForm.purchase_price}
+                        onChange={e => setNewGradeForm({ ...newGradeForm, purchase_price: e.target.value })}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Base MRP (₹/Kg)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                      <input
+                        type="number" step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        placeholder="0.00"
+                        value={newGradeForm.rate}
+                        onChange={e => setNewGradeForm({ ...newGradeForm, rate: e.target.value })}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Offer (₹)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">₹</span>
+                      <input
+                        type="number" step="0.01"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        placeholder="0.00"
+                        value={newGradeForm.offer_price}
+                        onChange={e => setNewGradeForm({ ...newGradeForm, offer_price: e.target.value })}
+                        className="w-full bg-background border border-border/80 rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+            <div className="flex justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/70 rounded-xl transition-all active:scale-95 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                data-enter-submit
+                onClick={handleCreateGrade}
+                disabled={savingGrade || !newGradeForm.grade_name.trim()}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-bold bg-primary text-primary-foreground rounded-xl hover:bg-primary/95 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+              >
+                {savingGrade ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                Save Grade
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {adjustModal && (
         <Modal
