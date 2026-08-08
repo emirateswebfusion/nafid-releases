@@ -2122,6 +2122,15 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           onClose={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
           title="Create New Grade"
           className="max-w-lg backdrop-blur-none"
+          closeButton={
+            <button
+              onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          }
         >
           <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
             <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
@@ -2191,14 +2200,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                 </div>
               </div>
             </section>
-            <div className="flex justify-end gap-2.5 pt-2">
-              <button
-                type="button"
-                onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/70 rounded-xl transition-all active:scale-95 cursor-pointer"
-              >
-                Cancel
-              </button>
+            <div className="flex justify-end pt-2">
               <button
                 type="button"
                 data-enter-submit

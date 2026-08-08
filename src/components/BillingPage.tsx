@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -169,6 +169,7 @@ export function BillingPage() {
   const [results, setResults] = useState<any[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const productFormDialogRef = useRef<HTMLDivElement>(null);
+  const gradeFormDialogRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
   const [newProductName, setNewProductName] = useState('');
@@ -869,7 +870,7 @@ export function BillingPage() {
         setResults([]);
         setPastBillResults([]);
         setSearchQuery('');
-        if (!productFormDialogRef.current?.contains(e.target as Node)) {
+        if (!productFormDialogRef.current?.contains(e.target as Node) && !gradeFormDialogRef.current?.contains(e.target as Node)) {
           setShowProductCreateForm(false);
         }
       }
@@ -5519,13 +5520,22 @@ export function BillingPage() {
           </div>
         </>
       )}
-      {newProductIsAddingGrade && (
-        <Modal
-          isOpen={newProductIsAddingGrade}
-          onClose={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-          title="Create New Grade"
-          className="max-w-lg backdrop-blur-none"
-        >
+      <div ref={gradeFormDialogRef}>
+        {newProductIsAddingGrade && (
+          <Modal
+            isOpen={newProductIsAddingGrade}
+            onClose={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+            title="Create New Grade"
+            className="max-w-lg backdrop-blur-none"
+            overlayClassName="z-[110]"
+            closeButton={
+              <button type="button" onClick={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+                title="Close">
+                <X className="w-4 h-4 text-destructive" />
+              </button>
+            }
+          >
           <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
             <p className="text-xs text-muted-foreground bg-muted/40 rounded-lg px-3 py-2">
               Grade for category: <span className="font-bold text-foreground">{newProductCategory}</span>
@@ -5597,13 +5607,6 @@ export function BillingPage() {
             <div className="flex justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => { setNewProductIsAddingGrade(false); setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/70 rounded-xl transition-all active:scale-95 cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 data-enter-submit
                 onClick={handleCreateNewGrade}
                 disabled={newProductSavingGrade || !newProductGradeForm.grade_name.trim()}
@@ -5619,7 +5622,8 @@ export function BillingPage() {
             </div>
           </div>
         </Modal>
-      )}
+        )}
+      </div>
       {cashRegisterOpen && (
         <CashierSettlement onClose={() => setCashRegisterOpen(false)} />
       )}

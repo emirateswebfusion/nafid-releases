@@ -11,13 +11,14 @@ interface ModalProps {
   className?: string;
   fullScreen?: boolean;
   closeButton?: React.ReactNode;
+  overlayClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, className, fullScreen = false, closeButton }: ModalProps) {
+export function Modal({ isOpen, onClose, title, children, className, fullScreen = false, closeButton, overlayClassName }: ModalProps) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[6px] p-4 select-none animate-in fade-in duration-200">
+    <div className={twMerge('fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-[6px] p-4 select-none animate-in fade-in duration-200', overlayClassName)}>
       <div 
         className={twMerge(
           clsx(
