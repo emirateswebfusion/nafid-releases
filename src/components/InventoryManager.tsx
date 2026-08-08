@@ -1514,10 +1514,13 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       <div>
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
                         {isCustomCategory || configuredCategories.length === 0 ? (
-                          <div className="flex gap-2">
-                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
+                          <div className="relative">
+                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 pr-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
                              {configuredCategories.length > 0 && (
-                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} className="text-sm font-bold text-red-500 hover:text-red-600 shrink-0">Cancel</button>
+                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} title="Cancel custom category"
+                                 className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 cursor-pointer transition-all">
+                                 <X className="w-4 h-4" />
+                               </button>
                              )}
                           </div>
                         ) : (
