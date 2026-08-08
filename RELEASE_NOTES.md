@@ -1,3 +1,10 @@
+# Vendora v1.5.9 Release Notes
+
+## What's Changed
+- Implemented POS billing, inventory management, return manager, and stock reporting features
+- Fixed icon missing import compile errors and configured tsconfig for development parameter flexibility
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.8...v1.5.9
+
 # Vendora v1.5.8 Release Notes
 
 ## What's Changed
