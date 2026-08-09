@@ -71,6 +71,7 @@ export default function SuperDashboard() {
   // Provision logs visualizer states
   const [provisionStatus, setProvisionStatus] = useState<'idle' | 'provisioning' | 'success' | 'failed'>('idle');
   const [provisionLogs, setProvisionLogs] = useState<string[]>([]);
+  const [provisionProgress, setProvisionProgress] = useState(0);
 
   useEffect(() => {
     fetchAdmins();
@@ -175,6 +176,7 @@ export default function SuperDashboard() {
     setFormError('');
     setProvisionStatus('idle');
     setProvisionLogs([]);
+    setProvisionProgress(0);
     setModalOpen(true);
   };
 
@@ -193,6 +195,7 @@ export default function SuperDashboard() {
     setFormError('');
     setProvisionStatus('idle');
     setProvisionLogs([]);
+    setProvisionProgress(0);
     setModalOpen(true);
   };
 
@@ -201,6 +204,7 @@ export default function SuperDashboard() {
     setFormError('');
     setProvisionStatus('provisioning');
     setProvisionLogs([]);
+    setProvisionProgress(0);
 
     const timestamp = () => new Date().toLocaleTimeString([], { hour12: false });
     const appendLog = (msg: string) => setProvisionLogs(prev => [...prev, `[${timestamp()}] ${msg}`]);
@@ -277,6 +281,7 @@ export default function SuperDashboard() {
           appendLog(logOptions[logIndex]);
           logIndex++;
         }
+        setProvisionProgress(prev => Math.min(prev + 4 + Math.round(Math.random() * 3), 88));
       }, 1000);
 
       // Wait for the actual API call
@@ -298,6 +303,7 @@ export default function SuperDashboard() {
         }
         await sleep(600);
         appendLog('🎉 Store successfully provisioned and ready for operations!');
+        setProvisionProgress(100);
         setProvisionStatus('success');
 
         // Close modal after success
@@ -307,6 +313,7 @@ export default function SuperDashboard() {
         }, 1500);
       } else {
         appendLog(`❌ Provisioning pipeline failed: ${apiError}`);
+        setProvisionProgress(0);
         setProvisionStatus('failed');
         setFormError(apiError);
       }
@@ -909,7 +916,7 @@ export default function SuperDashboard() {
                   <div className="flex items-center gap-2">
                     {provisionStatus === 'provisioning' && (
                       <span className="flex items-center gap-1.5 text-xs text-amber-500 font-mono">
-                        <Loader2 className="h-3 w-3 animate-spin" /> executing...
+                        <Loader2 className="h-3 w-3 animate-spin" /> executing... {provisionProgress}%
                       </span>
                     )}
                     {provisionStatus === 'success' && (
@@ -921,9 +928,20 @@ export default function SuperDashboard() {
                   </div>
                 </div>
 
+                {/* Live pipeline progress bar */}
+                {provisionStatus === 'provisioning' && (
+                  <div className="h-1 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-600 via-amber-500 to-emerald-500 transition-all duration-700 ease-out"
+                      style={{ width: `${provisionProgress}%` }}
+                    />
+                  </div>
+                )}
+
                 {/* Log Terminal Screen */}
                 <div className="bg-black/95 rounded-lg border border-zinc-800 p-4 h-[380px] overflow-y-auto font-mono text-[11px] text-zinc-400 space-y-1.5 scrollbar-thin">
                   {provisionLogs.map((log, index) => {
+                    const isLast = index === provisionLogs.length - 1;
                     let color = 'text-zinc-400';
                     if (log.includes('✅') || log.includes('🎉') || log.includes('SUCCESS')) {
                       color = 'text-emerald-400';
@@ -935,6 +953,9 @@ export default function SuperDashboard() {
                     return (
                       <div key={index} className={`${color} leading-relaxed break-all`}>
                         {log}
+                        {isLast && provisionStatus === 'provisioning' && (
+                          <span className="ml-1.5 inline-block h-3 w-1.5 bg-amber-400 animate-pulse align-middle" />
+                        )}
                       </div>
                     );
                   })}
@@ -956,7 +977,7 @@ export default function SuperDashboard() {
                   {provisionStatus === 'failed' && (
                     <button
                       type="button"
-                      onClick={() => setProvisionStatus('idle')}
+                      onClick={() => { setProvisionStatus('idle'); setProvisionProgress(0); }}
                       className="px-4 py-1.5 bg-background hover:bg-muted border border-border rounded-lg text-xs font-semibold text-foreground transition cursor-pointer"
                     >
                       Back to Configuration
