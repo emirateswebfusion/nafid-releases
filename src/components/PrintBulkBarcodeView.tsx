@@ -87,9 +87,9 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
               {item.price !== undefined && !isNaN(item.price) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap' }}>
-                    MRP ₹{formatPrice(item.price)}
+                    <span style={{ fontWeight: item.sp !== undefined && !isNaN(item.sp) ? 'normal' : 'bold' }}>MRP ₹{formatPrice(item.price)}</span>
                     {item.sp !== undefined && !isNaN(item.sp) && (
-                      <span style={{ marginLeft: '2ch' }}>{item.spType || 'SP'} ₹{formatPrice(item.sp)}</span>
+                      <span style={{ marginLeft: '2ch', fontWeight: 'bold' }}>{item.spType || 'SP'} ₹{formatPrice(item.sp)}</span>
                     )}
                   </div>
                 </div>

@@ -49,9 +49,9 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
               {price !== undefined && !isNaN(price) && (
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
                   <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap' }}>
-                    MRP ₹{formatPrice(price)}
+                    <span style={{ fontWeight: sp !== undefined && !isNaN(sp) ? 'normal' : 'bold' }}>MRP ₹{formatPrice(price)}</span>
                     {sp !== undefined && !isNaN(sp) && (
-                      <span style={{ marginLeft: '2ch' }}>{spType} ₹{formatPrice(sp)}</span>
+                      <span style={{ marginLeft: '2ch', fontWeight: 'bold' }}>{spType} ₹{formatPrice(sp)}</span>
                     )}
                   </div>
                 </div>
