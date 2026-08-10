@@ -1,3 +1,10 @@
+# Vendora v1.5.10 Release Notes
+
+## What's Changed
+- Implemented barcode/label printing, pricing tiers (SettingsPricingTiers), tenant management dashboard, and database synchronization enhancements
+- Added support for QR and Code128 barcode generation
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.9...v1.5.10
+
 # Vendora v1.5.9 Release Notes
 
 ## What's Changed
