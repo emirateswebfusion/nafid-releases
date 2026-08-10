@@ -489,6 +489,34 @@ export function initDb() {
         FOREIGN KEY (source_id) REFERENCES payment_sources(source_id)
     );
 
+    CREATE TABLE IF NOT EXISTS pricing_tiers (
+        pricing_tier_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, name)
+    );
+
+    CREATE TABLE IF NOT EXISTS product_pricing (
+        product_pricing_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        pricing_tier_id TEXT NOT NULL,
+        price REAL NOT NULL DEFAULT 0,
+        is_deleted INTEGER DEFAULT 0,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(product_id, pricing_tier_id),
+        FOREIGN KEY (product_id) REFERENCES products(product_id),
+        FOREIGN KEY (pricing_tier_id) REFERENCES pricing_tiers(pricing_tier_id)
+    );
+
     CREATE TABLE IF NOT EXISTS sync_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -529,7 +557,7 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id'
     ],
     party_ledger: [
         'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'balance_type', 'payment_method', 'reference_number', 'created_by', 'created_by_name', 'sync_status', 'created_at', 'updated_at'
@@ -595,6 +623,14 @@ export function initDb() {
         'transaction_id', 'tenant_id', 'source_id', 'type', 'amount', 'category', 'reference_number',
         'notes', 'transaction_date', 'running_balance', 'entered_by', 'entered_by_name',
         'sync_status', 'created_at', 'updated_at'
+    ],
+    pricing_tiers: [
+        'pricing_tier_id', 'tenant_id', 'name', 'is_active', 'sort_order', 'is_deleted',
+        'sync_status', 'created_at', 'updated_at'
+    ],
+    product_pricing: [
+        'product_pricing_id', 'tenant_id', 'product_id', 'pricing_tier_id', 'price',
+        'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ]
   };
 
@@ -812,6 +848,10 @@ export function initDb() {
     "UPDATE product_grades SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
     "UPDATE parties SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
     "UPDATE parties SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE pricing_tiers SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE pricing_tiers SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
+    "UPDATE product_pricing SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
+    "UPDATE product_pricing SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
     "UPDATE party_ledger SET created_at = REPLACE(REPLACE(created_at, 'T', ' '), 'Z', '') WHERE created_at LIKE '%T%Z'",
     "UPDATE party_ledger SET updated_at = REPLACE(REPLACE(updated_at, 'T', ' '), 'Z', '') WHERE updated_at LIKE '%T%Z'",
   ];

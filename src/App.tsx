@@ -28,6 +28,7 @@ import { SalesHistory } from './components/SalesHistory';
 import { StaffManager } from './components/StaffManager';
 import { SettingsManager } from './components/SettingsManager';
 import { SettingsGrades } from './components/SettingsGrades';
+import { SettingsPricingTiers } from './components/SettingsPricingTiers';
 import { LoginScreen } from './components/LoginScreen';
 import { OwnerDashboard } from './components/OwnerDashboard';
 import SuperDashboard from './components/SuperDashboard';
@@ -113,6 +114,7 @@ function App() {
   const [showStaffManager, setShowStaffManager] = useState(false);
   const [showSettingsManager, setShowSettingsManager] = useState(false);
   const [showSettingsGrades, setShowSettingsGrades] = useState(false);
+  const [showSettingsPricingTiers, setShowSettingsPricingTiers] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
   const [showScrapManager, setShowScrapManager] = useState(false);
   const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
@@ -305,6 +307,7 @@ function App() {
     const handleOpenStaff = () => setShowStaffManager(true);
     const handleOpenSettings = () => setShowSettingsManager(true);
     const handleOpenSettingsGrades = () => setShowSettingsGrades(true);
+    const handleOpenSettingsPricingTiers = () => setShowSettingsPricingTiers(true);
     const handleOpenParties = () => setShowPartyManager(true);
     const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
     const handleOpenQuotationManager = () => setShowQuotationManager(true);
@@ -323,6 +326,7 @@ function App() {
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
       setShowPartyManager(false);
       setShowScrapManager(false);
       setShowWarrantyManager(false);
@@ -339,6 +343,7 @@ function App() {
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
       setShowPartyManager(false);
       setShowScrapManager(false);
       setShowQuotationManager(false);
@@ -361,6 +366,7 @@ function App() {
       setShowStaffManager(false);
       setShowSettingsManager(false);
       setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
       setShowPartyManager(false);
       setShowScrapManager(false);
       setShowQuotationManager(false);
@@ -378,6 +384,7 @@ function App() {
     window.addEventListener('open-staff-manager', handleOpenStaff);
     window.addEventListener('open-settings-manager', handleOpenSettings);
     window.addEventListener('open-settings-grades', handleOpenSettingsGrades);
+    window.addEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
     window.addEventListener('open-parties-manager', handleOpenParties);
     window.addEventListener('open-scrap-manager', handleOpenScrapManager);
     window.addEventListener('open-quotation-manager', handleOpenQuotationManager);
@@ -413,6 +420,7 @@ function App() {
       window.removeEventListener('open-staff-manager', handleOpenStaff);
       window.removeEventListener('open-settings-manager', handleOpenSettings);
       window.removeEventListener('open-settings-grades', handleOpenSettingsGrades);
+      window.removeEventListener('open-settings-pricing-tiers', handleOpenSettingsPricingTiers);
       window.removeEventListener('open-parties-manager', handleOpenParties);
       window.removeEventListener('open-scrap-manager', handleOpenScrapManager);
       window.removeEventListener('open-quotation-manager', handleOpenQuotationManager);
@@ -595,6 +603,8 @@ function App() {
         <SettingsManager onClose={() => setShowSettingsManager(false)} />
       ) : showSettingsGrades ? (
         <SettingsGrades onClose={() => setShowSettingsGrades(false)} />
+      ) : showSettingsPricingTiers ? (
+        <SettingsPricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
       ) : showSalesHistory ? (
         <SalesHistory onClose={() => setShowSalesHistory(false)} />
       ) : showInventoryManager ? (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, Fragment, useMemo } from 'react';
 import { useCartStore } from '../store/cartStore';
 import { useAuthStore } from '../store/authStore';
-import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2 } from 'lucide-react';
+import { PackagePlus, Pencil, Save, Printer, RefreshCw, Search, Plus, Minus, Trash, AlertTriangle, X, Package, Tag, CheckCircle2, AlertCircle, Receipt, Building2, IndianRupee, FileText, Check, BarChart3, Loader2, Layers } from 'lucide-react';
 import Barcode from 'react-barcode';
 import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
@@ -105,6 +105,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [qrPreviewUrl, setQrPreviewUrl] = useState<string | null>(null);
   const [grades, setGrades] = useState<any[]>([]);
+  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
   const [isCustomCategory, setIsCustomCategory] = useState(false);
   const [isAddingGrade, setIsAddingGrade] = useState(false);
   const [savingGrade, setSavingGrade] = useState(false);
@@ -194,6 +196,12 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       window.electronAPI.dbGetGrades(tenantId || 'global')
         .then(res => {
           if (Array.isArray(res)) setGrades(res);
+        })
+        .catch(console.error);
+
+      window.electronAPI.dbGetPricingTiers(tenantId || 'global')
+        .then(res => {
+          if (Array.isArray(res)) setPricingTiers(res);
         })
         .catch(console.error);
 
@@ -411,6 +419,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
     setFormData({ ...DEFAULT_FORM, sku_barcode: nextBarcode });
     setEditingProduct(null);
+    setTierPrices({});
     setView('add');
   };
 
@@ -452,6 +461,21 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       gst_bill_date: new Date().toLocaleDateString('en-CA'),
     });
     setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
+    if (window.electronAPI) {
+      window.electronAPI.dbGetProductPricing(tenantId || 'global')
+        .then((rows: any[]) => {
+          if (Array.isArray(rows)) {
+            const mine: Record<string, string> = {};
+            for (const r of rows) {
+              if (r.product_id === product.product_id && r.price != null && r.price !== '') {
+                mine[r.pricing_tier_id] = String(r.price);
+              }
+            }
+            setTierPrices(mine);
+          }
+        })
+        .catch(console.error);
+    }
     setView('edit');
   };
 
@@ -1038,6 +1062,19 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           // Optimistic update for add
           setProducts(prev => [payload as Product, ...prev]);
           setTotalCount(prev => prev !== null ? prev + 1 : null);
+        }
+
+        // Persist per-tier prices (blank = use MRP / clear stored price)
+        const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
+          pricing_tier_id,
+          price: price === '' ? null : Number(price),
+        }));
+        if (tierRows.length > 0) {
+          await window.electronAPI.dbSetProductPricing({
+            tenant_id: tenantId || 'unset',
+            product_id: payload.product_id,
+            pricing: tierRows,
+          });
         }
 
         // Auto-register custom categories in the Categories & Grades page so they can be managed there
@@ -1676,6 +1713,37 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   />
                 </div>
               </div>
+              {pricingTiers.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-border">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <span className="text-xs font-black text-violet-500 uppercase tracking-wider">Tier Prices</span>
+                    <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
+                  </div>
+                  <div className="flex gap-4 flex-wrap">
+                    {pricingTiers.map(tier => (
+                      <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
+                          {tier.name}
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                          <input
+                            type="number" step="0.01"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={tierPrices[tier.pricing_tier_id] ?? ''}
+                            onChange={e => setTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
+                            placeholder={formData.base_price != null && formData.base_price !== '' ? `= ${formData.base_price}` : 'MRP'}
+                            className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </section>
 
             {/* Section 3: Discount & Offers */}

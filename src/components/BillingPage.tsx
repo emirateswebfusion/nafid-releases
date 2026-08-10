@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -96,6 +96,14 @@ export function BillingPage() {
   // Local state for per-item two-way discount binding (like CashierSettlement)
   const [localDiscPcts, setLocalDiscPcts] = useState<Record<string, number>>({});
   const [localDiscFlats, setLocalDiscFlats] = useState<Record<string, number>>({});
+
+  // Pricing tier state
+  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [productPricingMap, setProductPricingMap] = useState<Record<string, Record<string, number>>>({});
+  const [selectedTierId, setSelectedTierId] = useState('');
+  const [allowBillerOverride, setAllowBillerOverride] = useState(true);
+  const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
+  const canOverrideTier = authRole === 'OWNER' || allowBillerOverride;
 
   // Sync local discount state when items are added/removed (but NOT overwrite on every store change)
   useEffect(() => {
@@ -524,6 +532,33 @@ export function BillingPage() {
         setBosTaxInclusive(Boolean(v.billSettings.bosTaxInclusive));
       }
     });
+    window.electronAPI.dbGetPricingTiers(tenantId || 'global')
+      .then((res: any) => {
+        if (Array.isArray(res)) setPricingTiers(res.filter((t: any) => t.is_active === 1 && !t.is_deleted));
+      })
+      .catch(console.error);
+    window.electronAPI.dbGetProductPricing(tenantId || 'global')
+      .then((rows: any) => {
+        if (Array.isArray(rows)) {
+          const map: Record<string, Record<string, number>> = {};
+          for (const r of rows) {
+            if (!map[r.product_id]) map[r.product_id] = {};
+            map[r.product_id][r.pricing_tier_id] = Number(r.price) || 0;
+          }
+          setProductPricingMap(map);
+        }
+      })
+      .catch(console.error);
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override' })
+      .then((v: any) => {
+        if (v !== null && v !== undefined) setAllowBillerOverride(Boolean(v));
+      })
+      .catch(console.error);
+    window.electronAPI.dbGetParties(tenantId || 'global')
+      .then((res: any) => {
+        if (Array.isArray(res)) setPartiesForTier(res);
+      })
+      .catch(console.error);
   }, [tenantId]);
 
   // Re-peek invoice number when customer GSTIN goes empty ↔ filled (B2C ↔ B2B switch)
@@ -1156,6 +1191,23 @@ export function BillingPage() {
     return () => window.removeEventListener('open-return-mode', handler);
   }, []);
 
+  const getTierPriceForProduct = (product: any): number | undefined => {
+    if (!selectedTierId || !product) return undefined;
+    const m = productPricingMap[product.product_id];
+    if (!m) return undefined;
+    const v = m[selectedTierId];
+    return v != null && v > 0 ? v : undefined;
+  };
+
+  const applyPartyTier = (name: string, phone: string) => {
+    if (!name && !phone) return;
+    const match = partiesForTier.find(p =>
+      (name && p.name?.toLowerCase() === name.toLowerCase()) ||
+      (phone && p.phone && String(p.phone) === phone)
+    );
+    if (match?.pricing_tier_id) setSelectedTierId(match.pricing_tier_id);
+  };
+
   const handleSelectProduct = (product: any) => {
     let piecesPerKg;
     if (product.billing_type === 'WEIGHT' && product.domain_attributes) {
@@ -1170,19 +1222,20 @@ export function BillingPage() {
         piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
       } catch {}
     }
+    const tierPrice = getTierPriceForProduct(product);
     addItem({
       product_id: product.product_id,
       name: product.name,
-      base_price: product.base_price,
+      base_price: tierPrice ?? product.base_price,
       purchase_price: product.pricing_mode === 'GRADE_RATE' && product.grade_purchase_price !== undefined && product.grade_purchase_price !== null
         ? Number(product.grade_purchase_price)
         : (product.purchase_price ?? 0),
       tax_rate_percent: product.tax_rate_percent ?? 0,
       billing_type: product.billing_type,
       pieces_per_kg: piecesPerKg,
-      grade_id: product.grade_id,
-      pricing_mode: product.pricing_mode,
-      grade_rate: product.grade_rate,
+      grade_id: tierPrice != null ? null : product.grade_id,
+      pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
+      grade_rate: tierPrice != null ? null : product.grade_rate,
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
       offer_price: product.offer_price ?? null,
@@ -3261,7 +3314,7 @@ export function BillingPage() {
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[320px] overflow-y-auto">
                     {!isScrapMode && !isReturnMode && results.map((p, i) => {
-                      const mrp = p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price;
+                      const mrp = getTierPriceForProduct(p) ?? (p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price);
                       const showOffer = p.offer_price && Number(p.offer_price) > 0;
                       const displayPrice = showOffer ? Number(p.offer_price) : mrp;
                       const isSelected = i === selectedIndex;
@@ -3428,6 +3481,7 @@ export function BillingPage() {
                   value={customerName}
                   onChange={e => {
                     updateActiveTab({ customerName: e.target.value });
+                    applyPartyTier(e.target.value, customerPhone);
                     if (loyaltyEnabled && e.target.value.length >= 2) {
                       window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', name: e.target.value }).then((res: any) => {
                         if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.name?.toLowerCase().includes(e.target.value.toLowerCase())));
@@ -3471,6 +3525,7 @@ export function BillingPage() {
                   value={customerPhone}
                   onChange={e => {
                     updateActiveTab({ customerPhone: e.target.value });
+                    applyPartyTier(customerName, e.target.value);
                     if (loyaltyEnabled && e.target.value.length >= 5) {
                       window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', phone: e.target.value }).then((res: any) => {
                         if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.phone?.includes(e.target.value)));
@@ -3495,6 +3550,33 @@ export function BillingPage() {
                 className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
               />
             </div>
+            {pricingTiers.length > 0 && (
+              <div className="flex items-center gap-2 mb-2">
+                <div className="p-1 rounded-lg bg-violet-500/10 text-violet-500 shrink-0">
+                  <Layers className="w-3.5 h-3.5" />
+                </div>
+                <Select
+                  size="sm"
+                  triggerClassName="h-auto"
+                  className="w-44"
+                  value={selectedTierId}
+                  onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+                  options={[
+                    { value: '', label: 'Default (MRP)' },
+                    ...pricingTiers.map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                  ]}
+                  disabled={!canOverrideTier}
+                />
+                {selectedTierId && (
+                  <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider shrink-0">
+                    {pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name} prices
+                  </span>
+                )}
+                {!canOverrideTier && (
+                  <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
                 <button

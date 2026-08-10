@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
+import { Select } from './ui/Select';
 
 interface Party {
   party_id: string;
@@ -26,6 +27,7 @@ interface Party {
   notes: string;
   last_transaction_date: string;
   created_at: string;
+  pricing_tier_id?: string | null;
 }
 
 interface LedgerEntry {
@@ -86,6 +88,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
 
   const [view, setView] = useState<View>('list');
   const [selectedParty, setSelectedParty] = useState<Party | null>(null);
@@ -94,7 +97,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [partyForm, setPartyForm] = useState({
-    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: ''
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '', pricing_tier_id: ''
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -130,6 +133,15 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
   useEffect(() => { loadParties(); }, [loadParties]);
 
+  useEffect(() => {
+    if (!tenantId) return;
+    window.electronAPI.dbGetPricingTiers(tenantId)
+      .then(res => {
+        if (Array.isArray(res)) setPricingTiers(res);
+      })
+      .catch(console.error);
+  }, [tenantId]);
+
   const loadLedger = async (partyId: string) => {
     setLedgerLoading(true);
     try {
@@ -147,7 +159,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   };
 
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '' });
+    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '', pricing_tier_id: '' });
     setEditingParty(null);
   };
 
@@ -164,6 +176,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           address: partyForm.address.trim() || null,
           gstin: partyForm.gstin.trim() || null,
           notes: partyForm.notes.trim() || null,
+          pricing_tier_id: partyForm.pricing_tier_id || null,
         });
         showStatus('Party updated successfully', 'success');
       } else {
@@ -177,6 +190,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           balance: parseFloat(partyForm.opening_balance) || 0,
           balance_type: partyForm.balance_type,
           notes: partyForm.notes.trim() || null,
+          pricing_tier_id: partyForm.pricing_tier_id || null,
           created_by: userId,
           created_by_name: userName || undefined,
         });
@@ -575,6 +589,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                               setPartyForm({
                                 name: party.name, phone: party.phone || '', address: party.address || '',
                                 gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
+                                pricing_tier_id: party.pricing_tier_id || '',
                               });
                               setView('party_form');
                             }}
@@ -675,9 +690,22 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               </div>
+              {pricingTiers.length > 0 && (
+                <div className="mt-4">
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Pricing Tier (default)</label>
+                  <Select
+                    value={partyForm.pricing_tier_id}
+                    onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
+                    options={[
+                      { value: '', label: 'Default (MRP)' },
+                      ...pricingTiers.filter(t => t.is_active === 1 && !t.is_deleted).map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                    ]}
+                    triggerClassName="rounded-xl h-[46px] w-full"
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will auto-apply this tier's prices.</p>
+                </div>
+              )}
             </section>
-
-            {/* Section: Opening Balance (new party only) */}
             {!editingParty && (
               <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
                 <div className="flex items-center gap-2.5 mb-4 pb-3 border-b border-border">

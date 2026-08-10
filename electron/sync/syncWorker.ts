@@ -59,7 +59,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items'];
+  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -68,6 +68,8 @@ function getTotalPendingRecords(db: any, tenantId: string): number {
 const SYNC_PHASES = [
   'Checking connection...',
   'Uploading grades...',
+  'Uploading pricing tiers...',
+  'Uploading product pricing...',
   'Uploading products...',
   'Uploading invoices...',
   'Uploading settings...',
@@ -79,6 +81,8 @@ const SYNC_PHASES = [
   'Uploading cash drawer...',
   'Uploading cash transactions...',
   'Updating grades...',
+  'Updating pricing tiers...',
+  'Updating product pricing...',
   'Updating products...',
   'Updating invoices...',
   'Updating users...',
@@ -264,6 +268,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
       try {
         notifyProgress(1, sender, 0, totalRecords); await syncGrades(jwt_token, tenant_id);
+        notifyProgress(1.1, sender, undefined, totalRecords); await syncPricingTiers(jwt_token, tenant_id);
+        notifyProgress(1.2, sender, undefined, totalRecords); await syncProductPricing(jwt_token, tenant_id);
         notifyProgress(2, sender, undefined, totalRecords); await syncProducts(jwt_token, tenant_id);
         notifyProgress(3, sender, undefined, totalRecords); await syncInvoices(jwt_token, tenant_id);
         notifyProgress(4, sender, undefined, totalRecords); await syncSettings(jwt_token, tenant_id);
@@ -287,6 +293,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         // table's stored cursor, so steady-state syncs are tiny.
         const pullTasks: { run: () => Promise<boolean> }[] = [
           { run: () => pullGrades(jwt_token, tenant_id) },
+          { run: () => pullPricingTiers(jwt_token, tenant_id) },
+          { run: () => pullProductPricing(jwt_token, tenant_id) },
           { run: () => pullProducts(jwt_token, tenant_id) },
           { run: () => pullInvoices(jwt_token, tenant_id) },
           { run: () => pullUsers(jwt_token, tenant_id) },
@@ -413,6 +421,69 @@ async function syncGrades(token: string, tenantId: string) {
       batch,
       'product_grades',
       `Grades batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pricing Tiers Sync (Edge → Cloud) ────────────────────────────────────────
+async function syncPricingTiers(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM pricing_tiers WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} pricing tiers to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE pricing_tiers SET sync_status = 'SYNCED' WHERE pricing_tier_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const tiers = batch.map((t: any) => ({
+      ...t,
+      is_active: !!t.is_active,
+      is_deleted: !!t.is_deleted,
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/pricing_tiers`,
+      token,
+      tiers,
+      'pricing_tiers',
+      `Pricing tiers batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Product Pricing Sync (Edge → Cloud) ──────────────────────────────────────
+async function syncProductPricing(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM product_pricing WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} product pricing rows to cloud in batches of ${BATCH_SIZE}...`);
+
+  const updateStmt = db.prepare(`UPDATE product_pricing SET sync_status = 'SYNCED' WHERE product_pricing_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const pricing = batch.map((pp: any) => ({
+      ...pp,
+      is_deleted: !!pp.is_deleted,
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/product_pricing`,
+      token,
+      pricing,
+      'product_pricing',
+      `Product pricing batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
       const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
@@ -752,6 +823,129 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
     console.log(`[SyncWorker] Pulled ${result.count} grades from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull grades failed.');
+  }
+  return result.count > 0;
+}
+
+// ── Pull Pricing Tiers (Cloud → Edge) ──────────────────────────────────────────
+async function pullPricingTiers(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsert = db.prepare(`
+    INSERT INTO pricing_tiers (
+      pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @pricing_tier_id, @tenant_id, @name, @is_active, @sort_order, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(pricing_tier_id) DO UPDATE SET
+      name = excluded.name,
+      is_active = excluded.is_active,
+      sort_order = excluded.sort_order,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(pricing_tiers.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE pricing_tiers.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'pricing_tiers',
+    urlPath: '/api/sync/pricing_tiers',
+    label: 'pricing tiers',
+    onProgress: (fetched) => notifyPullProgress('pricing tiers', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((tiers: any[]) => {
+        for (const t of tiers) {
+          try {
+            upsert.run({
+              pricing_tier_id: t.pricing_tier_id,
+              tenant_id: tenantId,
+              name: t.name,
+              is_active: t.is_active ? 1 : 0,
+              sort_order: t.sort_order ?? 0,
+              is_deleted: t.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(t.created_at),
+              updated_at: toSqliteDate(t.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling pricing tier:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'pricing_tiers', 'pricing_tier_id', rows);
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} pricing tiers from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull pricing tiers failed.');
+  }
+  return result.count > 0;
+}
+
+// ── Pull Product Pricing (Cloud → Edge) ────────────────────────────────────────
+async function pullProductPricing(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsert = db.prepare(`
+    INSERT INTO product_pricing (
+      product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @product_pricing_id, @tenant_id, @product_id, @pricing_tier_id, @price, @is_deleted,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
+      product_pricing_id = excluded.product_pricing_id,
+      price = excluded.price,
+      is_deleted = excluded.is_deleted,
+      created_at = COALESCE(product_pricing.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE product_pricing.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'product_pricing',
+    urlPath: '/api/sync/product_pricing',
+    label: 'product pricing',
+    onProgress: (fetched) => notifyPullProgress('product pricing', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((pricing: any[]) => {
+        for (const pp of pricing) {
+          try {
+            upsert.run({
+              product_pricing_id: pp.product_pricing_id,
+              tenant_id: tenantId,
+              product_id: pp.product_id,
+              pricing_tier_id: pp.pricing_tier_id,
+              price: pp.price ?? 0,
+              is_deleted: pp.is_deleted ? 1 : 0,
+              created_at: toSqliteDate(pp.created_at),
+              updated_at: toSqliteDate(pp.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling product pricing row:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'product_pricing', 'product_pricing_id', rows);
+    },
+  });
+
+  if (result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} product pricing rows from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull product pricing failed.');
   }
   return result.count > 0;
 }
@@ -1198,10 +1392,10 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
 
   const upsert = db.prepare(`
     INSERT INTO parties (
-      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, is_deleted,
+      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, pricing_tier_id, is_deleted,
       sync_status, created_at, updated_at
     ) VALUES (
-      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @is_deleted,
+      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @pricing_tier_id, @is_deleted,
       'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(party_id) DO UPDATE SET
@@ -1215,6 +1409,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
       balance_type = excluded.balance_type,
       notes = excluded.notes,
       last_transaction_date = excluded.last_transaction_date,
+      pricing_tier_id = excluded.pricing_tier_id,
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(parties.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
@@ -1246,6 +1441,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
               balance_type: p.balance_type || 'RECEIVABLE',
               notes: p.notes || null,
               last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
+              pricing_tier_id: p.pricing_tier_id || null,
               is_deleted: p.is_deleted ? 1 : 0,
               created_at: toSqliteDate(p.created_at),
               updated_at: toSqliteDate(p.updated_at),

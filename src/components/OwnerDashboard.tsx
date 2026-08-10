@@ -1,5 +1,5 @@
 ﻿import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2, Wallet } from 'lucide-react';
+import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2, Wallet, Layers } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -149,6 +149,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-indigo-500',
             bgColor: 'bg-indigo-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-grades')),
+        },
+        {
+            id: 'pricing-tiers',
+            title: 'Pricing Tiers',
+            desc: 'Create dynamic price tiers (Retail, Wholesale…) and set per-tier prices',
+            icon: Layers,
+            color: 'text-violet-500',
+            bgColor: 'bg-violet-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-settings-pricing-tiers')),
         },
         {
             id: 'stock-print',

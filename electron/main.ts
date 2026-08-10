@@ -836,6 +836,157 @@ ipcMain.handle('db:deleteGrade', (event, gradeId: string) => {
   }
 });
 
+// ── Pricing Tier Handlers ───────────────────────────────────────────────────
+ipcMain.handle('db:getPricingTiers', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare('SELECT * FROM pricing_tiers WHERE tenant_id = ? AND is_deleted = 0 ORDER BY sort_order ASC, name COLLATE NOCASE ASC').all(tenantId);
+  } catch (error: any) {
+    console.error('[db:getPricingTiers]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:addPricingTier', safeHandler((event, t) => {
+  try {
+    const db = getDb();
+    const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM pricing_tiers WHERE tenant_id = ?').get(t.tenant_id) as any;
+    db.prepare(`
+      INSERT INTO pricing_tiers (pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted, sync_status)
+      VALUES (?, ?, ?, ?, ?, 0, 'PENDING')
+    `).run(t.pricing_tier_id, t.tenant_id, t.name, t.is_active === false ? 0 : 1, t.sort_order ?? (nextSort?.next_sort || 0));
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:addPricingTier]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:updatePricingTier', safeHandler((event, t) => {
+  try {
+    const db = getDb();
+    db.prepare(`
+      UPDATE pricing_tiers
+      SET name = ?, is_active = ?, sort_order = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE pricing_tier_id = ?
+    `).run(t.name, t.is_active === false ? 0 : 1, t.sort_order ?? 0, t.pricing_tier_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:updatePricingTier]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:deletePricingTier', (event, tierId: string) => {
+  try {
+    const db = getDb();
+    db.prepare(`UPDATE pricing_tiers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE pricing_tier_id = ?`).run(tierId);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:deletePricingTier]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:reorderPricingTiers', safeHandler((event, tiers: Array<{ pricing_tier_id: string; sort_order: number }>) => {
+  try {
+    const db = getDb();
+    const stmt = db.prepare(`UPDATE pricing_tiers SET sort_order = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE pricing_tier_id = ?`);
+    const tx = db.transaction((rows: Array<{ pricing_tier_id: string; sort_order: number }>) => {
+      for (const r of rows) stmt.run(r.sort_order ?? 0, r.pricing_tier_id);
+    });
+    tx(tiers);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:reorderPricingTiers]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:getProductPricing', (event, tenantId: string) => {
+  try {
+    const db = getDb();
+    if (!tenantId) return [];
+    return db.prepare('SELECT * FROM product_pricing WHERE tenant_id = ? AND is_deleted = 0').all(tenantId);
+  } catch (error: any) {
+    console.error('[db:getProductPricing]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+// Upsert/delete per-tier prices for a single product
+// payload: { tenant_id, product_id, pricing: [{ pricing_tier_id, price }] }
+ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => {
+  try {
+    const db = getDb();
+    const { tenant_id, product_id, pricing } = payload;
+    if (!tenant_id || !product_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
+    const upsert = db.prepare(`
+      INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
+        price = excluded.price,
+        is_deleted = 0,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const tx = db.transaction((rows: Array<{ pricing_tier_id: string; price: number | null }>) => {
+      for (const item of rows) {
+        if (!item?.pricing_tier_id) continue;
+        const isEmpty = item.price === null || item.price === undefined || String(item.price).trim() === '';
+        if (isEmpty) {
+          clear.run(product_id, item.pricing_tier_id, tenant_id);
+          continue;
+        }
+        upsert.run(`${product_id}:${item.pricing_tier_id}`, tenant_id, product_id, item.pricing_tier_id, Number(item.price) || 0);
+      }
+    });
+    tx(pricing);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:setProductPricing]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
+// Bulk upsert/delete of product prices for one tier
+// payload: { tenant_id, pricing_tier_id, pricing: [{ product_id, price }] }
+ipcMain.handle('db:setTierPricing', safeHandler((event, payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => {
+  try {
+    const db = getDb();
+    const { tenant_id, pricing_tier_id, pricing } = payload;
+    if (!tenant_id || !pricing_tier_id || !Array.isArray(pricing)) return { success: false, error: 'Invalid payload' };
+    const upsert = db.prepare(`
+      INSERT INTO product_pricing (product_pricing_id, tenant_id, product_id, pricing_tier_id, price, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      ON CONFLICT(product_id, pricing_tier_id) DO UPDATE SET
+        price = excluded.price,
+        is_deleted = 0,
+        sync_status = 'PENDING',
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    const clear = db.prepare(`UPDATE product_pricing SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND pricing_tier_id = ? AND tenant_id = ?`);
+    const tx = db.transaction((rows: Array<{ product_id: string; price: number | null }>) => {
+      for (const item of rows) {
+        if (!item?.product_id) continue;
+        const isEmpty = item.price === null || item.price === undefined || String(item.price).trim() === '';
+        if (isEmpty) {
+          clear.run(item.product_id, pricing_tier_id, tenant_id);
+          continue;
+        }
+        upsert.run(`${item.product_id}:${pricing_tier_id}`, tenant_id, item.product_id, pricing_tier_id, Number(item.price) || 0);
+      }
+    });
+    tx(pricing);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:setTierPricing]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
+
 // ── Party (Credit Person) Handlers ──────────────────────────────────────────
 ipcMain.handle('db:getParties', (event, tenantId: string) => {
   try {
@@ -862,9 +1013,9 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
       : -Math.abs(p.balance || 0);
 
     db.prepare(`
-      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, p.notes || null);
+      INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, pricing_tier_id, is_deleted, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    `).run(p.party_id, p.tenant_id, p.name, p.phone || null, p.address || null, p.gstin || null, initialBalance, initialBalance, bt, p.notes || null, p.pricing_tier_id || null);
 
     // Create opening balance ledger entry
     if (p.balance && parseFloat(p.balance) > 0) {
@@ -895,10 +1046,14 @@ ipcMain.handle('db:addParty', safeHandler((event, p) => {
 ipcMain.handle('db:updateParty', safeHandler((event, p) => {
   try {
     const db = getDb();
+    const hasTier = p.pricing_tier_id !== undefined;
     db.prepare(`
-      UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      UPDATE parties SET name = ?, phone = ?, address = ?, gstin = ?, notes = ?, pricing_tier_id = ${hasTier ? '?' : 'pricing_tier_id'}, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE party_id = ?
-    `).run(p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null, p.party_id);
+    `).run(...(hasTier
+      ? [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null, p.pricing_tier_id, p.party_id]
+      : [p.name, p.phone || null, p.address || null, p.gstin || null, p.notes || null, p.party_id]
+    ));
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateParty]', error);

@@ -4,7 +4,7 @@ import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save,
   Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List,
-  UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote, Check
+  UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote, Check, Layers
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
@@ -1598,6 +1598,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [newProductIsAddingGrade, setNewProductIsAddingGrade] = useState(false);
   const [newProductSavingGrade, setNewProductSavingGrade] = useState(false);
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
+  const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
   const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
@@ -1652,6 +1654,21 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           if (!item.offer_price || Number(item.offer_price) <= 0) setNewProductOfferPrice(p.offer_price != null && p.offer_price > 0 ? String(p.offer_price) : '');
         }
       } catch { /* non-fatal: keep bill-line values */ }
+    }
+    if (window.electronAPI && tenantId) {
+      window.electronAPI.dbGetProductPricing(tenantId)
+        .then((rows: any[]) => {
+          if (Array.isArray(rows)) {
+            const mine: Record<string, string> = {};
+            for (const r of rows) {
+              if (r.product_id === item.product_id && r.price != null && r.price !== '') {
+                mine[r.pricing_tier_id] = String(r.price);
+              }
+            }
+            setTierPrices(mine);
+          }
+        })
+        .catch(console.error);
     }
     // Rule C: if the product is purchased via Estimate too (present in the other section
     // or already has saved Estimate bills), its barcode purchase code must stay on the raw
@@ -1745,6 +1762,11 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       window.electronAPI.dbGetGrades(tenantId)
         .then((res: any[]) => {
           if (Array.isArray(res)) setNewProductGrades(res);
+        })
+        .catch(console.error);
+      window.electronAPI.dbGetPricingTiers(tenantId)
+        .then((res: any[]) => {
+          if (Array.isArray(res)) setPricingTiers(res);
         })
         .catch(console.error);
     }
@@ -1974,6 +1996,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     setNewProductIsAddingGrade(false);
     setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
     setNewProductPcs('');
+    setTierPrices({});
     setPaymentType('CASH');
   };
 
@@ -2054,6 +2077,17 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       });
       if (res.success) {
+        const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
+          pricing_tier_id,
+          price: price === '' ? null : Number(price),
+        }));
+        if (tierRows.length > 0) {
+          await window.electronAPI.dbSetProductPricing({
+            tenant_id: tenantId,
+            product_id: editingProductItemId,
+            pricing: tierRows,
+          });
+        }
         setBillItems(prev => prev.map(i =>
           i.product_id === editingProductItemId
             ? {
@@ -2115,6 +2149,17 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      const tierRows = Object.entries(tierPrices).map(([pricing_tier_id, price]) => ({
+        pricing_tier_id,
+        price: price === '' ? null : Number(price),
+      }));
+      if (tierRows.length > 0) {
+        await window.electronAPI.dbSetProductPricing({
+          tenant_id: tenantId,
+          product_id: productId,
+          pricing: tierRows,
+        });
+      }
       const defaultQty = '1';
       setBillItems(prev => [...prev, {
         product_id: productId,
@@ -2644,6 +2689,37 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           />
                         </div>
                       </div>
+                      {pricingTiers.length > 0 && (
+                        <div className="mt-4 pt-4 border-t border-border/60">
+                          <div className="flex items-center gap-2 mb-3">
+                            <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
+                              <Layers className="w-4 h-4" />
+                            </div>
+                            <span className="text-xs font-black text-violet-500 uppercase tracking-wider">Tier Prices</span>
+                            <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
+                          </div>
+                          <div className="flex gap-4 flex-wrap">
+                            {pricingTiers.map(tier => (
+                              <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
+                                <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
+                                  {tier.name}
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm">₹</span>
+                                  <input
+                                    type="number" step="0.01"
+                                    onWheel={e => (e.target as HTMLInputElement).blur()}
+                                    value={tierPrices[tier.pricing_tier_id] ?? ''}
+                                    onChange={e => setTierPrices(prev => ({ ...prev, [tier.pricing_tier_id]: e.target.value }))}
+                                    placeholder={newProductBasePrice !== '' ? `= ${newProductBasePrice}` : 'MRP'}
+                                    className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm pl-8"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </section>
 
                     {/* 3. Discount & Offers */}
