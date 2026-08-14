@@ -295,6 +295,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
 export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<any | null>(null);
+  const [canReturn, setCanReturn] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -485,15 +486,27 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setSelectedInvoice(inv);
     setDrawerOpen(true);
     if (window.electronAPI) {
-      const data = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+      const [data, returned] = await Promise.all([
+        window.electronAPI.dbGetInvoiceItems(inv.invoice_id),
+        window.electronAPI.dbGetAlreadyReturnedQuantities(inv.invoice_id),
+      ]);
       const invoiceItems = Array.isArray(data) ? data : [];
       const enriched = await enrichItemsWithMrp(invoiceItems);
       setItems(enriched);
+      const returnedMap: Record<string, number> = {};
+      (Array.isArray(returned) ? returned : []).forEach((r: any) => {
+        returnedMap[r.invoice_item_id] = Number(r.returned_qty) || 0;
+      });
+      const fullyReturned = invoiceItems.every((item: any) =>
+        Number(item.quantity) - (returnedMap[item.item_id] || 0) <= 0
+      );
+      setCanReturn(!fullyReturned);
     }
   };
 
   const closeDrawer = () => {
     setDrawerOpen(false);
+    setCanReturn(true);
     setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
   };
 
@@ -1371,6 +1384,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <span>Delete</span>
                     </button>
                     <button onClick={async () => {
+                      if (!canReturn) return;
                       // Store invoice ref and close — BillingPage will open in return mode
                       localStorage.setItem('returnBillData', JSON.stringify({ invoice: selectedInvoice }));
                       // Switch OWNER to BILLER so BillingPage renders (not OwnerDashboard)
@@ -1381,10 +1395,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       onClose();
                       setTimeout(() => window.dispatchEvent(new CustomEvent('open-return-mode')), 100);
                     }}
-                      className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 rounded-xl transition-all text-xs font-bold border border-red-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                      disabled={!canReturn}
+                      title={canReturn ? undefined : 'All items in this bill have already been returned'}
+                      className={clsx('flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 rounded-xl transition-all text-xs font-bold border cursor-pointer active:scale-95 whitespace-nowrap',
+                        canReturn
+                          ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/20 border-red-500/20'
+                          : 'bg-muted/40 text-muted-foreground/50 border-border/60 cursor-not-allowed')}
                     >
                       <Package className="w-3.5 h-3.5 shrink-0" />
-                      <span>Return</span>
+                      <span>{canReturn ? 'Return' : 'Returned'}</span>
                     </button>
                   </>
                 )}

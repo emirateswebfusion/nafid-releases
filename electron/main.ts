@@ -2203,6 +2203,46 @@ ipcMain.handle('db:getAlreadyReturnedQuantities', safeHandler((event, invoice_id
   `).all(invoice_id);
 }));
 
+// Return-mode invoice search — only returns bills that still have at least one
+// item with remaining returnable quantity (fully returned bills are excluded).
+ipcMain.handle('db:getReturnableInvoices', safeHandler((event, { tenant_id, search, limit = 10, role, user_id }: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => {
+  const db = getDb();
+  let query = `
+    SELECT i.*, u.name as biller_name
+    FROM invoices i
+    LEFT JOIN users u ON i.user_id = u.user_id
+    WHERE i.tenant_id = ?
+      AND i.invoice_type NOT IN ('SCRAP', 'RETURN')
+      AND EXISTS (
+        SELECT 1 FROM invoice_items ii
+        WHERE ii.invoice_id = i.invoice_id
+          AND ii.quantity > COALESCE((
+            SELECT SUM(ri.quantity) FROM return_items ri
+            WHERE ri.invoice_item_id = ii.item_id
+          ), 0)
+      )
+  `;
+  const params: any[] = [tenant_id];
+
+  if (role === 'BILLER' && user_id) {
+    query += ' AND i.user_id = ?';
+    params.push(user_id);
+  }
+
+  if (search) {
+    query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
+    params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+  }
+
+  query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
+  if (limit) {
+    query += ' LIMIT ?';
+    params.push(limit);
+  }
+
+  return db.prepare(query).all(...params);
+}));
+
 ipcMain.handle('db:getReturnInvoiceByNumber', safeHandler((event, { tenant_id, return_number }: { tenant_id: string; return_number: string }) => {
   const db = getDb();
   return db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ?').get(tenant_id, return_number);
@@ -2321,9 +2361,16 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
         // Invalid JSON — use defaults
       }
     }
-    const returnNumber = `${prefix}${String(counter).padStart(3, '0')}`;
-    db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES ('global', 'return_counter', ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run(JSON.stringify({ prefix, counter: counter + 1 }));
-    return { returnNumber };
+    const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
+    let maxUsed = 0;
+    for (const row of usedRows) {
+      const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);
+      if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
+    }
+    const nextCounter = Math.max(counter, maxUsed + 1);
+    const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
+    db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES ('global', 'return_counter', ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run(JSON.stringify({ prefix, counter: nextCounter + 1 }));
+    return { success: true, returnNumber };
   })();
   return result;
 }));
@@ -2348,7 +2395,14 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
       // Invalid JSON — use defaults
     }
   }
-  const returnNumber = `${prefix}${String(counter).padStart(3, '0')}`;
+  const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
+  let maxUsed = 0;
+  for (const row of usedRows) {
+    const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);
+    if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
+  }
+  const nextCounter = Math.max(counter, maxUsed + 1);
+  const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
   return { success: true, returnNumber };
 }));
 

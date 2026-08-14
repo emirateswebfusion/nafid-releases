@@ -787,13 +787,13 @@ export function BillingPage() {
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const tid = tenantId || 'global';
-      const invoices = await window.electronAPI.dbGetInvoices({
+      const invoices = await window.electronAPI.dbGetReturnableInvoices({
         tenant_id: tid,
         search: searchQuery.trim(),
         limit: 10,
       });
       if (Array.isArray(invoices)) {
-        setReturnSearchResults(invoices.filter((inv: any) => inv.invoice_type !== 'SCRAP' && inv.invoice_type !== 'RETURN'));
+        setReturnSearchResults(invoices);
       }
     }, 250);
     return () => clearTimeout(t);
@@ -1436,10 +1436,15 @@ export function BillingPage() {
         available_to_return: Math.max(0, Number(item.quantity) - (returnedMap[item.item_id] || 0)),
       })).filter((item: any) => item.available_to_return > 0);
 
-      if (enriched.length === 0) return;
+      if (enriched.length === 0) {
+        setSelectedReturnInvoice(null);
+        setHardwareError(`Invoice ${inv.invoice_number} has already been fully returned. No items left to return.`);
+        return;
+      }
 
-      // Clear existing items and add return items to cart
-      items.filter(i => !i.isReturnItem).forEach(i => removeItem(i.product_id));
+      // Clear entire cart (both regular AND previously loaded return items) to
+      // avoid mixing items from a previously selected invoice into this return
+      items.forEach(i => removeItem(i.product_id));
       enriched.forEach((item: any) => {
         const productId = item.product_id || `return-${uuidv4()}`;
         addItem({
@@ -1463,6 +1468,8 @@ export function BillingPage() {
       });
     } catch (e) {
       console.error('Failed to load return invoice', e);
+      setSelectedReturnInvoice(null);
+      setHardwareError('Failed to load invoice for return. Please try again.');
     }
   };
 
@@ -2554,11 +2561,8 @@ export function BillingPage() {
     setReturnProcessing(true);
     try {
       const tid = tenantId || 'global';
-      let returnNumber = nextReturnNumber;
-      if (!returnNumber) {
-        const numRes = await window.electronAPI.dbGetNextReturnNumber({ tenant_id: tid });
-        returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
-      }
+      const numRes = await window.electronAPI.dbGetNextReturnNumber({ tenant_id: tid });
+      const returnNumber = numRes.success && numRes.returnNumber ? numRes.returnNumber : `RTN-${Date.now()}`;
       const returnSubtotal = returnCartItems.reduce((s, item) => s + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0), 0);
       const returnTaxTotal = returnCartItems.reduce((s, item) => {
         const origQty = Number(item.originalQuantity) || 1;
@@ -2592,7 +2596,11 @@ export function BillingPage() {
         adjusted_invoice_number: undefined,
         items: returnItems,
       });
-      if (!result.success) { setReturnProcessing(false); return; }
+      if (!result.success) {
+        setHardwareError(`Failed to save return: ${result.error || 'Unknown error'}`);
+        setReturnProcessing(false);
+        return;
+      }
 
       if (returnRefundMethod === 'CASH') {
         try {
@@ -2656,6 +2664,7 @@ export function BillingPage() {
       }, 2000);
     } catch (e) {
       console.error('Return processing failed', e);
+      setHardwareError('Return processing failed. Please try again.');
     } finally {
       setReturnProcessing(false);
     }
