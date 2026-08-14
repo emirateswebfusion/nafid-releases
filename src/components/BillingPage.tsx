@@ -676,6 +676,18 @@ export function BillingPage() {
     }
   }, [pendingScrapInvoiceToEdit, loadScrapInvoiceForEdit, updateActiveTab]);
 
+  // Closing the billing page — clear modes persisted in the global cart store
+  // (Return/Quotation) so the next open starts fresh, without a one-frame flash
+  // of the previously active mode. Scrap & Past-Bill are local state and already
+  // reset on remount. External flows (SalesHistory return, scrap edit) re-enable
+  // their mode via events fired after remount.
+  useEffect(() => {
+    return () => {
+      useCartStore.getState().setReturnMode(false);
+      useCartStore.getState().setQuotationMode(false);
+    };
+  }, []);
+
   useEffect(() => {
     const handleEditScrapInvoiceEvent = (e: any) => {
       const invNum = e.detail?.invoiceNumber;
@@ -3033,6 +3045,7 @@ export function BillingPage() {
                 setIsScrapMode(next);
                 if (next && isQuotationMode) setQuotationMode(false);
                 if (next && isReturnMode) setReturnMode(false);
+                if (next && isPastBillMode) setIsPastBillMode(false);
                 if (next) {
                   reserveScrapInvoiceNumberForTab();
                 } else {
@@ -3062,6 +3075,7 @@ export function BillingPage() {
                 setQuotationMode(next);
                 if (next && isScrapMode) setIsScrapMode(false);
                 if (next && isReturnMode) setReturnMode(false);
+                if (next && isPastBillMode) setIsPastBillMode(false);
                 if (next) reserveQuotationNumberForTab();
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}
@@ -3083,6 +3097,7 @@ export function BillingPage() {
               setReturnMode(next);
               if (next && isScrapMode) setIsScrapMode(false);
               if (next && isQuotationMode) setQuotationMode(false);
+              if (next && isPastBillMode) setIsPastBillMode(false);
               if (!next) { setSelectedReturnInvoice(null); }
               setTimeout(() => searchRef.current?.focus(), 100);
             }}
@@ -3247,11 +3262,28 @@ export function BillingPage() {
                   )}
                   <button
                     onClick={() => {
-                      setIsPastBillMode(prev => !prev);
+                      const next = !isPastBillMode;
+                      setIsPastBillMode(next);
+                      if (next) {
+                        // Entering Past Bill mode — exit any other active mode
+                        if (isScrapMode) {
+                          setIsScrapMode(false);
+                          if (editingInvoiceNumber) {
+                            useCartStore.getState().setEditingInvoice(null, null, null);
+                            setDiscount(0, 'FIXED');
+                          }
+                          updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
+                        }
+                        if (isReturnMode) {
+                          setReturnMode(false);
+                          setSelectedReturnInvoice(null);
+                        }
+                        if (isQuotationMode) setQuotationMode(false);
+                      }
                       setSearchQuery('');
                       setResults([]);
                       setPastBillResults([]);
-                      if (!isPastBillMode) setTimeout(() => searchRef.current?.focus(), 100);
+                      if (next) setTimeout(() => searchRef.current?.focus(), 100);
                     }}
                     className={clsx(
                       "flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 border-0",
