@@ -392,6 +392,7 @@ export function initDb() {
         return_date DATETIME DEFAULT CURRENT_TIMESTAMP,
         refund_method TEXT,
         adjusted_invoice_number TEXT,
+        adjusted_amount REAL NOT NULL DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1064,6 +1065,21 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add restricted_page to users:', e.message);
+  }
+
+  // Migration: Add partial-adjustment columns to returns
+  try {
+    const retCols = db.prepare(`PRAGMA table_info(returns)`).all().map((c: any) => c.name);
+    if (!retCols.includes('adjusted_amount')) {
+      console.log('[DB Migration] Adding adjusted_amount to returns...');
+      db.exec("ALTER TABLE returns ADD COLUMN adjusted_amount REAL NOT NULL DEFAULT 0");
+    }
+    if (!retCols.includes('adjusted_invoice_number')) {
+      console.log('[DB Migration] Adding adjusted_invoice_number to returns...');
+      db.exec("ALTER TABLE returns ADD COLUMN adjusted_invoice_number TEXT");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);
   }
 
   // Initialize hardware defaults if empty

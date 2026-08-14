@@ -453,9 +453,12 @@ export function BillingPage() {
   }, [getActiveTab, updateActiveTab, tenantId]);
 
   const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
-  const refundAmount = !isScrapMode && totalDeductions > grandTotal
-    ? totalDeductions - grandTotal
-    : 0;
+  // Return credit is consumed first (up to the bill total); its leftover stays as
+  // pending ADJUST_BILL credit for a future bill (not cash-refunded). Only scrap
+  // credit excess is refunded as cash (existing behavior).
+  const returnConsumed = Math.min(storeReturnDeduction || 0, grandTotal);
+  const scrapConsumed = Math.min(storeScrapDeduction || 0, Math.max(0, grandTotal - returnConsumed));
+  const refundAmount = !isScrapMode ? Math.max(0, (storeScrapDeduction || 0) - scrapConsumed) : 0;
 
   const returnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
     return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
@@ -2479,7 +2482,25 @@ export function BillingPage() {
       }
       if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
 
-      // Auto-record cash out if there was a leftover refund amount and payment method is CASH
+      // Consume ADJUST_BILL return credit. Only the portion actually applied to this
+      // bill (clamped to the bill total) is settled; any leftover stays as pending
+      // credit for a future bill. Editing a bill never re-consumes credit.
+      if (!isEditing && storeReturnDeduction > 0 && storeReturnInvoiceNumber && window.electronAPI) {
+        try {
+          const consumed = Math.min(storeReturnDeduction, grandTotal);
+          await window.electronAPI.dbSettleReturnInvoice({
+            tenant_id: tenantId || 'global',
+            return_number: storeReturnInvoiceNumber,
+            adjusted_invoice_number: invoice_number,
+            amount: consumed,
+          });
+        } catch (e) {
+          console.error('Failed to settle ADJUST_BILL return credit:', e);
+        }
+      }
+
+      // Auto-record cash out if there was a leftover refund amount and payment method is CASH.
+      // refundAmount only covers SCRAP credit excess — ADJUST_BILL leftover stays as credit.
       if (refundAmount > 0 && paymentMethod === 'CASH' && window.electronAPI) {
         try {
           await window.electronAPI.dbCashierAddTransaction({

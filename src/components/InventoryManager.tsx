@@ -84,6 +84,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
+  const [togglingGstId, setTogglingGstId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
   const [filterDate, setFilterDate] = useState('');
@@ -443,7 +444,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       hsn_sac_code: product.hsn_sac_code || '',
       tax_rate_percent: product.tax_rate_percent || 0,
       domain_attributes: (() => {
-        try { return JSON.parse(product.domain_attributes || '{}'); } catch { return {}; }
+        try {
+          const da = JSON.parse(product.domain_attributes || '{}');
+          if (da.pcs_stock !== undefined) da.pcs = da.pcs_stock;
+          return da;
+        } catch { return {}; }
       })(),
       discount_percent: product.discount_percent ?? '',
       discount_flat: product.discount_flat ?? '',
@@ -511,7 +516,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             try {
               const da = JSON.parse(p.domain_attributes || '{}');
               const cur = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
-              da.pcs_stock = Math.max(0, cur + pcsDelta);
+              const nextPcs = Math.max(0, cur + pcsDelta);
+              da.pcs_stock = nextPcs;
+              da.pcs = nextPcs;
               next.domain_attributes = JSON.stringify(da);
             } catch { /* keep as is */ }
           }
@@ -1003,9 +1010,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         } else if (!rawPcs) {
           delete da.pcs_per_kg;
         }
-        if (da.pcs_stock === undefined) {
-          da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
-        }
+        da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
         return JSON.stringify(da);
       })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
@@ -1122,12 +1127,41 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const filtered = useMemo(() =>
     products.filter(p => {
       if (Number(p.is_service_item) === 1) return false;
+      // GST/Estimate membership follows the manual GST Product toggle only.
       if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
       if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
       return true;
     }),
     [products, viewMode]
   );
+
+  // Inline GST/Estimate toggle for existing products (list rows).
+  const toggleGstFlag = async (p: Product) => {
+    if (!window.electronAPI) return;
+    setTogglingGstId(p.product_id);
+    try {
+      const newVal = Number(p.is_gst_applicable) === 1 ? 0 : 1;
+      const res = await window.electronAPI.dbUpdateProductGstFlag({
+        tenant_id: tenantId || 'global',
+        product_id: p.product_id,
+        is_gst_applicable: newVal,
+      });
+      if (res?.success) {
+        setProducts(prev => prev.map(pr => pr.product_id === p.product_id ? { ...pr, is_gst_applicable: newVal } : pr));
+        setStatusMessage({ text: newVal === 1 ? `"${p.name}" marked as GST product` : `"${p.name}" marked as Estimate product`, type: 'success' });
+        setTimeout(() => setStatusMessage(null), 2500);
+      } else {
+        setStatusMessage({ text: res?.error || 'Failed to update GST flag', type: 'error' });
+        setTimeout(() => setStatusMessage(null), 3000);
+      }
+    } catch (e) {
+      console.error('Toggle GST failed', e);
+      setStatusMessage({ text: 'Failed to update GST flag', type: 'error' });
+      setTimeout(() => setStatusMessage(null), 3000);
+    } finally {
+      setTogglingGstId(null);
+    }
+  };
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -1363,6 +1397,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
+                  // GST/Estimate membership follows the manual GST Product toggle only.
+                  const isGstFlag = Number(p.is_gst_applicable) === 1;
+
                   return (
                     <div key={p.product_id} className="border-b border-border last:border-b-0 transition-all duration-200 hover:bg-muted/10 grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card group">
                       <div className="col-span-3">
@@ -1377,6 +1414,20 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap">
+                              <button
+                                onClick={() => toggleGstFlag(p)}
+                                disabled={togglingGstId === p.product_id}
+                                title={isGstFlag ? 'Click to switch to Estimate' : 'Click to switch to GST'}
+                                className={clsx(
+                                  'text-[10px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
+                                  togglingGstId === p.product_id && 'opacity-50 cursor-wait',
+                                  isGstFlag
+                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                                )}
+                              >
+                                {togglingGstId === p.product_id ? '...' : (isGstFlag ? 'GST' : 'Estimate')}
+                              </button>
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                             </div>
@@ -1706,7 +1757,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   </div>
                   <input
                     type="number" min="1" step="1"
-                    value={formData.domain_attributes?.pcs || ''}
+                    value={(formData.domain_attributes?.pcs_stock ?? formData.domain_attributes?.pcs) || ''}
                     onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                     placeholder="e.g. 20"
@@ -1820,7 +1871,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                  <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Product</label>
                   <div
                     onClick={() => handleInputChange('is_gst_applicable', !formData.is_gst_applicable)}
                     onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); handleInputChange('is_gst_applicable', !formData.is_gst_applicable); } }}
@@ -1829,8 +1880,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     className={clsx(
                       'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
                       formData.is_gst_applicable
-                        ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                        : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                        ? 'bg-sky-500/10 border-sky-500/40 text-sky-600 dark:text-sky-400 shadow-sm'
+                        : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400'
                     )}
                   >
                     <input
@@ -1840,14 +1891,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       onChange={e => handleInputChange('is_gst_applicable', e.target.checked)}
                       className={clsx(
                         'w-3.5 h-3.5 rounded pointer-events-none',
-                        formData.is_gst_applicable ? 'accent-primary' : 'accent-muted-foreground'
+                        formData.is_gst_applicable ? 'accent-sky-500' : 'accent-amber-500'
                       )}
                     />
                     <label htmlFor="gst" className={clsx(
                       'font-bold text-xs cursor-pointer select-none',
-                      formData.is_gst_applicable ? 'text-primary' : 'text-muted-foreground'
+                      formData.is_gst_applicable ? 'text-sky-600 dark:text-sky-400' : 'text-amber-600 dark:text-amber-400'
                     )}>
-                      {formData.is_gst_applicable ? 'Enabled' : 'Disabled'}
+                      {formData.is_gst_applicable ? 'GST' : 'Estimate'}
                     </label>
                   </div>
                 </div>

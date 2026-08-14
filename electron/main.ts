@@ -624,6 +624,19 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
   }
 }));
 
+// Lightweight GST/Estimate toggle — flips only is_gst_applicable without touching
+// any other product field.
+ipcMain.handle('db:updateProductGstFlag', safeHandler((event, { tenant_id, product_id, is_gst_applicable }: { tenant_id: string; product_id: string; is_gst_applicable: number }) => {
+  const db = getDb();
+  const res = db.prepare(`
+    UPDATE products
+    SET is_gst_applicable = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    WHERE product_id = ? AND tenant_id = ?
+  `).run(is_gst_applicable ? 1 : 0, product_id, tenant_id);
+  if (res.changes === 0) return { success: false, error: 'Product not found' };
+  return { success: true };
+}));
+
 ipcMain.handle('db:deleteProduct', (event, productId) => {
   try {
     const db = getDb();
@@ -764,7 +777,9 @@ ipcMain.handle('db:adjustStock', (event, { product_id, delta, pcsDelta }) => {
       let da: Record<string, any> = {};
       try { da = JSON.parse(row?.domain_attributes || '{}'); } catch { /* keep empty */ }
       const current = Number(da.pcs_stock ?? da.pcs ?? 0) || 0;
-      da.pcs_stock = Math.max(0, current + pcsDelta);
+      const nextPcs = Math.max(0, current + pcsDelta);
+      da.pcs_stock = nextPcs;
+      da.pcs = nextPcs;
       db.prepare(`
         UPDATE products 
         SET domain_attributes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
@@ -1328,8 +1343,10 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
           if (row?.domain_attributes) {
             try {
               const da = JSON.parse(row.domain_attributes);
-              if (da.pcs !== undefined) {
-                da.pcs = Math.max(0, Number(da.pcs) - item.pieces_sold);
+              if (da.pcs !== undefined || da.pcs_stock !== undefined) {
+                const nextPcs = Math.max(0, (Number(da.pcs_stock ?? da.pcs) || 0) - item.pieces_sold);
+                da.pcs_stock = nextPcs;
+                da.pcs = nextPcs;
                 updDaStmt.run(JSON.stringify(da), item.product_id);
               }
             } catch {}
@@ -2254,7 +2271,7 @@ ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, s
     SELECT * FROM returns 
     WHERE tenant_id = ? 
       AND refund_method = 'ADJUST_BILL' 
-      AND (adjusted_invoice_number IS NULL OR adjusted_invoice_number = '')
+      AND grand_total > COALESCE(adjusted_amount, 0)
   `;
   const params: any[] = [tenant_id];
   if (search) {
@@ -2265,13 +2282,22 @@ ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, s
   return db.prepare(query).all(...params);
 }));
 
-ipcMain.handle('db:settleReturnInvoice', safeHandler((event, { tenant_id, return_number, adjusted_invoice_number }: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => {
+// Accumulate partial ADJUST_BILL consumption. adjusted_amount tracks how much of
+// the return credit has been used across bills; the return stays pending until
+// adjusted_amount >= grand_total. adjusted_invoice_number records the last invoice
+// that consumed part of the credit.
+ipcMain.handle('db:settleReturnInvoice', safeHandler((event, { tenant_id, return_number, adjusted_invoice_number, amount }: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => {
   const db = getDb();
-  db.prepare(`
+  const amt = Math.max(0, Number(amount) || 0);
+  if (amt <= 0) return { success: false, error: 'Invalid adjustment amount' };
+  const res = db.prepare(`
     UPDATE returns 
-    SET adjusted_invoice_number = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-    WHERE tenant_id = ? AND return_number = ?
-  `).run(adjusted_invoice_number, tenant_id, return_number);
+    SET adjusted_amount = COALESCE(adjusted_amount, 0) + ?,
+        adjusted_invoice_number = ?,
+        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = ? AND return_number = ? AND grand_total > COALESCE(adjusted_amount, 0)
+  `).run(amt, adjusted_invoice_number, tenant_id, return_number);
+  if (res.changes === 0) return { success: false, error: 'Return not found or already fully adjusted' };
   return { success: true };
 }));
 

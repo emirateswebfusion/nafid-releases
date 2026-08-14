@@ -112,6 +112,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Stock Report
   dbGetStockReport: (tenant_id: string) => ipcRenderer.invoke('db:getStockReport', tenant_id),
   dbGetProductBillQuantities: (tenant_id: string) => ipcRenderer.invoke('db:getProductBillQuantities', tenant_id),
+  dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => ipcRenderer.invoke('db:updateProductGstFlag', payload),
   dbGetProductSalesSummary: (payload: { tenant_id: string }) => ipcRenderer.invoke('db:getProductSalesSummary', payload),
   dbGetBosConvertibleInvoices: (tenant_id: string) => ipcRenderer.invoke('db:getBosConvertibleInvoices', tenant_id),
 
@@ -206,7 +207,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetReturnableInvoices: (payload: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => ipcRenderer.invoke('db:getReturnableInvoices', payload),
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => ipcRenderer.invoke('db:getReturnInvoiceByNumber', payload),
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => ipcRenderer.invoke('db:getPendingReturnInvoices', payload),
-  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => ipcRenderer.invoke('db:settleReturnInvoice', payload),
+  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => ipcRenderer.invoke('db:settleReturnInvoice', payload),
 
   // Hold Bill
   dbHoldBill: (payload: any) => ipcRenderer.invoke('db:holdBill', payload),

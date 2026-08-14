@@ -1568,6 +1568,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
+    skip_stock_update?: number;
   }>>([]);
   const [_isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
@@ -1830,6 +1831,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
 
   const updateBillItem = (productId: string, field: 'quantity' | 'purchase_price' | 'selling_price' | 'offer_price' | 'hsn_sac_code', value: string) => {
     setBillItems(prev => prev.map(i => i.product_id === productId ? { ...i, [field]: value } : i));
+  };
+
+// Real / Dummy toggle per GST-bill line: Dummy = paper stock / tax record only
+  // (no stock add), Real = stock-in.
+  const toggleBillItemDummy = (item: any) => {
+    const newVal = (item.skip_stock_update ?? 0) === 1 ? 0 : 1;
+    setBillItems(prev => prev.map(i => i.product_id === item.product_id ? { ...i, skip_stock_update: newVal } : i));
   };
 
   const getBillTotal = () => {
@@ -2234,10 +2242,10 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           total_amount: (Number(item.quantity) || 0) * (Number(item.purchase_price) || 0),
           selling_price: item.selling_price ? Number(item.selling_price) || null : null,
           offer_price: item.offer_price ? Number(item.offer_price) || null : null,
-          is_gst_applicable: type === 'GST' ? (item.is_gst_applicable ?? 1) : 0,
+          is_gst_applicable: item.is_gst_applicable ?? (type === 'GST' ? 1 : 0),
           tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
           hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
-          skip_stock_update: type === 'GST' && otherProductIds.has(item.product_id) ? 1 : 0,
+          skip_stock_update: type === 'GST' ? (item.skip_stock_update ?? (otherProductIds.has(item.product_id) ? 1 : 0)) : 0,
         })),
       };
 
@@ -2936,7 +2944,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                       <span className="min-w-0">
                         <span className="block text-xs font-semibold text-foreground truncate">{item.name}</span>
                         {item.stock !== undefined && item.stock !== '' && (
-                          <span className="block text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
+                          <span className="block text-[10px] text-muted-foreground font-semibold mt-0.5">Stock: {Number(item.stock).toFixed(0)}</span>
                         )}
                       </span>
                       <input
@@ -3019,6 +3027,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                   const hasGst = type === 'GST' && (item.is_gst_applicable ?? 1) === 1 && taxRate > 0;
                   const gstAmt = hasGst ? taxableAmt * (taxRate / 100) : 0;
                   const itemTotal = taxableAmt + gstAmt;
+                  // Dummy = paper stock / tax record only (no stock add); Real = stock-in.
+                  const isDummy = (item.skip_stock_update ?? ((getOtherSectionItems?.() ?? []).some(i => i.product_id === item.product_id) ? 1 : 0)) === 1;
                   return (
                     <div key={item.product_id} className="grid grid-cols-[30px_1fr_70px_60px_70px_70px_70px_55px_55px_55px_70px_50px_34px] gap-3 px-3 py-2 bg-card border border-border/80 hover:border-emerald-500/40 rounded-xl transition-all duration-200 hover:shadow-sm group items-center">
                       <span className="text-xs font-semibold text-muted-foreground/60 text-center select-none">
@@ -3028,9 +3038,24 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         <span className="block text-xs font-semibold text-foreground truncate leading-tight">
                           {item.name}
                         </span>
-                        {item.stock !== undefined && item.stock !== '' && (
-                          <span className="block text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
-                        )}
+                        <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => toggleBillItemDummy(item)}
+                            title={isDummy ? 'Paper stock (no stock added) — click for Real stock' : 'Real stock (adds stock) — click for paper stock'}
+                            className={clsx(
+                              'text-[9px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
+                              isDummy
+                                ? 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                            )}
+                          >
+                            {isDummy ? 'Dummy' : 'Real'}
+                          </button>
+                          {item.stock !== undefined && item.stock !== '' && (
+                            <span className="text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>
+                          )}
+                        </span>
                       </span>
                       <input
                         type="text"

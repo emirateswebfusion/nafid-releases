@@ -114,6 +114,7 @@ export interface IElectronAPI {
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;
   dbGetProductBillQuantities: (tenant_id: string) => Promise<{ product_id: string; gst_qty: number; estimate_qty: number }[]>;
+  dbUpdateProductGstFlag: (payload: { tenant_id: string; product_id: string; is_gst_applicable: number }) => Promise<{ success: boolean; error?: string }>;
   dbGetProductSalesSummary: (payload: { tenant_id: string }) => Promise<{ product_id: string; name: string; gst_qty: number; bos_qty: number; total_qty: number }[]>;
   dbGetBosConvertibleInvoices: (tenant_id: string) => Promise<{ invoice_id: string; convertible: number }[]>;
 
@@ -176,7 +177,7 @@ export interface IElectronAPI {
   dbGetReturnableInvoices: (payload: { tenant_id: string; search?: string; limit?: number; role?: string; user_id?: string }) => Promise<any[]>;
   dbGetReturnInvoiceByNumber: (payload: { tenant_id: string; return_number: string }) => Promise<any>;
   dbGetPendingReturnInvoices: (payload: { tenant_id: string; search?: string }) => Promise<any[]>;
-  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string }) => Promise<{ success: boolean; error?: string }>;
+  dbSettleReturnInvoice: (payload: { tenant_id: string; return_number: string; adjusted_invoice_number: string; amount: number }) => Promise<{ success: boolean; error?: string }>;
 
   // Hold Bill
   dbHoldBill: (payload: any) => Promise<{ success: boolean; error?: string }>;
