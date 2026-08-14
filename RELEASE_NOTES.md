@@ -1,3 +1,10 @@
+# Vendora v1.5.11 Release Notes
+
+## What's Changed
+- Implemented real-time scale integration and cart/billing updates
+- Improved printer hardware integration, SQLite local database persistence, and sales history updates
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.10...v1.5.11
+
 # Vendora v1.5.10 Release Notes
 
 ## What's Changed
