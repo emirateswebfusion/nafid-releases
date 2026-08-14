@@ -55,6 +55,28 @@ function formatCurrency(amount: number): string {
   return `\u20B9${amount.toFixed(2)}`;
 }
 
+// Scanner-burst detection shared by qty-like inputs. Returns true when the keystroke
+// is part of a barcode-scan burst (printable keys <= 50ms apart) and the leaked first
+// digit has been reverted to the trusted pre-burst value.
+function detectScannerBurst(
+  keyTimes: Record<string, number>,
+  snapshots: Record<string, number | string>,
+  productId: string,
+  currentValue: number | string,
+  restore: (v: number | string) => void,
+): boolean {
+  const now = Date.now();
+  const prev = keyTimes[productId];
+  keyTimes[productId] = now;
+  if (prev && now - prev <= 50) {
+    const snapshot = snapshots[productId];
+    if (snapshot !== undefined) restore(snapshot);
+    return true;
+  }
+  snapshots[productId] = currentValue;
+  return false;
+}
+
 export function BillingPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
@@ -62,6 +84,12 @@ export function BillingPage() {
   const kRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const discFlatRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  // Scanner-burst protection for qty-like inputs: a barcode scanner types digits at
+  // ~10-20ms intervals. If the qty field has focus when the trigger is pulled, those
+  // digits land in the input instead of being added to the cart. We detect the burst
+  // (2nd printable key <= 50ms after the 1st) and revert the leaked first digit.
+  const qtyKeyTimesRef = useRef<Record<string, number>>({});
+  const qtySnapshotsRef = useRef<Record<string, number | string>>({});
 
   const {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
@@ -2020,6 +2048,13 @@ export function BillingPage() {
     }
   };
 
+  const guardScannerInput = (e: React.KeyboardEvent, productId: string, currentValue: number | string, restore: (v: number | string) => void) => {
+    if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) return;
+    if (detectScannerBurst(qtyKeyTimesRef.current, qtySnapshotsRef.current, productId, currentValue, restore)) {
+      e.preventDefault();
+    }
+  };
+
   const handleDiscKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -3766,6 +3801,7 @@ export function BillingPage() {
                           value={serviceAmount || ''}
                           ref={(el) => { qtyRefs.current[item.product_id] = el; }}
                           onChange={e => updateItemOfferPrice(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
+                          onKeyDown={e => guardScannerInput(e, item.product_id, serviceAmount || '', v => updateItemOfferPrice(item.product_id, v === '' ? 0 : Number(v)))}
                           onFocus={e => e.target.select()}
                           placeholder="0"
                         />
@@ -3814,7 +3850,7 @@ export function BillingPage() {
                             const v = e.target.value === '' ? 1 : Math.min(avail, Math.max(0, Number(e.target.value)));
                             updateQuantity(item.product_id, v);
                           }}
-                          onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                          onKeyDown={e => { guardScannerInput(e, item.product_id, qtyText, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
                         <button onClick={() => { const q = Number(item.quantity); if (q < avail) updateQuantity(item.product_id, q + 1); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
@@ -3881,7 +3917,7 @@ export function BillingPage() {
                           className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
-                          onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                          onKeyDown={e => { guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                           placeholder="Kg"
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
@@ -4074,7 +4110,7 @@ export function BillingPage() {
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={pieces}
                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
-                            onKeyDown={e => { if (e.key === 'Enter') { kRefs.current[item.product_id]?.focus(); e.preventDefault(); } else { handleQtyKeyDown(e, item.product_id); } }}
+                            onKeyDown={e => { guardScannerInput(e, item.product_id, pieces, v => updatePiecesOverride(item.product_id, Number(v) > 0 ? Number(v) : undefined)); if (e.key === 'Enter') { kRefs.current[item.product_id]?.focus(); e.preventDefault(); } else { handleQtyKeyDown(e, item.product_id); } }}
                           />
                         </div>
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
@@ -4084,7 +4120,7 @@ export function BillingPage() {
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={weightKg}
                             onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                            onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                            onKeyDown={e => { guardScannerInput(e, item.product_id, weightKg, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                           />
                         </div>
                       </div>
@@ -4098,7 +4134,7 @@ export function BillingPage() {
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                          onKeyDown={e => handleQtyKeyDown(e, item.product_id)}
+                          onKeyDown={e => { guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
                         <button onClick={() => { const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3)); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"

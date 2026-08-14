@@ -66,7 +66,13 @@ function getLabelCodeType(tenantId: string): string {
     const db = getDb();
     const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'label_code_type'").get(tenantId || 'global', 'label_code_type');
     if (row) {
-      const val = JSON.parse(row.value);
+      let val: any = row.value;
+      try {
+        const parsed = JSON.parse(row.value);
+        if (typeof parsed === 'string') val = parsed;
+      } catch {
+        // Value is a raw (non-JSON) string, e.g. cloud-synced 'qrcode' — use as-is
+      }
       if (val === 'barcode' || val === 'qrcode') return val;
     }
     return 'barcode';

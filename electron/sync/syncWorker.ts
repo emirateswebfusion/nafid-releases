@@ -1855,6 +1855,9 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
             }
           } else {
             if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
+            else if (s.key === 'label_code_type' && (valueToSave === 'barcode' || valueToSave === 'qrcode')) {
+              valueToSave = JSON.stringify(valueToSave);
+            }
           }
 
           if (typeof valueToSave !== 'string') valueToSave = String(valueToSave);
