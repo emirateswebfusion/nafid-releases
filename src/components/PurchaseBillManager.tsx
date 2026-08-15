@@ -63,6 +63,10 @@ interface Product {
   tax_rate_percent?: number;
   hsn_sac_code?: string;
   offer_price?: number | null;
+  brand_manufacturer?: string;
+  category?: string;
+  uom?: string;
+  reorder_level?: number;
 }
 
 const formatDate = (d: string) => {
@@ -1569,6 +1573,15 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     tax_rate_percent?: number;
     hsn_sac_code?: string;
     skip_stock_update?: number;
+    is_new_product_clone?: boolean;
+    clone_metadata?: {
+      barcode: string;
+      item_code: string;
+      brand_manufacturer: string;
+      category: string;
+      uom: string;
+      reorder_level: number;
+    };
   }>>([]);
   const [_isSaving, setIsSaving] = useState(false);
   const [priceCoding, setPriceCoding] = useState<Record<string, string> | null>(null);
@@ -1803,7 +1816,63 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     }
   };
 
-  const addProductToBill = (product: Product) => {
+  const addProductToBill = async (product: Product) => {
+    const isGstBill = type === 'GST';
+    const isProductGst = product.is_gst_applicable !== 0;
+
+    if ((isGstBill && !isProductGst) || (!isGstBill && isProductGst)) {
+      // Scenario B: Product type mismatch. Must save separately as a new product.
+      let barcode = '';
+      if (window.electronAPI && tenantId) {
+        try {
+          const gen = await window.electronAPI.dbGenerateBarcode({ 
+            tenant_id: tenantId, 
+            item_code: product.item_code || undefined 
+          });
+          if (gen?.success && gen?.barcode) {
+            barcode = gen.barcode;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      if (!barcode) {
+        barcode = '999' + Date.now().toString().slice(-9);
+      }
+
+      const cleanName = product.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
+      const newName = cleanName + (isGstBill ? ' (GST)' : ' (EST)');
+      const newProductId = uuidv4();
+
+      if (billItems.some(i => i.name === newName)) return;
+
+      setBillItems(prev => [...prev, {
+        product_id: newProductId,
+        name: newName,
+        quantity: '1',
+        purchase_price: String(product.gst_purchase_price || product.purchase_price || 0),
+        selling_price: String(product.base_price || 0),
+        offer_price: product.offer_price != null && Number(product.offer_price) > 0 ? String(product.offer_price) : '',
+        stock: '0',
+        is_gst_applicable: isGstBill ? 1 : 0,
+        tax_rate_percent: isGstBill ? (product.tax_rate_percent ?? 18) : 0,
+        hsn_sac_code: isGstBill ? (product.hsn_sac_code || '') : '',
+        is_new_product_clone: true,
+        clone_metadata: {
+          barcode: barcode,
+          item_code: (product.item_code || '').toUpperCase(),
+          brand_manufacturer: product.brand_manufacturer || '',
+          category: product.category || '',
+          uom: product.uom || 'Pcs',
+          reorder_level: product.reorder_level || 0,
+        }
+      }]);
+
+      setProductSearch('');
+      setProducts([]);
+      return;
+    }
+
     if (billItems.some(i => i.product_id === product.product_id)) return;
     setBillItems(prev => [...prev, {
       product_id: product.product_id,
@@ -2221,6 +2290,41 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const otherProductIds = new Set(otherItems.map(i => i.product_id));
 
     if (window.electronAPI) {
+      // First, save any cloned products to the database as new products
+      for (const item of billItems) {
+        if (item.is_new_product_clone && item.clone_metadata) {
+          const meta = item.clone_metadata;
+          const purchasePrice = Number(item.purchase_price) || 0;
+          const basePrice = Number(item.selling_price) || purchasePrice;
+          
+          await window.electronAPI.dbAddProduct({
+            product_id: item.product_id,
+            tenant_id: tenantId,
+            name: item.name.trim(),
+            sku_barcode: meta.barcode,
+            item_code: meta.item_code,
+            category: meta.category,
+            brand_manufacturer: meta.brand_manufacturer,
+            uom: meta.uom,
+            purchase_price: purchasePrice,
+            base_price: basePrice,
+            current_stock: 0,
+            reorder_level: Number(meta.reorder_level) || 0,
+            is_gst_applicable: item.is_gst_applicable ?? (type === 'GST' ? 1 : 0),
+            tax_rate_percent: type === 'GST' ? (item.tax_rate_percent ?? 0) : 0,
+            hsn_sac_code: type === 'GST' ? (item.hsn_sac_code || null) : null,
+            discount_percent: null,
+            discount_flat: null,
+            offer_price: item.offer_price ? Number(item.offer_price) : null,
+            billing_type: 'PIECE',
+            grade_id: null,
+            pricing_mode: 'FIXED_PRICE',
+            is_deleted: 0,
+            sync_status: 'PENDING',
+          });
+        }
+      }
+
       const payload = {
         purchase_bill_id: billId,
         tenant_id: tenantId,

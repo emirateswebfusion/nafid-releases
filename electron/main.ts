@@ -2538,7 +2538,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           let newSubtotal = 0;
           let newTotalTax = 0;
-          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number }[] = [];
+          const copyItems: { item_id: string; source_item_id: string; product_id: string; name: string; quantity: number; is_service_item: number; newUnitPrice: number; newTotal: number; newTaxAmount: number; bosUnitPrice: number; bosTax: number; bosTotal: number; qtyFromPaper: number }[] = [];
           const skippedItems: string[] = [];
 
           for (const item of items) {
@@ -2584,6 +2584,34 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               continue;
             }
 
+            // Compute available paper (dummy) GST stock for this product:
+            const paperPurchasedRow = db.prepare(`
+              SELECT COALESCE(SUM(pbi.quantity), 0) as total_paper
+              FROM purchase_bill_items pbi
+              JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
+              WHERE pbi.product_id = ? AND pb.bill_type = 'GST' AND pbi.skip_stock_update = 1 AND pb.tenant_id = ?
+            `).get(item.product_id, payload.tenant_id) as any;
+            const totalPaperPurchased = paperPurchasedRow ? Number(paperPurchasedRow.total_paper) : 0;
+
+            const paperSoldRow = db.prepare(`
+              SELECT COALESCE(SUM(ii.qty_from_paper_stock), 0) as total_paper_sold
+              FROM invoice_items ii
+              JOIN invoices i ON ii.invoice_id = i.invoice_id
+              WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ?
+            `).get(item.product_id, payload.tenant_id) as any;
+            const totalPaperSold = paperSoldRow ? Number(paperSoldRow.total_paper_sold) : 0;
+
+            const availablePaperGst = Math.max(0, totalPaperPurchased - totalPaperSold);
+            const qtyFromPaper = Math.min(qtyToConvert, availablePaperGst);
+
+            if (qtyFromPaper > 0) {
+              db.prepare(`
+                UPDATE products 
+                SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+                WHERE product_id = ? AND tenant_id = ?
+              `).run(qtyFromPaper, item.product_id, payload.tenant_id);
+            }
+
             const newTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
             newSubtotal += newTotal;
 
@@ -2607,6 +2635,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               bosUnitPrice: Number(item.unit_price) || 0,
               bosTax: Number(item.tax_amount) || 0,
               bosTotal: Number(item.total) || 0,
+              qtyFromPaper,
             });
 
             if (qtyToConvert < originalQty) {
@@ -2676,9 +2705,9 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const insertItemStmt = db.prepare(`
             INSERT INTO invoice_items (
               item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item,
-              source_item_id, bos_unit_price, bos_tax_amount, bos_total
+              source_item_id, bos_unit_price, bos_tax_amount, bos_total, qty_from_paper_stock
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           for (const ci of copyItems) {
@@ -2696,7 +2725,8 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               ci.source_item_id,
               ci.bosUnitPrice,
               ci.bosTax,
-              ci.bosTotal
+              ci.bosTotal,
+              ci.qtyFromPaper
             );
           }
 
@@ -3865,8 +3895,8 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         `).run(bill.purchase_bill_id, bill.tenant_id, bill.bill_number, bill.supplier_id || null, bill.supplier_name, bill.bill_date || null, bill.invoice_number || null, bill.notes || null, bill.total_amount, billType, paymentType);
 
         const stmt = db.prepare(`
-          INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, skip_stock_update, sync_status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         `);
         // Two stock statements: ESTIMATE bills update stock+price; GST bills update price only (tax documents, not inventory)
         const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
@@ -3875,7 +3905,8 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
         for (const item of items) {
           const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-          stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+          const skipStock = item.skip_stock_update ?? 0;
+          stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
           const actualPurchasePrice = billType === 'GST' && isGst === 1
             ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
             : item.purchase_price;
@@ -4030,8 +4061,8 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(bill.purchase_bill_id);
 
       const stmt = db.prepare(`
-        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        INSERT INTO purchase_bill_items (item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price, is_gst_applicable, tax_rate_percent, hsn_sac_code, skip_stock_update, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `);
       // Two stock statements: ESTIMATE bills update stock+price; GST bills update price only
       const updateStock = db.prepare(`UPDATE products SET current_stock = current_stock + ?, purchase_price = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?`);
@@ -4040,7 +4071,8 @@ ipcMain.handle('db:updatePurchaseBill', safeHandler((event, payload: {
       const updateOfferPrice = db.prepare(`UPDATE products SET offer_price = ? WHERE product_id = ? AND tenant_id = ?`);
       for (const item of items) {
         const isGst = billType === 'GST' ? (item.is_gst_applicable ?? 1) : 0;
-        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null);
+        const skipStock = item.skip_stock_update ?? 0;
+        stmt.run(item.item_id, bill.purchase_bill_id, bill.tenant_id, item.product_id, item.name, item.quantity, item.purchase_price, item.total_amount, item.selling_price != null ? item.selling_price : 0, item.offer_price != null ? item.offer_price : 0, isGst, item.tax_rate_percent ?? 0, item.hsn_sac_code || null, skipStock);
         const actualPurchasePrice = billType === 'GST' && isGst === 1
           ? item.purchase_price * (1 + (item.tax_rate_percent ?? 0) / 100)
           : item.purchase_price;
@@ -4647,17 +4679,26 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
   try {
     const db = getDb();
     db.transaction(() => {
-      const inv = db.prepare('SELECT converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
+      const inv = db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
 
       // A conversion copy never moved stock — do NOT restore it (would double stock).
       // The superseded BoS owns the deduction.
       const isConversionCopy = !!(inv && inv.converted_from_invoice_id);
 
-      const items = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(invoice_id) as any[];
-      const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
+      const items = db.prepare('SELECT product_id, quantity, qty_from_paper_stock FROM invoice_items WHERE invoice_id = ?').all(invoice_id) as any[];
+      const restoreStockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
+      const deductStockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?');
       if (!isConversionCopy) {
         for (const item of items) {
-          stockStmt.run(item.quantity, item.product_id);
+          restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
+        }
+      } else {
+        // If conversion copy is deleted, we must subtract the qty_from_paper_stock that was added back to products.current_stock during conversion.
+        for (const item of items) {
+          const qtyFromPaper = Number(item.qty_from_paper_stock) || 0;
+          if (qtyFromPaper > 0) {
+            deductStockStmt.run(qtyFromPaper, item.product_id, inv.tenant_id);
+          }
         }
       }
       db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);

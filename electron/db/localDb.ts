@@ -1082,6 +1082,27 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add adjustment columns to returns:', e.message);
   }
 
+  // Migration: Add skip_stock_update to purchase_bill_items and qty_from_paper_stock to invoice_items
+  try {
+    const pbiCols = db.prepare(`PRAGMA table_info(purchase_bill_items)`).all().map((c: any) => c.name);
+    if (!pbiCols.includes('skip_stock_update')) {
+      console.log('[DB Migration] Adding skip_stock_update to purchase_bill_items...');
+      db.exec("ALTER TABLE purchase_bill_items ADD COLUMN skip_stock_update INTEGER DEFAULT 0");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add skip_stock_update to purchase_bill_items:', e.message);
+  }
+
+  try {
+    const iiCols = db.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: any) => c.name);
+    if (!iiCols.includes('qty_from_paper_stock')) {
+      console.log('[DB Migration] Adding qty_from_paper_stock to invoice_items...');
+      db.exec("ALTER TABLE invoice_items ADD COLUMN qty_from_paper_stock REAL DEFAULT 0");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add qty_from_paper_stock to invoice_items:', e.message);
+  }
+
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();
   if (!hasPrinter) {

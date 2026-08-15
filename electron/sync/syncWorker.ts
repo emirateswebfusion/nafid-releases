@@ -1146,17 +1146,18 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const upsertItem = db.prepare(`
     INSERT INTO invoice_items (
       item_id, invoice_id, tenant_id, product_id,
-      name, quantity, unit_price, tax_amount, total
+      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock
     ) VALUES (
       @item_id, @invoice_id, @tenant_id, @product_id,
-      @name, @quantity, @unit_price, @tax_amount, @total
+      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock
     )
     ON CONFLICT(item_id) DO UPDATE SET
       name = excluded.name,
       quantity = excluded.quantity,
       unit_price = excluded.unit_price,
       tax_amount = excluded.tax_amount,
-      total = excluded.total
+      total = excluded.total,
+      qty_from_paper_stock = excluded.qty_from_paper_stock
   `);
 
   // Items are replaced per invoice (not just upserted) so items removed from an
@@ -1254,6 +1255,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 unit_price: item.unit_price,
                 tax_amount: item.tax_amount,
                 total: item.total,
+                qty_from_paper_stock: item.qty_from_paper_stock ?? 0,
               });
             }
           }
@@ -1952,10 +1954,10 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
   const upsertItem = db.prepare(`
     INSERT INTO purchase_bill_items (
       item_id, purchase_bill_id, tenant_id, product_id, name, quantity, purchase_price, total_amount, selling_price, offer_price,
-      is_gst_applicable, tax_rate_percent, hsn_sac_code, sync_status, created_at, updated_at
+      is_gst_applicable, tax_rate_percent, hsn_sac_code, skip_stock_update, sync_status, created_at, updated_at
     ) VALUES (
       @item_id, @purchase_bill_id, @tenant_id, @product_id, @name, @quantity, @purchase_price, @total_amount, @selling_price, @offer_price,
-      @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, 'SYNCED', @created_at, @updated_at
+      @is_gst_applicable, @tax_rate_percent, @hsn_sac_code, @skip_stock_update, 'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(item_id) DO UPDATE SET
       product_id = excluded.product_id,
@@ -1968,6 +1970,7 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
       is_gst_applicable = excluded.is_gst_applicable,
       tax_rate_percent = excluded.tax_rate_percent,
       hsn_sac_code = excluded.hsn_sac_code,
+      skip_stock_update = excluded.skip_stock_update,
       created_at = COALESCE(purchase_bill_items.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
