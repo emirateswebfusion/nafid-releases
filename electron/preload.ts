@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbAddProduct: (product: any) => ipcRenderer.invoke('db:addProduct', product),
   dbEnsureServiceItem: (params: { tenant_id: string }) => ipcRenderer.invoke('db:ensureServiceItem', params),
   dbUpdateProduct: (product: any) => ipcRenderer.invoke('db:updateProduct', product),
+  dbUpdateProductName: (params: { tenant_id: string; product_id: string; name: string }) => ipcRenderer.invoke('db:updateProductName', params),
   dbDeleteProduct: (product_id: string) => ipcRenderer.invoke('db:deleteProduct', product_id),
   dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => ipcRenderer.invoke('db:adjustStock', args),
   dbBulkImportProducts: (products: any[]) => ipcRenderer.invoke('db:bulkImportProducts', products),

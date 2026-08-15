@@ -27,8 +27,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
-  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
+  const [editForm, setEditForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: null as number | null });
+  const [newForm, setNewForm] = useState({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: null as number | null });
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -110,7 +110,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
     const res = await window.electronAPI.dbAddGrade(grade);
     if (res.success) {
       setIsAdding(false);
-      setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: 0 });
+      setNewForm({ category: '', grade_name: '', rate: 0, purchase_price: 0, offer_price: null });
       await loadGrades();
     } else {
       setError(res.error || 'Failed to add grade');
@@ -174,7 +174,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           grade_name: g.grade_name,
           rate: g.rate,
           purchase_price: g.purchase_price || 0,
-          offer_price: g.offer_price || 0
+          offer_price: g.offer_price ?? null
         })
       )
     );
@@ -210,7 +210,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
   const startEdit = (grade: Grade) => {
     setEditingId(grade.grade_id);
-    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate, purchase_price: grade.purchase_price || 0, offer_price: grade.offer_price || 0 });
+    setEditForm({ category: grade.category, grade_name: grade.grade_name, rate: grade.rate, purchase_price: grade.purchase_price || 0, offer_price: grade.offer_price ?? null });
   };
 
   const handleOpenAdd = () => {
@@ -219,7 +219,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
       grade_name: '',
       rate: 0,
       purchase_price: 0,
-      offer_price: 0
+      offer_price: null
     });
     setIsAdding(true);
     setError(null);
@@ -775,8 +775,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-bold">₹</span>
                               <input
                                 type="number"
-                                value={editForm.offer_price || ''}
-                                onChange={e => setEditForm({ ...editForm, offer_price: parseFloat(e.target.value) || 0 })}
+                                 value={editForm.offer_price || ''}
+                                onChange={e => setEditForm({ ...editForm, offer_price: e.target.value === '' ? null : (parseFloat(e.target.value) || 0) })}
                                 className="w-full pl-7 pr-3 h-9.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all font-mono font-bold text-foreground"
                               />
                             </div>
@@ -819,7 +819,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                           ₹{grade.rate.toFixed(2)}
                         </div>
                         <div className="col-span-2 font-mono font-bold text-emerald-600 dark:text-emerald-400 text-xs">
-                          {(grade.offer_price || 0) > 0 ? `₹${(grade.offer_price || 0).toFixed(2)}` : '-'}
+                          {(grade.offer_price ?? 0) > 0 ? `₹${(grade.offer_price ?? 0).toFixed(2)}` : '-'}
                         </div>
                         <div className="col-span-2 flex items-center justify-end gap-1.5 border-l border-border/60 pl-3">
                           <button
@@ -969,8 +969,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                   <input
                     type="number"
                     placeholder="0.00"
-                    value={newForm.offer_price || ''}
-                    onChange={e => setNewForm({ ...newForm, offer_price: parseFloat(e.target.value) || 0 })}
+                     value={newForm.offer_price || ''}
+                    onChange={e => setNewForm({ ...newForm, offer_price: e.target.value === '' ? null : (parseFloat(e.target.value) || 0) })}
                     className="w-full bg-background border border-border rounded-xl p-3 pl-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm no-spinners font-mono"
                   />
                 </div>

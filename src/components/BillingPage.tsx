@@ -4116,6 +4116,10 @@ export function BillingPage() {
                 const _ppk = item.pieces_per_kg!;
                 const handlePcsChange = (pcsVal: number) => {
                   updatePiecesOverride(item.product_id, pcsVal > 0 ? pcsVal : undefined);
+                  if (_ppk > 0) {
+                    const newKg = pcsVal / _ppk;
+                    updateQuantity(item.product_id, +newKg.toFixed(3));
+                  }
                 };
 
                 return (
@@ -4142,7 +4146,22 @@ export function BillingPage() {
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={pieces}
                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
-                            onKeyDown={e => { guardScannerInput(e, item.product_id, pieces, v => updatePiecesOverride(item.product_id, Number(v) > 0 ? Number(v) : undefined)); if (e.key === 'Enter') { kRefs.current[item.product_id]?.focus(); e.preventDefault(); } else { handleQtyKeyDown(e, item.product_id); } }}
+                            onKeyDown={e => {
+                              guardScannerInput(e, item.product_id, pieces, v => {
+                                const pcsVal = Number(v) > 0 ? Number(v) : undefined;
+                                updatePiecesOverride(item.product_id, pcsVal);
+                                if (pcsVal && _ppk > 0) {
+                                  const newKg = pcsVal / _ppk;
+                                  updateQuantity(item.product_id, +newKg.toFixed(3));
+                                }
+                              });
+                              if (e.key === 'Enter') {
+                                kRefs.current[item.product_id]?.focus();
+                                e.preventDefault();
+                              } else {
+                                handleQtyKeyDown(e, item.product_id);
+                              }
+                            }}
                           />
                         </div>
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
@@ -4151,8 +4170,18 @@ export function BillingPage() {
                             ref={(el) => { kRefs.current[item.product_id] = el; }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={weightKg}
-                            onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                            onKeyDown={e => { guardScannerInput(e, item.product_id, weightKg, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                            onChange={e => {
+                              const val = e.target.value === '' ? '' : Number(e.target.value);
+                              updateQuantity(item.product_id, val);
+                              updatePiecesOverride(item.product_id, undefined);
+                            }}
+                            onKeyDown={e => {
+                              guardScannerInput(e, item.product_id, weightKg, v => {
+                                updateQuantity(item.product_id, v);
+                                updatePiecesOverride(item.product_id, undefined);
+                              });
+                              handleQtyKeyDown(e, item.product_id);
+                            }}
                           />
                         </div>
                       </div>

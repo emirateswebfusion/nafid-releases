@@ -84,7 +84,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [loading, setLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
-  const [togglingGstId, setTogglingGstId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'created_at' | 'updated_at'>('created_at');
   const [filterDate, setFilterDate] = useState('');
@@ -703,7 +702,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       grade_name: newGradeForm.grade_name.trim(),
       rate: Number(newGradeForm.rate) || 0,
       purchase_price: Number(newGradeForm.purchase_price) || 0,
-      offer_price: Number(newGradeForm.offer_price) || 0,
+      offer_price: newGradeForm.offer_price === '' ? null : Number(newGradeForm.offer_price),
     });
     if (res.success) {
       const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
@@ -711,7 +710,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       handleInputChange('grade_id', gradeId);
       handleInputChange('base_price', Number(newGradeForm.rate) || 0);
       handleInputChange('purchase_price', Number(newGradeForm.purchase_price) || 0);
-      handleInputChange('offer_price', Number(newGradeForm.offer_price) || 0);
+      handleInputChange('offer_price', newGradeForm.offer_price === '' ? '' : Number(newGradeForm.offer_price));
       setIsAddingGrade(false);
       setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
       setStatusMessage({ text: `Grade "${newGradeForm.grade_name.trim()}" created and applied.`, type: 'success' });
@@ -1094,7 +1093,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               grade_name: '',
               rate: Number(formData.base_price) || 0,
               purchase_price: Number(formData.purchase_price) || 0,
-              offer_price: Number(formData.offer_price) || 0,
+              offer_price: formData.offer_price === '' || formData.offer_price === null || formData.offer_price === undefined ? null : Number(formData.offer_price),
             });
             if (gradeRes.success) {
               const fresh = await window.electronAPI.dbGetGrades(tenantId || 'global');
@@ -1135,33 +1134,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     [products, viewMode]
   );
 
-  // Inline GST/Estimate toggle for existing products (list rows).
-  const toggleGstFlag = async (p: Product) => {
-    if (!window.electronAPI) return;
-    setTogglingGstId(p.product_id);
-    try {
-      const newVal = Number(p.is_gst_applicable) === 1 ? 0 : 1;
-      const res = await window.electronAPI.dbUpdateProductGstFlag({
-        tenant_id: tenantId || 'global',
-        product_id: p.product_id,
-        is_gst_applicable: newVal,
-      });
-      if (res?.success) {
-        setProducts(prev => prev.map(pr => pr.product_id === p.product_id ? { ...pr, is_gst_applicable: newVal } : pr));
-        setStatusMessage({ text: newVal === 1 ? `"${p.name}" marked as GST product` : `"${p.name}" marked as Estimate product`, type: 'success' });
-        setTimeout(() => setStatusMessage(null), 2500);
-      } else {
-        setStatusMessage({ text: res?.error || 'Failed to update GST flag', type: 'error' });
-        setTimeout(() => setStatusMessage(null), 3000);
-      }
-    } catch (e) {
-      console.error('Toggle GST failed', e);
-      setStatusMessage({ text: 'Failed to update GST flag', type: 'error' });
-      setTimeout(() => setStatusMessage(null), 3000);
-    } finally {
-      setTogglingGstId(null);
-    }
-  };
+
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
@@ -1414,20 +1387,16 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap">
-                              <button
-                                onClick={() => toggleGstFlag(p)}
-                                disabled={togglingGstId === p.product_id}
-                                title={isGstFlag ? 'Click to switch to Estimate' : 'Click to switch to GST'}
+                              <span
                                 className={clsx(
-                                  'text-[10px] px-1.5 py-0.5 rounded font-bold border transition-all cursor-pointer select-none',
-                                  togglingGstId === p.product_id && 'opacity-50 cursor-wait',
+                                  'text-[10px] px-1.5 py-0.5 rounded font-bold border select-none',
                                   isGstFlag
-                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-500/20'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'
+                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
                                 )}
                               >
-                                {togglingGstId === p.product_id ? '...' : (isGstFlag ? 'GST' : 'Estimate')}
-                              </button>
+                                {isGstFlag ? 'GST' : 'Estimate'}
+                              </span>
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                             </div>

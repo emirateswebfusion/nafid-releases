@@ -18,6 +18,7 @@ export interface IElectronAPI {
   dbEnsureServiceItem: (params: { tenant_id: string }) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbAddProduct: (product: any) => Promise<{ success: boolean; product_id?: string; error?: string }>;
   dbUpdateProduct: (product: any) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateProductName: (params: { tenant_id: string; product_id: string; name: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteProduct: (product_id: string) => Promise<{ success: boolean; error?: string }>;
   dbAdjustStock: (args: { product_id: string; delta?: number; pcsDelta?: number }) => Promise<{ success: boolean; error?: string }>;
   dbBulkImportProducts: (products: any[]) => Promise<{ success: boolean; error?: string }>;

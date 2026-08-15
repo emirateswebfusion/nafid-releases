@@ -42,7 +42,7 @@ export function initDb() {
         grade_name TEXT NOT NULL,
         rate REAL NOT NULL DEFAULT 0,
         purchase_price REAL NOT NULL DEFAULT 0,
-        offer_price REAL NOT NULL DEFAULT 0,
+        offer_price REAL,
         is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -773,6 +773,46 @@ export function initDb() {
     console.warn('[DB Migration] Failed to recreate products table for constraint update:', e.message);
   }
 
+  // Fix NOT NULL constraint for product_grades.offer_price by recreating it if needed
+  try {
+    const info = db.prepare("PRAGMA table_info(product_grades)").all() as any[];
+    const offerPriceCol = info.find(c => c.name === 'offer_price');
+    if (offerPriceCol && offerPriceCol.notnull === 1) {
+      console.log('[DB Migration] Recreating product_grades table to allow NULL for offer_price...');
+      db.exec('PRAGMA foreign_keys=off;');
+      
+      const migrateGradesTable = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE product_grades_new (
+              grade_id TEXT PRIMARY KEY,
+              tenant_id TEXT NOT NULL,
+              category TEXT NOT NULL,
+              grade_name TEXT NOT NULL,
+              rate REAL NOT NULL DEFAULT 0,
+              purchase_price REAL NOT NULL DEFAULT 0,
+              offer_price REAL,
+              is_deleted INTEGER DEFAULT 0,
+              sync_status TEXT DEFAULT 'SYNCED',
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(tenant_id, category, grade_name)
+          );
+        `);
+        const columnsInfo = db.prepare("PRAGMA table_info(product_grades)").all();
+        const columnNames = columnsInfo.map((c: any) => c.name).join(', ');
+        db.exec(`INSERT INTO product_grades_new (${columnNames}) SELECT ${columnNames} FROM product_grades;`);
+        db.exec('DROP TABLE product_grades;');
+        db.exec('ALTER TABLE product_grades_new RENAME TO product_grades;');
+      });
+      
+      migrateGradesTable();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] Product_grades table recreated successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to recreate product_grades table:', e.message);
+  }
+
   // Repair corrupted invoice_items foreign key pointing to products_old
   try {
     const invItemsInfo = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as any;
@@ -1118,6 +1158,17 @@ export function initDb() {
       'scale_config', 
       JSON.stringify({ path: 'COM3', baudRate: 9600 })
     );
+  }
+
+  // Clean up legacy records with 0.0 offer_price
+  try {
+    db.exec(`
+      UPDATE products SET offer_price = NULL WHERE offer_price = 0.0;
+      UPDATE product_grades SET offer_price = NULL WHERE offer_price = 0.0;
+    `);
+    console.log('[DB Migration] Cleaned up legacy 0.0 offer prices to NULL.');
+  } catch (e: any) {
+    console.error('[DB Migration] Failed to run offer_price cleanup migration:', e.message);
   }
 }
 

@@ -179,7 +179,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const estOtherAddItem = useMemo(() => gstRef.current?.addItem ?? undefined, [gstRef.current?.addItem]);
 
   // Bulk share: copy ALL items from source section to destination section (keeps both in sync)
-  const handleBulkShare = (source: 'GST' | 'ESTIMATE') => {
+  const handleBulkShare = async (source: 'GST' | 'ESTIMATE') => {
     const srcRef = source === 'GST' ? gstRef : estRef;
     const dstRef = source === 'GST' ? estRef : gstRef;
     const target = source === 'GST' ? 'Estimate' : 'GST';
@@ -189,12 +189,14 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       setTimeout(() => setStatusMessage(null), 3000);
       return;
     }
-    if (!dstRef.current?.replaceItems) {
+    if (!dstRef.current?.addItem) {
       setStatusMessage({ text: 'Share failed: destination section unavailable', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
       return;
     }
-    dstRef.current.replaceItems(items);
+    for (const item of items) {
+      await dstRef.current.addItem(item);
+    }
     setStatusMessage({ text: `${source} items shared to ${target} (${items.length} item${items.length > 1 ? 's' : ''})`, type: 'success' });
     setTimeout(() => setStatusMessage(null), 3000);
   };
@@ -1581,6 +1583,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       category: string;
       uom: string;
       reorder_level: number;
+      original_product_id?: string;
+      original_product_name?: string;
+      original_product_is_gst?: boolean;
     };
   }>>([]);
   const [_isSaving, setIsSaving] = useState(false);
@@ -1865,6 +1870,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           category: product.category || '',
           uom: product.uom || 'Pcs',
           reorder_level: product.reorder_level || 0,
+          original_product_id: product.product_id,
+          original_product_name: product.name,
+          original_product_is_gst: product.is_gst_applicable !== 0,
         }
       }]);
 
@@ -2322,6 +2330,22 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
             is_deleted: 0,
             sync_status: 'PENDING',
           });
+
+          // Rename original product in database to also have its matching type suffix (e.g. "tape" -> "tape (GST)")
+          if (meta.original_product_id && meta.original_product_name) {
+            const origId = meta.original_product_id;
+            const origName = meta.original_product_name;
+            const cleanOrigName = origName.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
+            const origNewName = cleanOrigName + (meta.original_product_is_gst ? ' (GST)' : ' (EST)');
+            
+            if (origName !== origNewName) {
+              await window.electronAPI.dbUpdateProductName({
+                tenant_id: tenantId,
+                product_id: origId,
+                name: origNewName,
+              });
+            }
+          }
         }
       }
 
@@ -2374,7 +2398,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     return false;
   };
 
-  const addItemToSection = (item: {
+  const addItemToSection = async (item: {
     product_id: string;
     name: string;
     quantity: string;
@@ -2384,11 +2408,68 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     is_gst_applicable?: number;
     tax_rate_percent?: number;
     hsn_sac_code?: string;
+    is_new_product_clone?: boolean;
+    clone_metadata?: any;
   }) => {
-    setBillItems(prev => {
-      if (prev.some(i => i.product_id === item.product_id)) return prev;
-      return [...prev, { ...item }];
-    });
+    const isGstBill = type === 'GST';
+    const isItemGst = item.is_gst_applicable !== 0;
+
+    if ((isGstBill && !isItemGst) || (!isGstBill && isItemGst)) {
+      // Scenario B: Product type mismatch inside share action. Must save separately as a new product.
+      let barcode = '';
+      if (window.electronAPI && tenantId) {
+        try {
+          const gen = await window.electronAPI.dbGenerateBarcode({ 
+            tenant_id: tenantId 
+          });
+          if (gen?.success && gen?.barcode) {
+            barcode = gen.barcode;
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      if (!barcode) {
+        barcode = '999' + Date.now().toString().slice(-9);
+      }
+
+      const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '');
+      const newName = cleanName + (isGstBill ? ' (GST)' : ' (EST)');
+      const newProductId = uuidv4();
+
+      setBillItems(prev => {
+        if (prev.some(i => i.name === newName)) return prev;
+        return [...prev, {
+          product_id: newProductId,
+          name: newName,
+          quantity: item.quantity || '1',
+          purchase_price: item.purchase_price || '0',
+          selling_price: item.selling_price || '0',
+          offer_price: item.offer_price || '',
+          stock: '0',
+          is_gst_applicable: isGstBill ? 1 : 0,
+          tax_rate_percent: isGstBill ? (item.tax_rate_percent ?? 18) : 0,
+          hsn_sac_code: isGstBill ? (item.hsn_sac_code || '') : '',
+          is_new_product_clone: true,
+          clone_metadata: {
+            barcode: barcode,
+            item_code: '',
+            brand_manufacturer: '',
+            category: '',
+            uom: 'Pcs',
+            reorder_level: 0,
+            original_product_id: item.product_id,
+            original_product_name: item.name,
+            original_product_is_gst: isItemGst,
+          }
+        }];
+      });
+    } else {
+      setBillItems(prev => {
+        if (prev.some(i => i.product_id === item.product_id)) return prev;
+        return [...prev, { ...item }];
+      });
+    }
   };
 
   useImperativeHandle(ref, () => ({
