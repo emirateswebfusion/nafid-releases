@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
@@ -13,6 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Select } from './ui/Select';
+import { getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 
 interface Party {
   party_id: string;
@@ -51,12 +52,12 @@ type View = 'list' | 'ledger' | 'party_form' | 'tx_form';
 
 const formatDate = (d: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return parseUTCDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
 // Generate a consistent hue from a party name

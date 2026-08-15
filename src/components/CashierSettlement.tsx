@@ -11,7 +11,7 @@ import { Modal } from './ui/Modal';
 import { useAuthStore } from '../store/authStore';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
@@ -34,13 +34,7 @@ function formatCurrency(amount: number | null | undefined): string {
 
 function formatTime(d: string): string {
   if (!d) return '';
-  let utcStr = d;
-  if (d.includes(' ') && !d.includes('Z') && !d.includes('+')) {
-    utcStr = d.replace(' ', 'T') + 'Z';
-  } else if (!d.includes('Z') && !d.includes('+') && d.includes('T')) {
-    utcStr = d + 'Z';
-  }
-  return new Date(utcStr).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return parseUTCDate(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 function todayStr(): string {
@@ -95,10 +89,10 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = parseUTCDate(dateStr);
   return {
     date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }
 

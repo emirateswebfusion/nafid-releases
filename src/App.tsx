@@ -35,6 +35,7 @@ import SuperDashboard from './components/SuperDashboard';
 import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
+import { setAppTimeFormat } from './utils/receiptGenerator';
 
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
@@ -297,6 +298,13 @@ function App() {
     const tid = useAuthStore.getState().tenantId;
     window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+    });
+    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
+      if (v === '24h' || v === '12h') {
+        setAppTimeFormat(v);
+      } else {
+        setAppTimeFormat('12h');
+      }
     });
   }, [isAuthenticated]);
 

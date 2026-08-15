@@ -15,6 +15,16 @@ export interface TabSnapshot {
   scrapInvoiceNumber: string;
   returnDeduction: number;
   returnInvoiceNumber: string;
+  isQuotationMode: boolean;
+  isReturnMode: boolean;
+  isScrapMode: boolean;
+  returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL';
+  editingQuotationId: string | null;
+  editingQuotationNumber: string | null;
+  editingInvoiceId: string | null;
+  editingInvoiceNumber: string | null;
+  editingInvoiceRole: 'OWNER' | 'BILLER' | null;
+  pendingScrapInvoiceToEdit: string | null;
 }
 
 export interface Tab {
@@ -46,6 +56,78 @@ interface TabState {
   getActiveTab: () => Tab | undefined;
 }
 
+function getSnapshotFromCartStore(cartState: any): TabSnapshot {
+  return {
+    items: cartState.items,
+    invoiceType: cartState.invoiceType,
+    discountType: cartState.discountType,
+    discountValue: cartState.discountValue,
+    customerState: cartState.customerState,
+    scrapDeduction: cartState.scrapDeduction,
+    scrapInvoiceNumber: cartState.scrapInvoiceNumber,
+    returnDeduction: cartState.returnDeduction,
+    returnInvoiceNumber: cartState.returnInvoiceNumber,
+    isQuotationMode: cartState.isQuotationMode,
+    isReturnMode: cartState.isReturnMode,
+    isScrapMode: cartState.isScrapMode,
+    returnRefundMethod: cartState.returnRefundMethod,
+    editingQuotationId: cartState.editingQuotationId,
+    editingQuotationNumber: cartState.editingQuotationNumber,
+    editingInvoiceId: cartState.editingInvoiceId,
+    editingInvoiceNumber: cartState.editingInvoiceNumber,
+    editingInvoiceRole: cartState.editingInvoiceRole,
+    pendingScrapInvoiceToEdit: cartState.pendingScrapInvoiceToEdit,
+  };
+}
+
+function applySnapshotToCartStore(snapshot: TabSnapshot) {
+  useCartStore.setState({
+    items: snapshot.items,
+    invoiceType: snapshot.invoiceType,
+    discountType: snapshot.discountType,
+    discountValue: snapshot.discountValue,
+    customerState: snapshot.customerState,
+    scrapDeduction: snapshot.scrapDeduction,
+    scrapInvoiceNumber: snapshot.scrapInvoiceNumber,
+    returnDeduction: snapshot.returnDeduction,
+    returnInvoiceNumber: snapshot.returnInvoiceNumber,
+    isQuotationMode: snapshot.isQuotationMode || false,
+    isReturnMode: snapshot.isReturnMode || false,
+    isScrapMode: snapshot.isScrapMode || false,
+    returnRefundMethod: snapshot.returnRefundMethod || 'CASH',
+    editingQuotationId: snapshot.editingQuotationId || null,
+    editingQuotationNumber: snapshot.editingQuotationNumber || null,
+    editingInvoiceId: snapshot.editingInvoiceId || null,
+    editingInvoiceNumber: snapshot.editingInvoiceNumber || null,
+    editingInvoiceRole: snapshot.editingInvoiceRole || null,
+    pendingScrapInvoiceToEdit: snapshot.pendingScrapInvoiceToEdit || null,
+  });
+}
+
+function resetCartStore() {
+  useCartStore.setState({
+    items: [],
+    invoiceType: 'BILL_OF_SUPPLY',
+    discountType: 'FIXED',
+    discountValue: 0,
+    customerState: 'KL',
+    scrapDeduction: 0,
+    scrapInvoiceNumber: '',
+    returnDeduction: 0,
+    returnInvoiceNumber: '',
+    isQuotationMode: false,
+    isReturnMode: false,
+    isScrapMode: false,
+    returnRefundMethod: 'CASH',
+    editingQuotationId: null,
+    editingQuotationNumber: null,
+    editingInvoiceId: null,
+    editingInvoiceNumber: null,
+    editingInvoiceRole: null,
+    pendingScrapInvoiceToEdit: null,
+  });
+}
+
 function createDefaultTab(): Tab {
   const id = uuidv4();
   return {
@@ -61,6 +143,16 @@ function createDefaultTab(): Tab {
       scrapInvoiceNumber: '',
       returnDeduction: 0,
       returnInvoiceNumber: '',
+      isQuotationMode: false,
+      isReturnMode: false,
+      isScrapMode: false,
+      returnRefundMethod: 'CASH',
+      editingQuotationId: null,
+      editingQuotationNumber: null,
+      editingInvoiceId: null,
+      editingInvoiceNumber: null,
+      editingInvoiceRole: null,
+      pendingScrapInvoiceToEdit: null,
     },
     customerName: '',
     customerPhone: '',
@@ -88,7 +180,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       const cartState = useCartStore.getState();
       currentTabs = state.tabs.map(t => {
         if (t.id === state.activeTabId) {
-          return { ...t, snapshot: { items: cartState.items, invoiceType: cartState.invoiceType, discountType: cartState.discountType, discountValue: cartState.discountValue, customerState: cartState.customerState, scrapDeduction: cartState.scrapDeduction, scrapInvoiceNumber: cartState.scrapInvoiceNumber, returnDeduction: cartState.returnDeduction, returnInvoiceNumber: cartState.returnInvoiceNumber } };
+          return { ...t, snapshot: getSnapshotFromCartStore(cartState) };
         }
         return t;
       });
@@ -99,7 +191,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     if (initialSnapshot) {
       tab.snapshot = initialSnapshot;
     } else {
-      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '' });
+      resetCartStore();
     }
 
     set({ tabs: [...currentTabs, tab], activeTabId: tab.id });
@@ -111,13 +203,13 @@ export const useTabStore = create<TabState>((set, get) => ({
     const cartState = useCartStore.getState();
     const savedTabs = tabs.map(t =>
       t.id === id && t.id === activeTabId
-        ? { ...t, snapshot: { items: cartState.items, invoiceType: cartState.invoiceType, discountType: cartState.discountType, discountValue: cartState.discountValue, customerState: cartState.customerState, scrapDeduction: cartState.scrapDeduction, scrapInvoiceNumber: cartState.scrapInvoiceNumber, returnDeduction: cartState.returnDeduction, returnInvoiceNumber: cartState.returnInvoiceNumber } }
+        ? { ...t, snapshot: getSnapshotFromCartStore(cartState) }
         : t
     );
     const newTabs = savedTabs.filter(t => t.id !== id);
     if (newTabs.length === 0) {
       const tab = createDefaultTab();
-      useCartStore.setState({ items: [], invoiceType: 'BILL_OF_SUPPLY', discountType: 'FIXED', discountValue: 0, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '' });
+      resetCartStore();
       set({ tabs: [tab], activeTabId: tab.id });
       return;
     }
@@ -127,17 +219,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       newActive = newTabs[Math.min(idx, newTabs.length - 1)].id;
       const targetTab = newTabs.find(t => t.id === newActive);
       if (targetTab) {
-        useCartStore.setState({
-          items: targetTab.snapshot.items,
-          invoiceType: targetTab.snapshot.invoiceType,
-          discountType: targetTab.snapshot.discountType,
-          discountValue: targetTab.snapshot.discountValue,
-          customerState: targetTab.snapshot.customerState,
-          scrapDeduction: targetTab.snapshot.scrapDeduction,
-          scrapInvoiceNumber: targetTab.snapshot.scrapInvoiceNumber,
-          returnDeduction: targetTab.snapshot.returnDeduction,
-          returnInvoiceNumber: targetTab.snapshot.returnInvoiceNumber,
-        });
+        applySnapshotToCartStore(targetTab.snapshot);
       }
     }
     set({ tabs: newTabs, activeTabId: newActive });
@@ -159,17 +241,7 @@ export const useTabStore = create<TabState>((set, get) => ({
       if (t.id === activeTabId) {
         return {
           ...t,
-          snapshot: {
-            items: cartState.items,
-            invoiceType: cartState.invoiceType,
-            discountType: cartState.discountType,
-            discountValue: cartState.discountValue,
-            customerState: cartState.customerState,
-            scrapDeduction: cartState.scrapDeduction,
-            scrapInvoiceNumber: cartState.scrapInvoiceNumber,
-            returnDeduction: cartState.returnDeduction,
-            returnInvoiceNumber: cartState.returnInvoiceNumber,
-          },
+          snapshot: getSnapshotFromCartStore(cartState),
         };
       }
       return t;
@@ -177,17 +249,7 @@ export const useTabStore = create<TabState>((set, get) => ({
 
     const targetTab = updatedTabs.find(t => t.id === targetId);
     if (targetTab) {
-      useCartStore.setState({
-        items: targetTab.snapshot.items,
-        invoiceType: targetTab.snapshot.invoiceType,
-        discountType: targetTab.snapshot.discountType,
-        discountValue: targetTab.snapshot.discountValue,
-        customerState: targetTab.snapshot.customerState,
-        scrapDeduction: targetTab.snapshot.scrapDeduction,
-        scrapInvoiceNumber: targetTab.snapshot.scrapInvoiceNumber,
-        returnDeduction: targetTab.snapshot.returnDeduction,
-        returnInvoiceNumber: targetTab.snapshot.returnInvoiceNumber,
-      });
+      applySnapshotToCartStore(targetTab.snapshot);
     }
 
     set({ tabs: updatedTabs, activeTabId: targetId });
@@ -218,17 +280,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         if (t.id === activeTabId) {
           return {
             ...t,
-            snapshot: {
-              items: cartState.items,
-              invoiceType: cartState.invoiceType,
-              discountType: cartState.discountType,
-              discountValue: cartState.discountValue,
-              customerState: cartState.customerState,
-              scrapDeduction: cartState.scrapDeduction,
-              scrapInvoiceNumber: cartState.scrapInvoiceNumber,
-              returnDeduction: cartState.returnDeduction,
-              returnInvoiceNumber: cartState.returnInvoiceNumber,
-            },
+            snapshot: getSnapshotFromCartStore(cartState),
           };
         }
         return t;

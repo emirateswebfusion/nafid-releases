@@ -102,6 +102,13 @@ export function BillingPage() {
     setReturnDeduction, clearReturnDeduction,
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
+  const tabs = useTabStore(s => s.tabs);
+  const activeTabId = useTabStore(s => s.activeTabId);
+  const addTab = useTabStore(s => s.addTab);
+  const closeTab = useTabStore(s => s.closeTab);
+  const updateActiveTab = useTabStore(s => s.updateActiveTab);
+  const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
+  const getActiveTab = useTabStore(s => s.getActiveTab);
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const shopDomain = useCartStore(s => s.shopDomain);
   const scaleLiveWeight = useScaleStore(s => s.liveWeight);
@@ -279,14 +286,20 @@ export function BillingPage() {
   const setEditingQuotation = useCartStore(s => s.setEditingQuotation);
 
   // Scrap mode (moved before displayGrandTotal which depends on it)
-  const [isScrapMode, setIsScrapMode] = useState(false);
+  const isScrapMode = useCartStore(s => s.isScrapMode);
+  const setIsScrapMode = useCartStore(s => s.setIsScrapMode);
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
+  const lastActiveTabId = useRef(activeTabId);
   const prevScrapMode = useRef(isScrapMode);
   const prevReturnMode = useRef(isReturnMode);
   // Clean up incompatible items when scrap mode changes
   useEffect(() => {
+    if (lastActiveTabId.current !== activeTabId) {
+      prevScrapMode.current = isScrapMode;
+      return;
+    }
     if (prevScrapMode.current && !isScrapMode) {
       items.filter(i => i.isScrap).forEach(i => removeItem(i.product_id));
     } else if (!prevScrapMode.current && isScrapMode) {
@@ -294,10 +307,14 @@ export function BillingPage() {
       clearScrapDeduction();
     }
     prevScrapMode.current = isScrapMode;
-  }, [isScrapMode]);
+  }, [isScrapMode, activeTabId]);
 
   // Clean up return items when return mode toggles
   useEffect(() => {
+    if (lastActiveTabId.current !== activeTabId) {
+      prevReturnMode.current = isReturnMode;
+      return;
+    }
     if (prevReturnMode.current && !isReturnMode) {
       items.filter(i => i.isReturnItem).forEach(i => removeItem(i.product_id));
       setSelectedReturnInvoice(null);
@@ -306,7 +323,7 @@ export function BillingPage() {
       clearReturnDeduction();
     }
     prevReturnMode.current = isReturnMode;
-  }, [isReturnMode]);
+  }, [isReturnMode, activeTabId]);
 
   useEffect(() => {
     if (!enableScrap && isScrapMode) {
@@ -317,12 +334,20 @@ export function BillingPage() {
   // Reset reserved invoice numbers when mode changes (but preserve when editing existing)
   const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
   useEffect(() => {
+    if (lastActiveTabId.current !== activeTabId) {
+      prevReserveMode.current = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
+      return;
+    }
     const currentMode = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
     if (prevReserveMode.current !== currentMode && !editingInvoiceNumber) {
       prevReserveMode.current = currentMode;
       updateActiveTab({ reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
     }
-  }, [isScrapMode, isReturnMode, isQuotationMode]);
+  }, [isScrapMode, isReturnMode, isQuotationMode, activeTabId]);
+
+  useEffect(() => {
+    lastActiveTabId.current = activeTabId;
+  }, [activeTabId]);
 
   // Local return mode transient state
   const [returnSearchResults, setReturnSearchResults] = useState<any[]>([]);
@@ -338,12 +363,7 @@ export function BillingPage() {
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
 
-  const tabs = useTabStore(s => s.tabs);
-  const activeTabId = useTabStore(s => s.activeTabId);
-  const addTab = useTabStore(s => s.addTab);
-  const updateActiveTab = useTabStore(s => s.updateActiveTab);
-  const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
-  const getActiveTab = useTabStore(s => s.getActiveTab);
+  // useTabStore values are destructured at the top of the component
 
   const tabCounter = useRef(0);
   const initialized = useRef(false);
@@ -2276,16 +2296,22 @@ export function BillingPage() {
         setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
         setIsCheckingOut(false);
         setTimeout(async () => {
-          clearCart();
-          useCartStore.getState().setEditingInvoice(null, null, null);
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
-          syncActiveSnapshot();
-          setCheckoutSuccess(false); // scrap mode reset
-          await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
-          const tab = getActiveTab();
-          if (tab?.reservedScrapInvoiceNumber) {
-            updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
+          const tabsCount = useTabStore.getState().tabs.length;
+          const currentActiveId = activeTabId;
+          if (tabsCount > 1) {
+            closeTab(currentActiveId);
+          } else {
+            clearCart();
+            useCartStore.getState().setEditingInvoice(null, null, null);
+            updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+            syncActiveSnapshot();
+            await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
+            const tab = getActiveTab();
+            if (tab?.reservedScrapInvoiceNumber) {
+              updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
+            }
           }
+          setCheckoutSuccess(false); // scrap mode reset
         }, 1800);
       } catch (error) {
         console.error('Failed to save scrap invoice error:', error);
@@ -2606,18 +2632,24 @@ export function BillingPage() {
     setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
     setIsCheckingOut(false);
     setTimeout(async () => {
-      clearCart();
-      clearScrapDeduction();
-      clearReturnDeduction();
-      updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
-      syncActiveSnapshot();
-      setCheckoutSuccess(false); // normal mode reset
-      await reserveInvoiceNumberForTab();
-      const tab = getActiveTab();
-      if (tab?.reservedInvoiceNumber) {
-        const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
-        updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+      const tabsCount = useTabStore.getState().tabs.length;
+      const currentActiveId = activeTabId;
+      if (tabsCount > 1) {
+        closeTab(currentActiveId);
+      } else {
+        clearCart();
+        clearScrapDeduction();
+        clearReturnDeduction();
+        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+        syncActiveSnapshot();
+        await reserveInvoiceNumberForTab();
+        const tab = getActiveTab();
+        if (tab?.reservedInvoiceNumber) {
+          const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
+          updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+        }
       }
+      setCheckoutSuccess(false); // normal mode reset
     }, 1800);
   };
 

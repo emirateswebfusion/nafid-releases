@@ -6,6 +6,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Skeleton } from '../components/ui/Skeleton';
 import clsx from 'clsx';
+import { getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import {
   Landmark, CreditCard, Smartphone, Plus, Pencil, Trash2, X, ArrowDownToLine,
   ArrowUpFromLine, Star, History, Wallet, CheckCircle2, AlertCircle, Search, Sparkles, PlusCircle
@@ -49,7 +50,7 @@ const formatCurrency = (amount: number | undefined | null) =>
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
-  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
 const TYPE_LABELS: Record<string, string> = { BANK: 'Bank Account', CARD: 'Card', UPI: 'UPI' };

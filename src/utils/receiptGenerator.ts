@@ -46,13 +46,48 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   instructions: '',
 };
 
+let appTimeFormat: '12h' | '24h' = '12h';
+
+export function setAppTimeFormat(format: '12h' | '24h') {
+  appTimeFormat = format;
+}
+
+export function getAppTimeFormat(): '12h' | '24h' {
+  return appTimeFormat;
+}
+
+export function parseUTCDate(dateInput: Date | string | number | null | undefined): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  if (typeof dateInput === 'number') return new Date(dateInput);
+
+  const dateStr = String(dateInput);
+  if (dateStr.includes('Z') || dateStr.includes('+') || /-\d{2}:\d{2}$/.test(dateStr)) {
+    return new Date(dateStr);
+  }
+  let formatted = dateStr;
+  if (dateStr.includes(' ')) {
+    formatted = dateStr.replace(' ', 'T');
+  }
+  if (!formatted.includes('T')) {
+    return new Date(formatted);
+  }
+  return new Date(formatted + 'Z');
+}
+
 export function formatBillDateTime(date: Date | string | number): string {
-  const d = new Date(date);
+  const d = parseUTCDate(date);
   if (isNaN(d.getTime())) return String(date);
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}, ${d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}`;
+  const timeStr = d.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: appTimeFormat !== '24h'
+  });
+  return `${dd}/${mm}/${yyyy}, ${timeStr}`;
 }
 
 export interface ReceiptData {

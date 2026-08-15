@@ -14,7 +14,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
@@ -51,16 +51,16 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
+  const d = parseUTCDate(dateStr);
   return {
     date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }),
+    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }
 
 function formatGroupDate(dateStr?: string) {
   if (!dateStr) return '-';
-  const d = new Date(dateStr.replace(' ', 'T'));
+  const d = parseUTCDate(dateStr);
   if (isNaN(d.getTime())) return '-';
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
@@ -72,7 +72,7 @@ function formatGroupDate(dateStr?: string) {
 function groupByDay(invoices: any[]) {
   const map = new Map<string, number>();
   for (const inv of invoices) {
-    const day = new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    const day = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
     map.set(day, (map.get(day) || 0) + (inv.grand_total || 0));
   }
   return Array.from(map, ([date, sales]) => ({ date, sales }));
@@ -779,9 +779,9 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         let totalGstAmt = 0;
 
         for (const inv of data) {
-          const invoiceDate = new Date(inv.created_at).toLocaleDateString('en-IN', {
+          const invoiceDate = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', {
             day: '2-digit', month: '2-digit', year: 'numeric'
-          }) + ' ' + new Date(inv.created_at).toLocaleTimeString('en-IN', {
+          }) + ' ' + parseUTCDate(inv.created_at).toLocaleTimeString('en-IN', {
             hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
           });
           const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);

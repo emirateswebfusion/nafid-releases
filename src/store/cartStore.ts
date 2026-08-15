@@ -58,6 +58,7 @@ interface CartState {
   returnInvoiceNumber: string;
   isQuotationMode: boolean;
   isReturnMode: boolean;
+  isScrapMode: boolean;
   returnRefundMethod: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL';
   editingQuotationId: string | null;
   editingQuotationNumber: string | null;
@@ -87,6 +88,7 @@ interface CartState {
   setReturnDeduction: (amount: number, returnInvoiceNumber: string) => void;
   clearReturnDeduction: () => void;
   setReturnMode: (isReturnMode: boolean) => void;
+  setIsScrapMode: (isScrapMode: boolean) => void;
   setReturnRefundMethod: (method: 'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'STORE_CREDIT' | 'ADJUST_BILL') => void;
   setQuotationMode: (isQuotationMode: boolean) => void;
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
@@ -113,6 +115,7 @@ export const useCartStore = create<CartState>()(
       returnInvoiceNumber: '',
       isQuotationMode: false,
       isReturnMode: false,
+      isScrapMode: false,
       returnRefundMethod: 'CASH',
       editingQuotationId: null,
       editingQuotationNumber: null,
@@ -121,6 +124,7 @@ export const useCartStore = create<CartState>()(
       editingInvoiceRole: null,
       pendingScrapInvoiceToEdit: null,
       setPendingScrapInvoiceToEdit: (invoiceNumber) => set({ pendingScrapInvoiceToEdit: invoiceNumber }),
+      setIsScrapMode: (isScrapMode) => set({ isScrapMode }),
 
       addItem: (newItem) =>
         set((state) => {
@@ -222,7 +226,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, returnRefundMethod: 'CASH', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null })),
+      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'CASH', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'vendora-cart-storage',
