@@ -1,3 +1,10 @@
+# Vendora v1.5.13 Release Notes
+
+## What's Changed
+- Implemented PrintReceiptView component for rendering dynamic POS receipt layout with QR and barcode support
+- Integrated print receipt template, inventory administration, purchase tracking, and stock report enhancements
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.12...v1.5.13
+
 # Vendora v1.5.12 Release Notes
 
 ## What's Changed
