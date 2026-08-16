@@ -90,6 +90,7 @@ export function BillingPage() {
   // (2nd printable key <= 50ms after the 1st) and revert the leaked first digit.
   const qtyKeyTimesRef = useRef<Record<string, number>>({});
   const qtySnapshotsRef = useRef<Record<string, number | string>>({});
+  const pendingFocusProductIdRef = useRef<string | null>(null);
 
   const {
     items, invoiceType, setInvoiceType, clearCart, setDiscount,
@@ -230,7 +231,8 @@ export function BillingPage() {
   const [newProductDiscountPercent, setNewProductDiscountPercent] = useState('');
   const [newProductDiscountFlat, setNewProductDiscountFlat] = useState('');
   const [newProductOfferPrice, setNewProductOfferPrice] = useState('');
-  const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(true);
+  const [newProductIsGstApplicable, setNewProductIsGstApplicable] = useState(false);
+  const [newProductIsDummy, setNewProductIsDummy] = useState(false);
   const [newProductIsCustomCategory, setNewProductIsCustomCategory] = useState(false);
   const [autoPrintBarcode, setAutoPrintBarcode] = useState(true);
   const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
@@ -1303,10 +1305,15 @@ export function BillingPage() {
     });
     setSearchQuery('');
     setResults([]);
+    pendingFocusProductIdRef.current = product.product_id;
     setTimeout(() => {
       const input = qtyRefs.current[product.product_id];
-      if (input) { input.focus(); input.select(); }
-    }, 0);
+      if (input) {
+        input.focus();
+        input.select();
+        pendingFocusProductIdRef.current = null;
+      }
+    }, 50);
   };
 
   const resetProductForm = () => {
@@ -1329,7 +1336,8 @@ export function BillingPage() {
     setNewProductDiscountPercent('');
     setNewProductDiscountFlat('');
     setNewProductOfferPrice('');
-    setNewProductIsGstApplicable(true);
+    setNewProductIsGstApplicable(false);
+    setNewProductIsDummy(false);
     setNewProductIsCustomCategory(false);
   };
 
@@ -1390,6 +1398,10 @@ export function BillingPage() {
     const purchasePrice = Number(newProductPurchasePrice) || 0;
     const basePrice = Number(newProductBasePrice) || purchasePrice;
     const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
+    const qty = Number(newProductStock) || 0;
+    const isGstProduct = (invoiceType === 'GST') || newProductIsGstApplicable;
+    const initialStock = (isGstProduct && qty > 0) ? 0 : qty;
+
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
       tenant_id: tenantId,
@@ -1401,11 +1413,11 @@ export function BillingPage() {
       uom: newProductUom,
       purchase_price: purchasePrice,
       base_price: basePrice,
-      current_stock: Number(newProductStock) || 0,
+      current_stock: initialStock,
       reorder_level: Number(newProductReorderLevel) || 0,
-      is_gst_applicable: newProductIsGstApplicable ? 1 : 0,
-      tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
-      hsn_sac_code: newProductIsGstApplicable ? newProductHsn : null,
+      is_gst_applicable: isGstProduct ? 1 : (newProductIsGstApplicable ? 1 : 0),
+      tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
+      hsn_sac_code: isGstProduct ? newProductHsn : (newProductIsGstApplicable ? newProductHsn : null),
       discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
@@ -1416,6 +1428,37 @@ export function BillingPage() {
       sync_status: 'PENDING',
     });
     if (res.success) {
+      // Create a purchase bill if it's a GST product and quantity > 0
+      if (isGstProduct && qty > 0) {
+        const purchaseBillId = uuidv4();
+        const itemId = uuidv4();
+        const totalAmt = qty * purchasePrice;
+        await window.electronAPI.dbAddPurchaseBill({
+          purchase_bill_id: purchaseBillId,
+          tenant_id: tenantId,
+          bill_number: `AUTO-BILL-${Date.now()}`,
+          supplier_id: null,
+          supplier_name: 'Unknown Supplier',
+          bill_date: new Date().toLocaleDateString('en-CA'),
+          invoice_number: null,
+          notes: `Auto-created on fly from billing page for product: ${newProductName.trim()}`,
+          total_amount: totalAmt,
+          bill_type: 'GST',
+          items: [{
+            item_id: itemId,
+            product_id: productId,
+            name: newProductName.trim(),
+            quantity: qty,
+            purchase_price: purchasePrice,
+            total_amount: totalAmt,
+            is_gst_applicable: 1,
+            tax_rate_percent: newProductTaxRate,
+            hsn_sac_code: newProductHsn || '',
+            skip_stock_update: newProductIsDummy ? 1 : 0,
+          }],
+        });
+      }
+
       if (autoPrintBarcode && window.electronAPI && finalBarcode) {
         window.electronAPI.printBarcode(tenantId, finalBarcode, basePrice > 0 ? basePrice : undefined, newProductName.trim(), 1).then((r: any) => {
           if (!r?.success) console.warn('[BillingPage] Auto barcode print failed:', r?.error || 'No barcode printer configured');
@@ -1426,7 +1469,7 @@ export function BillingPage() {
         name: newProductName.trim(),
         base_price: basePrice,
         purchase_price: purchasePrice,
-        tax_rate_percent: newProductIsGstApplicable ? newProductTaxRate : 0,
+        tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
         billing_type: 'PIECE',
         pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
         grade_id: selectedGrade?.grade_id || null,
@@ -1436,7 +1479,7 @@ export function BillingPage() {
         discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
         discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
         offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
-        current_stock: Number(newProductStock) || 0,
+        current_stock: newProductIsDummy ? 0 : qty,
       });
       setSearchQuery('');
       setResults([]);
@@ -1469,10 +1512,15 @@ export function BillingPage() {
     });
     setSearchQuery('');
     setScrapSearchResults([]);
+    pendingFocusProductIdRef.current = itemId;
     setTimeout(() => {
       const input = qtyRefs.current[itemId];
-      if (input) { input.focus(); input.select(); }
-    }, 0);
+      if (input) {
+        input.focus();
+        input.select();
+        pendingFocusProductIdRef.current = null;
+      }
+    }, 50);
   };
 
   // Load invoice items into cart for return processing (like scrap loads categories)
@@ -3838,7 +3886,14 @@ export function BillingPage() {
                         <input type="number" step="any" min="0"
                           className="w-24 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={serviceAmount || ''}
-                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                          ref={(el) => {
+                            qtyRefs.current[item.product_id] = el;
+                            if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
                           onChange={e => updateItemOfferPrice(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
                           onKeyDown={e => guardScannerInput(e, item.product_id, serviceAmount || '', v => updateItemOfferPrice(item.product_id, v === '' ? 0 : Number(v)))}
                           onFocus={e => e.target.select()}
@@ -3882,7 +3937,14 @@ export function BillingPage() {
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                         ><Minus className="w-3 h-3" /></button>
                         <input type="number" min="0" max={avail} step="1"
-                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                          ref={(el) => {
+                            qtyRefs.current[item.product_id] = el;
+                            if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={qtyText}
                           onChange={e => {
@@ -3952,7 +4014,14 @@ export function BillingPage() {
                       </div>
                       <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg py-0.5 shrink-0">
                         <input type="number" step="0.001" min="0"
-                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                          ref={(el) => {
+                            qtyRefs.current[item.product_id] = el;
+                            if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
                           className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
@@ -4173,7 +4242,14 @@ export function BillingPage() {
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
                           <span className="text-[8px] text-muted-foreground font-bold uppercase">Pcs</span>
                           <input type="number" min="1" step="1"
-                            ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                            ref={(el) => {
+                              qtyRefs.current[item.product_id] = el;
+                              if (el && pendingFocusProductIdRef.current === item.product_id) {
+                                el.focus();
+                                el.select();
+                                pendingFocusProductIdRef.current = null;
+                              }
+                            }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={pieces}
                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
@@ -4222,7 +4298,14 @@ export function BillingPage() {
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                         ><Minus className="w-3 h-3" /></button>
                         <input type="number" min={item.billing_type === 'WEIGHT' ? '0' : '1'} step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
-                          ref={(el) => { qtyRefs.current[item.product_id] = el; }}
+                          ref={(el) => {
+                            qtyRefs.current[item.product_id] = el;
+                            if (el && pendingFocusProductIdRef.current === item.product_id) {
+                              el.focus();
+                              el.select();
+                              pendingFocusProductIdRef.current = null;
+                            }
+                          }}
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
@@ -5841,81 +5924,211 @@ export function BillingPage() {
                   </div>
                   {productFormView === 'list' ? (
                     <div className="flex gap-3 items-start">
-                      <div className="min-w-[140px]">
-                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">GST Applicable</label>
-                        <div
-                          onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
-                          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
-                          data-focusable-checkbox
-                          tabIndex={-1}
-                          className={clsx(
-                            'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
-                            newProductIsGstApplicable
-                              ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                              : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                      {invoiceType === 'GST' ? (
+                        <>
+                          <div className="min-w-[140px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Stock Type</label>
+                            <div
+                              onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                              data-focusable-checkbox
+                              tabIndex={-1}
+                              className={clsx(
+                                'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
+                                !newProductIsDummy
+                                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                              )}
+                            >
+                              <input type="checkbox" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                className="w-3 h-3 rounded pointer-events-none accent-primary" />
+                              <span className="font-bold text-xs select-none">
+                                {newProductIsDummy ? 'Paper' : 'Real'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-[120px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">HSN / SAC Code</label>
+                            <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)}
+                              className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 font-mono tracking-widest text-sm" />
+                          </div>
+                          <div className="flex-1 min-w-[100px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tax Rate %</label>
+                            <Select
+                              value={String(newProductTaxRate)}
+                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                              triggerClassName="rounded-lg h-[40px] text-sm"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="min-w-[140px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">GST Applicable</label>
+                            <div
+                              onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                              data-focusable-checkbox
+                              tabIndex={-1}
+                              className={clsx(
+                                'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
+                                newProductIsGstApplicable
+                                  ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                  : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                              )}
+                            >
+                              <input type="checkbox" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                                className="w-3 h-3 rounded pointer-events-none accent-primary" />
+                              <span className={clsx('font-bold text-xs select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
+                                {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
+                              </span>
+                            </div>
+                          </div>
+                          {newProductIsGstApplicable && (
+                            <div className="min-w-[120px]">
+                              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Stock Type</label>
+                              <div
+                                onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                                onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                                data-focusable-checkbox
+                                tabIndex={-1}
+                                className={clsx(
+                                  'flex items-center justify-center gap-1.5 border-2 rounded-lg py-2.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98] h-[40px]',
+                                  !newProductIsDummy
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                                )}
+                              >
+                                <input type="checkbox" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                  className="w-3 h-3 rounded pointer-events-none accent-primary" />
+                                <span className="font-bold text-xs select-none">
+                                  {newProductIsDummy ? 'Paper' : 'Real'}
+                                </span>
+                              </div>
+                            </div>
                           )}
-                        >
-                          <input type="checkbox" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
-                            className="w-3 h-3 rounded pointer-events-none accent-primary" />
-                          <span className={clsx('font-bold text-xs select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
-                            {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-[120px]">
-                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">HSN / SAC Code</label>
-                        <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
-                          className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 font-mono tracking-widest text-sm" />
-                      </div>
-                      <div className="flex-1 min-w-[100px]">
-                        <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tax Rate %</label>
-                        <Select
-                          value={String(newProductTaxRate)}
-                          onChange={v => setNewProductTaxRate(parseFloat(v))}
-                          disabled={!newProductIsGstApplicable}
-                          options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
-                          triggerClassName="rounded-lg h-[40px] text-sm"
-                        />
-                      </div>
+                          <div className="flex-1 min-w-[120px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">HSN / SAC Code</label>
+                            <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
+                              className="w-full bg-background border border-border rounded-lg p-2.5 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-50 font-mono tracking-widest text-sm" />
+                          </div>
+                          <div className="flex-1 min-w-[100px]">
+                            <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1">Tax Rate %</label>
+                            <Select
+                              value={String(newProductTaxRate)}
+                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              disabled={!newProductIsGstApplicable}
+                              options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                              triggerClassName="rounded-lg h-[40px] text-sm"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
-                        <div
-                          onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
-                          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
-                          data-focusable-checkbox
-                          tabIndex={-1}
-                          className={clsx(
-                            'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
-                            newProductIsGstApplicable
-                              ? 'bg-primary/10 border-primary text-primary shadow-sm'
-                              : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                    <div className={clsx('grid gap-4', (invoiceType !== 'GST' && newProductIsGstApplicable) ? 'grid-cols-4' : 'grid-cols-3')}>
+                      {invoiceType === 'GST' ? (
+                        <>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Stock Type</label>
+                            <div
+                              onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                              data-focusable-checkbox
+                              tabIndex={-1}
+                              className={clsx(
+                                'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                                !newProductIsDummy
+                                  ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                  : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                              )}
+                            >
+                              <input type="checkbox" id="dummy" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                className={clsx('w-3.5 h-3.5 rounded pointer-events-none', !newProductIsDummy ? 'accent-emerald-500' : 'accent-amber-500')} />
+                              <label htmlFor="dummy" className="font-bold text-xs cursor-pointer select-none">
+                                {newProductIsDummy ? 'Paper' : 'Real'}
+                              </label>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
+                            <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm font-mono tracking-widest text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
+                            <Select
+                              value={String(newProductTaxRate)}
+                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                              triggerClassName="rounded-xl h-[46px]"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">GST Applicable</label>
+                            <div
+                              onClick={() => setNewProductIsGstApplicable(!newProductIsGstApplicable)}
+                              onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsGstApplicable(!newProductIsGstApplicable); } }}
+                              data-focusable-checkbox
+                              tabIndex={-1}
+                              className={clsx(
+                                'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                                newProductIsGstApplicable
+                                  ? 'bg-primary/10 border-primary text-primary shadow-sm'
+                                  : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/50 hover:border-border'
+                              )}
+                            >
+                              <input type="checkbox" id="gst" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
+                                className={clsx('w-3.5 h-3.5 rounded pointer-events-none', newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground')} />
+                              <label htmlFor="gst" className={clsx('font-bold text-xs cursor-pointer select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
+                                {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
+                              </label>
+                            </div>
+                          </div>
+                          {newProductIsGstApplicable && (
+                            <div>
+                              <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Stock Type</label>
+                              <div
+                                onClick={() => setNewProductIsDummy(!newProductIsDummy)}
+                                onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setNewProductIsDummy(!newProductIsDummy); } }}
+                                data-focusable-checkbox
+                                tabIndex={-1}
+                                className={clsx(
+                                  'flex items-center justify-center gap-1.5 border-2 rounded-xl py-3.5 px-2.5 transition-all duration-200 cursor-pointer active:scale-[0.98]',
+                                  !newProductIsDummy
+                                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-600 dark:text-emerald-400'
+                                    : 'bg-amber-500/10 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-sm'
+                                )}
+                              >
+                                <input type="checkbox" id="dummy" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
+                                  className={clsx('w-3.5 h-3.5 rounded pointer-events-none', !newProductIsDummy ? 'accent-emerald-500' : 'accent-amber-500')} />
+                                <label htmlFor="dummy" className="font-bold text-xs cursor-pointer select-none">
+                                  {newProductIsDummy ? 'Paper' : 'Real'}
+                                </label>
+                              </div>
+                            </div>
                           )}
-                        >
-                          <input type="checkbox" id="gst" checked={newProductIsGstApplicable} onChange={e => setNewProductIsGstApplicable(e.target.checked)}
-                            className={clsx('w-3.5 h-3.5 rounded pointer-events-none', newProductIsGstApplicable ? 'accent-primary' : 'accent-muted-foreground')} />
-                          <label htmlFor="gst" className={clsx('font-bold text-xs cursor-pointer select-none', newProductIsGstApplicable ? 'text-primary' : 'text-muted-foreground')}>
-                            {newProductIsGstApplicable ? 'Enabled' : 'Disabled'}
-                          </label>
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
-                        <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
-                          className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
-                        <Select
-                          value={String(newProductTaxRate)}
-                          onChange={v => setNewProductTaxRate(parseFloat(v))}
-                          disabled={!newProductIsGstApplicable}
-                          options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
-                          triggerClassName="rounded-xl h-[46px]"
-                        />
-                      </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">HSN / SAC Code</label>
+                            <input type="text" value={newProductHsn} onChange={e => setNewProductHsn(e.target.value)} disabled={!newProductIsGstApplicable}
+                              className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none disabled:opacity-50 transition-all shadow-sm font-mono tracking-widest text-sm" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Tax Rate %</label>
+                            <Select
+                              value={String(newProductTaxRate)}
+                              onChange={v => setNewProductTaxRate(parseFloat(v))}
+                              disabled={!newProductIsGstApplicable}
+                              options={[0, 5, 12, 18, 28].map(r => ({ value: String(r), label: r + '%' }))}
+                              triggerClassName="rounded-xl h-[46px]"
+                            />
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </section>
