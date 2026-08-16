@@ -190,7 +190,7 @@ export function PrintReceiptView({ text }: { text: string }) {
       background: white;
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
+      align-items: center;
     }
     @media print {
       html, body {
@@ -200,16 +200,16 @@ export function PrintReceiptView({ text }: { text: string }) {
         background: white;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
+        align-items: center;
       }
     }
   `;
 
   return (
-    <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+    <div id="receipt-root" style={{ width: '100%', backgroundColor: 'white', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <style>{dynamicPrintStyles}</style>
       <div style={{
-        margin: '2mm 0 2mm 2mm', // Left margin of 2mm (balances left/right gaps)
+        margin: '2mm auto', // Centers the receipt container and balances left/right gaps
         width: `${containerWidthMm}mm`,
         padding: isBillStyle ? `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px` : `${INNER_PX_VERT}px ${INNER_PX_HORIZ}px`,
         display: 'flex',
