@@ -588,6 +588,16 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       if (res.success) {
         showStatus('Invoice customer info updated successfully', 'success');
         const invNum = editHeaderInvoice.invoice_number || editHeaderInvoice.scrap_invoice_number;
+        await window.electronAPI.dbUpsertScrapCreditLedger({
+          tenant_id: tenantId || '',
+          scrap_invoice_number: invNum,
+          payment_status: editHeaderForm.payment_status,
+          party_name: editHeaderForm.party_name || null,
+          customer_phone: editHeaderForm.customer_phone || null,
+          customer_address: editHeaderForm.customer_address || null,
+          user_id: undefined,
+          user_name: undefined,
+        }).catch(() => {});
         setEditHeaderInvoice(null);
         await loadInvoices();
         if (view === 'invoice_detail' && selectedInvoiceNumber === invNum) {
@@ -638,6 +648,16 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         });
         if (res.success) {
           showStatus(`Added ${qty} ${cat.unit} of ${cat.name} to invoice`, 'success');
+          await window.electronAPI.dbUpsertScrapCreditLedger({
+            tenant_id: tenantId || '',
+            scrap_invoice_number: selectedInvoiceNumber,
+            payment_status: firstTx?.payment_status || 'CASH',
+            party_name: firstTx?.party_name || null,
+            customer_phone: firstTx?.customer_phone || null,
+            customer_address: firstTx?.customer_address || null,
+            user_id: undefined,
+            user_name: undefined,
+          }).catch(() => {});
           setIsAddingItem(false);
           setAddItemForm({ categoryId: '', quantity: '', rate: '', notes: '' });
           await openInvoiceDetail(selectedInvoiceNumber);
@@ -1770,8 +1790,13 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                             <div className="text-xs font-semibold text-foreground">
                               {new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
-                            <span className="inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                              {inv.payment_status || 'PAID'}
+                            <span className={clsx('inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border',
+                              inv.payment_status === 'CREDIT'
+                                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                                : inv.payment_status === 'PENDING'
+                                  ? 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20'
+                                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20')}>
+                              {inv.payment_status === 'CREDIT' ? 'Credit' : (inv.payment_status || 'PAID')}
                             </span>
                           </div>
 
@@ -1849,8 +1874,13 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                       <div>
                         <div className="flex items-center gap-2">
                           <h2 className="text-lg font-black text-foreground">{selectedInvoiceNumber}</h2>
-                          <span className="text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-                            {invoiceDetailTxs[0]?.payment_status || 'PAID'}
+                          <span className={clsx('text-xs font-bold px-2.5 py-0.5 rounded-lg border',
+                            invoiceDetailTxs[0]?.payment_status === 'CREDIT'
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                              : invoiceDetailTxs[0]?.payment_status === 'PENDING'
+                                ? 'bg-gray-500/10 text-gray-600 dark:text-gray-400 border-gray-500/20'
+                                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20')}>
+                            {invoiceDetailTxs[0]?.payment_status === 'CREDIT' ? 'Credit' : (invoiceDetailTxs[0]?.payment_status || 'PAID')}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-0.5">

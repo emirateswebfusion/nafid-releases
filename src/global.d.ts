@@ -111,6 +111,7 @@ export interface IElectronAPI {
   dbDeleteScrapTransaction: (args: { tenant_id: string; transaction_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbDeleteScrapInvoice: (args: { tenant_id: string; scrap_invoice_number: string }) => Promise<{ success: boolean; error?: string }>;
   dbUpdateScrapInvoiceFull: (payload: { tenant_id: string; scrap_invoice_number: string | null; party_name: string | null; customer_phone: string | null; customer_address: string | null; payment_status: string; items: any[] }) => Promise<{ success: boolean; error?: string }>;
+  dbUpsertScrapCreditLedger: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string; party_name?: string | null; customer_phone?: string | null; customer_address?: string | null; user_id?: string; user_name?: string }) => Promise<{ success: boolean; error?: string; party_id?: string }>;
 
   // Stock Report
   dbGetStockReport: (tenant_id: string) => Promise<any[]>;

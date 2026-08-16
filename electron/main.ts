@@ -3490,6 +3490,13 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
       }
       db.prepare(`UPDATE scrap_transactions SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE tenant_id = ? AND scrap_invoice_number = ?`)
         .run(tenant_id, scrap_invoice_number);
+      const ledgerEntries: any[] = db.prepare(
+        'SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ?'
+      ).all(tenant_id, scrap_invoice_number);
+      for (const entry of ledgerEntries) {
+        db.prepare('DELETE FROM party_ledger WHERE ledger_id = ?').run(entry.ledger_id);
+        recalcPartyBalances(db, entry.party_id);
+      }
       return { success: true };
     })();
     return result;
@@ -3498,6 +3505,125 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
     return { success: false, error: 'Operation failed' };
   }
 });
+
+// ── Scrap CREDIT → Party/Ledger ──────────────────────────────────────────
+// Creates/updates a party ledger entry for a CREDIT scrap invoice (idempotent
+// per invoice via reference_number). Non-CREDIT status removes the entry.
+ipcMain.handle('db:upsertScrapCreditLedger', safeHandler((event, { tenant_id, scrap_invoice_number, payment_status, party_name, customer_phone, customer_address, user_id, user_name }: {
+  tenant_id: string;
+  scrap_invoice_number: string;
+  payment_status: string;
+  party_name?: string | null;
+  customer_phone?: string | null;
+  customer_address?: string | null;
+  user_id?: string;
+  user_name?: string;
+}) => {
+  try {
+    const db = getDb();
+    if (!tenant_id || !scrap_invoice_number) return { success: false, error: 'tenant_id and scrap_invoice_number are required' };
+
+    const result = db.transaction(() => {
+      let existingEntry: any = db.prepare(
+        'SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ? LIMIT 1'
+      ).get(tenant_id, scrap_invoice_number);
+
+      const removeEntry = (entry: any) => {
+        db.prepare('DELETE FROM party_ledger WHERE ledger_id = ?').run(entry.ledger_id);
+        recalcPartyBalances(db, entry.party_id);
+      };
+
+      if (payment_status !== 'CREDIT') {
+        if (existingEntry) removeEntry(existingEntry);
+        return { success: true, party_id: null };
+      }
+
+      const name = party_name ? String(party_name).trim() : '';
+      if (!name) return { success: false, error: 'Party name is required for Credit payment' };
+
+      const totalRow: any = db.prepare(
+        `SELECT COALESCE(SUM(total_amount), 0) AS total FROM scrap_transactions WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0)`
+      ).get(tenant_id, scrap_invoice_number);
+      const total = parseFloat(totalRow?.total) || 0;
+      if (total <= 0) return { success: false, error: 'Invoice total is zero' };
+
+      const phone = customer_phone ? String(customer_phone).trim() : '';
+      const address = customer_address ? String(customer_address).trim() : null;
+
+      let party: any = db.prepare(
+        'SELECT * FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)'
+      ).get(tenant_id, phone) || null;
+      if (!party) {
+        party = db.prepare(
+          "SELECT * FROM parties WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)"
+        ).get(tenant_id, name) || null;
+      }
+
+      if (!party) {
+        const partyId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO parties (party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, pricing_tier_id, is_deleted, sync_status, created_at, updated_at)
+          VALUES (?, ?, ?, ?, ?, NULL, 0, 0, 0, 'RECEIVABLE', NULL, NULL, 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(partyId, tenant_id, name, phone || null, address);
+        party = { party_id: partyId };
+      }
+
+      const partyBal: any = db.prepare('SELECT balance FROM parties WHERE party_id = ?').get(party.party_id);
+      const currentBalance = parseFloat(partyBal?.balance) || 0;
+      const newBalance = currentBalance - total;
+
+      // Party changed → move the entry to the new party
+      if (existingEntry && existingEntry.party_id !== party.party_id) {
+        removeEntry(existingEntry);
+        existingEntry = null;
+      }
+
+      if (existingEntry) {
+        // Same party → update in place (keeps ledger_id stable for sync)
+        db.prepare(`
+          UPDATE party_ledger SET
+            debit_amount = ?, credit_amount = 0, description = ?, transaction_date = CURRENT_TIMESTAMP,
+            payment_method = 'CREDIT', created_by = ?, created_by_name = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+          WHERE ledger_id = ?
+        `).run(total, `Scrap purchase ${scrap_invoice_number} - ${name}`, user_id || null, user_name || null, existingEntry.ledger_id);
+        const entries = db.prepare(`
+          SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
+          WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+        `).all(party.party_id) as any[];
+        let running = 0;
+        for (const row of entries) {
+          running += parseFloat(row.credit_amount) - parseFloat(row.debit_amount);
+          db.prepare(`UPDATE party_ledger SET running_balance = ?, updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?`).run(running, row.ledger_id);
+        }
+        recalcPartyBalances(db, party.party_id);
+      } else {
+        const ledgerId = crypto.randomUUID();
+        db.prepare(`
+          INSERT INTO party_ledger (ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount, running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at)
+          VALUES (?, ?, ?, CURRENT_TIMESTAMP, ?, 0, ?, ?, 'GST', 'CREDIT', ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).run(
+          ledgerId,
+          party.party_id,
+          tenant_id,
+          `Scrap purchase ${scrap_invoice_number} - ${name}`,
+          total,
+          newBalance,
+          scrap_invoice_number,
+          user_id || null,
+          user_name || null
+        );
+        db.prepare(`UPDATE parties SET balance = ?, gst_balance = gst_balance - ?, last_transaction_date = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
+          .run(newBalance, total, party.party_id);
+      }
+
+      return { success: true, party_id: party.party_id };
+    })();
+    return result;
+  } catch (error: any) {
+    console.error('[db:upsertScrapCreditLedger]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+}));
 
 ipcMain.handle('db:getStockReport', (event, tenantId: string) => {
   try {

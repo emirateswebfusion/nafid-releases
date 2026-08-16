@@ -62,10 +62,14 @@ export function CartPane() {
         const storedPpk = Number(da.pcs_per_kg) || 0;
         const totalPcs = Number(da.pcs) || 0;
         const stockKg = Number(product.current_stock) || 0;
-        // Prefer stored ratio; fall back to computing from original pcs/stock
-        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
+        // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
       } catch {}
     }
+    // For heavy items (1 piece > 1 Kg), default to 1 piece instead of 1 Kg
+    const initialQtyForProduct = (product.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+      ? +(1 / piecesPerKg).toFixed(3)
+      : undefined;
     addItem({
       product_id: product.product_id,
       name: product.name,
@@ -77,6 +81,7 @@ export function CartPane() {
       grade_id: product.grade_id,
       pricing_mode: product.pricing_mode,
       grade_rate: product.grade_rate,
+      quantity: initialQtyForProduct,
     });
     setSearchQuery('');
     setResults([]);
@@ -86,7 +91,7 @@ export function CartPane() {
         input.focus();
         input.select();
       }
-    }, 0);
+    }, 50);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -178,7 +183,7 @@ export function CartPane() {
                       </div>
                       <div className={clsx("text-[10px]", i === selectedIndex ? "text-primary-foreground/80" : "text-muted-foreground")}>
                         Stock: {(() => {
-                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : 0); } catch { return 0; } })() : 0;
+                          const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
                           return Number(p.current_stock) > 0 && ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${p.uom || ''}`;
                         })()}
                       </div>

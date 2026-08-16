@@ -144,6 +144,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbUpdateScrapTransaction: (args: any) => ipcRenderer.invoke('db:updateScrapTransaction', args),
   dbDeleteScrapTransaction: (args: { tenant_id: string; transaction_id: string }) => ipcRenderer.invoke('db:deleteScrapTransaction', args),
   dbDeleteScrapInvoice: (args: { tenant_id: string; scrap_invoice_number: string }) => ipcRenderer.invoke('db:deleteScrapInvoice', args),
+  dbUpsertScrapCreditLedger: (args: { tenant_id: string; scrap_invoice_number: string; payment_status: string; party_name?: string | null; customer_phone?: string | null; customer_address?: string | null; user_id?: string; user_name?: string }) => ipcRenderer.invoke('db:upsertScrapCreditLedger', args),
 
   // Parties
   dbGetParties: (tenant_id: string) => ipcRenderer.invoke('db:getParties', tenant_id),

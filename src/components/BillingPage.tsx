@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -687,7 +687,7 @@ export function BillingPage() {
     setDiscount(0, 'FIXED');
 
     const firstTx = detail.transactions[0];
-    const savedPaymentStatus = firstTx.payment_status === 'CASH' ? 'CASH' : 'PENDING';
+    const savedPaymentStatus = ['CASH', 'CREDIT'].includes(firstTx.payment_status) ? firstTx.payment_status : 'PENDING';
 
     updateActiveTab({
       customerName: firstTx.party_name || '',
@@ -1278,10 +1278,14 @@ export function BillingPage() {
         const storedPpk = Number(da.pcs_per_kg) || 0;
         const totalPcs = Number(da.pcs) || 0;
         const stockKg = Number(product.current_stock) || 0;
-        // Prefer stored ratio; fall back to computing from original pcs/stock
-        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
+        // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
       } catch {}
     }
+    // For heavy items (1 piece > 1 Kg), default to 1 piece instead of 1 Kg (which rounds to 0 pcs)
+    const initialQtyForProduct = (product.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+      ? +(1 / piecesPerKg).toFixed(3)
+      : undefined;
     const tierPrice = getTierPriceForProduct(product);
     addItem({
       product_id: product.product_id,
@@ -1302,6 +1306,7 @@ export function BillingPage() {
       sku_barcode: product.sku_barcode || null,
       brand_manufacturer: product.brand_manufacturer || null,
       isServiceItem: Number(product.is_service_item) ? true : undefined,
+      quantity: initialQtyForProduct,
     });
     setSearchQuery('');
     setResults([]);
@@ -1721,9 +1726,14 @@ export function BillingPage() {
                 const storedPpk = Number(da.pcs_per_kg) || 0;
                 const totalPcs = Number(da.pcs) || 0;
                 const stockKg = Number(prod.current_stock) || 0;
-                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : undefined);
+                // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
+                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
               } catch {}
             }
+            // For heavy items (1 piece > 1 Kg), default to 1 piece
+            const initialQtyForScan = (prod.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+              ? +(1 / piecesPerKg).toFixed(3)
+              : undefined;
 
             addItem({
               product_id: prod.product_id,
@@ -1744,6 +1754,7 @@ export function BillingPage() {
               sku_barcode: prod.sku_barcode || null,
               brand_manufacturer: prod.brand_manufacturer || null,
               isServiceItem: Number(prod.is_service_item) ? true : undefined,
+              quantity: initialQtyForScan,
             });
             syncActiveSnapshot();
             playBeep();
@@ -2152,6 +2163,14 @@ export function BillingPage() {
         let scrapInvoiceNum = editingInvoiceNumber;
         const finalScrapGrandTotal = scrapTotal + extraBonus;
 
+        if (scrapPaymentStatus === 'CREDIT') {
+          if (!customerName.trim() || !customerPhone.trim()) {
+            setHardwareError('Please enter Customer Name and Phone Number for Credit payment');
+            setIsCheckingOut(false);
+            return;
+          }
+        }
+
         if (editingInvoiceNumber) {
           const scrapItemsForUpdate = items.map(item => {
             const rawRate = item.base_price;
@@ -2232,8 +2251,8 @@ export function BillingPage() {
               party_name: customerName || null,
               customer_phone: customerPhone || null,
               customer_address: customerAddress || null,
-              notes: '',
-              scrap_invoice_number: scrapInvoiceNum,
+notes: '',
+              scrap_invoice_number: scrapInvoiceNum || '',
               payment_status: scrapPaymentStatus,
             });
             if (!result.success) {
@@ -2242,6 +2261,18 @@ export function BillingPage() {
             }
           }
         }
+
+        // CREDIT scrap → record in party ledger (idempotent per invoice; non-CREDIT removes it)
+        await window.electronAPI.dbUpsertScrapCreditLedger({
+          tenant_id: tenantId || 'unset',
+          scrap_invoice_number: scrapInvoiceNum || '',
+          payment_status: scrapPaymentStatus,
+          party_name: customerName || null,
+          customer_phone: customerPhone || null,
+          customer_address: customerAddress || null,
+          user_id: userId || undefined,
+          user_name: userName || undefined,
+        }).catch(() => {});
 
         // Print scrap receipt (skip if saveOnly)
         if (!saveOnly) {
@@ -3495,7 +3526,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={p.product_id}
-                          onClick={() => handleSelectProduct(p)}
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectProduct(p); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
                             'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
@@ -3535,7 +3566,7 @@ export function BillingPage() {
                                 p.current_stock <= 0 ? 'text-destructive' : p.current_stock < 10 ? 'text-amber-500' : 'text-emerald-500'
                               )}>
                                 Stock: {(() => {
-                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 && stockKg > 0 ? totalPcs / stockKg : 0); } catch { return 0; } })() : 0;
+                                  const ppk = p.domain_attributes ? (() => { try { const d = JSON.parse(typeof p.domain_attributes === 'string' ? p.domain_attributes : '{}'); const storedPpk = Number(d.pcs_per_kg) || 0; const totalPcs = Number(d.pcs) || 0; const stockKg = Number(p.current_stock) || 0; return storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 0); } catch { return 0; } })() : 0;
                                   const unit = p.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs';
                                   return ppk > 0 ? `${Number(p.current_stock).toFixed(2)} Kg (${Math.round(Number(p.current_stock) * ppk)} pcs)` : `${p.current_stock} ${unit}`;
                                 })()}
@@ -3566,7 +3597,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={s.scrap_category_id}
-                          onClick={() => handleSelectScrapItem(s)}
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectScrapItem(s); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
                             'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
@@ -3603,7 +3634,7 @@ export function BillingPage() {
                       return (
                         <button
                           key={inv.invoice_id}
-                          onClick={() => handleSelectReturnInvoice(inv)}
+                          onMouseDown={(e) => { e.preventDefault(); handleSelectReturnInvoice(inv); }}
                           onMouseEnter={() => setSelectedIndex(i)}
                           className={clsx(
                             'w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors border-b border-border last:border-0 cursor-pointer',
@@ -4462,10 +4493,11 @@ export function BillingPage() {
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
               {isScrapMode ? (
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-3 gap-1.5">
                 {[
                   { value: 'PENDING' as const, label: 'Pending', icon: Clock, color: 'text-gray-500', activeBg: 'bg-gray-500/10', activeText: 'text-gray-600 dark:text-gray-400', activeBorder: 'border-gray-500', activeIconBg: 'bg-gray-500/15' },
                   { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
+                  { value: 'CREDIT' as const, label: 'Credit', icon: Users, color: 'text-amber-500', activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
                 ].map(opt => {
                   const isActive = scrapPaymentStatus === opt.value;
                   return (
