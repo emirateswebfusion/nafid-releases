@@ -182,7 +182,6 @@ function numberToIndianWords(amount: number): string {
 }
 
 function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
-  if (isReprint) return '( R E P R I N T )';
   if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
@@ -315,11 +314,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
-        if (data.isReprint) text += centerText('( R E P R I N T )', charsPerLine) + '\n';
-        else {
-          const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
-          text += centerText(`-- ${docTitle} --`, charsPerLine) + '\n';
-        }
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+        text += centerText(`-- ${docTitle} --`, charsPerLine) + '\n';
       }
       text += FRAME + '\n';
     }
@@ -630,11 +626,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
-        if (data.isReprint) text += centerText('[ REPRINT ]', charsPerLine) + '\n';
-        else {
-          const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
-          text += centerText(`[ ${docTitle} ]`, charsPerLine) + '\n';
-        }
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+        text += centerText(`[ ${docTitle} ]`, charsPerLine) + '\n';
       }
       text += THICK + '\n';
     }
@@ -976,11 +969,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (bs?.showShopState && data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
       if (bs?.showTitle || showScrap) {
-        if (data.isReprint) text += centerText('--- INVOICE (REPRINT) ---', charsPerLine) + '\n';
-        else {
-          const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
-          text += centerText(`--- ${docTitle} ---`, charsPerLine) + '\n';
-        }
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+        text += centerText(`--- ${docTitle} ---`, charsPerLine) + '\n';
       }
       text += FRAME + '\n';
     }
@@ -1140,11 +1130,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (bs?.showPhone && data.shopPhone) text += centerText(data.shopPhone, charsPerLine) + '\n';
       if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
       if (bs?.showTitle || showScrap) {
-        if (data.isReprint) text += centerText('REPRINT', charsPerLine) + '\n';
-        else {
-          const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
-          text += centerText(docTitle, charsPerLine) + '\n';
-        }
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+        text += centerText(docTitle, charsPerLine) + '\n';
       }
       text += '\n';
     }

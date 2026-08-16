@@ -41,6 +41,7 @@ interface Product {
   sync_status: string;
   created_at?: string;
   updated_at?: string;
+  paper_stock?: number;
 }
 
 const DEFAULT_FORM = {
@@ -1439,6 +1440,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                              <>
                                <span>{formattedStock}</span>
                                {totalPcs > 0 && <span className="text-[10px] text-muted-foreground/50 font-medium">{totalPcs} pcs</span>}
+                               {isGstFlag && p.paper_stock !== undefined && (
+                                 <span className="text-[10px] text-sky-600 dark:text-sky-400 font-bold mt-0.5" title="Paper Stock from Dummy GST purchases">
+                                   Paper: {p.paper_stock}
+                                 </span>
+                               )}
                                {isLowStock && (
                                  <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold mt-0.5">
                                    <AlertTriangle className="w-2.5 h-2.5" /> Low

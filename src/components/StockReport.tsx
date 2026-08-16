@@ -32,6 +32,7 @@ interface Product {
   is_service_item?: number;
   created_at?: string;
   updated_at?: string;
+  paper_stock?: number;
 }
 
 interface EnrichedProduct extends Product {
@@ -296,7 +297,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
       const gstQty = bq ? Number(bq.gst_qty) : 0;
       const gstPurchasedQty = bq ? Number(bq.gst_purchased_qty) : 0;
-      const gstPaperStock = Math.max(0, gstPurchasedQty - gstQty);
+      const gstPaperStock = p.paper_stock ?? 0;
 
       const ep: EnrichedProduct = { 
         ...p, 
@@ -1108,7 +1109,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
                       <td colSpan={3} className="px-4 py-3 text-sm font-black text-foreground">Grand Total</td>
                       <td className="px-4 py-3 text-right font-black text-sm text-foreground">{totalStock.toFixed(0)}</td>
                       {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-bold text-sm text-muted-foreground">{billQuantities.reduce((s, b) => s + Number(b.gst_qty), 0).toFixed(0)}</td>}
-                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{billQuantities.reduce((s, b) => s + Math.max(0, Number(b.gst_purchased_qty) - Number(b.gst_qty)), 0).toFixed(0)}</td>}
+                      {viewMode !== 'estimate' && <td className="px-4 py-3 text-right font-black text-sm text-sky-500 tabular-nums">{filteredProducts.reduce((s, p) => s + (p.paper_stock ?? 0), 0).toFixed(0)}</td>}
                       {viewMode !== 'gst' && <td className="px-4 py-3 text-right font-bold text-sm text-amber-500">{billQuantities.reduce((s, b) => s + Number(b.estimate_qty), 0).toFixed(0)}</td>}
                       <td className="px-4 py-3 text-right"></td>
                       <td className="px-4 py-3 text-right font-bold text-sm text-rose-500">{formatCurrency(totalPurchaseValue)}</td>

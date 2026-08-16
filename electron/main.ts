@@ -399,11 +399,40 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (!tenantId) return [];
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst)) {
-      return db.prepare('SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0 ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC').all(tenantId);
+      return db.prepare(`
+        SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
+          COALESCE((
+            SELECT SUM(pbi.quantity) 
+            FROM purchase_bill_items pbi
+            WHERE pbi.product_id = p.product_id AND pbi.skip_stock_update = 1 AND pbi.tenant_id = p.tenant_id
+          ), 0) - COALESCE((
+            SELECT SUM(ii.qty_from_paper_stock)
+            FROM invoice_items ii
+            WHERE ii.product_id = p.product_id AND ii.tenant_id = p.tenant_id
+          ), 0) as paper_stock
+        FROM products p 
+        LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
+        WHERE p.tenant_id = ? AND p.is_deleted = 0 
+        ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC
+      `).all(tenantId);
     }
 
     const { limit, offset, search, sortBy, barcode, filterDate, isGst } = arg;
-    let query = 'SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price FROM products p LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id WHERE p.tenant_id = ? AND p.is_deleted = 0';
+    let query = `
+      SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
+        COALESCE((
+          SELECT SUM(pbi.quantity) 
+          FROM purchase_bill_items pbi
+          WHERE pbi.product_id = p.product_id AND pbi.skip_stock_update = 1 AND pbi.tenant_id = p.tenant_id
+        ), 0) - COALESCE((
+          SELECT SUM(ii.qty_from_paper_stock)
+          FROM invoice_items ii
+          WHERE ii.product_id = p.product_id AND ii.tenant_id = p.tenant_id
+        ), 0) as paper_stock
+      FROM products p 
+      LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id 
+      WHERE p.tenant_id = ? AND p.is_deleted = 0
+    `;
     const params: any[] = [tenantId];
 
     if (isGst !== undefined) {
