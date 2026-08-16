@@ -1,3 +1,10 @@
+# Vendora v1.5.12 Release Notes
+
+## What's Changed
+- Implemented multi-tab billing system, inventory management, and purchase billing modules
+- Configured local SQLite database schemas, preload security validation, and Electron sync worker architecture
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.11...v1.5.12
+
 # Vendora v1.5.11 Release Notes
 
 ## What's Changed
