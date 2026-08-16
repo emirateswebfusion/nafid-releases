@@ -266,8 +266,18 @@ export function CartPane() {
                       )}
                     </div>
                   </div>
-                  <div className="col-span-2 text-right text-foreground">
-                    ₹{effectiveRate.toFixed(2)}
+                  <div className="col-span-2 text-right text-foreground flex flex-col justify-center items-end">
+                    <span className="font-medium">
+                      ₹{effectiveRate.toFixed(2)}
+                      <span className="text-[10px] text-muted-foreground ml-0.5">
+                        {item.billing_type === 'WEIGHT' ? '/Kg' : '/Pc'}
+                      </span>
+                    </span>
+                    {isPiecesWeight && (
+                      <span className="text-[10px] text-muted-foreground">
+                        (₹{(effectiveRate / item.pieces_per_kg!).toFixed(2)}/Pc)
+                      </span>
+                    )}
                   </div>
                   <div className="col-span-2 flex justify-center flex-col items-center gap-1">
                     {isPiecesWeight ? (

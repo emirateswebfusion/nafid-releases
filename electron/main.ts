@@ -2582,47 +2582,22 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const skippedItems: string[] = [];
 
           for (const item of items) {
-            const gstPriceRow: any = db.prepare(`
-              SELECT AVG(pbi.purchase_price) as avg_price
-              FROM purchase_bill_items pbi
-              WHERE pbi.product_id = ?
-            `).get(item.product_id);
+            const cleanName = item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '').trim();
+            const gstProduct = db.prepare(`
+              SELECT * FROM products 
+              WHERE tenant_id = ? 
+                AND (name = ? OR name = ?) 
+                AND is_deleted = 0
+              ORDER BY (CASE WHEN name LIKE '%(GST)' THEN 1 ELSE 2 END) ASC
+              LIMIT 1
+            `).get(payload.tenant_id, cleanName + ' (GST)', cleanName) as any;
 
-            if (!gstPriceRow || !gstPriceRow.avg_price) {
-              skippedItems.push(`${item.name || item.product_id} (No GST Purchase Bill)`);
+            if (!gstProduct || gstProduct.is_gst_applicable === 0) {
+              skippedItems.push(`${item.name || item.product_id} (Estimate-only product skipped)`);
               continue;
             }
 
-            const basePrice = Number(gstPriceRow.avg_price);
-            const newUnitPrice = Math.round(basePrice * multiplier * 100) / 100;
             const originalQty = Number(item.quantity) || 0;
-
-            // Compute available GST stock for this product:
-            // total purchased on GST
-            const purchasedRow = db.prepare(`
-              SELECT COALESCE(SUM(pbi.quantity), 0) as total_purchased
-              FROM purchase_bill_items pbi
-              JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
-              WHERE pbi.product_id = ? AND pb.bill_type = 'GST' AND pb.tenant_id = ?
-            `).get(item.product_id, payload.tenant_id) as any;
-            const totalPurchased = purchasedRow ? Number(purchasedRow.total_purchased) : 0;
-
-            // total sold on GST
-            const soldRow = db.prepare(`
-              SELECT COALESCE(SUM(ii.quantity), 0) as total_sold
-              FROM invoice_items ii
-              JOIN invoices i ON ii.invoice_id = i.invoice_id
-              WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ?
-            `).get(item.product_id, payload.tenant_id) as any;
-            const totalSold = soldRow ? Number(soldRow.total_sold) : 0;
-
-            const availableGst = Math.max(0, totalPurchased - totalSold);
-            const qtyToConvert = Math.min(originalQty, availableGst);
-
-            if (qtyToConvert <= 0) {
-              skippedItems.push(`${item.name || item.product_id} (No GST Stock - 0 of ${originalQty} converted)`);
-              continue;
-            }
 
             // Compute available paper (dummy) GST stock for this product:
             const paperPurchasedRow = db.prepare(`
@@ -2630,7 +2605,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               FROM purchase_bill_items pbi
               JOIN purchase_bills pb ON pbi.purchase_bill_id = pb.purchase_bill_id
               WHERE pbi.product_id = ? AND pb.bill_type = 'GST' AND pbi.skip_stock_update = 1 AND pb.tenant_id = ?
-            `).get(item.product_id, payload.tenant_id) as any;
+            `).get(gstProduct.product_id, payload.tenant_id) as any;
             const totalPaperPurchased = paperPurchasedRow ? Number(paperPurchasedRow.total_paper) : 0;
 
             const paperSoldRow = db.prepare(`
@@ -2638,35 +2613,32 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               FROM invoice_items ii
               JOIN invoices i ON ii.invoice_id = i.invoice_id
               WHERE ii.product_id = ? AND i.invoice_type = 'GST' AND ii.tenant_id = ?
-            `).get(item.product_id, payload.tenant_id) as any;
+            `).get(gstProduct.product_id, payload.tenant_id) as any;
             const totalPaperSold = paperSoldRow ? Number(paperSoldRow.total_paper_sold) : 0;
 
             const availablePaperGst = Math.max(0, totalPaperPurchased - totalPaperSold);
-            const qtyFromPaper = Math.min(qtyToConvert, availablePaperGst);
+            const qtyToConvert = Math.min(originalQty, availablePaperGst);
 
-            if (qtyFromPaper > 0) {
-              db.prepare(`
-                UPDATE products 
-                SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
-                WHERE product_id = ? AND tenant_id = ?
-              `).run(qtyFromPaper, item.product_id, payload.tenant_id);
+            if (qtyToConvert <= 0) {
+              skippedItems.push(`${item.name || item.product_id} (No available paper stock - 0 of ${originalQty} converted)`);
+              continue;
             }
+
+            const taxRate = Number(gstProduct.tax_rate_percent) || 0;
+            const newUnitPrice = gstProduct.offer_price && Number(gstProduct.offer_price) > 0
+              ? Number(gstProduct.offer_price)
+              : Number(gstProduct.base_price);
 
             const newTotal = Math.round(newUnitPrice * qtyToConvert * 100) / 100;
             newSubtotal += newTotal;
-
-            let taxRate = 0;
-            const prod: any = db.prepare('SELECT tax_rate_percent FROM products WHERE product_id = ?').get(item.product_id);
-            if (prod) taxRate = Number(prod.tax_rate_percent) || 0;
-
             const itemTax = Math.round(newTotal * (taxRate / 100) * 100) / 100;
             newTotalTax += itemTax;
 
             copyItems.push({
               item_id: crypto.randomUUID(),
               source_item_id: item.item_id,
-              product_id: item.product_id,
-              name: item.name,
+              product_id: gstProduct.product_id,
+              name: gstProduct.name,
               quantity: qtyToConvert,
               is_service_item: item.is_service_item ? 1 : 0,
               newUnitPrice,
@@ -2675,16 +2647,16 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               bosUnitPrice: Number(item.unit_price) || 0,
               bosTax: Number(item.tax_amount) || 0,
               bosTotal: Number(item.total) || 0,
-              qtyFromPaper,
+              qtyFromPaper: qtyToConvert,
             });
 
             if (qtyToConvert < originalQty) {
-              skippedItems.push(`${item.name || item.product_id} (${qtyToConvert} of ${originalQty} converted to GST, original Estimate unchanged)`);
+              skippedItems.push(`${item.name || item.product_id} (${qtyToConvert} of ${originalQty} converted due to limited paper stock, balance ${originalQty - qtyToConvert} skipped)`);
             }
           }
 
           if (copyItems.length === 0) {
-            throw new Error('No items have GST purchase records or available GST stock. Conversion failed.');
+            throw new Error('No items have available GST paper stock. Conversion failed.');
           }
 
           newSubtotal = Math.round(newSubtotal * 100) / 100;
@@ -3609,8 +3581,18 @@ ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
       SELECT i.invoice_id,
              EXISTS(
                SELECT 1 FROM invoice_items ii
-               JOIN purchase_bill_items pbi ON pbi.product_id = ii.product_id
+               JOIN products p ON ii.product_id = p.product_id
                WHERE ii.invoice_id = i.invoice_id
+                 AND EXISTS(
+                   SELECT 1 FROM products pgst
+                   WHERE pgst.tenant_id = i.tenant_id
+                     AND pgst.is_deleted = 0
+                     AND pgst.is_gst_applicable = 1
+                     AND (
+                       pgst.name = REPLACE(REPLACE(REPLACE(p.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '') || ' (GST)'
+                       OR pgst.name = REPLACE(REPLACE(REPLACE(p.name, ' (GST)', ''), ' (EST)', ''), ' (Estimate)', '')
+                     )
+                 )
              ) AS convertible
       FROM invoices i
       WHERE i.tenant_id = ? AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL
@@ -4236,6 +4218,10 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
         if (suffix && base.endsWith(suffix)) {
           base = base.slice(0, -suffix.length);
         }
+        // Skip standard/manufacturer barcodes (length >= 8 digits) to avoid auto-increment jumps
+        if (base.length >= 8) {
+          continue;
+        }
         const numStr = base.replace(/\D/g, '');
         if (numStr) {
           const num = parseInt(numStr, 10);
@@ -4251,6 +4237,10 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
         // Strip known suffix from the end
         if (suffix && base.endsWith(suffix)) {
           base = base.slice(0, -suffix.length);
+        }
+        // Skip standard/manufacturer barcodes (length >= 8 digits) to avoid auto-increment jumps
+        if (base.length >= 8) {
+          continue;
         }
         const numStr = base.replace(/\D/g, '');
         if (numStr) {
@@ -4731,14 +4721,6 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
       if (!isConversionCopy) {
         for (const item of items) {
           restoreStockStmt.run(item.quantity, item.product_id, inv.tenant_id);
-        }
-      } else {
-        // If conversion copy is deleted, we must subtract the qty_from_paper_stock that was added back to products.current_stock during conversion.
-        for (const item of items) {
-          const qtyFromPaper = Number(item.qty_from_paper_stock) || 0;
-          if (qtyFromPaper > 0) {
-            deductStockStmt.run(qtyFromPaper, item.product_id, inv.tenant_id);
-          }
         }
       }
       db.prepare('DELETE FROM invoice_items WHERE invoice_id = ?').run(invoice_id);

@@ -2621,7 +2621,19 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                 >
                   <Package className="w-3.5 h-3.5 shrink-0 text-muted-foreground" />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold truncate">{p.name}</p>
+                    <p className="text-sm font-bold truncate flex items-center gap-1.5">
+                      <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                      {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
+                        <span className={clsx(
+                          "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
+                          p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                            : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
+                        )}>
+                          {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                        </span>
+                      )}
+                    </p>
                     <p className="text-[11px] text-muted-foreground font-mono">{p.sku_barcode}</p>
                   </div>
                   <div className="text-right text-[11px] shrink-0">
@@ -3039,7 +3051,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   <input type="checkbox" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
                                     className="w-3 h-3 rounded pointer-events-none accent-primary" />
                                   <span className="font-bold text-xs select-none">
-                                    {newProductIsDummy ? 'Dummy' : 'Real'}
+                                    {newProductIsDummy ? 'Paper' : 'Real'}
                                   </span>
                                 </div>
                               </div>
@@ -3081,7 +3093,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                   <input type="checkbox" id="dummy" checked={newProductIsDummy} onChange={e => setNewProductIsDummy(e.target.checked)}
                                     className={clsx('w-3.5 h-3.5 rounded pointer-events-none', !newProductIsDummy ? 'accent-emerald-500' : 'accent-amber-500')} />
                                   <label htmlFor="dummy" className="font-bold text-xs cursor-pointer select-none">
-                                    {newProductIsDummy ? 'Dummy' : 'Real'}
+                                    {newProductIsDummy ? 'Paper' : 'Real'}
                                   </label>
                                 </div>
                               </div>
@@ -3144,7 +3156,14 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         {index + 1}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-semibold text-foreground truncate">{item.name}</span>
+                        <span className="block text-xs font-semibold text-foreground truncate flex items-center gap-1.5">
+                          <span>{item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                          {/\s*\((GST|EST|Estimate)\)$/i.test(item.name) && (
+                            <span className="text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-400 uppercase select-none leading-none">
+                              {item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                            </span>
+                          )}
+                        </span>
                         {item.stock !== undefined && item.stock !== '' && (
                           <span className="block text-[10px] text-muted-foreground font-semibold mt-0.5">Stock: {Number(item.stock).toFixed(0)}</span>
                         )}
@@ -3237,8 +3256,13 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                         {index + 1}
                       </span>
                       <span className="min-w-0">
-                        <span className="block text-xs font-semibold text-foreground truncate leading-tight">
-                          {item.name}
+                        <span className="block text-xs font-semibold text-foreground truncate leading-tight flex items-center gap-1.5">
+                          <span>{item.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                          {/\s*\((GST|EST|Estimate)\)$/i.test(item.name) && (
+                            <span className="text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 uppercase select-none leading-none">
+                              {item.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                            </span>
+                          )}
                         </span>
                         <span className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                           <button
@@ -3252,7 +3276,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                                 : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
                             )}
                           >
-                            {isDummy ? 'Dummy' : 'Real'}
+                            {isDummy ? 'Paper' : 'Real'}
                           </button>
                           {item.stock !== undefined && item.stock !== '' && (
                             <span className="text-[10px] text-muted-foreground font-semibold">Stock: {Number(item.stock).toFixed(0)}</span>

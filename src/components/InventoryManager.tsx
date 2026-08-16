@@ -73,6 +73,7 @@ const DEFAULT_FORM = {
   gst_supplier_name: '',
   gst_bill_number: '',
   gst_bill_date: new Date().toLocaleDateString('en-CA'),
+  gst_purchase_is_dummy: false,
 };
 
 // ─── Main Component ─────────────────────────────────────────────────────────
@@ -464,6 +465,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       gst_supplier_name: '',
       gst_bill_number: '',
       gst_bill_date: new Date().toLocaleDateString('en-CA'),
+      gst_purchase_is_dummy: false,
     });
     setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
     if (window.electronAPI) {
@@ -998,13 +1000,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
       base_price: Number(formData.base_price) || 0,
-      current_stock: Number(formData.current_stock) || 0,
+      current_stock: (view === 'add' && formData.show_gst_purchase)
+        ? 0
+        : (Number(formData.current_stock) || 0),
       reorder_level: Number(formData.reorder_level) || 0,
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
       domain_attributes: (() => {
         const da = { ...formData.domain_attributes };
         const rawPcs = Number(da?.pcs) || 0;
-        const rawStock = Number(formData.current_stock) || 0;
+        const rawStock = (view === 'add' && formData.show_gst_purchase)
+          ? 0
+          : (Number(formData.current_stock) || 0);
         if (rawPcs > 0 && rawStock > 0) {
           da.pcs_per_kg = rawPcs / rawStock;
         } else if (!rawPcs) {
@@ -1046,6 +1052,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             invoice_number: null,
             notes: `Auto-created from product: ${formData.name}`,
             total_amount: gstTotal,
+            bill_type: 'GST',
             items: [{
               item_id: itemId,
               product_id: payload.product_id,
@@ -1056,6 +1063,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               is_gst_applicable: payload.is_gst_applicable,
               tax_rate_percent: payload.tax_rate_percent,
               hsn_sac_code: payload.hsn_sac_code,
+              skip_stock_update: formData.gst_purchase_is_dummy ? 1 : 0,
             }],
           });
         }
@@ -1065,7 +1073,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           setProducts(prev => prev.map(p => p.product_id === payload.product_id ? { ...p, ...payload } as Product : p));
         } else {
           // Optimistic update for add
-          setProducts(prev => [payload as Product, ...prev]);
+          const finalStock = formData.show_gst_purchase
+            ? (formData.gst_purchase_is_dummy ? 0 : (Number(formData.gst_purchase_quantity) || 0))
+            : (Number(formData.current_stock) || 0);
+          setProducts(prev => [{ ...payload, current_stock: finalStock } as Product, ...prev]);
           setTotalCount(prev => prev !== null ? prev + 1 : null);
         }
 
@@ -1382,22 +1393,24 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                             <Package className="w-3.5 h-3.5" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-foreground font-bold text-sm truncate">{p.name}</p>
+                            <p className="text-foreground font-bold text-sm truncate flex items-center gap-1.5">
+                              <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                              {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
+                                <span className={clsx(
+                                  "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
+                                  p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
+                                    ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30"
+                                    : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
+                                )}>
+                                  {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
+                                </span>
+                              )}
+                            </p>
                             <p className="text-muted-foreground text-xs font-mono mt-0.5 truncate">
                               {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
                               {p.sku_barcode}
                             </p>
                             <div className="flex gap-1.5 mt-1 flex-wrap">
-                              <span
-                                className={clsx(
-                                  'text-[10px] px-1.5 py-0.5 rounded font-bold border select-none',
-                                  isGstFlag
-                                    ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30'
-                                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                                )}
-                              >
-                                {isGstFlag ? 'GST' : 'Estimate'}
-                              </span>
                               {p.category && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.category}</span>}
                               {p.brand_manufacturer && <span className="text-[10px] bg-muted text-muted-foreground px-1.5 py-0.5 rounded font-semibold">{p.brand_manufacturer}</span>}
                             </div>
@@ -1967,33 +1980,56 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                 {formData.show_gst_purchase && (
                   <div className="px-5 py-4 space-y-5">
 
-                    {/* Auto-fill toggle */}
-                    <div
-                      onClick={() => handleInputChange('gst_same_as_current', !formData.gst_same_as_current)}
-                      className={clsx(
-                        'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
-                        formData.gst_same_as_current
-                          ? 'bg-purple-500/10 border-purple-500/30 shadow-sm'
-                          : 'bg-muted/10 border-border hover:bg-muted/20 hover:border-border'
-                      )}
-                    >
-                      <div className={clsx(
-                        'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200',
-                        formData.gst_same_as_current ? 'bg-purple-500 border-purple-500' : 'border-border bg-background'
-                      )}>
-                        {formData.gst_same_as_current && (
-                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                          </svg>
+                    <div className="grid grid-cols-2 gap-4">
+                      {/* Auto-fill toggle */}
+                      <div
+                        onClick={() => handleInputChange('gst_same_as_current', !formData.gst_same_as_current)}
+                        className={clsx(
+                          'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
+                          formData.gst_same_as_current
+                            ? 'bg-purple-500/10 border-purple-500/30 shadow-sm'
+                            : 'bg-muted/10 border-border hover:bg-muted/20 hover:border-border'
                         )}
+                      >
+                        <div className={clsx(
+                          'w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-all duration-200',
+                          formData.gst_same_as_current ? 'bg-purple-500 border-purple-500' : 'border-border bg-background'
+                        )}>
+                          {formData.gst_same_as_current && (
+                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className={clsx('text-sm font-bold', formData.gst_same_as_current ? 'text-purple-600 dark:text-purple-400' : 'text-foreground')}>Same as Current Product</span>
+                          <p className="text-xs text-muted-foreground mt-0.5">Auto-fills price &amp; quantity</p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={clsx('text-sm font-bold', formData.gst_same_as_current ? 'text-purple-600 dark:text-purple-400' : 'text-foreground')}>Same as Current Product</span>
-                        <p className="text-xs text-muted-foreground mt-0.5">Auto-fills price &amp; quantity from the main product fields above</p>
+
+                      {/* Stock Type toggle */}
+                      <div
+                        onClick={() => handleInputChange('gst_purchase_is_dummy', !formData.gst_purchase_is_dummy)}
+                        className={clsx(
+                          'flex items-center gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all duration-200',
+                          formData.gst_purchase_is_dummy
+                            ? 'bg-amber-500/10 border-amber-500/30 shadow-sm'
+                            : 'bg-emerald-500/10 border-emerald-500/30 shadow-sm'
+                        )}
+                      >
+                        <div className={clsx(
+                          'w-5 h-5 rounded-md border border-border flex items-center justify-center shrink-0 transition-all duration-200',
+                          formData.gst_purchase_is_dummy ? 'bg-amber-500 border-amber-500' : 'bg-emerald-500 border-emerald-500'
+                        )}>
+                          <div className="w-1.5 h-1.5 rounded-full bg-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-bold text-foreground">Stock Type: {formData.gst_purchase_is_dummy ? 'Paper' : 'Real'}</span>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {formData.gst_purchase_is_dummy ? 'Paper stock only (tax record)' : 'Adds to physical stock'}
+                          </p>
+                        </div>
                       </div>
-                      {formData.gst_same_as_current && (
-                        <span className="text-xs font-bold text-purple-500 bg-purple-500/10 px-2 py-0.5 rounded-full shrink-0">Auto</span>
-                      )}
                     </div>
 
                     {/* Purchase Price & Quantity */}
