@@ -1,3 +1,10 @@
+# Vendora v1.5.14 Release Notes
+
+## What's Changed
+- Implemented product and inventory tracking (InventoryManager), bulk barcode label configuration, and POS cart checkout features
+- Configured local Electron database synchronization, cashier reconciliation, and SQLite database migration schema
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.13...v1.5.14
+
 # Vendora v1.5.13 Release Notes
 
 ## What's Changed
