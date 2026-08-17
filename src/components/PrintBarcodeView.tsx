@@ -6,7 +6,17 @@ import { useAuthStore } from '../store/authStore';
 
 export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1, codeType = DEFAULT_CODE_TYPE }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number; codeType?: CodeType }) {
   const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
+  const [showShopName, setShowShopName] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    const { tenantId } = useAuthStore.getState();
+    if (window.electronAPI && window.electronAPI.settingsGet) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' }).then((v: unknown) => {
+        if (v !== null && v !== undefined) setShowShopName(Boolean(v));
+      });
+    }
+  }, []);
 
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
@@ -41,7 +51,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
         <div key={colIndex} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '4px 0 0 0', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && (
             <>
-              {shopName && (
+              {showShopName && shopName && (
                 <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: (price !== undefined && !isNaN(price)) ? '0px' : '6px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
                   {shopName}
                 </div>

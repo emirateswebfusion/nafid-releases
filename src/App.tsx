@@ -52,6 +52,7 @@ import { StockReport } from './components/StockReport';
 import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
+import { loadFeatureFlags, type FeatureKey, type FeatureFlags } from './featureFlags';
 
 function App() {
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
@@ -122,6 +123,9 @@ function App() {
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
   enableScrapRef.current = enableScrap;
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ billing: true, cash_settlement: true, cash_register: true, inventory: true, categories_grades: true, pricing_tiers: true, stock_report: true, quotations: true, purchase_bills: true, warranties: true, returns: true, scrap: true, parties: true, payments: true, customers: true, staff: true, sales_history: true, loyalty: true });
+  const featureFlagsRef = useRef(featureFlags);
+  featureFlagsRef.current = featureFlags;
   const [showQuotationManager, setShowQuotationManager] = useState(false);
   const [showWarrantyManager, setShowWarrantyManager] = useState(false);
   const [showReturnManager, setShowReturnManager] = useState(false);
@@ -299,6 +303,7 @@ function App() {
     window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
+    loadFeatureFlags(tid || 'global').then(flags => setFeatureFlags(flags));
     window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'time_format' }).then((v: any) => {
       if (v === '24h' || v === '12h') {
         setAppTimeFormat(v);
@@ -309,23 +314,25 @@ function App() {
   }, [isAuthenticated]);
 
   useEffect(() => {
-    const handleOpenInv = () => setShowInventoryManager(true);
-    const handleOpenStockReport = () => setShowStockReport(true);
-    const handleOpenHistory = () => setShowSalesHistory(true);
-    const handleOpenStaff = () => setShowStaffManager(true);
+    const canOpen = (key: FeatureKey) => Boolean(featureFlagsRef.current[key]);
+    const handleOpenInv = () => { if (canOpen('inventory')) setShowInventoryManager(true); };
+    const handleOpenStockReport = () => { if (canOpen('stock_report')) setShowStockReport(true); };
+    const handleOpenHistory = () => { if (canOpen('sales_history')) setShowSalesHistory(true); };
+    const handleOpenStaff = () => { if (canOpen('staff')) setShowStaffManager(true); };
     const handleOpenSettings = () => setShowSettingsManager(true);
-    const handleOpenSettingsGrades = () => setShowSettingsGrades(true);
-    const handleOpenSettingsPricingTiers = () => setShowSettingsPricingTiers(true);
-    const handleOpenParties = () => setShowPartyManager(true);
-    const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
-    const handleOpenQuotationManager = () => setShowQuotationManager(true);
-    const handleOpenWarrantyManager = () => setShowWarrantyManager(true);
-    const handleOpenReturnManager = () => setShowReturnManager(true);
-    const handleOpenCashierSettlement = () => setShowCashierSettlement(true);
-    const handleOpenPurchaseBillManager = () => setShowPurchaseBillManager(true);
-    const handleOpenCustomersPage = () => setShowCustomersPage(true);
-    const handleOpenPaymentsPage = () => setShowPaymentsPage(true);
+    const handleOpenSettingsGrades = () => { if (canOpen('categories_grades')) setShowSettingsGrades(true); };
+    const handleOpenSettingsPricingTiers = () => { if (canOpen('pricing_tiers')) setShowSettingsPricingTiers(true); };
+    const handleOpenParties = () => { if (canOpen('parties')) setShowPartyManager(true); };
+    const handleOpenScrapManager = (e: Event) => { if (enableScrapRef.current && canOpen('scrap')) { const ce = e as CustomEvent; if (ce.detail?.initialView) setScrapManagerInitialView(ce.detail.initialView); setShowScrapManager(true); } };
+    const handleOpenQuotationManager = () => { if (canOpen('quotations')) setShowQuotationManager(true); };
+    const handleOpenWarrantyManager = () => { if (canOpen('warranties')) setShowWarrantyManager(true); };
+    const handleOpenReturnManager = () => { if (canOpen('returns')) setShowReturnManager(true); };
+    const handleOpenCashierSettlement = () => { if (canOpen('cash_settlement')) setShowCashierSettlement(true); };
+    const handleOpenPurchaseBillManager = () => { if (canOpen('purchase_bills')) setShowPurchaseBillManager(true); };
+    const handleOpenCustomersPage = () => { if (canOpen('customers')) setShowCustomersPage(true); };
+    const handleOpenPaymentsPage = () => { if (canOpen('payments')) setShowPaymentsPage(true); };
     const handleOpenQuotationEdit = () => {
+      if (!canOpen('quotations')) return;
       useCartStore.getState().setRole('BILLER');
       setShowQuotationManager(false);
       setShowInventoryManager(false);
@@ -344,6 +351,7 @@ function App() {
 
     // Close all overlays and navigate to BillingPage in return mode
     const handleOpenReturnMode = () => {
+      if (!canOpen('returns')) return;
       useCartStore.getState().setRole('BILLER');
       setShowSalesHistory(false);
       setShowInventoryManager(false);
@@ -365,6 +373,7 @@ function App() {
 
     // Close all overlays and navigate to BillingPage in scrap edit mode
     const handleOpenScrapEdit = () => {
+      if (!canOpen('scrap') || !enableScrapRef.current) return;
       useCartStore.getState().setRole('BILLER');
       useCartStore.getState().setReturnMode(false);
       useCartStore.getState().setQuotationMode(false);

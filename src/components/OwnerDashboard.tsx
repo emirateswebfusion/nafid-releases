@@ -3,6 +3,7 @@ import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, Lo
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
+import { loadFeatureFlags, type FeatureFlags, type FeatureKey } from '../featureFlags';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 
@@ -44,6 +45,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [invoiceCount, setInvoiceCount] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
     const [enableScrap, setEnableScrap] = useState(false);
+    const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -55,6 +57,11 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
+
+    useEffect(() => {
+        if (!window.electronAPI || !tenantId) return;
+        loadFeatureFlags(tenantId).then(flags => setFeatureFlags(flags));
+    }, [tenantId]);
 
     const loadStats = useCallback(async () => {
         if (!window.electronAPI?.dbGetDashboardStats || !tenantId) return;
@@ -260,6 +267,26 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         },
     ];
 
+    const FEATURE_BY_CARD: Record<string, FeatureKey> = {
+        billing: 'billing',
+        cashier: 'cash_settlement',
+        inventory: 'inventory',
+        grades: 'categories_grades',
+        'pricing-tiers': 'pricing_tiers',
+        'stock-print': 'stock_report',
+        quotations: 'quotations',
+        'purchase-bills': 'purchase_bills',
+        warranties: 'warranties',
+        returns: 'returns',
+        scrap: 'scrap',
+        parties: 'parties',
+        payments: 'payments',
+        customers: 'customers',
+        staff: 'staff',
+        history: 'sales_history',
+    };
+    const visibleCards = featureFlags ? cards.filter(c => !FEATURE_BY_CARD[c.id] || featureFlags[FEATURE_BY_CARD[c.id]]) : cards;
+
     return (
         <div className="fixed inset-0 z-40 flex flex-col bg-background">
             {/* ═══════════════════════════════════════════════════
@@ -343,7 +370,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
             {/* Grid Content */}
             <div className="flex-1 min-h-0 p-8 grid grid-cols-3 gap-4 relative z-0 items-stretch overflow-y-auto">
-                {cards.map((card) => (
+                {visibleCards.map((card) => (
                     <Card
                         key={card.id}
                         onClick={card.action}

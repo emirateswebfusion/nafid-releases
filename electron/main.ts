@@ -444,15 +444,10 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        query += ' AND (p.sku_barcode = ? OR p.item_code = ?)';
        params.push(barcode, barcode);
     } else if (search) {
-       // Numeric search: only match barcode/item_code with prefix (so "87" → 8749,8750 NOT 987,687, nor names containing "87")
-       if (/^\d+$/.test(search)) {
-          query += ' AND (p.sku_barcode LIKE ? OR p.item_code LIKE ?)';
-          params.push(`%${search}%`, `%${search}%`);
-        } else {
-          // Text search: substring match on all fields
-          query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ?)';
-          params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
-       }
+       // Any character (letter, number, symbol) matches products across all fields:
+       // name, barcode, item code, brand, category, HSN, and product id.
+       query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ? OR p.category LIKE ? OR p.hsn_sac_code LIKE ? OR p.product_id = ?)';
+       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, search);
     }
 
     if (filterDate) {
@@ -508,14 +503,9 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     const params: any[] = [tenantId];
     
     if (arg?.search) {
-       // Mirror logic from db:getProducts — numeric: barcode/code only; text: all fields
-       if (/^\d+$/.test(arg.search)) {
-          query += ' AND (sku_barcode LIKE ? OR item_code LIKE ?)';
-          params.push(`%${arg.search}%`, `%${arg.search}%`);
-        } else {
-          query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ?)';
-          params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`);
-       }
+       // Mirror logic from db:getProducts — any character matches across all fields
+       query += ' AND (name LIKE ? OR sku_barcode LIKE ? OR item_code LIKE ? OR brand_manufacturer LIKE ? OR category LIKE ? OR hsn_sac_code LIKE ? OR product_id = ?)';
+       params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, arg.search);
     }
 
     if (arg?.filterDate) {
@@ -1212,7 +1202,7 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
       entry.ledger_id,
       entry.party_id,
       entry.tenant_id,
-      entry.transaction_date || localTimestamp(),
+      entry.transaction_date || new Date().toISOString(),
       entry.description,
       creditAmount,
       debitAmount,
@@ -1227,7 +1217,7 @@ ipcMain.handle('db:addPartyLedgerEntry', safeHandler((event, entry) => {
     const delta = creditAmount - debitAmount;
     const balanceCol = balanceType === 'ESTIMATE' ? 'estimate_balance' : 'gst_balance';
     db.prepare(`UPDATE parties SET balance = ?, ${balanceCol} = ${balanceCol} + ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
-      .run(newBalance, delta, entry.transaction_date || localTimestamp(), entry.party_id);
+      .run(newBalance, delta, entry.transaction_date || new Date().toISOString(), entry.party_id);
 
     return { success: true };
   } catch (error: any) {

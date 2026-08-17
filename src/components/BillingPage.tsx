@@ -18,6 +18,7 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
+import { loadFeatureFlags } from '../featureFlags';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -292,6 +293,7 @@ export function BillingPage() {
   const setIsScrapMode = useCartStore(s => s.setIsScrapMode);
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const lastActiveTabId = useRef(activeTabId);
   const prevScrapMode = useRef(isScrapMode);
@@ -332,6 +334,12 @@ export function BillingPage() {
       setIsScrapMode(false);
     }
   }, [enableScrap, isScrapMode]);
+
+  useEffect(() => {
+    if (!featureFlags) return;
+    if (!featureFlags.quotations && isQuotationMode) setQuotationMode(false);
+    if (!featureFlags.returns && isReturnMode) setReturnMode(false);
+  }, [featureFlags, isQuotationMode, isReturnMode, setQuotationMode, setReturnMode]);
 
   // Reset reserved invoice numbers when mode changes (but preserve when editing existing)
   const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
@@ -561,6 +569,7 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
+    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowCashRegister(Boolean(v));
     });
@@ -2124,6 +2133,14 @@ export function BillingPage() {
     }
   };
 
+  const handleWeightDecimalKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== '.' && e.key !== 'Decimal') return;
+    e.preventDefault();
+    const raw = e.currentTarget.value;
+    if (raw.includes('.')) return;
+    e.currentTarget.value = raw === '' ? '0.' : `${raw}.`;
+  };
+
   const guardScannerInput = (e: React.KeyboardEvent, productId: string, currentValue: number | string, restore: (v: number | string) => void) => {
     if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) return;
     if (detectScannerBurst(qtyKeyTimesRef.current, qtySnapshotsRef.current, productId, currentValue, restore)) {
@@ -2707,6 +2724,11 @@ notes: '',
 
     setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
     setIsCheckingOut(false);
+
+    // Notify the cashier settlement page (if open) to refresh instantly
+    try {
+      window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
+    } catch (e) { /* ignore */ }
     setTimeout(async () => {
       const tabsCount = useTabStore.getState().tabs.length;
       const currentActiveId = activeTabId;
@@ -3188,6 +3210,7 @@ notes: '',
               <span>Clear Cart</span>
             </button>
           )}
+          {(!featureFlags || featureFlags.sales_history || isScrapMode) && (
           <button
             onClick={() => {
               if (isScrapMode) {
@@ -3202,7 +3225,8 @@ notes: '',
             <TrendingUp className="w-4 h-4 text-primary" />
             <span>History</span>
           </button>
-          {enableScrap && (
+          )}
+          {enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
                 const next = !isScrapMode;
@@ -3233,6 +3257,7 @@ notes: '',
               <span>Scrap</span>
             </button>
           )}
+          {(!featureFlags || featureFlags.quotations) && (
           <button
               onClick={() => {
                 const next = !isQuotationMode;
@@ -3254,6 +3279,8 @@ notes: '',
             <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
             <span>Quotation</span>
           </button>
+          )}
+          {(!featureFlags || featureFlags.returns) && (
           <button
             onClick={async () => {
               const next = !isReturnMode;
@@ -3276,7 +3303,8 @@ notes: '',
             <ArrowLeftRight className={clsx("w-4 h-4", isReturnMode && "text-rose-500")} />
             <span>Return</span>
           </button>
-          {showCashRegister && (
+          )}
+          {showCashRegister && (!featureFlags || featureFlags.cash_register) && (
             <button
               onClick={() => setCashRegisterOpen(true)}
               className="flex items-center gap-1.5 px-3 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
@@ -4056,7 +4084,7 @@ notes: '',
                           className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
-                          onKeyDown={e => { guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                          onKeyDown={e => { if (e.key === '.' || e.key === 'Decimal') { handleWeightDecimalKey(e); return; } guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                           placeholder="Kg"
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
@@ -4314,6 +4342,7 @@ notes: '',
                               updatePiecesOverride(item.product_id, undefined);
                             }}
                             onKeyDown={e => {
+                              if (e.key === '.' || e.key === 'Decimal') { handleWeightDecimalKey(e); return; }
                               guardScannerInput(e, item.product_id, weightKg, v => {
                                 updateQuantity(item.product_id, v);
                                 updatePiecesOverride(item.product_id, undefined);
@@ -4340,7 +4369,7 @@ notes: '',
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity}
                           onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                          onKeyDown={e => { guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                          onKeyDown={e => { if (item.billing_type === 'WEIGHT' && (e.key === '.' || e.key === 'Decimal')) { handleWeightDecimalKey(e); return; } guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
                         <button onClick={() => { const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3)); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"

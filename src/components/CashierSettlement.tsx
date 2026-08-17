@@ -264,6 +264,20 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   useEffect(() => { Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
 
+  // Auto-refresh: keep the settlement page in sync with the billing counter.
+  // Newly printed bills (PENDING) appear here instantly without manual reload.
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  useEffect(() => {
+    const refresh = () => { loadRef.current(); };
+    const onCheckout = () => refresh();
+    window.electronAPI?.onSyncDataUpdated?.(refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('checkout:completed', onCheckout);
+    const interval = setInterval(refresh, 5000);
+    return () => { window.removeEventListener('focus', refresh); window.removeEventListener('checkout:completed', onCheckout); clearInterval(interval); };
+  }, []);
+
   // When drawer is null (no auto-open), check if yesterday was not closed
   useEffect(() => {
     if (!drawer && tenantId && !loading) {

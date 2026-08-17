@@ -11,6 +11,7 @@ import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { loadFeatureFlags } from '../featureFlags';
 
 export function ActionPane() {
   const discountInputRef = useRef<HTMLInputElement>(null);
@@ -20,6 +21,11 @@ export function ActionPane() {
   const { theme, toggleTheme } = useThemeStore();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+
+  useEffect(() => {
+    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
+  }, [tenantId]);
 
   const [reservedInvoiceNumber, setReservedInvoiceNumber] = useState('');
 
@@ -187,6 +193,9 @@ export function ActionPane() {
           setIsCheckingOut(false);
           return;
         }
+        try {
+          window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
+        } catch (e) { /* ignore */ }
       } catch (e) {
         setHardwareError('Communication error with hardware services.');
         setIsCheckingOut(false);
@@ -261,6 +270,7 @@ export function ActionPane() {
 
           {currentUserRole === 'OWNER' && (
             <>
+              {(!featureFlags || featureFlags.inventory) && (
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('open-inventory-manager'))}
                 className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
@@ -268,6 +278,8 @@ export function ActionPane() {
               >
                 <Settings className="w-4 h-4" />
               </button>
+              )}
+              {(!featureFlags || featureFlags.staff) && (
               <button
                 onClick={() => window.dispatchEvent(new CustomEvent('open-staff-manager'))}
                 className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
@@ -275,8 +287,10 @@ export function ActionPane() {
               >
                 <Users className="w-4 h-4" />
               </button>
+              )}
             </>
           )}
+          {(!featureFlags || featureFlags.sales_history) && (
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-sales-history'))}
             className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-colors"
@@ -284,6 +298,8 @@ export function ActionPane() {
           >
             <TrendingUp className="w-4 h-4" />
           </button>
+          )}
+          {(!featureFlags || featureFlags.returns) && (
           <button
             onClick={() => window.dispatchEvent(new CustomEvent('open-returns-manager'))}
             className="p-1.5 text-muted-foreground hover:text-orange-500 hover:bg-muted rounded-lg transition-colors"
@@ -291,6 +307,7 @@ export function ActionPane() {
           >
             <Undo2 className="w-4 h-4" />
           </button>
+          )}
           <button onClick={clearCart} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-colors" title="Clear Cart">
             <XCircle className="w-4 h-4" />
           </button>

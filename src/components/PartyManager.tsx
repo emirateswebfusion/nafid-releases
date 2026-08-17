@@ -60,6 +60,26 @@ const formatDateTime = (d: string) => {
   return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
+// Converts a naive local datetime-local value (e.g. "2026-08-16T23:25") into a
+// timezone-aware UTC ISO string so Postgres stores the true instant, not local
+// wall time misread as UTC. Returns undefined for empty/invalid input.
+const toUtcIso = (naive: string): string | undefined => {
+  if (!naive) return undefined;
+  const d = new Date(naive);
+  return isNaN(d.getTime()) ? undefined : d.toISOString();
+};
+
+// Converts a stored timestamp back to a local naive "YYYY-MM-DDTHH:mm" value
+// for the datetime-local input when editing an entry. SQLite stores UTC wall
+// time without a marker (e.g. "2026-08-16 17:55:00"), so parseUTCDate treats
+// unmarked values as UTC and converts them to the user's local time.
+const toLocalInputValue = (iso: string): string => {
+  const d = parseUTCDate(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 16);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 // Generate a consistent hue from a party name
 const nameToHue = (name: string) => {
   let hash = 0;
@@ -237,7 +257,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           amount: parsedAmount,
           transaction_type: txForm.transaction_type,
           description: txForm.description.trim(),
-          transaction_date: txForm.transaction_date || undefined,
+          transaction_date: toUtcIso(txForm.transaction_date) ?? undefined,
           reference_number: txForm.reference_number.trim() || null,
           balance_type: txForm.balance_type,
           payment_method: txForm.payment_method,
@@ -251,7 +271,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           amount: parsedAmount,
           transaction_type: txForm.transaction_type,
           description: txForm.description.trim(),
-          transaction_date: txForm.transaction_date || new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T'),
+          transaction_date: toUtcIso(txForm.transaction_date) || new Date().toISOString(),
           reference_number: txForm.reference_number.trim() || null,
           balance_type: txForm.balance_type,
           payment_method: txForm.payment_method,
@@ -1017,7 +1037,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                       amount: String(amt),
                                       transaction_type: entry.credit_amount > 0 ? 'CREDIT' : 'DEBIT',
                                       description: entry.description,
-                                      transaction_date: entry.transaction_date.slice(0, 16),
+                                      transaction_date: toLocalInputValue(entry.transaction_date),
                                       reference_number: entry.reference_number || '',
                                       balance_type: entry.balance_type || 'GST',
                                       payment_method: (entry.payment_method as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER') || 'CASH',

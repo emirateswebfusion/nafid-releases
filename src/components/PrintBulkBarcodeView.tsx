@@ -6,10 +6,20 @@ import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
 export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeType?: CodeType }) {
   const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
+  const [showShopName, setShowShopName] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [columns, setColumns] = useState(1);
   const [loaded, setLoaded] = useState(false);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const { tenantId } = useAuthStore.getState();
+    if (window.electronAPI && window.electronAPI.settingsGet) {
+      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' }).then((v: unknown) => {
+        if (v !== null && v !== undefined) setShowShopName(Boolean(v));
+      });
+    }
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1]);
@@ -79,7 +89,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
         <div key={colIndex} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '4px 0 0 0', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && item && (
             <>
-              {shopName && (
+              {showShopName && shopName && (
                 <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: (item.price !== undefined && !isNaN(item.price)) ? '0px' : '6px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
                   {shopName}
                 </div>
