@@ -414,22 +414,23 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           HEADER
       ══════════════════════════════════════════════════════════════════════ */}
       {!showHist && (
-      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
+      <header className="relative shrink-0 z-30 border-b border-border bg-card shadow-sm">
+        <div className="absolute inset-x-0 top-0 h-0.5" style={{ background: 'linear-gradient(90deg, transparent 0%, hsl(217,91%,60%) 50%, transparent 100%)' }} />
         <div className="flex items-center justify-between px-5 py-3 gap-4">
           {/* Left: title + status */}
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+            <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 text-primary shadow-inner shrink-0">
               <Banknote className="w-4 h-4" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-bold text-foreground truncate">Cash Settlement</h1>
+                <h1 className="text-sm font-extrabold text-foreground truncate tracking-tight">Cash Settlement</h1>
                 <span className={clsx(
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500'
                 )} />
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
+              <div className="flex items-center gap-2 mt-1">
                 <span className={clsx(
                   'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
                   drawerOpen   ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
@@ -437,6 +438,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   yesterdayNotClosed ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
                                  'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
                 )}>
+                  <span className={clsx('w-1 h-1 rounded-full', drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500')} />
                   {drawerOpen ? 'Open' : drawerClosed ? 'Closed' : yesterdayNotClosed ? 'Blocked' : 'Not Started'}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
@@ -455,6 +457,22 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     {drawer.cash_short === 0 && drawer.cash_excess === 0 && ' Matched'}
                   </span>
                 )}
+              </div>
+            </div>
+          </div>
+
+          {/* Center: current drawer cash */}
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className={clsx(
+              'flex items-center gap-2.5 pl-2.5 pr-4 py-1.5 rounded-2xl border shadow-sm',
+              drawerOpen ? 'bg-gradient-to-r from-emerald-500/10 to-emerald-500/[0.03] border-emerald-500/25' : 'bg-muted/50 border-border'
+            )}>
+              <div className={clsx('p-1.5 rounded-xl', drawerOpen ? 'bg-gradient-to-br from-emerald-500/20 to-emerald-500/5 text-emerald-500 shadow-inner' : 'bg-muted text-muted-foreground')}>
+                <Banknote className="w-3.5 h-3.5" />
+              </div>
+              <div className="leading-tight">
+                <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Drawer Cash</p>
+                <p className="text-sm font-black tabular-nums text-foreground">{formatCurrency(drawer?.current_cash ?? 0)}</p>
               </div>
             </div>
           </div>
@@ -570,21 +588,21 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             });
             return (
               <div className="grid grid-cols-4 gap-3 px-6 py-4 border-b border-border bg-muted/5 shrink-0">
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
-                  <div className="p-2.5 rounded-xl bg-blue-500/10"><History className="w-4 h-4 text-blue-500" /></div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 text-blue-500 shadow-inner"><History className="w-4 h-4" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Sessions</p><p className="text-xl font-black text-foreground tabular-nums">{history.length}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
-                  <div className="p-2.5 rounded-xl bg-emerald-500/10"><TrendingUp className="w-4 h-4 text-emerald-500" /></div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 text-emerald-500 shadow-inner"><TrendingUp className="w-4 h-4" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Cash Sales</p><p className="text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">{formatCurrency(totalSales)}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
-                  <div className="p-2.5 rounded-xl bg-violet-500/10"><DollarSign className="w-4 h-4 text-violet-500" /></div>
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500/15 to-violet-500/5 text-violet-500 shadow-inner"><DollarSign className="w-4 h-4" /></div>
                   <div><p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Total Collected</p><p className="text-xl font-black text-violet-600 dark:text-violet-400 tabular-nums">{formatCurrency(totalCollected)}</p></div>
                 </div>
-                <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-card border border-border shadow-sm">
-                  <div className={clsx('p-2.5 rounded-xl', totalShort > 0 ? 'bg-rose-500/10' : 'bg-emerald-500/10')}>
-                    {totalShort > 0 ? <TrendingDown className="w-4 h-4 text-rose-500" /> : <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
+                <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-card border border-border shadow-sm">
+                  <div className={clsx('p-2.5 rounded-xl shadow-inner', totalShort > 0 ? 'bg-gradient-to-br from-rose-500/15 to-rose-500/5 text-rose-500' : 'bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 text-emerald-500')}>
+                    {totalShort > 0 ? <TrendingDown className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
                   </div>
                   <div>
                     <p className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Short / Excess</p>
@@ -598,14 +616,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           })()}
 
           {/* ── Table ── */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto p-4">
             {history.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 p-12">
-                <div className="w-16 h-16 rounded-full bg-muted/40 flex items-center justify-center"><History className="w-7 h-7 text-muted-foreground/40" /></div>
+                <div className="w-16 h-16 rounded-2xl bg-muted/40 flex items-center justify-center"><History className="w-7 h-7 text-muted-foreground/40" /></div>
                 <div className="text-center"><p className="text-sm font-bold text-foreground">No history yet</p><p className="text-xs text-muted-foreground/60 mt-1">Completed sessions will appear here</p></div>
               </div>
             ) : (
-              <div>
+              <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
                 {/* Column headers */}
                 <div className="grid grid-cols-[1fr_0.8fr_0.8fr_0.7fr_0.7fr_0.8fr_0.8fr_0.8fr_0.9fr_0.7fr_0.7fr] gap-x-2 px-4 py-2.5 text-[9px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 sticky top-0 z-10">
                   <span className="flex items-center gap-1 cursor-pointer hover:text-foreground" onClick={() => setExpandedDay(null)}>Date <ChevronDown className="w-2.5 h-2.5 opacity-40" /></span>
@@ -622,7 +640,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 </div>
 
                 <div className="divide-y divide-border/30">
-                  {history.map((d: any, idx: number) => {
+                  {history.map((d: any) => {
                     const isClosed  = d.status === 'CLOSED';
                     const variance  = Number(d.actual_cash ?? 0) - Number(d.expected_closing ?? 0);
                     const hasVar    = isClosed && d.actual_cash !== null && d.actual_cash !== undefined;
@@ -640,7 +658,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             variance < 0 ? 'border-l-rose-500/80' :
                             variance > 0 ? 'border-l-amber-500/80' :
                             'border-l-emerald-500/80',
-                            idx % 2 === 0 ? 'bg-card' : 'bg-muted/20',
                             isExpanded ? 'bg-primary/5 shadow-inner' : 'hover:bg-primary/5'
                           )}
                         >
@@ -833,22 +850,22 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
 
           {/* Column headers */}
-          <div className="grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
-            <span className="text-center">Invoice</span>
-            <span className="text-center">Customer</span>
-            <span className="text-center">Amount</span>
-            <span className="text-center">Disc</span>
-            <span className="text-center">Net</span>
+          <div className="grid grid-cols-[1.2fr_1.3fr_1fr_1.3fr_1fr_1.1fr_0.9fr] gap-x-3 px-4 py-3 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
+            <span>Invoice</span>
+            <span>Customer</span>
+            <span className="text-right">Amount</span>
+            <span className="text-center">Discount</span>
+            <span className="text-right">Net</span>
             <span className="text-center">Payment</span>
-            <span className="text-center">Action</span>
+            <span className="text-right">Action</span>
           </div>
 
           {/* Rows */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto divide-y divide-border/40">
             {pendingInvoices.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-10">
-                <div className="w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-500/60" />
+                <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 flex items-center justify-center shadow-inner">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-500/70" />
                 </div>
                 <div className="text-center">
                   <p className="text-sm font-bold text-foreground">All Settled!</p>
@@ -856,142 +873,128 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 </div>
               </div>
             ) : (
-              <div className="divide-y divide-border/30">
-                {pendingInvoices.map((inv, idx) => {
-                  const rd  = rowDiscs[inv.invoice_id] ?? 0;
-                  const rm  = rowMethods[inv.invoice_id] ?? 'CASH';
-                  const net = Math.max(0, inv.grand_total - rd);
-                  const isPaying = payingRow === inv.invoice_id;
-                  return (
-                    <div
-                      key={inv.invoice_id}
-                      className={clsx(
-                        'grid grid-cols-[1.2fr_1.2fr_1fr_1.4fr_1fr_1.2fr_0.9fr] gap-x-2 px-4 py-2.5 transition-all duration-150 items-center group hover:bg-primary/5',
-                        idx % 2 === 0 ? 'bg-card' : 'bg-muted/25'
-                      )}
-                    >
-                      {/* Invoice number */}
-                      <span 
-                        onClick={() => handleViewInvoice(inv)}
-                        className="text-xs font-bold text-foreground truncate text-center block cursor-pointer hover:text-primary hover:underline"
-                      >
-                        {inv.invoice_number}
-                      </span>
+              pendingInvoices.map((inv) => {
+                const rd  = rowDiscs[inv.invoice_id] ?? 0;
+                const rm  = rowMethods[inv.invoice_id] ?? 'CASH';
+                const net = Math.max(0, inv.grand_total - rd);
+                const isPaying = payingRow === inv.invoice_id;
+                const scrapD = Number(inv.scrap_deduction) || 0;
+                const returnD = Number(inv.return_deduction) || 0;
+                const totalDeductions = scrapD + returnD;
+                const sub = Number(inv.subtotal) || 0;
+                const tax = Number(inv.tax_total) || 0;
+                const disc = Number(inv.discount_total) || 0;
+                const ptsDisc = Number(inv.points_redeemed_discount) || 0;
+                const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+                const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+                const displayAmount = refundAmount > 0 ? preDeductionTotal : inv.grand_total;
 
-                      {/* Customer */}
-                      <span className="text-xs text-muted-foreground truncate text-center block">{inv.customer_name || '—'}</span>
-
-                      {/* Amount */}
-                      <span className="text-xs font-black text-foreground text-center tabular-nums block">
-                        {(() => {
-                          const scrapD = Number(inv.scrap_deduction) || 0;
-                          const returnD = Number(inv.return_deduction) || 0;
-                          const totalDeductions = scrapD + returnD;
-                          const sub = Number(inv.subtotal) || 0;
-                          const tax = Number(inv.tax_total) || 0;
-                          const disc = Number(inv.discount_total) || 0;
-                          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
-                          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-                          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-
-                          if (refundAmount > 0) {
-                            return formatCurrency(preDeductionTotal);
-                          }
-                          return formatCurrency(inv.grand_total);
-                        })()}
-                      </span>
-
-                      {/* Discount inputs grouped */}
-                      <div className="flex items-center border border-amber-500/20 rounded-lg overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
-                        <input
-                          type="number"
-                          value={rowDiscPercents[inv.invoice_id] || ''}
-                          onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-full py-1.5 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                          step="0.01" min="0" placeholder="%"
-                        />
-                        <span className="w-px h-5 bg-amber-500/20 shrink-0" />
-                        <input
-                          type="number"
-                          value={rd || ''}
-                          onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
-                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                          className="w-full py-1.5 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                          step="1" min="0" placeholder="₹"
-                        />
+                return (
+                  <div
+                    key={inv.invoice_id}
+                    className={clsx(
+                      'grid grid-cols-[1.2fr_1.3fr_1fr_1.3fr_1fr_1.1fr_0.9fr] gap-x-3 px-4 py-3.5 items-center transition-all duration-150 group',
+                      isPaying ? 'bg-primary/5' : 'hover:bg-primary/5'
+                    )}
+                  >
+                    {/* Invoice + status */}
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 text-blue-500 shadow-inner shrink-0">
+                        <Receipt className="w-3.5 h-3.5" />
                       </div>
-
-                      {/* Net */}
-                      <span className="text-xs font-black text-center tabular-nums block">
-                        {(() => {
-                          const scrapD = Number(inv.scrap_deduction) || 0;
-                          const returnD = Number(inv.return_deduction) || 0;
-                          const totalDeductions = scrapD + returnD;
-                          const sub = Number(inv.subtotal) || 0;
-                          const tax = Number(inv.tax_total) || 0;
-                          const disc = Number(inv.discount_total) || 0;
-                          const ptsDisc = Number(inv.points_redeemed_discount) || 0;
-                          const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-                          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-
-                          if (refundAmount > 0) {
-                            return (
-                              <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Refund Amount">
-                                -{formatCurrency(refundAmount)}
-                              </span>
-                            );
-                          }
-                          return (
-                            <span className="text-primary font-bold">
-                              {formatCurrency(net)}
-                            </span>
-                          );
-                        })()}
-                      </span>
-
-                      {/* Payment method dropdown */}
-                      <div className="flex justify-center">
-                        <Select
-                          value={rm}
-                          onChange={(v) => setRowMethods((p) => ({ ...p, [inv.invoice_id]: v as PaymentMethod }))}
-                          options={PAYMENT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-                          size="sm"
-                        />
-                      </div>
-
-                      {/* Pay button */}
-                      <div className="flex justify-center">
+                      <div className="min-w-0">
                         <button
-                          onClick={async () => {
-                            if (payingRow) return;
-                            setPayingRow(inv.invoice_id);
-                            const r = await window.electronAPI!.dbCashierSettlePayment({
-                              tenant_id: tenantId!, invoice_id: inv.invoice_id,
-                              received_amount: net, payment_method: rm,
-                              user_id: userId!, user_name: userName || undefined,
-                            });
-                            setPayingRow(null);
-                            if (r.success) await load();
-                          }}
-                          disabled={isPaying}
-                          className={clsx(
-                            'flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-black text-white transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 shadow-sm',
-                            isPaying ? 'bg-emerald-400' : 'bg-emerald-600 hover:bg-emerald-700 hover:shadow-md'
-                          )}
+                          onClick={() => handleViewInvoice(inv)}
+                          className="text-xs font-extrabold text-foreground truncate block cursor-pointer hover:text-primary hover:underline transition-colors"
+                          title="View invoice"
                         >
-                          {isPaying ? (
-                            <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
-                          ) : (
-                            <CheckCircle2 className="w-3 h-3" />
-                          )}
-                          {isPaying ? '' : 'Settle'}
+                          {inv.invoice_number}
                         </button>
+                        <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                          <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" /> Pending
+                        </span>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Customer */}
+                    <span className="text-xs text-muted-foreground truncate flex items-center gap-1.5 min-w-0">
+                      <User className="w-3 h-3 shrink-0 opacity-50" />
+                      <span className="truncate">{inv.customer_name || 'Walk-in Customer'}</span>
+                    </span>
+
+                    {/* Amount */}
+                    <span className="text-xs font-bold text-foreground text-right tabular-nums block">{formatCurrency(displayAmount)}</span>
+
+                    {/* Discount inputs grouped */}
+                    <div className="flex items-center border border-amber-500/20 rounded-xl overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
+                      <input
+                        type="number"
+                        value={rowDiscPercents[inv.invoice_id] || ''}
+                        onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                        step="0.01" min="0" placeholder="%"
+                      />
+                      <span className="w-px h-5 bg-amber-500/20 shrink-0" />
+                      <input
+                        type="number"
+                        value={rd || ''}
+                        onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
+                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                        className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                        step="1" min="0" placeholder="₹"
+                      />
+                    </div>
+
+                    {/* Net */}
+                    <span className="text-xs font-black text-right tabular-nums block">
+                      {refundAmount > 0 ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Refund Amount">
+                          -{formatCurrency(refundAmount)}
+                        </span>
+                      ) : (
+                        <span className="text-primary font-bold">{formatCurrency(net)}</span>
+                      )}
+                    </span>
+
+                    {/* Payment method dropdown */}
+                    <div className="flex justify-center">
+                      <Select
+                        value={rm}
+                        onChange={(v) => setRowMethods((p) => ({ ...p, [inv.invoice_id]: v as PaymentMethod }))}
+                        options={PAYMENT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+                        size="sm"
+                      />
+                    </div>
+
+                    {/* Pay button */}
+                    <div className="flex justify-end">
+                      <button
+                        onClick={async () => {
+                          if (payingRow) return;
+                          setPayingRow(inv.invoice_id);
+                          const r = await window.electronAPI!.dbCashierSettlePayment({
+                            tenant_id: tenantId!, invoice_id: inv.invoice_id,
+                            received_amount: net, payment_method: rm,
+                            user_id: userId!, user_name: userName || undefined,
+                          });
+                          setPayingRow(null);
+                          if (r.success) await load();
+                        }}
+                        disabled={isPaying}
+                        className="flex items-center gap-1 px-3.5 py-2 rounded-xl text-[10px] font-black text-white transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 shadow-sm bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 hover:shadow-md"
+                      >
+                        {isPaying ? (
+                          <span className="w-3 h-3 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="w-3 h-3" />
+                        )}
+                        {isPaying ? '' : 'Settle'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
             )}
           </div>
         </div>
@@ -1034,27 +1037,27 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             </div>
           </div>
 
-          {/* Mini stat cards for IN / OUT */}
-          <div className="grid grid-cols-2 gap-3 px-5 py-3 border-b border-border bg-muted/5 shrink-0">
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-emerald-500/8 border border-emerald-500/20">
-              <div className="p-1.5 rounded-lg bg-emerald-500/15">
-                <TrendingUp className="w-3.5 h-3.5 text-emerald-500" />
+          {/* Mini stat cards */}
+          <div className="grid grid-cols-2 gap-2 px-4 py-3 border-b border-border bg-muted/5 shrink-0">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border shadow-sm">
+                <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 text-emerald-500 shadow-inner shrink-0">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Cash In</p>
+                  <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight truncate">{formatCurrency(totalIn)}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash In</p>
-                <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-tight">{formatCurrency(totalIn)}</p>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-card border border-border shadow-sm">
+                <div className="p-1.5 rounded-lg bg-gradient-to-br from-rose-500/15 to-rose-500/5 text-rose-500 shadow-inner shrink-0">
+                  <TrendingDown className="w-3.5 h-3.5" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[8px] font-bold text-muted-foreground uppercase tracking-wider">Cash Out</p>
+                  <p className="text-xs font-black text-rose-600 dark:text-rose-400 tabular-nums leading-tight truncate">{formatCurrency(totalOut)}</p>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rose-500/8 border border-rose-500/20">
-              <div className="p-1.5 rounded-lg bg-rose-500/15">
-                <TrendingDown className="w-3.5 h-3.5 text-rose-500" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Cash Out</p>
-                <p className="text-sm font-black text-rose-600 dark:text-rose-400 tabular-nums leading-tight">{formatCurrency(totalOut)}</p>
-              </div>
-            </div>
-          </div>
 
           {/* Column headers */}
           <div className="grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider border-b border-border bg-muted/20 shrink-0">
@@ -1069,7 +1072,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           <div className="flex-1 overflow-y-auto">
             {transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
-                <div className="w-14 h-14 rounded-full bg-muted/40 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-muted to-muted/40 flex items-center justify-center shadow-inner">
                   <Banknote className="w-6 h-6 text-muted-foreground/40" />
                 </div>
                 <div className="text-center">

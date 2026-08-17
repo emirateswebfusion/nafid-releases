@@ -2034,6 +2034,7 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
                   is_gst_applicable: item.is_gst_applicable === false ? 0 : 1,
                   tax_rate_percent: item.tax_rate_percent ?? 0,
                   hsn_sac_code: item.hsn_sac_code || null,
+                  skip_stock_update: item.skip_stock_update ? 1 : 0,
                   created_at: toSqliteDate(item.created_at),
                   updated_at: toSqliteDate(item.updated_at),
                 });
