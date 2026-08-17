@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -133,6 +133,10 @@ export function BillingPage() {
   // Local state for per-item two-way discount binding (like CashierSettlement)
   const [localDiscPcts, setLocalDiscPcts] = useState<Record<string, number>>({});
   const [localDiscFlats, setLocalDiscFlats] = useState<Record<string, number>>({});
+  // Local string state for Pcs and Kg inputs — lets user type multi-digit values
+  // without every keystroke triggering a cross-field recalculation.
+  const [localPcsStr, setLocalPcsStr] = useState<Record<string, string>>({});
+  const [localKgStr, setLocalKgStr] = useState<Record<string, string>>({});
 
   // Pricing tier state
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
@@ -142,42 +146,54 @@ export function BillingPage() {
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = authRole === 'OWNER' || allowBillerOverride;
 
-  // Sync local discount state when items are added/removed (but NOT overwrite on every store change)
+  // Sync local discount + pcs/kg state when items are added/removed
   useEffect(() => {
+    const ids = new Set(items.map(i => i.product_id));
+
     setLocalDiscPcts(prev => {
-      const ids = new Set(items.map(i => i.product_id));
       const next = { ...prev };
       let changed = false;
       items.forEach(item => {
-        if (!(item.product_id in prev)) {
-          next[item.product_id] = item.discount_percent ?? 0;
-          changed = true;
-        }
+        if (!(item.product_id in prev)) { next[item.product_id] = item.discount_percent ?? 0; changed = true; }
       });
-      Object.keys(next).forEach(id => {
-        if (!ids.has(id)) {
-          delete next[id];
-          changed = true;
-        }
-      });
+      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
       return changed ? next : prev;
     });
     setLocalDiscFlats(prev => {
-      const ids = new Set(items.map(i => i.product_id));
       const next = { ...prev };
       let changed = false;
       items.forEach(item => {
-        if (!(item.product_id in prev)) {
-          next[item.product_id] = item.discount_flat ?? 0;
+        if (!(item.product_id in prev)) { next[item.product_id] = item.discount_flat ?? 0; changed = true; }
+      });
+      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
+      return changed ? next : prev;
+    });
+    // Pcs/Kg local strings: initialise for new items, clean up removed items.
+    // Do NOT overwrite if the user is mid-edit (key already present).
+    setLocalPcsStr(prev => {
+      const next = { ...prev };
+      let changed = false;
+      items.forEach(item => {
+        if (item.billing_type === 'WEIGHT' && item.pieces_per_kg && !(item.product_id in prev)) {
+          const kg = Number(item.quantity) || 0;
+          const pcs = item.pieces_override ?? Math.round(kg * item.pieces_per_kg);
+          next[item.product_id] = String(pcs);
           changed = true;
         }
       });
-      Object.keys(next).forEach(id => {
-        if (!ids.has(id)) {
-          delete next[id];
+      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
+      return changed ? next : prev;
+    });
+    setLocalKgStr(prev => {
+      const next = { ...prev };
+      let changed = false;
+      items.forEach(item => {
+        if (item.billing_type === 'WEIGHT' && item.pieces_per_kg && !(item.product_id in prev)) {
+          next[item.product_id] = String(item.quantity ?? '');
           changed = true;
         }
       });
+      Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
       return changed ? next : prev;
     });
   }, [items]);
@@ -4275,11 +4291,41 @@ notes: '',
                 const total = effectivePrice * qty;
 
                 const _ppk = item.pieces_per_kg!;
-                const handlePcsChange = (pcsVal: number) => {
-                  updatePiecesOverride(item.product_id, pcsVal > 0 ? pcsVal : undefined);
-                  if (_ppk > 0) {
-                    const newKg = pcsVal / _ppk;
-                    updateQuantity(item.product_id, +newKg.toFixed(3));
+                // Commit / live-calculate Pcs value to store and update Kg display
+                const commitPcs = (pcsStr: string, isFinal = false) => {
+                  const pcsVal = parseInt(pcsStr, 10);
+                  if (!isNaN(pcsVal) && pcsVal > 0) {
+                    updatePiecesOverride(item.product_id, pcsVal);
+                    if (_ppk > 0) {
+                      const newKg = pcsVal / _ppk;
+                      const kgStr = newKg.toFixed(3);
+                      updateQuantity(item.product_id, +kgStr);
+                      setLocalKgStr(p => ({ ...p, [item.product_id]: kgStr }));
+                    }
+                  } else if (pcsStr === '' && isFinal) {
+                    updatePiecesOverride(item.product_id, undefined);
+                    const autoPcs = Math.round(weightKg * _ppk) || 1;
+                    setLocalPcsStr(p => ({ ...p, [item.product_id]: String(autoPcs) }));
+                  } else if (isFinal) {
+                    // Restore display on blur/final if empty or invalid
+                    const fallback = (item.pieces_override ?? Math.round(weightKg * _ppk)) || 1;
+                    setLocalPcsStr(p => ({ ...p, [item.product_id]: String(fallback) }));
+                  }
+                };
+                // Commit / live-calculate Kg value to store independently
+                const commitKg = (kgStr: string, isFinal = false) => {
+                  const cleaned = sanitizeQtyText(kgStr);
+                  const kgVal = parseFloat(cleaned);
+                  if (!isNaN(kgVal) && kgVal > 0) {
+                    updateQuantity(item.product_id, +kgVal.toFixed(3));
+                    // If pieces_override is not set, update Pcs display from Kg; otherwise keep Pcs set separately
+                    if (item.pieces_override === undefined) {
+                      const autoPcs = Math.round(kgVal * _ppk);
+                      setLocalPcsStr(p => ({ ...p, [item.product_id]: String(autoPcs) }));
+                    }
+                  } else if (isFinal) {
+                    // Restore display on blur/final if empty or invalid
+                    setLocalKgStr(p => ({ ...p, [item.product_id]: String(item.quantity ?? '') }));
                   }
                 };
 
@@ -4326,7 +4372,8 @@ notes: '',
                       <div className="flex items-center gap-1.5 shrink-0">
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
                           <span className="text-[8px] text-muted-foreground font-bold uppercase">Pcs</span>
-                          <input type="number" min="1" step="1"
+                          <input
+                            type="text" inputMode="numeric"
                             ref={(el) => {
                               qtyRefs.current[item.product_id] = el;
                               if (el && pendingFocusProductIdRef.current === item.product_id) {
@@ -4336,22 +4383,28 @@ notes: '',
                               }
                             }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={pieces}
-                            onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                            value={localPcsStr[item.product_id] ?? String(pieces)}
+                            onFocus={e => e.target.select()}
+                            onChange={e => {
+                              const raw = e.target.value.replace(/[^\d]/g, '');
+                              setLocalPcsStr(p => ({ ...p, [item.product_id]: raw }));
+                              commitPcs(raw, false);
+                            }}
+                            onBlur={e => commitPcs(e.target.value, true)}
                             onKeyDown={e => {
                               guardScannerInput(e, item.product_id, pieces, v => {
-                                const pcsVal = Number(v) > 0 ? Number(v) : undefined;
-                                updatePiecesOverride(item.product_id, pcsVal);
-                                if (pcsVal && _ppk > 0) {
-                                  const newKg = pcsVal / _ppk;
-                                  updateQuantity(item.product_id, +newKg.toFixed(3));
-                                }
+                                const pcsStr = String(Math.round(Number(v)));
+                                setLocalPcsStr(p => ({ ...p, [item.product_id]: pcsStr }));
+                                commitPcs(pcsStr, true);
                               });
                               if (e.key === 'Enter') {
-                                kRefs.current[item.product_id]?.focus();
+                                commitPcs(e.currentTarget.value, true);
+                                const pid = item.product_id;
+                                setTimeout(() => {
+                                  const kInput = kRefs.current[pid];
+                                  if (kInput) { kInput.focus(); kInput.select(); }
+                                }, 0);
                                 e.preventDefault();
-                              } else {
-                                handleQtyKeyDown(e, item.product_id);
                               }
                             }}
                           />
@@ -4361,17 +4414,26 @@ notes: '',
                           <input type="text" inputMode="decimal"
                             ref={(el) => { kRefs.current[item.product_id] = el; }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={item.quantity}
+                            value={localKgStr[item.product_id] ?? String(item.quantity ?? '')}
+                            onFocus={e => e.target.select()}
                             onChange={e => {
-                              updateQuantity(item.product_id, sanitizeQtyText(e.target.value));
-                              updatePiecesOverride(item.product_id, undefined);
+                              const raw = sanitizeQtyText(e.target.value);
+                              setLocalKgStr(p => ({ ...p, [item.product_id]: raw }));
+                              commitKg(raw, false);
                             }}
+                            onBlur={e => commitKg(e.target.value, true)}
                             onKeyDown={e => {
                               guardScannerInput(e, item.product_id, weightKg, v => {
-                                updateQuantity(item.product_id, v);
-                                updatePiecesOverride(item.product_id, undefined);
+                                const kgStr = String(v);
+                                setLocalKgStr(p => ({ ...p, [item.product_id]: kgStr }));
+                                commitKg(kgStr, true);
                               });
-                              handleQtyKeyDown(e, item.product_id);
+                              if (e.key === 'Enter') {
+                                commitKg(e.currentTarget.value, true);
+                                e.preventDefault();
+                                searchRef.current?.focus();
+                                searchRef.current?.select();
+                              }
                             }}
                           />
                         </div>
