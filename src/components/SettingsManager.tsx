@@ -491,8 +491,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: showCashRegister }), name: 'show_cash_register' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags, scrap: enableScrap, cash_register: showCashRegister } }), name: 'feature_flags' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: featureFlags.cash_register }), name: 'show_cash_register' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags, scrap: enableScrap } }), name: 'feature_flags' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
@@ -536,7 +536,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       useCartStore.setState({ shopState });
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setFeatureFlag('scrap', enableScrap);
-      setFeatureFlag('cash_register', showCashRegister);
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
       initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
       setSaveRevision(v => v + 1);
@@ -891,11 +890,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 {/* Cash Register Toggle */}
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowCashRegister(!showCashRegister)}>Show Cash Register on Billing Page</label>
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => { const v = !featureFlags.cash_register; setFeatureFlags({ ...featureFlags, cash_register: v }); setShowCashRegister(v); }}>Show Cash Register on Billing Page</label>
                     <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, a Cash Register button appears on the billing page for quick cash-in/cash-out entries.</p>
                   </div>
-                  <button type="button" onClick={() => setShowCashRegister(!showCashRegister)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showCashRegister ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showCashRegister ? 'translate-x-5' : 'translate-x-0')} />
+                  <button type="button" onClick={() => { const v = !featureFlags.cash_register; setFeatureFlags({ ...featureFlags, cash_register: v }); setShowCashRegister(v); }} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', featureFlags.cash_register ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', featureFlags.cash_register ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
 
