@@ -129,8 +129,7 @@ export function initDb() {
         is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id),
-        FOREIGN KEY (product_id) REFERENCES products(product_id)
+        FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
     );
 
     CREATE TABLE IF NOT EXISTS parties (
@@ -413,8 +412,7 @@ export function initDb() {
         total REAL NOT NULL,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (return_id) REFERENCES returns(return_id),
-        FOREIGN KEY (product_id) REFERENCES products(product_id)
+        FOREIGN KEY (return_id) REFERENCES returns(return_id)
     );
 
     CREATE TABLE IF NOT EXISTS customers (
@@ -1141,6 +1139,85 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add qty_from_paper_stock to invoice_items:', e.message);
+  }
+
+  // Migration: allow temp (billing-only) items — invoice_items & return_items must not
+  // FK-reference products, because temp items are sold without creating a products row.
+  try {
+    const iiSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='invoice_items'").get() as any;
+    if (iiSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test(iiSql.sql)) {
+      console.log('[DB Migration] Removing products FK from invoice_items (temp billing items support)...');
+      db.exec('PRAGMA foreign_keys=off;');
+      const migrateInvoiceItems = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE invoice_items_new (
+              item_id TEXT PRIMARY KEY,
+              invoice_id TEXT NOT NULL,
+              tenant_id TEXT,
+              product_id TEXT NOT NULL,
+              name TEXT,
+              quantity REAL NOT NULL,
+              unit_price REAL NOT NULL,
+              tax_amount REAL DEFAULT 0,
+              total REAL NOT NULL,
+              is_service_item INTEGER DEFAULT 0,
+              source_item_id TEXT,
+              bos_unit_price REAL DEFAULT 0,
+              bos_tax_amount REAL DEFAULT 0,
+              bos_total REAL DEFAULT 0,
+              qty_from_paper_stock REAL DEFAULT 0,
+              sync_status TEXT DEFAULT 'PENDING',
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
+          );
+        `);
+        const cols = db.prepare("PRAGMA table_info(invoice_items)").all().map((c: any) => c.name).join(', ');
+        db.exec(`INSERT INTO invoice_items_new (${cols}) SELECT ${cols} FROM invoice_items;`);
+        db.exec('DROP TABLE invoice_items;');
+        db.exec('ALTER TABLE invoice_items_new RENAME TO invoice_items;');
+      });
+      migrateInvoiceItems();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] invoice_items products FK removed successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to update invoice_items schema:', e.message);
+  }
+
+  try {
+    const riSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='return_items'").get() as any;
+    if (riSql && /FOREIGN KEY\s*\(\s*product_id\s*\)\s*REFERENCES\s*products/i.test(riSql.sql)) {
+      console.log('[DB Migration] Removing products FK from return_items (temp billing items support)...');
+      db.exec('PRAGMA foreign_keys=off;');
+      const migrateReturnItems = db.transaction(() => {
+        db.exec(`
+          CREATE TABLE return_items_new (
+              return_item_id TEXT PRIMARY KEY,
+              return_id TEXT NOT NULL,
+              tenant_id TEXT NOT NULL,
+              invoice_item_id TEXT,
+              product_id TEXT NOT NULL,
+              name TEXT,
+              quantity REAL NOT NULL,
+              unit_price REAL NOT NULL,
+              tax_amount REAL NOT NULL DEFAULT 0,
+              total REAL NOT NULL,
+              sync_status TEXT DEFAULT 'PENDING',
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              FOREIGN KEY (return_id) REFERENCES returns(return_id)
+          );
+        `);
+        const cols = db.prepare("PRAGMA table_info(return_items)").all().map((c: any) => c.name).join(', ');
+        db.exec(`INSERT INTO return_items_new (${cols}) SELECT ${cols} FROM return_items;`);
+        db.exec('DROP TABLE return_items;');
+        db.exec('ALTER TABLE return_items_new RENAME TO return_items;');
+      });
+      migrateReturnItems();
+      db.exec('PRAGMA foreign_keys=on;');
+      console.log('[DB Migration] return_items products FK removed successfully.');
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to update return_items schema:', e.message);
   }
 
   // Initialize hardware defaults if empty

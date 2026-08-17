@@ -242,7 +242,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
   const handleSaveTx = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedParty) return;
-    if (!txForm.amount || !txForm.description.trim()) { showStatus('Amount and description are required', 'error'); return; }
+    if (!txForm.amount) { showStatus('Amount is required', 'error'); return; }
     if (!isOwner) { showStatus('Only owners can manage transactions', 'error'); return; }
 
     const parsedAmount = parseFloat(txForm.amount);
@@ -1180,9 +1180,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
               {/* Description */}
               <div className="mb-4">
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Description / Remarks *</label>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Description / Remarks</label>
                 <textarea
-                  required
                   placeholder="e.g. Payment received for Invoice #123"
                   rows={2}
                   value={txForm.description}
