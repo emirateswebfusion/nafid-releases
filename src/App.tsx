@@ -327,7 +327,7 @@ function App() {
     const handleOpenQuotationManager = () => { if (canOpen('quotations')) setShowQuotationManager(true); };
     const handleOpenWarrantyManager = () => { if (canOpen('warranties')) setShowWarrantyManager(true); };
     const handleOpenReturnManager = () => { if (canOpen('returns')) setShowReturnManager(true); };
-    const handleOpenCashierSettlement = () => { if (canOpen('cash_settlement')) setShowCashierSettlement(true); };
+    const handleOpenCashierSettlement = () => { if (canOpen('cash_settlement') || canOpen('cash_register')) setShowCashierSettlement(true); };
     const handleOpenPurchaseBillManager = () => { if (canOpen('purchase_bills')) setShowPurchaseBillManager(true); };
     const handleOpenCustomersPage = () => { if (canOpen('customers')) setShowCustomersPage(true); };
     const handleOpenPaymentsPage = () => { if (canOpen('payments')) setShowPaymentsPage(true); };

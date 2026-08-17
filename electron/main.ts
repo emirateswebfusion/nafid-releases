@@ -577,16 +577,70 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
 ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tenant_id: string }) => {
   try {
     const db = getDb();
-    const existing = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND is_service_item = 1 AND is_deleted = 0").get(tenant_id);
-    if (existing) return { success: true };
-    const existingBarcode = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 0").get(tenant_id);
-    const barcode = existingBarcode ? `SVC-${crypto.randomUUID().slice(0, 8)}` : '99';
-    const product_id = crypto.randomUUID();
-    db.prepare(`
-      INSERT INTO products (product_id, tenant_id, name, sku_barcode, base_price, tax_rate_percent, uom, current_stock, is_service_item, billing_type, pricing_mode, is_deleted, sync_status, created_at, updated_at)
-      VALUES (?, ?, 'Service Charge', ?, 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    `).run(product_id, tenant_id, barcode);
-    return { success: true, product_id };
+    // Gather every live Service Charge candidate: flagged items or rows literally named 'Service Charge'.
+    const candidates = db.prepare(`
+      SELECT * FROM products
+      WHERE tenant_id = ? AND is_deleted = 0
+        AND (is_service_item = 1 OR name = 'Service Charge')
+      ORDER BY created_at ASC, product_id ASC
+    `).all(tenant_id) as any[];
+    const isFlagged = (p: any) => Number(p.is_service_item) === 1;
+    const hasBarcode99 = (p: any) => String(p.sku_barcode || '').trim() === '99';
+
+    // Deterministic canonical pick:
+    //   1. flagged + barcode '99'   (the easy-scan item)
+    //   2. flagged                  (the true service item)
+    //   3. named 'Service Charge' + barcode '99'
+    //   4. named 'Service Charge'    (oldest first)
+    let canonical = candidates.find((p: any) => isFlagged(p) && hasBarcode99(p))
+      || candidates.find((p: any) => isFlagged(p))
+      || candidates.find((p: any) => hasBarcode99(p))
+      || candidates[0];
+
+    if (!canonical) {
+      // Fresh tenant: create one canonical service charge row.
+      const barcodeInUse = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 0").get(tenant_id);
+      const barcode = barcodeInUse ? `SVC-${crypto.randomUUID().slice(0, 8)}` : '99';
+      const product_id = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO products (product_id, tenant_id, name, sku_barcode, base_price, tax_rate_percent, uom, current_stock, is_service_item, billing_type, pricing_mode, is_deleted, sync_status, created_at, updated_at)
+        VALUES (?, ?, 'Service Charge', ?, 0, 0, 'Pcs', 0, 1, 'PIECE', 'FIXED_PRICE', 0, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(product_id, tenant_id, barcode);
+      return { success: true, product_id };
+    }
+
+    // Soft-delete every duplicate so only the canonical one survives (locally + pushed to cloud).
+    const softDelete = db.prepare(`
+      UPDATE products SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = ? AND product_id = ?
+    `);
+    const deletedHadBarcode99 = candidates.some((c: any) => c.product_id !== canonical.product_id && hasBarcode99(c));
+    for (const c of candidates) {
+      if (c.product_id !== canonical.product_id) softDelete.run(tenant_id, c.product_id);
+    }
+
+    // Keep the canonical row properly flagged/named, and give it the easy barcode when it has none.
+    const canonicalBarcode = String(canonical.sku_barcode || '').trim();
+    const canAdopt99 = !canonicalBarcode || (deletedHadBarcode99 && canonicalBarcode !== '99');
+    if (canAdopt99) {
+      // The soft-deleted duplicate still occupies the UNIQUE '99' — clear it first, then hand it over.
+      db.prepare(`
+        UPDATE products SET sku_barcode = NULL, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 1
+      `).run(tenant_id);
+      const barcodeTaken = db.prepare("SELECT product_id FROM products WHERE tenant_id = ? AND sku_barcode = '99' AND is_deleted = 0 AND product_id != ?").get(tenant_id, canonical.product_id);
+      canonical.sku_barcode = barcodeTaken ? (canonicalBarcode || `SVC-${crypto.randomUUID().slice(0, 8)}`) : '99';
+    }
+
+    const needsFix = !isFlagged(canonical) || canonical.name !== 'Service Charge' || canonical.sku_barcode !== canonicalBarcode;
+    if (needsFix) {
+      db.prepare(`
+        UPDATE products SET name = 'Service Charge', sku_barcode = ?, is_service_item = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? AND product_id = ?
+      `).run(canonical.sku_barcode, tenant_id, canonical.product_id);
+    }
+
+    return { success: true, product_id: canonical.product_id, sku_barcode: canonical.sku_barcode };
   } catch (error: any) {
     console.error('[db:ensureServiceItem]', error);
     return { success: false, error: error.message || 'Operation failed' };

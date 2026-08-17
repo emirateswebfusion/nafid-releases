@@ -787,10 +787,12 @@ export function BillingPage() {
             })
           : products;
         // Collapse duplicate service charge items to a single row
+        // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
         const deduped: any[] = [];
         let serviceFound = false;
         for (const p of filtered) {
-          if (Number(p.is_service_item) === 1) {
+          const isServiceCharge = Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge';
+          if (isServiceCharge) {
             if (serviceFound) continue;
             serviceFound = true;
           }
@@ -2133,12 +2135,9 @@ export function BillingPage() {
     }
   };
 
-  const handleWeightDecimalKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== '.' && e.key !== 'Decimal') return;
-    e.preventDefault();
-    const raw = e.currentTarget.value;
-    if (raw.includes('.')) return;
-    e.currentTarget.value = raw === '' ? '0.' : `${raw}.`;
+  const sanitizeQtyText = (raw: string) => {
+    const cleaned = raw.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+    return cleaned === '' ? '' : cleaned.replace(/^\./, '0.');
   };
 
   const guardScannerInput = (e: React.KeyboardEvent, productId: string, currentValue: number | string, restore: (v: number | string) => void) => {
@@ -4072,7 +4071,7 @@ notes: '',
                         </div>
                       </div>
                       <div className="flex items-center gap-0.5 bg-orange-500/10 border border-orange-500/30 rounded-lg py-0.5 shrink-0">
-                        <input type="number" step="0.001" min="0"
+                        <input type="text" inputMode="decimal"
                           ref={(el) => {
                             qtyRefs.current[item.product_id] = el;
                             if (el && pendingFocusProductIdRef.current === item.product_id) {
@@ -4083,8 +4082,8 @@ notes: '',
                           }}
                           className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
-                          onChange={e => updateQuantity(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
-                          onKeyDown={e => { if (e.key === '.' || e.key === 'Decimal') { handleWeightDecimalKey(e); return; } guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                          onChange={e => updateQuantity(item.product_id, sanitizeQtyText(e.target.value))}
+                          onKeyDown={e => { guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                           placeholder="Kg"
                         />
                         <span className="text-[10px] text-muted-foreground font-black uppercase pr-1.5">Kg</span>
@@ -4332,17 +4331,15 @@ notes: '',
                         </div>
                         <div className="flex items-center gap-0.5 bg-muted/40 border border-border/80 rounded-lg px-1.5 py-0.5">
                           <span className="text-[8px] text-muted-foreground font-bold uppercase">Kgs</span>
-                          <input type="number" min="0" step="0.001"
+                          <input type="text" inputMode="decimal"
                             ref={(el) => { kRefs.current[item.product_id] = el; }}
                             className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                            value={weightKg}
+                            value={item.quantity}
                             onChange={e => {
-                              const val = e.target.value === '' ? '' : Number(e.target.value);
-                              updateQuantity(item.product_id, val);
+                              updateQuantity(item.product_id, sanitizeQtyText(e.target.value));
                               updatePiecesOverride(item.product_id, undefined);
                             }}
                             onKeyDown={e => {
-                              if (e.key === '.' || e.key === 'Decimal') { handleWeightDecimalKey(e); return; }
                               guardScannerInput(e, item.product_id, weightKg, v => {
                                 updateQuantity(item.product_id, v);
                                 updatePiecesOverride(item.product_id, undefined);
@@ -4357,7 +4354,7 @@ notes: '',
                         <button onClick={() => { const q = Number(item.quantity); const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; if (q > step) updateQuantity(item.product_id, +(q - step).toFixed(3)); else removeItem(item.product_id); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                         ><Minus className="w-3 h-3" /></button>
-                        <input type="number" min={item.billing_type === 'WEIGHT' ? '0' : '1'} step={item.billing_type === 'WEIGHT' ? '0.001' : '1'}
+                        <input type="text" inputMode="decimal"
                           ref={(el) => {
                             qtyRefs.current[item.product_id] = el;
                             if (el && pendingFocusProductIdRef.current === item.product_id) {
@@ -4368,8 +4365,8 @@ notes: '',
                           }}
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity}
-                          onChange={e => updateQuantity(item.product_id, e.target.value === '' ? '' : Number(e.target.value))}
-                          onKeyDown={e => { if (item.billing_type === 'WEIGHT' && (e.key === '.' || e.key === 'Decimal')) { handleWeightDecimalKey(e); return; } guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
+                          onChange={e => updateQuantity(item.product_id, sanitizeQtyText(e.target.value))}
+                          onKeyDown={e => { guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
                         <button onClick={() => { const step = item.billing_type === 'WEIGHT' ? 0.1 : 1; updateQuantity(item.product_id, +((Number(item.quantity) || 0) + step).toFixed(3)); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"

@@ -51,6 +51,13 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = Object.fromEntries(
   FEATURE_LIST.map(f => [f.key, true])
 ) as FeatureFlags;
 
+export function cashierPageTitle(flags: Partial<Record<string, boolean>> | null | undefined): string {
+  if (!flags) return 'Cash Settlement';
+  if (flags.cash_settlement && flags.cash_register) return 'Cashier Settlement';
+  if (flags.cash_settlement) return 'Cash Settlement';
+  return 'Cash Register';
+}
+
 const SETTINGS_KEY = 'feature_flags';
 
 let cache: FeatureFlags | null = null;

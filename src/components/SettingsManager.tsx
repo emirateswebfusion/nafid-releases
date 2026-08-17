@@ -442,8 +442,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
 
     try {
+      // Make sure the single canonical Service Charge row exists (dedupes legacy duplicates)
+      await window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' });
       const svcProducts = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: 'Service Charge' });
-      const svcProd = Array.isArray(svcProducts) ? svcProducts.find((p: any) => Number(p.is_service_item) === 1 || p.name === 'Service Charge') : null;
+      const svcProd = Array.isArray(svcProducts)
+        ? svcProducts
+            .filter((p: any) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
+            .sort((a: any, b: any) => {
+              const rank = (p: any) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
+              return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(b.created_at || ''));
+            })[0]
+        : null;
       if (svcProd) {
         setServiceChargeProduct(svcProd);
         setServiceChargeBarcode(svcProd.sku_barcode || '99');

@@ -3,7 +3,7 @@ import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, Lo
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
-import { loadFeatureFlags, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { loadFeatureFlags, cashierPageTitle, type FeatureFlags, type FeatureKey } from '../featureFlags';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 
@@ -132,7 +132,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         },
         {
             id: 'cashier',
-            title: 'Cash Settlement',
+            title: cashierPageTitle(featureFlags),
             desc: 'Settle pending bills, manage cash drawer, and day-end closing',
             icon: Banknote,
             color: 'text-yellow-500',
@@ -285,7 +285,11 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         staff: 'staff',
         history: 'sales_history',
     };
-    const visibleCards = featureFlags ? cards.filter(c => !FEATURE_BY_CARD[c.id] || featureFlags[FEATURE_BY_CARD[c.id]]) : cards;
+    const visibleCards = featureFlags ? cards.filter(c => {
+        if (c.id === 'cashier') return featureFlags.cash_settlement || featureFlags.cash_register;
+        const f = FEATURE_BY_CARD[c.id];
+        return !f || featureFlags[f];
+    }) : cards;
 
     return (
         <div className="fixed inset-0 z-40 flex flex-col bg-background">

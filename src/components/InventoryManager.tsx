@@ -319,7 +319,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         sortBy: 'name'
       });
       if (Array.isArray(products)) {
-        setNameSuggestions(products);
+        setNameSuggestions(products.filter((p: any) => Number(p.is_service_item) !== 1 && String(p.name || '').trim().toLowerCase() !== 'service charge'));
         setSelectedNameIndex(0);
       }
     }, 300);
@@ -1137,7 +1137,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const filtered = useMemo(() =>
     products.filter(p => {
-      if (Number(p.is_service_item) === 1) return false;
+      // Service charge belongs on the billing page only — never in inventory
+      // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
+      if (Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge') return false;
       // GST/Estimate membership follows the manual GST Product toggle only.
       if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
       if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;

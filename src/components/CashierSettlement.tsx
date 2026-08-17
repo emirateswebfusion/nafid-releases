@@ -13,6 +13,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
 
@@ -109,6 +110,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [transactions, setTransactions] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
 
   const [rowDiscs, setRowDiscs] = useState<Record<string, number>>({});
   const [rowDiscPercents, setRowDiscPercents] = useState<Record<string, number>>({});
@@ -262,7 +264,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (Array.isArray(txs)) setTransactions(txs);
   }, [tenantId, searchQuery]);
 
-  useEffect(() => { Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
+  useEffect(() => { loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags)); Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
 
   // Auto-refresh: keep the settlement page in sync with the billing counter.
   // Newly printed bills (PENDING) appear here instantly without manual reload.
@@ -407,6 +409,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const totalIn  = transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0);
   const totalOut = transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0);
 
+  // ── Feature-based sections ────────────────────────────────────────────────
+  const showSettlement = !featureFlags || featureFlags.cash_settlement;
+  const showRegister = !featureFlags || featureFlags.cash_register;
+  const pageTitle = cashierPageTitle(featureFlags);
+
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
 
@@ -424,7 +431,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-extrabold text-foreground truncate tracking-tight">Cash Settlement</h1>
+                <h1 className="text-sm font-extrabold text-foreground truncate tracking-tight">{pageTitle}</h1>
                 <span className={clsx(
                   'w-1.5 h-1.5 rounded-full shrink-0',
                   drawerOpen ? 'bg-emerald-500 animate-pulse' : drawerClosed ? 'bg-muted-foreground' : yesterdayNotClosed ? 'bg-rose-500' : 'bg-amber-500'
@@ -479,12 +486,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
           {/* Right: action buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
+            {showSettlement && (
             <button
               onClick={openHistory}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
             >
               <History className="w-3.5 h-3.5" /> History
             </button>
+            )}
             {!drawerClosed && (
               <button
                 onClick={() => { setOpeningBalInput(drawer?.opening_balance || 0); setOpeningBalError(''); setShowOpeningBal(true); }}
@@ -808,6 +817,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
         <div className="flex-1 flex min-h-0">
 
         {/* ═══ LEFT: Pending Invoices ═══════════════════════════════════════ */}
+        {showSettlement && (
         <div className="flex-1 min-w-0 flex flex-col border-r border-border">
 
           {/* Toolbar */}
@@ -998,9 +1008,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             )}
           </div>
         </div>
+        )}
 
         {/* ═══ RIGHT: Cash Register ═════════════════════════════════════════ */}
-        <div className="w-[400px] shrink-0 flex flex-col bg-card border-l border-border z-10">
+        {showRegister && (
+        <div className={clsx('shrink-0 flex flex-col bg-card z-10', showSettlement ? 'w-[400px] border-l border-border' : 'flex-1')}>
 
           {/* Panel header */}
           <div className="relative shrink-0">
@@ -1129,6 +1141,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             )}
           </div>
         </div>
+        )}
         {/* end right panel */}
         </div>
       )}
