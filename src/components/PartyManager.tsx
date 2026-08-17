@@ -144,7 +144,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     setLoading(true);
     try {
       const data = await window.electronAPI.dbGetParties(tenantId);
-      setParties(Array.isArray(data) ? data : []);
+      const list = Array.isArray(data) ? data : [];
+      setParties(list);
+      return list;
     } catch {
       showStatus('Failed to load parties', 'error');
     } finally {
@@ -295,7 +297,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         showStatus('Transaction added', 'success');
       }
       await loadLedger(selectedParty.party_id);
-      await loadParties();
+      const freshParties = await loadParties();
+      const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
+      if (updatedParty) setSelectedParty(updatedParty);
       setView('ledger');
     } catch {
       showStatus('Operation failed', 'error');
@@ -311,7 +315,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       await window.electronAPI.dbDeletePartyLedgerEntry(entry.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
       await loadLedger(selectedParty.party_id);
-      await loadParties();
+      const freshParties = await loadParties();
+      const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
+      if (updatedParty) setSelectedParty(updatedParty);
     } catch {
       showStatus('Delete failed', 'error');
     }

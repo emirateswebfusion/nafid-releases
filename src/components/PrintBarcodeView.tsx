@@ -113,7 +113,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
           {hasLabel && (
             <>
               {showShopName && shopName && (
-                <div style={{ fontSize: '11px', fontWeight: 'bold', lineHeight: 1.1, color: 'black', whiteSpace: 'nowrap', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 4px', boxSizing: 'border-box', marginBottom: '2px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1.15, color: 'black', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '2px' }}>
                   {shopName}
                 </div>
               )}
