@@ -123,6 +123,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [newSupplierAddress, setNewSupplierAddress] = useState('');
   const [selectedNameIndex, setSelectedNameIndex] = useState(0);
   const nameContainerRef = useRef<HTMLDivElement>(null);
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const lastInteractedProductId = useRef<string | null>(null);
+  const savedScrollTop = useRef<number>(0);
+  const [highlightedProductId, setHighlightedProductId] = useState<string | null>(null);
 
   const configuredCategories = Array.from(new Set(grades.map(g => g.category)));
 
@@ -190,6 +194,50 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
+  }, [view]);
+
+  // Restore scroll position and highlight product row when returning to list
+  useEffect(() => {
+    if (view === 'list' && (lastInteractedProductId.current || savedScrollTop.current > 0)) {
+      const targetId = lastInteractedProductId.current;
+      if (targetId) {
+        setHighlightedProductId(targetId);
+        const timer = setTimeout(() => setHighlightedProductId(null), 3000);
+      }
+
+      const restore = () => {
+        if (targetId) {
+          const row = document.getElementById(`product-row-${targetId}`);
+          if (row) {
+            row.scrollIntoView({ block: 'center', behavior: 'instant' });
+            return true;
+          }
+        }
+        if (listScrollRef.current && savedScrollTop.current > 0) {
+          listScrollRef.current.scrollTop = savedScrollTop.current;
+          return true;
+        }
+        return false;
+      };
+
+      // Try immediately, in next animation frame, and after DOM updates
+      restore();
+      const raf1 = requestAnimationFrame(() => {
+        if (!restore()) {
+          requestAnimationFrame(restore);
+        }
+      });
+      const t1 = setTimeout(restore, 50);
+      const t2 = setTimeout(restore, 150);
+      const t3 = setTimeout(restore, 300);
+
+      return () => {
+        cancelAnimationFrame(raf1);
+        clearTimeout(t1);
+        clearTimeout(t2);
+        clearTimeout(t3);
+      };
+    }
   }, [view]);
 
   useEffect(() => {
@@ -450,6 +498,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   };
 
   const openEdit = (product: Product) => {
+    lastInteractedProductId.current = product.product_id;
+    if (listScrollRef.current) {
+      savedScrollTop.current = listScrollRef.current.scrollTop;
+    }
     setEditingProduct(product);
     const validGradeId = product.grade_id && grades.some(g => g.grade_id === product.grade_id) ? product.grade_id : '';
     const appliedGrade = validGradeId ? grades.find(g => g.grade_id === validGradeId) : null;
@@ -1318,10 +1370,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       )}
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
-      {view === 'list' && (
-        <div className="flex-1 overflow-y-auto px-6 pb-6 pt-3 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background">
+      <div className={`flex-1 px-6 pb-6 pt-3 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
           <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
-            <div className="flex-1 overflow-y-auto">
+            <div ref={listScrollRef} className="flex-1 overflow-y-auto">
               <div className="min-w-0 overflow-x-auto">
                 {/* Table Header */}
                 <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
@@ -1412,7 +1463,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   const isGstFlag = Number(p.is_gst_applicable) === 1;
 
                   return (
-                    <div key={p.product_id} className="border-b border-border last:border-b-0 transition-all duration-200 hover:bg-muted/10 grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card group">
+                    <div
+                      id={`product-row-${p.product_id}`}
+                      key={p.product_id}
+                      className={clsx(
+                        "border-b border-border last:border-b-0 transition-all duration-300 hover:bg-muted/10 grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card group",
+                        highlightedProductId === p.product_id && "ring-2 ring-primary/60 bg-primary/5 dark:bg-primary/10 shadow-sm"
+                      )}
+                    >
                       <div className="col-span-3">
                         <div className="flex items-center gap-2">
                           <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
@@ -1550,7 +1608,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         </div>
         </div>
         </div>
-      )}
 
       {/* ── ADD / EDIT FORM VIEW ─────────────────────────────────────────── */}
       {(view === 'add' || view === 'edit') && (
