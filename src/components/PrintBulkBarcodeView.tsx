@@ -145,7 +145,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
           {hasLabel && item && (
             <>
               {showShopName && shopName && (
-                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1.15, color: 'black', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '2px' }}>
+                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10.5px', fontWeight: 800, lineHeight: 1.2, letterSpacing: '0.12em', color: '#000', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '1px' }}>
                   {shopName}
                 </div>
               )}
@@ -170,12 +170,12 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
                   <Barcode value={item.barcode} format="CODE128" width={barcodeModuleWidth} height={30} displayValue={false} margin={0} />
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '3px', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                <div style={{ fontSize: '11px', lineHeight: 1.1, fontFamily: 'monospace', fontWeight: 600, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                <div style={{ fontSize: '10px', lineHeight: 1.1, fontFamily: 'Courier New, Courier, monospace', fontWeight: 700, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', letterSpacing: '0.04em' }}>
                   {item.barcode}
                 </div>
                 {item.name && (
-                  <div style={{ fontSize: '10px', lineHeight: 1.2, color: 'black', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '1px' }}>
+                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', fontWeight: 700, lineHeight: 1.25, color: '#000', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '2px' }}>
                     {item.name}
                   </div>
                 )}
