@@ -4,10 +4,59 @@ import QRCode from 'qrcode';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { useAuthStore } from '../store/authStore';
 
+const PX_PER_MM = 96 / 25.4;
+
+function getUrlParams(): URLSearchParams {
+  try {
+    return new URLSearchParams((window.location.hash.split('?')[1] || '').toString());
+  } catch {
+    return new URLSearchParams();
+  }
+}
+
+// CODE128 total module count for a given value (start + data + checksum + stop + quiet zones)
+function code128Modules(value: string): number {
+  return 11 * value.length + 55;
+}
+
 export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quantity = 1, columns = 1, codeType = DEFAULT_CODE_TYPE }: { barcode: string; price?: number; sp?: number; spType?: 'SP' | 'OFF'; name?: string; quantity?: number; columns?: number; codeType?: CodeType }) {
-  const shopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
+  const authShopName = useAuthStore((state: { shopName: string | null }) => state.shopName);
+  const [shopName, setShopName] = useState<string | null>(null);
+  const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const params = getUrlParams();
+  const labelWidthMm = parseInt(params.get('labelWidthMm') || '50', 10) || 50;
+  const labelHeightMm = parseInt(params.get('labelHeightMm') || '25', 10) || 25;
+  const labelWidthPx = Math.round(labelWidthMm * PX_PER_MM);
+  const labelHeightPx = Math.round(labelHeightMm * PX_PER_MM);
+  const colCount = Math.max(1, columns || 1);
+  const labelContentWidthPx = Math.max(60, Math.floor(labelWidthPx / colCount) - 16);
+  const barcodeModuleWidth = Math.min(1.6, Math.max(0.4, labelContentWidthPx / code128Modules(barcode)));
+
+  // Load the shop name from the persisted auth config so the label always
+  // prints it, even if the app's async checkAuth hasn't resolved yet.
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      let name = authShopName || null;
+      if (window.electronAPI && window.electronAPI.authGetToken) {
+        try {
+          const stored = await window.electronAPI.authGetToken();
+          if (stored && stored.shop_name) name = stored.shop_name;
+        } catch {
+          // fall back to the store value
+        }
+      }
+      if (!cancelled) {
+        setShopName(name);
+        setShopNameReady(true);
+      }
+    };
+    load();
+    return () => { cancelled = true; };
+  }, [authShopName]);
 
   useEffect(() => {
     const { tenantId } = useAuthStore.getState();
@@ -30,35 +79,47 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     }
   }, [barcode, codeType]);
 
+  const readyToPrint = shopNameReady && (codeType !== 'qrcode' || !!qrDataUrl);
+
+  useEffect(() => {
+    if (!readyToPrint) return;
+    const timer = setTimeout(() => {
+      if (window.electronAPI && window.electronAPI.printReady) {
+        window.electronAPI.printReady();
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [readyToPrint, barcode, quantity, columns, codeType]);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       if (window.electronAPI && window.electronAPI.printReady) {
         window.electronAPI.printReady();
       }
-    }, 500);
+    }, 3000);
     return () => clearTimeout(timer);
-  }, [barcode, quantity, columns, codeType, qrDataUrl]);
+  }, []);
 
   const pages: React.ReactNode[] = [];
   let currentQuantity = 0;
 
   while (currentQuantity < quantity) {
-    const labelsInPage = Math.min(columns, quantity - currentQuantity);
-    
-    const pageLabels = Array.from({ length: columns }, (_, colIndex) => {
+    const labelsInPage = Math.min(colCount, quantity - currentQuantity);
+
+    const pageLabels = Array.from({ length: colCount }, (_, colIndex) => {
       const hasLabel = colIndex < labelsInPage;
       return (
-        <div key={colIndex} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '4px 0 0 0', boxSizing: 'border-box', overflow: 'hidden' }}>
+        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '3px 4px 0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && (
             <>
               {showShopName && shopName && (
-                <div style={{ fontSize: '10px', fontWeight: 'bold', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', marginBottom: (price !== undefined && !isNaN(price)) ? '0px' : '6px', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', padding: '0 8px', boxSizing: 'border-box' }}>
+                <div style={{ fontSize: '11px', fontWeight: 'bold', lineHeight: 1.1, color: 'black', whiteSpace: 'nowrap', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 4px', boxSizing: 'border-box', marginBottom: '2px' }}>
                   {shopName}
                 </div>
               )}
               {price !== undefined && !isNaN(price) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                  <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                  <div style={{ fontSize: '11px', lineHeight: 1.1, color: 'black', whiteSpace: 'nowrap' }}>
                     <span style={{ fontWeight: sp !== undefined && !isNaN(sp) ? 'normal' : 'bold' }}>MRP ₹{formatPrice(price)}</span>
                     {sp !== undefined && !isNaN(sp) && (
                       <span style={{ marginLeft: '2ch', fontWeight: 'bold' }}>{spType} ₹{formatPrice(sp)}</span>
@@ -73,14 +134,16 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
                   <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>Loading...</div>
                 )
               ) : (
-                <Barcode value={barcode} format="CODE128" width={1.1} height={30} displayValue={false} margin={0} />
+                <div style={{ display: 'flex', justifyContent: 'center', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+                  <Barcode value={barcode} format="CODE128" width={barcodeModuleWidth} height={30} displayValue={false} margin={0} />
+                </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 8px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '3px', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                <div style={{ fontSize: '11px', lineHeight: 1.1, fontFamily: 'monospace', fontWeight: 600, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center' }}>
                   {barcode}
                 </div>
                 {name && (
-                  <div style={{ fontSize: '10px', lineHeight: 1, color: 'black', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '0px' }}>
+                  <div style={{ fontSize: '10px', lineHeight: 1.2, color: 'black', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '1px' }}>
                     {name}
                   </div>
                 )}
@@ -92,7 +155,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     });
 
     pages.push(
-      <div key={currentQuantity} style={{ width: '100%', height: '100vh', display: 'flex', flexDirection: 'row', backgroundColor: 'white', margin: 0, padding: 0, boxSizing: 'border-box', pageBreakAfter: 'always' }}>
+      <div key={currentQuantity} style={{ width: labelWidthPx, height: labelHeightPx, display: 'flex', flexDirection: 'row', backgroundColor: 'white', margin: 0, padding: 0, boxSizing: 'border-box', pageBreakAfter: 'always' }}>
         {pageLabels}
       </div>
     );
@@ -101,7 +164,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
   }
 
   return (
-    <div style={{ width: '100%', height: '100%', backgroundColor: 'white' }}>
+    <div style={{ width: labelWidthPx, minHeight: labelHeightPx, backgroundColor: 'white' }}>
       {pages}
     </div>
   );

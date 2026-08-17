@@ -279,10 +279,18 @@ function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise
 
 function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number, columns?: number, sp?: number, spType?: string, codeType?: string): Promise<void> {
   return new Promise((resolve, reject) => {
+    // Size the print window to the physical label size (CSS px @96dpi) so the
+    // label content renders 1:1 on the label instead of being shrink-to-fitted
+    // from a fixed 400px viewport (which made barcode text unreadably small).
+    const labelW = Math.max(20, Math.round(widthMm || 50));
+    const labelH = Math.max(12, Math.round(heightMm || 25));
+    const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
+    const windowHeight = Math.max(50, Math.round(labelH * 96 / 25.4));
     const printWindow = new BrowserWindow({
       show: false,
-      width: 400,
-      height: 400,
+      width: windowWidth,
+      height: windowHeight,
+      useContentSize: true,
       webPreferences: {
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
@@ -292,10 +300,11 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
     });
 
     const codeTypeParam = `&codeType=${codeType || 'barcode'}`;
+    const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${codeTypeParam}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${codeTypeParam}`);
+      printWindow.loadURL(`http://localhost:5173/#/print-barcode?barcode=${barcode}${price !== undefined ? `&price=${price}` : ''}${name ? `&name=${encodeURIComponent(name)}` : ''}&quantity=${quantity}&columns=${columns || 1}${sp !== undefined ? `&sp=${sp}` : ''}${spType ? `&spType=${spType}` : ''}${sizeParams}${codeTypeParam}`);
     }
 
     const timer = setTimeout(() => {
@@ -311,7 +320,7 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         deviceName: deviceName,
         margins: { marginType: 'none' },
         // Convert mm to microns (1 mm = 1000 microns). Default to 50x25mm (approx 2"x1")
-        pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
+        pageSize: { width: labelW * 1000, height: labelH * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
         
@@ -333,10 +342,18 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
 function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     currentBulkPrintItems = items;
+    // Size the print window to the physical label size (CSS px @96dpi) so the
+    // label content renders 1:1 on the label instead of being shrink-to-fitted
+    // from a fixed 400px viewport (which made barcode text unreadably small).
+    const labelW = Math.max(20, Math.round(widthMm || 50));
+    const labelH = Math.max(12, Math.round(heightMm || 25));
+    const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
+    const windowHeight = Math.max(50, Math.round(labelH * 96 / 25.4));
     const printWindow = new BrowserWindow({
       show: false,
-      width: 400,
-      height: 400,
+      width: windowWidth,
+      height: windowHeight,
+      useContentSize: true,
       webPreferences: {
         preload: path.join(__dirname, '../preload.js'),
         contextIsolation: true,
@@ -345,10 +362,11 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
       }
     });
 
+    const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
     if (app.isPackaged) {
-      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-bulk-barcode?columns=${columns || 1}&codeType=${codeType || 'barcode'}` });
+      printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}` });
     } else {
-      printWindow.loadURL(`http://localhost:5173/#/print-bulk-barcode?columns=${columns || 1}&codeType=${codeType || 'barcode'}`);
+      printWindow.loadURL(`http://localhost:5173/#/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}`);
     }
 
     const timer = setTimeout(() => {
@@ -363,7 +381,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         silent: true,
         deviceName: deviceName,
         margins: { marginType: 'none' },
-        pageSize: { width: (widthMm || 50) * 1000, height: (heightMm || 25) * 1000 }
+        pageSize: { width: labelW * 1000, height: labelH * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
         setTimeout(() => {
