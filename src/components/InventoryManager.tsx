@@ -10,6 +10,7 @@ import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
+import { ScrollText } from './ScrollText';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 
@@ -1395,11 +1396,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                             <Package className="w-3.5 h-3.5" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-foreground font-bold text-sm truncate flex items-center gap-1.5">
-                              <span>{p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')}</span>
+                            <div className="flex items-center gap-1.5">
+                              <ScrollText text={p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')} className="flex-1 text-foreground font-bold text-sm" />
                               {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
                                 <span className={clsx(
-                                  "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none",
+                                  "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none shrink-0",
                                   p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1].toUpperCase() === 'GST'
                                     ? "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/30"
                                     : "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
@@ -1407,7 +1408,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                                   {p.name.match(/\s*\((GST|EST|Estimate)\)$/i)?.[1]}
                                 </span>
                               )}
-                            </p>
+                            </div>
                             <p className="text-muted-foreground text-xs font-mono mt-0.5 truncate">
                               {p.item_code && <span className="font-bold mr-2 text-primary">{p.item_code}</span>}
                               {p.sku_barcode}
