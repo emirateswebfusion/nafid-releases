@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+﻿import { useState, useRef, useEffect, useCallback } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -2130,12 +2130,9 @@ export function BillingPage() {
             const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: trimmedQuery });
             if (Array.isArray(products) && products.length > 0) {
               e.preventDefault();
+              // handleSelectProduct already schedules a 50ms timeout to focus the qty input.
+              // Do NOT add a competing setTimeout here -- it would race and steal focus from qty.
               handleSelectProduct(products[0]);
-              // Keep focus in the search field
-              setTimeout(() => {
-                searchRef.current?.focus();
-                searchRef.current?.select();
-              }, 50);
               return;
             }
           } catch (err) {
@@ -2155,11 +2152,13 @@ export function BillingPage() {
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
   };
 
-  const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
+  const handleQtyKeyDown = (e: React.KeyboardEvent, _productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      const discInput = discRefs.current[productId];
-      if (discInput) { discInput.focus(); discInput.select(); }
+      // After confirming qty, return focus to the search field so the cashier
+      // can immediately scan or type the next product barcode.
+      searchRef.current?.focus();
+      searchRef.current?.select();
     }
   };
 

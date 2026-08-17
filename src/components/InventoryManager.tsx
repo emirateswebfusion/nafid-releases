@@ -133,6 +133,21 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [totalCount, setTotalCount] = useState<number | null>(null);
   const LIMIT = 50;
 
+  // ── Refs to always hold the latest filter/pagination state ──────────────
+  // These allow async callbacks (sync listener, intersection observer) to
+  // read current values without suffering from stale closures.
+  const searchQueryRef = useRef(searchQuery);
+  const sortByRef = useRef(sortBy);
+  const filterDateRef = useRef(filterDate);
+  const filterDateEndRef = useRef(filterDateEnd);
+  const offsetRef = useRef(offset);
+
+  useEffect(() => { searchQueryRef.current = searchQuery; }, [searchQuery]);
+  useEffect(() => { sortByRef.current = sortBy; }, [sortBy]);
+  useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
+  useEffect(() => { filterDateEndRef.current = filterDateEnd; }, [filterDateEnd]);
+  useEffect(() => { offsetRef.current = offset; }, [offset]);
+
   // Load products when search or sort changes (reset)
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -143,7 +158,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return () => clearTimeout(timeout);
   }, [searchQuery, sortBy, filterDate, filterDateEnd]);
 
-  // Sync listener — auto-refresh silently
+  // Sync listener — auto-refresh silently, using refs so current search/
+  // filter state is preserved even though this effect runs only once.
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
@@ -263,23 +279,30 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     setIsFetching(true);
     if (window.electronAPI) {
       const { tenantId } = useAuthStore.getState();
-      const currentOffset = reset ? 0 : offset;
+      // Always read the latest values from refs to avoid stale-closure bugs
+      // (e.g. the sync listener is registered once and must not use old state).
+      const currentSearch = searchQueryRef.current;
+      const currentSortBy = sortByRef.current;
+      const currentFilterDate = filterDateRef.current;
+      const currentFilterDateEnd = filterDateEndRef.current;
+      const currentOffset = reset ? 0 : offsetRef.current;
+
       const result = await window.electronAPI.dbGetProducts({
         tenant_id: tenantId,
         limit: LIMIT,
         offset: currentOffset,
-        search: searchQuery,
-        sortBy: sortBy,
-        filterDate: filterDate,
-        filterDateEnd: filterDateEnd
+        search: currentSearch,
+        sortBy: currentSortBy,
+        filterDate: currentFilterDate,
+        filterDateEnd: currentFilterDateEnd
       });
 
       if (reset) {
         const count = await window.electronAPI.dbGetProductsCount({
           tenant_id: tenantId,
-          search: searchQuery,
-          filterDate: filterDate,
-          filterDateEnd: filterDateEnd
+          search: currentSearch,
+          filterDate: currentFilterDate,
+          filterDateEnd: currentFilterDateEnd
         });
         setTotalCount(count);
       }

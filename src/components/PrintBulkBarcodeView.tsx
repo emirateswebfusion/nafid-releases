@@ -141,41 +141,41 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
         : 1;
 
       return (
-        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '3px 4px 0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
+        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2px 3px 0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && item && (
             <>
               {showShopName && shopName && (
-                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10.5px', fontWeight: 800, lineHeight: 1.2, letterSpacing: '0.12em', color: '#000', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '1px' }}>
+                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '0.12em', color: '#000', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '1px' }}>
                   {shopName}
                 </div>
               )}
               {item.price !== undefined && !isNaN(item.price) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                  <div style={{ fontSize: '11px', lineHeight: 1.1, color: 'black', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontWeight: item.sp !== undefined && !isNaN(item.sp) ? 'normal' : 'bold' }}>MRP ₹{formatPrice(item.price)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', fontWeight: 700, lineHeight: 1.1, color: '#000', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: item.sp !== undefined && !isNaN(item.sp) ? 600 : 800 }}>MRP ₹{formatPrice(item.price)}</span>
                     {item.sp !== undefined && !isNaN(item.sp) && (
-                      <span style={{ marginLeft: '2ch', fontWeight: 'bold' }}>{item.spType || 'SP'} ₹{formatPrice(item.sp)}</span>
+                      <span style={{ marginLeft: '1.5ch', fontWeight: 800 }}>{item.spType || 'SP'} ₹{formatPrice(item.sp)}</span>
                     )}
                   </div>
                 </div>
               )}
               {codeType === 'qrcode' ? (
                 qrDataUrls[item.barcode] ? (
-                  <img src={qrDataUrls[item.barcode]} alt="QR Code" style={{ width: '70px', height: '70px', imageRendering: 'pixelated' }} />
+                  <img src={qrDataUrls[item.barcode]} alt="QR Code" style={{ width: '64px', height: '64px', imageRendering: 'pixelated' }} />
                 ) : (
-                  <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>Loading...</div>
+                  <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#999' }}>Loading...</div>
                 )
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'center', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-                  <Barcode value={item.barcode} format="CODE128" width={barcodeModuleWidth} height={30} displayValue={false} margin={0} />
+                  <Barcode value={item.barcode} format="CODE128" width={barcodeModuleWidth} height={26} displayValue={false} margin={0} />
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', lineHeight: 1.1, fontFamily: 'Courier New, Courier, monospace', fontWeight: 700, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', letterSpacing: '0.04em' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '1px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '11px', fontWeight: 700, lineHeight: 1.1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', letterSpacing: '0.05em' }}>
                   {item.barcode}
                 </div>
                 {item.name && (
-                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', fontWeight: 700, lineHeight: 1.25, color: '#000', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '2px' }}>
+                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', fontWeight: 700, lineHeight: 1.25, color: '#000', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '2px' }}>
                     {item.name}
                   </div>
                 )}

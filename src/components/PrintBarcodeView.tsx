@@ -109,41 +109,41 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     const pageLabels = Array.from({ length: colCount }, (_, colIndex) => {
       const hasLabel = colIndex < labelsInPage;
       return (
-        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '3px 4px 0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
+        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2px 3px 0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && (
             <>
               {showShopName && shopName && (
-                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10.5px', fontWeight: 800, lineHeight: 1.2, letterSpacing: '0.12em', color: '#000', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '1px' }}>
+                <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '9px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '0.12em', color: '#000', textTransform: 'uppercase', overflowWrap: 'anywhere', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', padding: '0 2px', boxSizing: 'border-box', marginBottom: '1px' }}>
                   {shopName}
                 </div>
               )}
               {price !== undefined && !isNaN(price) && (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '2px', padding: '0 4px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                  <div style={{ fontSize: '11px', lineHeight: 1.1, color: 'black', whiteSpace: 'nowrap' }}>
-                    <span style={{ fontWeight: sp !== undefined && !isNaN(sp) ? 'normal' : 'bold' }}>MRP ₹{formatPrice(price)}</span>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginBottom: '1px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', fontWeight: 700, lineHeight: 1.1, color: '#000', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontWeight: sp !== undefined && !isNaN(sp) ? 600 : 800 }}>MRP ₹{formatPrice(price)}</span>
                     {sp !== undefined && !isNaN(sp) && (
-                      <span style={{ marginLeft: '2ch', fontWeight: 'bold' }}>{spType} ₹{formatPrice(sp)}</span>
+                      <span style={{ marginLeft: '1.5ch', fontWeight: 800 }}>{spType} ₹{formatPrice(sp)}</span>
                     )}
                   </div>
                 </div>
               )}
               {codeType === 'qrcode' ? (
                 qrDataUrl ? (
-                  <img src={qrDataUrl} alt="QR Code" style={{ width: '70px', height: '70px', imageRendering: 'pixelated' }} />
+                  <img src={qrDataUrl} alt="QR Code" style={{ width: '64px', height: '64px', imageRendering: 'pixelated' }} />
                 ) : (
-                  <div style={{ width: '70px', height: '70px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#999' }}>Loading...</div>
+                  <div style={{ width: '64px', height: '64px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '9px', color: '#999' }}>Loading...</div>
                 )
               ) : (
                 <div style={{ display: 'flex', justifyContent: 'center', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-                  <Barcode value={barcode} format="CODE128" width={barcodeModuleWidth} height={30} displayValue={false} margin={0} />
+                  <Barcode value={barcode} format="CODE128" width={barcodeModuleWidth} height={26} displayValue={false} margin={0} />
                 </div>
               )}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '2px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
-                <div style={{ fontSize: '10px', lineHeight: 1.1, fontFamily: 'Courier New, Courier, monospace', fontWeight: 700, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', letterSpacing: '0.04em' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: '100%', maxWidth: '100%', marginTop: '1px', padding: '0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+                <div style={{ fontFamily: 'Courier New, Courier, monospace', fontSize: '11px', fontWeight: 700, lineHeight: 1.1, color: '#000', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%', width: '100%', textAlign: 'center', letterSpacing: '0.05em' }}>
                   {barcode}
                 </div>
                 {name && (
-                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '11px', fontWeight: 700, lineHeight: 1.25, color: '#000', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '2px' }}>
+                  <div style={{ fontFamily: 'Arial, Helvetica, sans-serif', fontSize: '10px', fontWeight: 700, lineHeight: 1.25, color: '#000', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word', maxWidth: '100%', width: '100%', textAlign: 'center', marginTop: '2px' }}>
                     {name}
                   </div>
                 )}
