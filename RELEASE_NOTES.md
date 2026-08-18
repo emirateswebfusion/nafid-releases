@@ -1,3 +1,10 @@
+# Vendora v1.5.17 Release Notes
+
+## What's Changed
+- Implemented Electron main process entry point, database schema migrations, and sync worker enhancements
+- Added cashier settlement event handlers and invoice reconciliation updates
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.16...v1.5.17
+
 # Vendora v1.5.16 Release Notes
 
 ## What's Changed
