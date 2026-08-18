@@ -134,6 +134,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [showAddCatForm, setShowAddCatForm] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
 
   // Split payment modal states
   const [splitModalInvoice, setSplitModalInvoice] = useState<any | null>(null);
@@ -336,7 +337,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     window.electronAPI?.onSyncDataUpdated?.(refresh);
     window.addEventListener('focus', refresh);
     window.addEventListener('checkout:completed', onCheckout);
-    const interval = setInterval(refresh, 5000);
+    const interval = setInterval(refresh, 1500);
     return () => { window.removeEventListener('focus', refresh); window.removeEventListener('checkout:completed', onCheckout); clearInterval(interval); };
   }, []);
 
@@ -373,9 +374,13 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const handleAddTransaction = async () => {
     if (!tenantId || !userId || txnAmt <= 0) return;
     setTxnSubmitting(true);
+    const finalNotes = txnPartyName
+      ? (txnNote ? `Party: ${txnPartyName} | ${txnNote}` : `Party: ${txnPartyName}`)
+      : (txnNote || undefined);
+
     const r = await window.electronAPI!.dbCashierAddTransaction({
       tenant_id: tenantId, type: txnType, amount: txnAmt,
-      category: txnCat || undefined, notes: txnNote || undefined,
+      category: txnCat || undefined, notes: finalNotes,
       user_id: userId, user_name: userName || undefined,
     });
     if (r.success && txnPartyId) {
@@ -547,12 +552,22 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           {/* Right: action buttons */}
           <div className="flex items-center gap-1.5 shrink-0">
             {showSettlement && (
-            <button
-              onClick={openHistory}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
-            >
-              <History className="w-3.5 h-3.5" /> History
-            </button>
+              <>
+                <button
+                  onClick={() => load()}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
+                  title="Instant Refresh Pending Queue"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 text-emerald-500 animate-spin" style={{ animationDuration: '3s' }} />
+                  <span className="hidden sm:inline">Syncing</span>
+                </button>
+                <button
+                  onClick={openHistory}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  <History className="w-3.5 h-3.5" /> History
+                </button>
+              </>
             )}
             {!drawerClosed && (
               <button
@@ -1193,28 +1208,89 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 )}
                 {transactions.map((tx: any) => {
                   const isIn = tx.type === 'CASH_IN';
+                  const hasCustomCat = tx.category && tx.category !== 'Other';
+                  const hasNotes = tx.notes && tx.notes.trim() !== '';
+                  const isExpanded = expandedTxId === tx.transaction_id;
+
+                  // If category is not selected or 'Other', but notes exist -> display notes directly!
+                  const primaryText = hasCustomCat ? tx.category : (hasNotes ? tx.notes : (tx.category || 'Other'));
+                  const secondaryText = (hasCustomCat && hasNotes) ? tx.notes : null;
+
                   return (
-                    <div
-                      key={tx.transaction_id}
-                      className={clsx(
-                        'grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/20 transition-colors items-center border-l-2',
-                        isIn ? 'border-l-emerald-500/50' : 'border-l-rose-500/50'
+                    <div key={tx.transaction_id} className="border-b border-border/30 last:border-0">
+                      <div
+                        onClick={() => setExpandedTxId(isExpanded ? null : tx.transaction_id)}
+                        className={clsx(
+                          'grid grid-cols-[0.55fr_0.5fr_1fr_0.75fr_auto] gap-2 px-5 py-2.5 bg-card hover:bg-muted/30 transition-colors items-center border-l-2 cursor-pointer select-none',
+                          isIn ? 'border-l-emerald-500/50' : 'border-l-rose-500/50',
+                          isExpanded && 'bg-muted/20'
+                        )}
+                        title="Click to view full notes & details"
+                      >
+                        <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
+                          <Clock className="w-2.5 h-2.5 shrink-0" /> {formatTime(tx.transaction_date)}
+                        </span>
+                        <span className={clsx(
+                          'text-[9px] font-black px-1.5 py-0.5 rounded-md text-center w-fit',
+                          isIn ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
+                        )}>
+                          {isIn ? 'IN' : 'OUT'}
+                        </span>
+                        
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs text-foreground truncate font-semibold flex items-center gap-1">
+                            {hasNotes && !hasCustomCat && <FileText className="w-3 h-3 text-primary shrink-0" />}
+                            {primaryText}
+                          </span>
+                          {secondaryText && (
+                            <span className="text-[10px] text-muted-foreground truncate flex items-center gap-1">
+                              <FileText className="w-2.5 h-2.5 text-primary/70 shrink-0" />
+                              {secondaryText}
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={clsx('text-xs font-black text-right tabular-nums', isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
+                          {isIn ? '+' : '−'}{formatCurrency(tx.amount)}
+                        </span>
+
+                        <div className="flex items-center justify-end gap-1 text-muted-foreground">
+                          <span className="text-[10px] truncate max-w-[65px]">{tx.entered_by_name || '—'}</span>
+                          {hasNotes && (
+                            <span className={clsx('p-0.5 rounded transition-transform', isExpanded && 'rotate-180')}>
+                              <ChevronDown className="w-3 h-3 text-muted-foreground/70" />
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Expanded Details Card */}
+                      {isExpanded && (
+                        <div className="px-5 py-3 bg-muted/30 border-t border-border/40 text-xs space-y-2">
+                          <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                            <span className="flex items-center gap-1">
+                              <FileText className="w-3 h-3 text-primary" /> Transaction Details
+                            </span>
+                            {tx.entered_by_name && <span>Entered by: {tx.entered_by_name}</span>}
+                          </div>
+
+                          {hasNotes ? (
+                            <div className="p-2.5 rounded-xl bg-card border border-border/60 text-xs font-medium text-foreground whitespace-pre-wrap leading-relaxed shadow-inner">
+                              <span className="text-[10px] font-black text-primary uppercase tracking-wider block mb-1">Notes:</span>
+                              {tx.notes}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-muted-foreground italic">No additional note attached to this transaction.</p>
+                          )}
+
+                          <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground font-medium pt-0.5">
+                            <span>Category: <strong className="text-foreground">{tx.category || 'Other'}</strong></span>
+                            <span>Type: <strong className={isIn ? 'text-emerald-600' : 'text-rose-500'}>{isIn ? 'Cash In' : 'Expense'}</strong></span>
+                            <span>Amount: <strong className="text-foreground">{formatCurrency(tx.amount)}</strong></span>
+                            <span>Time: <strong className="text-foreground">{formatTime(tx.transaction_date)}</strong></span>
+                          </div>
+                        </div>
                       )}
-                    >
-                      <span className="text-[10px] text-muted-foreground tabular-nums flex items-center gap-0.5">
-                        <Clock className="w-2.5 h-2.5 shrink-0" /> {formatTime(tx.transaction_date)}
-                      </span>
-                      <span className={clsx(
-                        'text-[9px] font-black px-1.5 py-0.5 rounded-md text-center w-fit',
-                        isIn ? 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10' : 'text-rose-600 dark:text-rose-400 bg-rose-500/10'
-                      )}>
-                        {isIn ? 'IN' : 'OUT'}
-                      </span>
-                      <span className="text-xs text-foreground truncate font-medium">{tx.category || 'Other'}</span>
-                      <span className={clsx('text-xs font-black text-right tabular-nums', isIn ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500')}>
-                        {isIn ? '+' : '−'}{formatCurrency(tx.amount)}
-                      </span>
-                      <span className="text-[10px] text-muted-foreground truncate text-right">{tx.entered_by_name || '—'}</span>
                     </div>
                   );
                 })}

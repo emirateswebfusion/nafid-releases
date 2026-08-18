@@ -162,10 +162,10 @@ function toSqliteDate(iso: string | number | null | undefined): string {
   return str.replace('T', ' ').replace('Z', '');
 }
 
-// Sync interval in minutes (default 0.25 = every 15s) so new bills appear
-// quickly on the web portal / other POS terminals.
-const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '0.25');
-const SYNC_INTERVAL_MS = Math.max(5000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
+// Sync interval in minutes (default 0.025 = every 1.5s) so new bills appear
+// instantly on the web portal / other POS terminals.
+const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '0.025');
+const SYNC_INTERVAL_MS = Math.max(1500, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
 
 function getCloudApiBase() {
   return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
