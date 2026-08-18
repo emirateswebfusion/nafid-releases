@@ -4572,7 +4572,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         ? Number(split_details.cash) 
         : 0;
 
-      if (splitCashAmount > 0) {
+      if (payment_method === 'CASH' || (payment_method === 'SPLIT' && split_details?.cash)) {
         const date = localDate();
         const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
         if (drawer) {
@@ -4584,21 +4584,23 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           const disc = Number(invoice.discount_total) || 0;
           const ptsDisc = Number(invoice.points_redeemed_discount) || 0;
           const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-          const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+          const calculatedRefund = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+          const actualRefund = received < 0 ? Math.abs(received) : (calculatedRefund > 0 ? calculatedRefund : 0);
 
-          const newCashSales = Number(drawer.cash_sales) + splitCashAmount;
+          const cashInAmt = splitCashAmount > 0 ? splitCashAmount : 0;
+          const newCashSales = Number(drawer.cash_sales) + cashInAmt;
           let newCashOut = Number(drawer.cash_out);
-          let newCurrentCash = Number(drawer.current_cash) + splitCashAmount;
+          let newCurrentCash = Number(drawer.current_cash) + cashInAmt;
 
-          if (refundAmount > 0) {
+          if (actualRefund > 0) {
             const transaction_id = crypto.randomUUID();
             db.prepare(`
               INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-            `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', refundAmount, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
+            `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefund, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
 
-            newCashOut += refundAmount;
-            newCurrentCash -= refundAmount;
+            newCashOut += actualRefund;
+            newCurrentCash -= actualRefund;
           }
 
           const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - newCashOut;

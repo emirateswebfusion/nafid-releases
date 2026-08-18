@@ -114,6 +114,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const [rowDiscs, setRowDiscs] = useState<Record<string, number>>({});
   const [rowDiscPercents, setRowDiscPercents] = useState<Record<string, number>>({});
+  const [rowPluses, setRowPluses] = useState<Record<string, number>>({});
+  const [rowPlusPercents, setRowPlusPercents] = useState<Record<string, number>>({});
   const [rowMethods, setRowMethods] = useState<Record<string, PaymentMethod>>({});
   const [payingRow, setPayingRow] = useState<string | null>(null);
 
@@ -145,8 +147,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [splitBank, setSplitBank] = useState<number | ''>('');
   const [splitSubmitting, setSplitSubmitting] = useState(false);
 
-  const openSplitModal = (inv: any) => {
-    const rd = rowDiscs[inv.invoice_id] ?? 0;
+  const getRawNet = (inv: any): number => {
     const scrapD = Number(inv.scrap_deduction) || 0;
     const returnD = Number(inv.return_deduction) || 0;
     const totalDeductions = scrapD + returnD;
@@ -156,8 +157,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const ptsDisc = Number(inv.points_redeemed_discount) || 0;
     const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
     const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-    const base = refundAmount > 0 ? preDeductionTotal : Number(inv.grand_total);
-    const net = Math.max(0, base - rd);
+    if (refundAmount > 0) return -Math.round(refundAmount * 100) / 100;
+    return Math.round(Number(inv.grand_total) * 100) / 100;
+  };
+
+  const openSplitModal = (inv: any) => {
+    const rd = rowDiscs[inv.invoice_id] ?? 0;
+    const plusVal = rowPluses[inv.invoice_id] ?? 0;
+    const rawNet = getRawNet(inv);
+    const net = rawNet < 0 ? rawNet + plusVal : Math.max(0, rawNet - rd);
 
     setSplitModalInvoice(inv);
     setSplitModalNet(net);
@@ -239,7 +247,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     }
     const percent = parseFloat(val);
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
-    const base = inv ? Number(inv.grand_total) : 0;
+    const rawNet = inv ? getRawNet(inv) : 0;
+    const base = Math.max(0, rawNet);
     const flat = base && !isNaN(percent) ? (base * percent) / 100 : 0;
     setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
     setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
@@ -253,38 +262,72 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     }
     const flat = parseFloat(val);
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
-    const base = inv ? Number(inv.grand_total) : 0;
+    const rawNet = inv ? getRawNet(inv) : 0;
+    const base = Math.max(0, rawNet);
     const percent = base && !isNaN(flat) ? (flat / base) * 100 : 0;
     setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
     setRowDiscs((p) => ({ ...p, [invoiceId]: Math.max(0, flat) }));
+  };
+
+  const handlePlusPercentChange = (invoiceId: string, val: string) => {
+    if (val === '') {
+      setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowPluses((p) => ({ ...p, [invoiceId]: 0 }));
+      return;
+    }
+    const percent = parseFloat(val);
+    const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
+    const rawNet = inv ? getRawNet(inv) : 0;
+    const base = Math.abs(rawNet);
+    const flat = base && !isNaN(percent) ? (base * percent) / 100 : 0;
+    setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
+    setRowPluses((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+  };
+
+  const handlePlusFlatChange = (invoiceId: string, val: string) => {
+    if (val === '') {
+      setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowPluses((p) => ({ ...p, [invoiceId]: 0 }));
+      return;
+    }
+    const flat = parseFloat(val);
+    const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
+    const rawNet = inv ? getRawNet(inv) : 0;
+    const base = Math.abs(rawNet);
+    const percent = base && !isNaN(flat) ? (flat / base) * 100 : 0;
+    setRowPlusPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+    setRowPluses((p) => ({ ...p, [invoiceId]: isNaN(flat) ? 0 : flat }));
   };
 
   const handleNetChange = (invoiceId: string, val: string) => {
     if (val === '') {
       setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowPluses((p) => ({ ...p, [invoiceId]: 0 }));
       return;
     }
     const netVal = parseFloat(val);
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     if (!inv) return;
 
-    const scrapD = Number(inv.scrap_deduction) || 0;
-    const returnD = Number(inv.return_deduction) || 0;
-    const totalDeductions = scrapD + returnD;
-    const sub = Number(inv.subtotal) || 0;
-    const tax = Number(inv.tax_total) || 0;
-    const disc = Number(inv.discount_total) || 0;
-    const ptsDisc = Number(inv.points_redeemed_discount) || 0;
-    const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
-    const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
-    const base = refundAmount > 0 ? preDeductionTotal : Number(inv.grand_total);
-
-    if (base && !isNaN(netVal)) {
-      const flat = Math.max(0, base - netVal);
-      const percent = (flat / base) * 100;
-      setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
-      setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+    const rawNet = getRawNet(inv);
+    if (rawNet < 0) {
+      if (!isNaN(netVal)) {
+        const targetNet = netVal > 0 ? -netVal : netVal;
+        const plusVal = targetNet - rawNet;
+        const base = Math.abs(rawNet);
+        const percent = base ? (plusVal / base) * 100 : 0;
+        setRowPlusPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+        setRowPluses((p) => ({ ...p, [invoiceId]: Math.round(plusVal * 100) / 100 }));
+      }
+    } else {
+      if (rawNet && !isNaN(netVal)) {
+        const flat = Math.max(0, rawNet - netVal);
+        const percent = (flat / rawNet) * 100;
+        setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+        setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+      }
     }
   };
 
@@ -994,7 +1037,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             <span>Invoice</span>
             <span>Customer</span>
             <span className="text-right">Amount</span>
-            <span className="text-center">Discount</span>
+            <span className="text-center">Discount / Plus</span>
             <span className="text-right">Net</span>
             <span className="text-center">Payment</span>
             <span className="text-right">Action</span>
@@ -1015,8 +1058,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             ) : (
               pendingInvoices.map((inv) => {
                 const rd  = rowDiscs[inv.invoice_id] ?? 0;
+                const plusVal = rowPluses[inv.invoice_id] ?? 0;
                 const rm  = rowMethods[inv.invoice_id] ?? 'CASH';
-                const net = Math.max(0, inv.grand_total - rd);
+                const rawNet = getRawNet(inv);
+                const isMinus = rawNet < 0;
+                const calculatedNet = isMinus ? rawNet + plusVal : Math.max(0, rawNet - rd);
+                const net = Math.round(calculatedNet * 100) / 100;
+                const absNet = Math.round(Math.abs(net) * 100) / 100;
+                const absRawNet = Math.round(Math.abs(rawNet) * 100) / 100;
+
                 const isPaying = payingRow === inv.invoice_id;
                 const scrapD = Number(inv.scrap_deduction) || 0;
                 const returnD = Number(inv.return_deduction) || 0;
@@ -1087,33 +1137,65 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     {/* Amount */}
                     <span className="text-xs font-bold text-foreground text-right tabular-nums block">{formatCurrency(displayAmount)}</span>
 
-                    {/* Discount inputs grouped */}
-                    <div className="flex items-center border border-amber-500/20 rounded-xl overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
-                      <input
-                        type="number"
-                        value={rowDiscPercents[inv.invoice_id] || ''}
-                        onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                        step="0.01" min="0" placeholder="%"
-                      />
-                      <span className="w-px h-5 bg-amber-500/20 shrink-0" />
-                      <input
-                        type="number"
-                        value={rd || ''}
-                        onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
-                        onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                        className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
-                        step="1" min="0" placeholder="₹"
-                      />
-                    </div>
+                    {/* Discount / Plus inputs grouped */}
+                    {isMinus ? (
+                      <div className="flex items-center border border-emerald-500/30 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-all bg-card" title="Plus / Addition for minus amount">
+                        <input
+                          type="number"
+                          value={rowPlusPercents[inv.invoice_id] || ''}
+                          onChange={(e) => handlePlusPercentChange(inv.invoice_id, e.target.value)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                          step="0.01" min="0" placeholder="%"
+                        />
+                        <span className="w-px h-5 bg-emerald-500/20 shrink-0" />
+                        <input
+                          type="number"
+                          value={rowPluses[inv.invoice_id] || ''}
+                          onChange={(e) => handlePlusFlatChange(inv.invoice_id, e.target.value)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
+                          step="0.01" placeholder="+₹"
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center border border-amber-500/20 rounded-xl overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
+                        <input
+                          type="number"
+                          value={rowDiscPercents[inv.invoice_id] || ''}
+                          onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                          step="0.01" min="0" placeholder="%"
+                        />
+                        <span className="w-px h-5 bg-amber-500/20 shrink-0" />
+                        <input
+                          type="number"
+                          value={rd || ''}
+                          onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
+                          onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                          className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
+                          step="1" min="0" placeholder="₹"
+                        />
+                      </div>
+                    )}
 
                     {/* Net editable input */}
                     <span className="text-xs font-black text-right tabular-nums block">
-                      {refundAmount > 0 ? (
-                        <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Refund Amount">
-                          -{formatCurrency(refundAmount)}
-                        </span>
+                      {isMinus ? (
+                        <div className="flex items-center justify-center">
+                          <div className="flex items-center border border-emerald-500/30 rounded-lg overflow-hidden focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all bg-card w-full max-w-[95px]">
+                            <span className="pl-2 text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none">-₹</span>
+                            <input
+                              type="number"
+                              value={absNet === 0 ? '' : absNet}
+                              onChange={(e) => handleNetChange(inv.invoice_id, e.target.value === '' ? '' : `-${e.target.value}`)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
+                              step="0.01" min="0" placeholder={absRawNet.toString()}
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <div className="flex items-center justify-center">
                           <div className="flex items-center border border-primary/30 rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all bg-card w-full max-w-[90px]">
