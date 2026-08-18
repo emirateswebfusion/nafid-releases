@@ -4,7 +4,7 @@ import {
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
   TrendingUp, TrendingDown, Clock, AlertTriangle,
   ChevronRight, ChevronDown, Printer, Package, Building, User, FileText,
-  CheckCheck, Calendar, BookOpen, RefreshCw
+  CheckCheck, Calendar, BookOpen, RefreshCw, Bell, Zap
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
@@ -306,6 +306,61 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [closingDate, setClosingDate] = useState<string | null>(null);
   const [openingBalError, setOpeningBalError] = useState('');
 
+  // Sudden New Bill Notification & Sound Chime
+  const initialLoadedRef = useRef(false);
+  const knownInvoiceIdsRef = useRef<Set<string>>(new Set());
+  const [latestNewBill, setLatestNewBill] = useState<any | null>(null);
+  const [newArrivalIds, setNewArrivalIds] = useState<Set<string>>(new Set());
+
+  const playNewBillSound = useCallback(() => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.12);
+      gain.gain.setValueAtTime(0.25, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.3);
+    } catch {}
+  }, []);
+
+  const processInvoicesUpdate = useCallback((invs: any[]) => {
+    if (!Array.isArray(invs)) return;
+    if (!initialLoadedRef.current) {
+      knownInvoiceIdsRef.current = new Set(invs.map((i: any) => i.invoice_id));
+      initialLoadedRef.current = true;
+    } else {
+      const brandNew = invs.filter((i: any) => !knownInvoiceIdsRef.current.has(i.invoice_id));
+      if (brandNew.length > 0) {
+        brandNew.forEach((i: any) => knownInvoiceIdsRef.current.add(i.invoice_id));
+        const newest = brandNew[0];
+        setLatestNewBill(newest);
+        playNewBillSound();
+        setNewArrivalIds((prev) => {
+          const next = new Set(prev);
+          brandNew.forEach((i: any) => next.add(i.invoice_id));
+          return next;
+        });
+        setTimeout(() => {
+          setLatestNewBill((curr: any) => (curr?.invoice_id === newest.invoice_id ? null : curr));
+          setNewArrivalIds((prev) => {
+            const next = new Set(prev);
+            brandNew.forEach((i: any) => next.delete(i.invoice_id));
+            return next;
+          });
+        }, 3000);
+      }
+    }
+    setPendingInvoices(invs);
+  }, [playNewBillSound]);
+
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
     const [d, invs, txs] = await Promise.all([
@@ -321,9 +376,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     } else {
       setDrawer(null);
     }
-    if (Array.isArray(invs)) setPendingInvoices(invs);
+    if (Array.isArray(invs)) processInvoicesUpdate(invs);
     if (Array.isArray(txs)) setTransactions(txs);
-  }, [tenantId, searchQuery]);
+  }, [tenantId, searchQuery, processInvoicesUpdate]);
 
   useEffect(() => { loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags)); Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
 
@@ -974,12 +1029,15 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
                 const displayAmount = refundAmount > 0 ? preDeductionTotal : inv.grand_total;
 
+                const isNewArrival = newArrivalIds.has(inv.invoice_id);
+
                 return (
                   <div
                     key={inv.invoice_id}
                     className={clsx(
                       'grid grid-cols-[1.2fr_1.3fr_1fr_1.3fr_1fr_1.1fr_0.9fr] gap-x-3 px-4 py-3.5 items-center transition-all duration-150 group',
-                      isPaying ? 'bg-primary/5' : 'hover:bg-primary/5'
+                      isPaying ? 'bg-primary/5' : 'hover:bg-primary/5',
+                      isNewArrival && 'ring-2 ring-emerald-500/80 bg-emerald-500/10 animate-pulse'
                     )}
                   >
                     {/* Invoice + status */}
@@ -988,13 +1046,20 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         <Receipt className="w-3.5 h-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <button
-                          onClick={() => handleViewInvoice(inv)}
-                          className="text-xs font-extrabold text-foreground truncate block cursor-pointer hover:text-primary hover:underline transition-colors"
-                          title="View invoice"
-                        >
-                          {inv.invoice_number}
-                        </button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleViewInvoice(inv)}
+                            className="text-xs font-extrabold text-foreground truncate block cursor-pointer hover:text-primary hover:underline transition-colors"
+                            title="View invoice"
+                          >
+                            {inv.invoice_number}
+                          </button>
+                          {isNewArrival && (
+                            <span className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[8px] font-black bg-emerald-500 text-white animate-bounce shrink-0">
+                              <Zap className="w-2.5 h-2.5 fill-white" /> NEW
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1 flex-wrap mt-1">
                           <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
                             <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" /> Pending
@@ -2309,6 +2374,41 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           );
         })()}
       </Modal>
+
+      {/* ═══ Sudden New Bill Notification Toast Banner ═══ */}
+      {latestNewBill && (
+        <div className="fixed top-16 right-6 z-50 animate-in slide-in-from-top-4 fade-in duration-300">
+          <div className="p-4 rounded-2xl bg-card border-2 border-emerald-500/80 shadow-2xl flex items-center gap-3.5 max-w-sm">
+            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-500 shrink-0 animate-bounce">
+              <Bell className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                  <Zap className="w-3 h-3 fill-emerald-500 text-emerald-500" /> New Bill Received!
+                </span>
+                <button
+                  onClick={() => setLatestNewBill(null)}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <p className="text-sm font-extrabold text-foreground truncate mt-0.5">
+                {latestNewBill.invoice_number}
+              </p>
+              <div className="flex items-center justify-between text-xs mt-1">
+                <span className="text-muted-foreground font-semibold truncate">
+                  {latestNewBill.customer_name || 'Walk-in Customer'}
+                </span>
+                <span className="font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
+                  {formatCurrency(Number(latestNewBill.grand_total))}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

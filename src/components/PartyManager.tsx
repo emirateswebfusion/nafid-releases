@@ -1211,40 +1211,38 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              {/* Payment method (new only) */}
-              {!editingTx && (
-                <div>
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Payment Method</label>
-                  <div className="grid grid-cols-5 gap-2">
-                    {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'] as const).map(m => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setTxForm(f => ({ ...f, payment_method: m }))}
-                        className={clsx(
-                          'py-2.5 px-2 rounded-xl border-2 text-[11px] font-bold transition-all duration-200 active:scale-95 cursor-pointer flex flex-col items-center gap-1 leading-tight',
-                          txForm.payment_method === m
-                            ? m === 'CASH'
-                              ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
-                              : 'border-primary bg-primary/10 text-primary shadow-sm'
-                            : 'border-border bg-background text-muted-foreground hover:bg-muted'
-                        )}
-                      >
-                        <PaymentMethodIcon method={m} />
-                        {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : 'Other'}
-                      </button>
-                    ))}
-                  </div>
-                  {txForm.payment_method === 'CASH' && (
-                    <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1.5">
-                      <Banknote className="w-3.5 h-3.5" />
-                      {txForm.transaction_type === 'CREDIT'
-                        ? 'This will deduct cash from the drawer'
-                        : 'This will add cash to the drawer'}
-                    </p>
-                  )}
+              {/* Payment method */}
+              <div>
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">Payment Method</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {(['CASH', 'BANK_TRANSFER', 'UPI', 'CARD', 'OTHER'] as const).map(m => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setTxForm(f => ({ ...f, payment_method: m }))}
+                      className={clsx(
+                        'py-2.5 px-2 rounded-xl border-2 text-[11px] font-bold transition-all duration-200 active:scale-95 cursor-pointer flex flex-col items-center gap-1 leading-tight',
+                        txForm.payment_method === m
+                          ? m === 'CASH'
+                            ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                            : 'border-primary bg-primary/10 text-primary shadow-sm'
+                          : 'border-border bg-background text-muted-foreground hover:bg-muted'
+                      )}
+                    >
+                      <PaymentMethodIcon method={m} />
+                      {m === 'CASH' ? 'Cash' : m === 'BANK_TRANSFER' ? 'Bank' : m === 'UPI' ? 'UPI' : m === 'CARD' ? 'Card' : 'Other'}
+                    </button>
+                  ))}
                 </div>
-              )}
+                {txForm.payment_method === 'CASH' && (
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold mt-2 flex items-center gap-1.5">
+                    <Banknote className="w-3.5 h-3.5" />
+                    {txForm.transaction_type === 'CREDIT'
+                      ? 'This will deduct cash from the drawer'
+                      : 'This will add cash to the drawer'}
+                  </p>
+                )}
+              </div>
             </section>
           </div>
 
