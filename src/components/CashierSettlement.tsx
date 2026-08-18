@@ -227,6 +227,35 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     setRowDiscs((p) => ({ ...p, [invoiceId]: Math.max(0, flat) }));
   };
 
+  const handleNetChange = (invoiceId: string, val: string) => {
+    if (val === '') {
+      setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
+      setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
+      return;
+    }
+    const netVal = parseFloat(val);
+    const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
+    if (!inv) return;
+
+    const scrapD = Number(inv.scrap_deduction) || 0;
+    const returnD = Number(inv.return_deduction) || 0;
+    const totalDeductions = scrapD + returnD;
+    const sub = Number(inv.subtotal) || 0;
+    const tax = Number(inv.tax_total) || 0;
+    const disc = Number(inv.discount_total) || 0;
+    const ptsDisc = Number(inv.points_redeemed_discount) || 0;
+    const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+    const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+    const base = refundAmount > 0 ? preDeductionTotal : Number(inv.grand_total);
+
+    if (base && !isNaN(netVal)) {
+      const flat = Math.max(0, base - netVal);
+      const percent = (flat / base) * 100;
+      setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+      setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+    }
+  };
+
   const [showDayClose, setShowDayClose] = useState(false);
   const [actualCash, setActualCash] = useState<number>(0);
   const [closeRemarks, setCloseRemarks] = useState('');
@@ -956,14 +985,26 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       />
                     </div>
 
-                    {/* Net */}
+                    {/* Net editable input */}
                     <span className="text-xs font-black text-right tabular-nums block">
                       {refundAmount > 0 ? (
                         <span className="text-emerald-600 dark:text-emerald-400 font-bold" title="Refund Amount">
                           -{formatCurrency(refundAmount)}
                         </span>
                       ) : (
-                        <span className="text-primary font-bold">{formatCurrency(net)}</span>
+                        <div className="flex items-center justify-center">
+                          <div className="flex items-center border border-primary/30 rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all bg-card w-full max-w-[90px]">
+                            <span className="pl-2 text-[10px] font-black text-primary select-none">₹</span>
+                            <input
+                              type="number"
+                              value={net}
+                              onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
+                              onWheel={(e) => (e.target as HTMLInputElement).blur()}
+                              className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-primary tabular-nums text-center no-spinners"
+                              step="0.01" min="0" placeholder={displayAmount.toString()}
+                            />
+                          </div>
+                        </div>
                       )}
                     </span>
 
