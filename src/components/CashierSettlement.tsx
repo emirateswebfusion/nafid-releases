@@ -1091,12 +1091,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     )}
                   >
                     {/* Invoice + status */}
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 text-blue-500 shadow-inner shrink-0">
+                    <div className="flex items-center justify-center gap-2.5 min-w-0">
+                      <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/15 to-blue-500/5 text-blue-500 shadow-inner shrink-0 self-center">
                         <Receipt className="w-3.5 h-3.5" />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-1">
+                      <div className="min-w-0 flex flex-col justify-center items-center text-center">
+                        <div className="flex items-center justify-center gap-1">
                           <button
                             onClick={() => handleViewInvoice(inv)}
                             className="text-xs font-extrabold text-foreground truncate block cursor-pointer hover:text-primary hover:underline transition-colors"
@@ -1110,21 +1110,20 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-1 flex-wrap mt-1">
-                          <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
-                            <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" /> Pending
-                          </span>
-                          {returnD > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
-                              Return -₹{returnD}
-                            </span>
-                          )}
-                          {scrapD > 0 && (
-                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/25">
-                              Scrap -₹{scrapD}
-                            </span>
-                          )}
-                        </div>
+                        {(returnD > 0 || scrapD > 0) && (
+                          <div className="flex items-center justify-center gap-1 flex-wrap mt-0.5">
+                            {returnD > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                                Return ₹{returnD}
+                              </span>
+                            )}
+                            {scrapD > 0 && (
+                              <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/25">
+                                Scrap ₹{scrapD}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1184,29 +1183,29 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     <span className="text-xs font-black text-right tabular-nums block">
                       {isMinus ? (
                         <div className="flex items-center justify-center">
-                          <div className="flex items-center border border-emerald-500/30 rounded-lg overflow-hidden focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all bg-card w-full max-w-[95px]">
-                            <span className="pl-2 text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none">-₹</span>
+                          <div className="flex items-center border border-emerald-500/30 rounded-lg overflow-hidden focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/10 transition-all bg-card w-full max-w-[105px]">
+                            <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none leading-none">-₹</span>
                             <input
                               type="number"
-                              value={absNet === 0 ? '' : absNet}
+                              value={absNet === 0 ? '' : absNet.toFixed(2)}
                               onChange={(e) => handleNetChange(inv.invoice_id, e.target.value === '' ? '' : `-${e.target.value}`)}
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
-                              className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
-                              step="0.01" min="0" placeholder={absRawNet.toString()}
+                              className="w-full py-1 pr-2 pl-1 text-[10px] font-black bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
+                              step="0.01" min="0" placeholder={absRawNet.toFixed(2)}
                             />
                           </div>
                         </div>
                       ) : (
                         <div className="flex items-center justify-center">
                           <div className="flex items-center border border-primary/30 rounded-lg overflow-hidden focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10 transition-all bg-card w-full max-w-[90px]">
-                            <span className="pl-2 text-[10px] font-black text-primary select-none">₹</span>
+                            <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-primary select-none leading-none">₹</span>
                             <input
                               type="number"
-                              value={net}
+                              value={net === 0 ? '' : net.toFixed(2)}
                               onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
                               className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-primary tabular-nums text-center no-spinners"
-                              step="0.01" min="0" placeholder={displayAmount.toString()}
+                              step="0.01" min="0" placeholder={displayAmount.toFixed(2)}
                             />
                           </div>
                         </div>
