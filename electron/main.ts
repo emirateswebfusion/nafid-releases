@@ -4532,8 +4532,8 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
   }
 });
 
-ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, payment_source_id, user_id, user_name }: {
-  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; payment_source_id?: string; user_id: string; user_name?: string
+ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invoice_id, received_amount, payment_method, payment_source_id, split_details, user_id, user_name }: {
+  tenant_id: string; invoice_id: string; received_amount: number; payment_method: string; payment_source_id?: string; split_details?: any; user_id: string; user_name?: string
 }) => {
   const db = getDb();
   const validMethods = ['CASH', 'CARD', 'UPI', 'BANK_TRANSFER', 'SPLIT'];
@@ -4555,7 +4555,13 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         WHERE invoice_id = ? AND tenant_id = ?
       `).run(payment_method, received, discount, invoice_id, tenant_id);
       
-      if (payment_method === 'CASH') {
+      const splitCashAmount = payment_method === 'CASH' 
+        ? received 
+        : payment_method === 'SPLIT' && split_details?.cash 
+        ? Number(split_details.cash) 
+        : 0;
+
+      if (splitCashAmount > 0) {
         const date = localDate();
         const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
         if (drawer) {
@@ -4569,9 +4575,9 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
           const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
 
-          const newCashSales = Number(drawer.cash_sales) + received;
+          const newCashSales = Number(drawer.cash_sales) + splitCashAmount;
           let newCashOut = Number(drawer.cash_out);
-          let newCurrentCash = Number(drawer.current_cash) + received;
+          let newCurrentCash = Number(drawer.current_cash) + splitCashAmount;
 
           if (refundAmount > 0) {
             const transaction_id = crypto.randomUUID();
@@ -4612,7 +4618,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
         crypto.randomUUID(), tenant_id, 'PAYMENT_COMPLETED',
-        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, payment_source_id: payment_source_id || null, grand_total }),
+        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, split_details: split_details || null, grand_total }),
         user_id, user_name || null
       );
     });
