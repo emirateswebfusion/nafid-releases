@@ -1442,8 +1442,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     // 3. Handle scrap items — create scrap transactions and update scrap stock
     if (scrap_items && scrap_items.length > 0) {
       const scrapTxStmt = db.prepare(`
-        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, sync_status, updated_at)
-        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
+        VALUES (?, ?, 'PURCHASE', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
       `);
       const scrapStockStmt = db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`);
 
@@ -1459,7 +1459,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
           invoice.customer_phone || null,
           invoice.customer_address || null,
           `From invoice ${invoice.invoice_number}`,
-          invoice.scrap_invoice_number || null
+          invoice.scrap_invoice_number || null,
+          scrap.payment_status || 'SETTLED'
         );
         scrapStockStmt.run(scrap.quantity, scrap.scrap_category_id);
       }
@@ -2248,6 +2249,7 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   reason?: string;
   refund_method?: string;
   adjusted_invoice_number?: string;
+  adjusted_amount?: number;
   items: Array<{
     return_item_id: string;
     product_id: string;
@@ -2263,13 +2265,14 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   const db = getDb();
   const transaction = db.transaction(() => {
     db.prepare(`
-      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, sync_status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     `).run(
       returnData.return_id, returnData.invoice_id, returnData.tenant_id, returnData.user_id || null,
       returnData.return_number, returnData.customer_name || null, returnData.customer_phone || null,
       returnData.subtotal, returnData.tax_total, returnData.grand_total, returnData.reason || null,
-      returnData.refund_method || null, returnData.adjusted_invoice_number || null
+      returnData.refund_method || null, returnData.adjusted_invoice_number || null,
+      returnData.adjusted_amount ?? 0
     );
 
     const itemStmt = db.prepare(`
@@ -3373,7 +3376,7 @@ ipcMain.handle('db:updateScrapInvoicePaymentStatus', (event, { tenant_id, scrap_
   try {
     const db = getDb();
     db.prepare(`
-      UPDATE scrap_transactions SET payment_status = ?, updated_at = CURRENT_TIMESTAMP
+      UPDATE scrap_transactions SET payment_status = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = ? AND scrap_invoice_number = ?
     `).run(payment_status, tenant_id, scrap_invoice_number);
     return { success: true };
@@ -3388,7 +3391,7 @@ ipcMain.handle('db:updateScrapInvoiceHeader', (event, { tenant_id, scrap_invoice
     const db = getDb();
     db.prepare(`
       UPDATE scrap_transactions 
-      SET party_name = ?, customer_phone = ?, customer_address = ?, payment_status = COALESCE(?, payment_status), updated_at = CURRENT_TIMESTAMP
+      SET party_name = ?, customer_phone = ?, customer_address = ?, payment_status = COALESCE(?, payment_status), sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = ? AND scrap_invoice_number = ?
     `).run(party_name ?? null, customer_phone ?? null, customer_address ?? null, payment_status ?? null, tenant_id, scrap_invoice_number);
     return { success: true };
@@ -3477,7 +3480,7 @@ ipcMain.handle('db:updateScrapTransaction', safeHandler((event, args) => {
     const result = db.transaction(() => {
       db.prepare(`
         UPDATE scrap_transactions 
-        SET scrap_category_id = ?, quantity = ?, rate = ?, total_amount = ?, party_name = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+        SET scrap_category_id = ?, quantity = ?, rate = ?, total_amount = ?, party_name = ?, notes = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
         WHERE transaction_id = ? AND tenant_id = ?
       `).run(
         newCatId,

@@ -1772,11 +1772,11 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
 
   const upsert = db.prepare(`
     INSERT INTO scrap_transactions (
-      transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, transaction_date, created_at,
-      is_deleted, sync_status
+      transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, transaction_date, created_at,
+      is_deleted, sync_status, updated_at
     ) VALUES (
-      @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @transaction_date, @created_at,
-      COALESCE(@is_deleted, 0), 'SYNCED'
+      @transaction_id, @tenant_id, @type, @scrap_category_id, @quantity, @rate, @total_amount, @party_name, @customer_phone, @customer_address, @notes, @scrap_invoice_number, @payment_status, @transaction_date, @created_at,
+      COALESCE(@is_deleted, 0), 'SYNCED', @updated_at
     )
     ON CONFLICT(transaction_id) DO UPDATE SET
       type = excluded.type,
@@ -1788,7 +1788,9 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
       customer_address = excluded.customer_address,
       notes = excluded.notes,
       scrap_invoice_number = excluded.scrap_invoice_number,
+      payment_status = excluded.payment_status,
       is_deleted = COALESCE(excluded.is_deleted, 0),
+      updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
     WHERE scrap_transactions.sync_status != 'PENDING'
   `);
@@ -1817,9 +1819,11 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
               customer_address: t.customer_address || null,
               notes: t.notes || null,
               scrap_invoice_number: t.scrap_invoice_number || null,
+              payment_status: t.payment_status || 'CASH',
               is_deleted: t.is_deleted ? 1 : 0,
               transaction_date: toSqliteDate(t.transaction_date),
               created_at: toSqliteDate(t.created_at),
+              updated_at: toSqliteDate(t.updated_at),
             });
           } catch (e: any) {
             console.error('[SyncWorker] Error pulling scrap transaction:', e.message);
