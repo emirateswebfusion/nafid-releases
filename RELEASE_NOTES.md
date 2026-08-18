@@ -1,3 +1,10 @@
+# Vendora v1.5.16 Release Notes
+
+## What's Changed
+- Implemented CashierSettlement, PartyManager, SettingsPricingTiers components, and POS main modules
+- Added support for SQLite background sync worker and transaction reconciliation
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.15...v1.5.16
+
 # Vendora v1.5.15 Release Notes
 
 ## What's Changed
