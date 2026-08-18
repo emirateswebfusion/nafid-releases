@@ -24,6 +24,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
   const [shopName, setShopName] = useState<string | null>(null);
   const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
+  const [showShopNameReady, setShowShopNameReady] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const params = getUrlParams();
@@ -35,37 +36,48 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
   const labelContentWidthPx = Math.max(60, Math.floor(labelWidthPx / colCount) - 16);
   const barcodeModuleWidth = Math.min(1.6, Math.max(0.4, labelContentWidthPx / code128Modules(barcode)));
 
-  // Load the shop name from the persisted auth config so the label always
-  // prints it, even if the app's async checkAuth hasn't resolved yet.
+  // Load shop name & label show shop name setting from persisted auth config & settings DB
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       let name = authShopName || null;
+      let tid = useAuthStore.getState().tenantId;
       if (window.electronAPI && window.electronAPI.authGetToken) {
         try {
           const stored = await window.electronAPI.authGetToken();
-          if (stored && stored.shop_name) name = stored.shop_name;
+          if (stored) {
+            if (stored.shop_name) name = stored.shop_name;
+            if (stored.tenant_id) tid = stored.tenant_id;
+          }
         } catch {
-          // fall back to the store value
+          // fall back to store value
         }
       }
       if (!cancelled) {
         setShopName(name);
         setShopNameReady(true);
       }
+
+      if (window.electronAPI && window.electronAPI.settingsGet) {
+        try {
+          let v = await window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
+          if ((v === null || v === undefined) && tid && tid !== 'global') {
+            v = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'label_show_shop_name' });
+          }
+          if (v !== null && v !== undefined) {
+            setShowShopName(Boolean(v));
+          }
+        } catch {
+          // fallback keeps default
+        }
+      }
+      if (!cancelled) {
+        setShowShopNameReady(true);
+      }
     };
     load();
     return () => { cancelled = true; };
   }, [authShopName]);
-
-  useEffect(() => {
-    const { tenantId } = useAuthStore.getState();
-    if (window.electronAPI && window.electronAPI.settingsGet) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' }).then((v: unknown) => {
-        if (v !== null && v !== undefined) setShowShopName(Boolean(v));
-      });
-    }
-  }, []);
 
   const formatPrice = (p: number) => {
     return p % 1 === 0 ? p.toString() : p.toFixed(2);
@@ -79,7 +91,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     }
   }, [barcode, codeType]);
 
-  const readyToPrint = shopNameReady && (codeType !== 'qrcode' || !!qrDataUrl);
+  const readyToPrint = shopNameReady && showShopNameReady && (codeType !== 'qrcode' || !!qrDataUrl);
 
   useEffect(() => {
     if (!readyToPrint) return;
@@ -109,7 +121,7 @@ export function PrintBarcodeView({ barcode, price, sp, spType = 'SP', name, quan
     const pageLabels = Array.from({ length: colCount }, (_, colIndex) => {
       const hasLabel = colIndex < labelsInPage;
       return (
-        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2px 3px 0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+        <div key={colIndex} style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2px 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && (
             <>
               {showShopName && shopName && (

@@ -840,7 +840,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 : 'bg-emerald-500/10 border-emerald-500/25'
             )}>
               <span className={clsx('text-sm font-black tabular-nums leading-none', pendingInvoices.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400')}>
-                {pendingInvoices.length}
+                {pendingInvoices.length > 999 ? '999+' : pendingInvoices.length}
               </span>
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">
                 Pending

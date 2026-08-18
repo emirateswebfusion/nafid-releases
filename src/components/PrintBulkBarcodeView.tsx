@@ -16,6 +16,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const [shopName, setShopName] = useState<string | null>(null);
   const [shopNameReady, setShopNameReady] = useState(false);
   const [showShopName, setShowShopName] = useState(true);
+  const [showShopNameReady, setShowShopNameReady] = useState(false);
   const [items, setItems] = useState<any[]>([]);
   const [columns, setColumns] = useState(1);
   const [labelWidthPx, setLabelWidthPx] = useState(189);
@@ -23,37 +24,48 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   const [loaded, setLoaded] = useState(false);
   const [qrDataUrls, setQrDataUrls] = useState<Record<string, string>>({});
 
-  // Load the shop name from the persisted auth config so the label always
-  // prints it, even if the app's async checkAuth hasn't resolved yet.
+  // Load shop name & label show shop name setting from persisted auth config & settings DB
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       let name = authShopName || null;
+      let tid = useAuthStore.getState().tenantId;
       if (window.electronAPI && window.electronAPI.authGetToken) {
         try {
           const stored = await window.electronAPI.authGetToken();
-          if (stored && stored.shop_name) name = stored.shop_name;
+          if (stored) {
+            if (stored.shop_name) name = stored.shop_name;
+            if (stored.tenant_id) tid = stored.tenant_id;
+          }
         } catch {
-          // fall back to the store value
+          // fall back to store value
         }
       }
       if (!cancelled) {
         setShopName(name);
         setShopNameReady(true);
       }
+
+      if (window.electronAPI && window.electronAPI.settingsGet) {
+        try {
+          let v = await window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'label_show_shop_name' });
+          if ((v === null || v === undefined) && tid && tid !== 'global') {
+            v = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'label_show_shop_name' });
+          }
+          if (v !== null && v !== undefined) {
+            setShowShopName(Boolean(v));
+          }
+        } catch {
+          // fallback keeps default
+        }
+      }
+      if (!cancelled) {
+        setShowShopNameReady(true);
+      }
     };
     load();
     return () => { cancelled = true; };
   }, [authShopName]);
-
-  useEffect(() => {
-    const { tenantId } = useAuthStore.getState();
-    if (window.electronAPI && window.electronAPI.settingsGet) {
-      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' }).then((v: unknown) => {
-        if (v !== null && v !== undefined) setShowShopName(Boolean(v));
-      });
-    }
-  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1]);
@@ -91,7 +103,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
   }, [codeType, items]);
 
   const qrReady = items.length === 0 || items.every(item => qrDataUrls[item.barcode] !== undefined);
-  const readyToPrint = loaded && shopNameReady && (codeType !== 'qrcode' || qrReady);
+  const readyToPrint = loaded && shopNameReady && showShopNameReady && (codeType !== 'qrcode' || qrReady);
 
   useEffect(() => {
     if (!readyToPrint) return;
@@ -141,7 +153,7 @@ export function PrintBulkBarcodeView({ codeType = DEFAULT_CODE_TYPE }: { codeTyp
         : 1;
 
       return (
-        <div key={colIndex} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start', padding: '2px 3px 0 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
+        <div key={colIndex} style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '2px 3px', boxSizing: 'border-box', overflow: 'hidden' }}>
           {hasLabel && item && (
             <>
               {showShopName && shopName && (

@@ -4459,7 +4459,14 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
 
     const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
     
-    if (existing) {      db.prepare(`
+    if (existing) {
+      const newOpening = Number(opening_balance);
+      const cashSales = Number(existing.cash_sales || 0);
+      const cashIn = Number(existing.cash_in || 0);
+      const cashOut = Number(existing.cash_out || 0);
+      const newCurrentCash = newOpening + cashSales + cashIn - cashOut;
+
+      db.prepare(`
         UPDATE cash_drawer SET 
           opening_balance = ?, 
           current_cash = ?, 
@@ -4476,13 +4483,14 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
           sync_status = 'PENDING', 
           updated_at = CURRENT_TIMESTAMP
         WHERE drawer_id = ?
-      `).run(opening_balance, opening_balance, opening_balance, user_id, existing.drawer_id);
+      `).run(newOpening, newCurrentCash, newCurrentCash, user_id, existing.drawer_id);
     } else {
       const drawer_id = crypto.randomUUID();
+      const newOpening = Number(opening_balance);
       db.prepare(`
         INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, current_cash, expected_closing, status, opened_by, sync_status)
         VALUES (?, ?, ?, ?, ?, ?, 'OPEN', ?, 'PENDING')
-      `).run(drawer_id, tenant_id, date, opening_balance, opening_balance, opening_balance, user_id);
+      `).run(drawer_id, tenant_id, date, newOpening, newOpening, newOpening, user_id);
     }
     
     const dId = existing ? existing.drawer_id : '';
@@ -4516,7 +4524,7 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
       params.push(`%${search}%`, `%${search}%`);
     }
     
-    query += ` ORDER BY i.created_at DESC LIMIT 100`;
+    query += ` ORDER BY i.created_at DESC LIMIT 1000`;
     return db.prepare(query).all(...params);
   } catch (error: any) {
     console.error('[db:cashier:getPendingInvoices]', error);
