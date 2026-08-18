@@ -595,6 +595,7 @@ async function syncInvoices(token: string, tenantId: string) {
       points_redeemed_discount: Number(inv.points_redeemed_discount) || 0,
       previous_points_balance: Number(inv.previous_points_balance) || 0,
       remaining_points_balance: Number(inv.remaining_points_balance) || 0,
+      is_deleted: inv.is_deleted === true || inv.is_deleted === 1 || inv.is_deleted === '1' || inv.is_deleted === 'true',
       items: (getItems.all(inv.invoice_id, tenantId) as any[]).map((item: any) => ({
         ...item,
         quantity: Number(item.quantity) || 0,
@@ -1125,7 +1126,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       customer_id, points_earned, points_redeemed, points_redeemed_discount,
       previous_points_balance, remaining_points_balance,
       converted_from_invoice_id, converted_from_invoice_number,
-      converted_to_invoice_id, converted_to_invoice_number
+      converted_to_invoice_id, converted_to_invoice_number,
+      is_deleted
     ) VALUES (
       @invoice_id, @tenant_id, @invoice_number, @invoice_type,
       @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
@@ -1137,7 +1139,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       @customer_id, @points_earned, @points_redeemed, @points_redeemed_discount,
       @previous_points_balance, @remaining_points_balance,
       @converted_from_invoice_id, @converted_from_invoice_number,
-      @converted_to_invoice_id, @converted_to_invoice_number
+      @converted_to_invoice_id, @converted_to_invoice_number,
+      @is_deleted
     )
     ON CONFLICT(invoice_id) DO UPDATE SET
       customer_name = EXCLUDED.customer_name,
@@ -1170,6 +1173,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       converted_from_invoice_number = EXCLUDED.converted_from_invoice_number,
       converted_to_invoice_id = EXCLUDED.converted_to_invoice_id,
       converted_to_invoice_number = EXCLUDED.converted_to_invoice_number,
+      is_deleted = EXCLUDED.is_deleted,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
   `);
@@ -1196,7 +1200,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   // reappear on reprints. A locally PENDING edit that differs from the cloud is
   // never clobbered: its items are left untouched until the edit syncs.
   const deleteItems = db.prepare('DELETE FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?');
-  const localInvCheck = db.prepare('SELECT sync_status, updated_at FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
+  const localInvCheck = db.prepare('SELECT sync_status, updated_at, is_deleted FROM invoices WHERE invoice_id = ? AND tenant_id = ?');
 
   const result = await pullPaginated({
     token,
@@ -1258,7 +1262,20 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 converted_from_invoice_number: currentInv.converted_from_invoice_number || null,
                 converted_to_invoice_id: currentInv.converted_to_invoice_id || null,
                 converted_to_invoice_number: currentInv.converted_to_invoice_number || null,
+                is_deleted: currentInv.is_deleted ? 1 : 0,
               });
+
+              // If this invoice is soft-deleted and was active locally before this pull, restore local product stock
+              const isDeletedPull = currentInv.is_deleted === true || currentInv.is_deleted === 1 || currentInv.is_deleted === '1' || currentInv.is_deleted === 'true';
+              if (isDeletedPull && prior && !prior.is_deleted && Array.isArray(currentInv.items)) {
+                const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
+                if (!isConversionCopy) {
+                  for (const item of currentInv.items) {
+                    db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND tenant_id = ?').run(Number(item.quantity) || 0, item.product_id, currentInv.tenant_id);
+                  }
+                }
+              }
+
               success = true;
             } catch (e: any) {
               if (e.message?.includes('UNIQUE constraint failed: invoices.tenant_id, invoices.invoice_number')) {

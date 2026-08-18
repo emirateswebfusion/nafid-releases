@@ -1993,7 +1993,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ?
+      WHERE i.tenant_id = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0)
     `;
     const params: any[] = [tenant_id];
 
@@ -2056,7 +2056,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const row = db.prepare(`
       SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL
+      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL AND (is_deleted IS NULL OR is_deleted = 0)
     `).get(tenantId, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
@@ -3707,13 +3707,13 @@ ipcMain.handle('db:getProductBillQuantities', (event, tenantId: string) => {
                SELECT SUM(ii.quantity)
                FROM invoice_items ii
                JOIN invoices i ON ii.invoice_id = i.invoice_id
-               WHERE ii.product_id = p.product_id AND i.invoice_type = 'GST' AND ii.tenant_id = p.tenant_id
+               WHERE ii.product_id = p.product_id AND i.invoice_type = 'GST' AND ii.tenant_id = p.tenant_id AND (i.is_deleted IS NULL OR i.is_deleted = 0)
              ), 0) as gst_qty,
              COALESCE((
                SELECT SUM(ii.quantity)
                FROM invoice_items ii
                JOIN invoices i ON ii.invoice_id = i.invoice_id
-               WHERE ii.product_id = p.product_id AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND ii.tenant_id = p.tenant_id
+               WHERE ii.product_id = p.product_id AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND ii.tenant_id = p.tenant_id AND (i.is_deleted IS NULL OR i.is_deleted = 0)
              ), 0) as estimate_qty,
              COALESCE((
                SELECT SUM(pbi.quantity)
@@ -3743,7 +3743,7 @@ ipcMain.handle('db:getProductSalesSummary', (event, { tenant_id }: { tenant_id: 
              COALESCE(SUM(ii.quantity), 0) as total_qty
       FROM invoice_items ii
       JOIN invoices i ON ii.invoice_id = i.invoice_id
-      WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY')
+      WHERE ii.tenant_id = ? AND i.invoice_type IN ('GST', 'BILL_OF_SUPPLY') AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       GROUP BY ii.product_id, ii.name
       ORDER BY ii.name COLLATE NOCASE ASC
     `).all(tenant_id);
@@ -3776,7 +3776,7 @@ ipcMain.handle('db:getBosConvertibleInvoices', (event, tenantId: string) => {
                  )
              ) AS convertible
       FROM invoices i
-      WHERE i.tenant_id = ? AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL
+      WHERE i.tenant_id = ? AND i.invoice_type = 'BILL_OF_SUPPLY' AND i.converted_to_invoice_id IS NULL AND (i.is_deleted IS NULL OR i.is_deleted = 0)
     `).all(tenantId);
   } catch (error: any) {
     console.error('[db:getBosConvertibleConvertibles]', error);
@@ -4526,7 +4526,7 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING'
+      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING' AND (i.is_deleted IS NULL OR i.is_deleted = 0)
     `;
     const params: any[] = [tenant_id];
     
@@ -4760,8 +4760,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -4782,7 +4782,7 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
       SELECT i.*, u.name as biller_name
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.user_id
-      WHERE i.tenant_id = ? AND i.payment_method != 'PENDING' AND date(i.updated_at) = ?
+      WHERE i.tenant_id = ? AND i.payment_method != 'PENDING' AND date(i.updated_at) = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY i.updated_at DESC
     `).all(tenant_id, business_date);
   } catch (error: any) {
@@ -4893,7 +4893,7 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
              points_redeemed_discount, previous_points_balance, remaining_points_balance,
              created_at
       FROM invoices
-      WHERE customer_id = ? AND tenant_id = ?
+      WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY created_at DESC
     `).all(customer_id, tenant_id);
   } catch (error: any) {
@@ -4946,7 +4946,7 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
         `).run(inv.converted_to_invoice_id);
       }
 
-      db.prepare('DELETE FROM invoices WHERE invoice_id = ?').run(invoice_id);
+      db.prepare("UPDATE invoices SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
     })();
     return { success: true };
   } catch (error: any) {

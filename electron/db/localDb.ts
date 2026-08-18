@@ -107,6 +107,7 @@ export function initDb() {
         user_id TEXT,
         return_deduction REAL DEFAULT 0,
         return_invoice_number TEXT,
+        is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -543,7 +544,8 @@ export function initDb() {
         'customer_id', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance',
         'held_until', 'is_held', 'hold_note',
         'converted_from_invoice_id', 'converted_from_invoice_number',
-        'converted_to_invoice_id', 'converted_to_invoice_number'
+        'converted_to_invoice_id', 'converted_to_invoice_number',
+        'is_deleted'
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item',
@@ -1024,6 +1026,17 @@ export function initDb() {
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add is_deleted to scrap_transactions:', e.message);
+  }
+
+  // Migration: Add is_deleted column to invoices
+  try {
+    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    if (!invCols.includes('is_deleted')) {
+      console.log('[DB Migration] Adding is_deleted to invoices...');
+      db.exec("ALTER TABLE invoices ADD COLUMN is_deleted INTEGER DEFAULT 0");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to add is_deleted to invoices:', e.message);
   }
 
   // Migration: Add bill_type column to purchase_bills
