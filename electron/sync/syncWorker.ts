@@ -223,6 +223,19 @@ export async function runInitialSync(sender?: WebContents) {
   return { success: true };
 }
 
+export async function forceResyncInvoices(sender?: WebContents) {
+  console.log('[SyncWorker] Forcing full invoice and return re-sync...');
+  const config = getAuthConfig();
+  if (config?.tenant_id) {
+    const db = getDb();
+    db.prepare(`DELETE FROM sync_meta WHERE key IN (?, ?)`).run(
+      cursorKey(config.tenant_id, 'invoices'),
+      cursorKey(config.tenant_id, 'returns')
+    );
+  }
+  return runInitialSync(sender);
+}
+
 async function runSyncCycle(sender?: WebContents): Promise<void> {
   if (syncInProgress) {
     console.log('[SyncWorker] Sync already in progress, waiting for it...');
@@ -266,6 +279,22 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
       let dataUpdated = false;
       const db = getDb();
+
+      // One-time auto-heal: reset invoice & return pull cursors so older edited bills are re-pulled and updated locally
+      const healingKey = `invoice_conflict_fix_v1:${tenant_id}`;
+      if (!getMeta(healingKey)) {
+        try {
+          db.prepare(`DELETE FROM sync_meta WHERE key IN (?, ?)`).run(
+            cursorKey(tenant_id, 'invoices'),
+            cursorKey(tenant_id, 'returns')
+          );
+          setMeta(healingKey, 'true');
+          console.log('[SyncWorker] One-time reset of invoice & return cursors applied to heal existing old bills.');
+        } catch (e: any) {
+          console.error('[SyncWorker] Error performing one-time cursor reset:', e.message);
+        }
+      }
+
       const totalRecords = getTotalPendingRecords(db, tenant_id);
 
       try {
@@ -1116,22 +1145,21 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       customer_gstin = EXCLUDED.customer_gstin,
       customer_state = EXCLUDED.customer_state,
       customer_address = EXCLUDED.customer_address,
-      payment_method = EXCLUDED.payment_method,
-      received_amount = EXCLUDED.received_amount,
-      balance_amount = EXCLUDED.balance_amount,
-      user_id = EXCLUDED.user_id,
+      subtotal = EXCLUDED.subtotal,
+      tax_total = EXCLUDED.tax_total,
       discount_total = EXCLUDED.discount_total,
       discount_type = EXCLUDED.discount_type,
       discount_value = EXCLUDED.discount_value,
       grand_total = EXCLUDED.grand_total,
+      payment_method = EXCLUDED.payment_method,
+      received_amount = EXCLUDED.received_amount,
+      balance_amount = EXCLUDED.balance_amount,
+      invoice_type = EXCLUDED.invoice_type,
+      user_id = EXCLUDED.user_id,
       scrap_deduction = EXCLUDED.scrap_deduction,
       scrap_invoice_number = EXCLUDED.scrap_invoice_number,
       return_deduction = EXCLUDED.return_deduction,
       return_invoice_number = EXCLUDED.return_invoice_number,
-      customer_id = EXCLUDED.customer_id,
-      points_earned = EXCLUDED.points_earned,
-      points_redeemed = EXCLUDED.points_redeemed,
-      points_redeemed_discount = EXCLUDED.points_redeemed_discount,
       customer_id = EXCLUDED.customer_id,
       points_earned = EXCLUDED.points_earned,
       points_redeemed = EXCLUDED.points_redeemed,
@@ -1142,6 +1170,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       converted_from_invoice_number = EXCLUDED.converted_from_invoice_number,
       converted_to_invoice_id = EXCLUDED.converted_to_invoice_id,
       converted_to_invoice_number = EXCLUDED.converted_to_invoice_number,
+      updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
   `);
 
@@ -2348,12 +2377,14 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   const upsertReturn = db.prepare(`
-    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, sync_status, created_at, updated_at)
-    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, 'SYNCED', @created_at, @updated_at)
+    INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, return_date, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
+    VALUES (@return_id, @invoice_id, @tenant_id, @user_id, @return_number, @customer_name, @customer_phone, @subtotal, @tax_total, @grand_total, @reason, @return_date, @refund_method, @adjusted_invoice_number, @adjusted_amount, 'SYNCED', @created_at, @updated_at)
     ON CONFLICT(return_id) DO UPDATE SET
       customer_name = excluded.customer_name, customer_phone = excluded.customer_phone,
       subtotal = excluded.subtotal, tax_total = excluded.tax_total, grand_total = excluded.grand_total,
-      reason = excluded.reason, return_date = excluded.return_date, updated_at = excluded.updated_at,
+      reason = excluded.reason, return_date = excluded.return_date,
+      refund_method = excluded.refund_method, adjusted_invoice_number = excluded.adjusted_invoice_number,
+      adjusted_amount = excluded.adjusted_amount, updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
     WHERE returns.sync_status != 'PENDING'
   `);
@@ -2384,6 +2415,9 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
               customer_name: r.customer_name || null, customer_phone: r.customer_phone || null,
               subtotal: r.subtotal, tax_total: r.tax_total ?? 0, grand_total: r.grand_total,
               reason: r.reason || null, return_date: toSqliteDate(r.return_date),
+              refund_method: r.refund_method || r.payment_method || null,
+              adjusted_invoice_number: r.adjusted_invoice_number || null,
+              adjusted_amount: Number(r.adjusted_amount) || 0,
               created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
             });
             if (Array.isArray(r.items)) {

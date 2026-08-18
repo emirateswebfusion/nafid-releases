@@ -40,6 +40,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setProductPricing', payload),
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setTierPricing', payload),
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
+  forceResyncInvoices: () => ipcRenderer.invoke('sync:forceResyncInvoices'),
   getSyncProgress: () => ipcRenderer.invoke('sync:getProgress'),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),

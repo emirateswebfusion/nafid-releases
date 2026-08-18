@@ -1371,25 +1371,23 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
       {/* ── PRODUCT LIST VIEW ────────────────────────────────────────────── */}
       <div className={`flex-1 px-6 pb-6 pt-3 bg-muted/[0.02] max-w-7xl mx-auto w-full select-none flex flex-col min-h-0 bg-background${view !== 'list' ? ' hidden' : ''}`}>
-          <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
-            <div ref={listScrollRef} className="flex-1 overflow-y-auto">
-              <div className="min-w-0 overflow-x-auto">
-                {/* Table Header */}
-                <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none">
-                  <div className="col-span-3 text-xs font-black text-muted-foreground uppercase tracking-widest">Product</div>
-                  <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Purchase</div>
-                  <div className="col-span-2 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">MRP</div>
-                  <div className="col-span-1 text-right text-xs font-black text-emerald-500 uppercase tracking-widest">Final</div>
-                  <div className="col-span-4 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Stock</div>
-                  <div className="col-span-1 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Actions</div>
-                </div>
+        <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+          {/* Table Header - Fixed at Top */}
+          <div className="hidden sm:grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 text-[9px] font-bold uppercase tracking-widest text-muted-foreground/60 border-b border-border select-none shrink-0">
+            <div className="col-span-4 text-xs font-black text-muted-foreground uppercase tracking-widest">Product</div>
+            <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">Purchase</div>
+            <div className="col-span-1 text-right text-xs font-black text-muted-foreground uppercase tracking-widest">MRP</div>
+            <div className="col-span-1 text-right text-xs font-black text-emerald-500 uppercase tracking-widest">Final</div>
+            <div className="col-span-3 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Stock</div>
+            <div className="col-span-2 text-center text-xs font-black text-muted-foreground uppercase tracking-widest">Actions</div>
+          </div>
 
-          {/* Rows */}
-          <div className="flex-1 overflow-y-auto divide-y divide-border relative">
+          {/* Scrollable Rows Container */}
+          <div ref={listScrollRef} className="flex-1 overflow-y-auto divide-y divide-border relative">
             {isFetching && offset === 0 ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <div key={`skel-${i}`} className="grid grid-cols-12 gap-1 px-6 py-4 items-center">
-                  <div className="col-span-3">
+                <div key={`skel-${i}`} className="grid grid-cols-12 gap-3 px-6 py-4 items-center">
+                  <div className="col-span-4">
                     <div className="flex items-center gap-2">
                       <div className="space-y-2 w-full">
                         <Skeleton className="h-4 w-3/4" />
@@ -1402,14 +1400,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     </div>
                   </div>
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
-                  <div className="col-span-2 flex justify-end"><Skeleton className="h-4 w-16" /></div>
+                  <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-16" /></div>
                   <div className="col-span-1 flex justify-end"><Skeleton className="h-4 w-12" /></div>
-                  <div className="col-span-4 flex justify-center gap-2">
+                  <div className="col-span-3 flex justify-center gap-2">
                     <Skeleton className="h-6 w-6 rounded-full" />
                     <Skeleton className="h-5 w-16" />
                     <Skeleton className="h-6 w-6 rounded-full" />
                   </div>
-                  <div className="col-span-1 flex justify-center gap-2">
+                  <div className="col-span-2 flex justify-center gap-2">
                     <Skeleton className="h-8 w-8 rounded-lg" />
                     <Skeleton className="h-8 w-8 rounded-lg" />
                     <Skeleton className="h-8 w-8 rounded-lg" />
@@ -1424,7 +1422,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               </div>
             ) : Object.entries(groupedByDate).map(([date, items]) => (
               <Fragment key={date}>
-                <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
+                <div className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border shadow-2xs">
                   {date}
                 </div>
                 {items.map(p => {
@@ -1459,7 +1457,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     ? `${Number(p.current_stock).toFixed(3)} ${p.uom}`
                     : `${Number(p.current_stock).toFixed(0)} ${p.uom}`;
 
-                  // GST/Estimate membership follows the manual GST Product toggle only.
                   const isGstFlag = Number(p.is_gst_applicable) === 1;
 
                   return (
@@ -1467,18 +1464,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       id={`product-row-${p.product_id}`}
                       key={p.product_id}
                       className={clsx(
-                        "border-b border-border last:border-b-0 transition-all duration-300 hover:bg-muted/10 grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card group",
+                        "border-b border-border last:border-b-0 transition-all duration-300 hover:bg-muted/10 grid grid-cols-12 gap-3 px-6 py-3.5 items-center bg-card group",
                         highlightedProductId === p.product_id && "ring-2 ring-primary/60 bg-primary/5 dark:bg-primary/10 shadow-sm"
                       )}
                     >
-                      <div className="col-span-3">
-                        <div className="flex items-center gap-2">
+                      <div className="col-span-4">
+                        <div className="flex items-center gap-2.5 min-w-0">
                           <div className="p-1.5 rounded-lg bg-muted/40 text-muted-foreground shrink-0">
                             <Package className="w-3.5 h-3.5" />
                           </div>
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <ScrollText text={p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')} className="flex-1 text-foreground font-bold text-sm" />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <ScrollText text={p.name.replace(/\s*\((GST|EST|Estimate)\)$/i, '')} className="flex-1 text-foreground font-bold text-sm min-w-0" />
                               {/\s*\((GST|EST|Estimate)\)$/i.test(p.name) && (
                                 <span className={clsx(
                                   "text-[8px] px-1.2 py-0.2 rounded font-black tracking-wide border uppercase select-none leading-none shrink-0",
@@ -1507,7 +1504,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                           <span className="text-[9px] text-indigo-500 font-semibold leading-tight mt-0.5">Grade Purchase</span>
                         )}
                       </div>
-                      <div className="col-span-2 flex flex-col items-end justify-center">
+                      <div className="col-span-1 flex flex-col items-end justify-center text-right">
                         <span className={clsx("text-sm", finalPrice !== null ? 'line-through text-muted-foreground/60' : 'text-primary font-bold')}>
                           ₹{displayMrp.toFixed(2)}
                         </span>
@@ -1522,7 +1519,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       </div>
 
                       {/* Stock with +/- */}
-                      <div className="col-span-4 flex items-center justify-center gap-1">
+                      <div className="col-span-3 flex items-center justify-center gap-1">
                         <button 
                           onClick={() => { if (['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(p.uom)) openAdjustDialog(p, 'reduce'); else applyStockAdjust(p, -1); }} 
                           disabled={adjustingStockId === p.product_id}
@@ -1560,7 +1557,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                       </div>
 
                       {/* Actions */}
-                      <div className="col-span-1 flex items-center justify-center gap-1">
+                      <div className="col-span-2 flex items-center justify-center gap-1">
                         <button onClick={() => { setPrintModalProduct(p); setPrintQuantity(1); setPrintPrice(true); }} className="p-1.5 text-muted-foreground hover:text-blue-500 hover:bg-muted rounded-lg transition-colors cursor-pointer" title="Print Barcode">
                           <Printer className="w-3.5 h-3.5" />
                         </button>
@@ -1596,7 +1593,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           
           {/* Low Stock summary bar */}
           {showLowStockAlert && products.some(p => p.current_stock <= p.reorder_level && p.reorder_level > 0) && (
-            <div className="shrink-0 border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
+            <div className="shrink-0 border-t border-amber-500/30 bg-amber-500/10 px-4 py-2.5 flex items-center gap-2 text-amber-600 dark:text-amber-400 text-sm font-bold">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               <span className="flex-1">{products.filter(p => p.current_stock <= p.reorder_level && p.reorder_level > 0).length} item(s) at or below Low Stock Alert</span>
               <button onClick={() => setShowLowStockAlert(false)} className="p-1 rounded-md border border-amber-500/30 hover:bg-amber-500/15 transition-colors cursor-pointer">
@@ -1605,9 +1602,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             </div>
           )}
         </div>
-        </div>
-        </div>
-        </div>
+      </div>
 
       {/* ── ADD / EDIT FORM VIEW ─────────────────────────────────────────── */}
       {(view === 'add' || view === 'edit') && (

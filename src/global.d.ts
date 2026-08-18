@@ -48,6 +48,7 @@ export interface IElectronAPI {
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => Promise<{ success: boolean; error?: string }>;
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
+  forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string } | null>;

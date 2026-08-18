@@ -995,9 +995,21 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         >
                           {inv.invoice_number}
                         </button>
-                        <span className="inline-flex items-center gap-1 mt-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
-                          <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" /> Pending
-                        </span>
+                        <div className="flex items-center gap-1 flex-wrap mt-1">
+                          <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                            <span className="w-1 h-1 rounded-full bg-amber-500 animate-pulse" /> Pending
+                          </span>
+                          {returnD > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/25">
+                              Return -₹{returnD}
+                            </span>
+                          )}
+                          {scrapD > 0 && (
+                            <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/25">
+                              Scrap -₹{scrapD}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
@@ -1981,30 +1993,94 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             </div>
 
             {/* Totals */}
-            <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
-              <div className="px-4 py-3 space-y-2 bg-card">
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground font-semibold">Subtotal</span>
-                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.subtotal))}</span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground font-semibold">Tax (GST)</span>
-                  <span className="font-bold text-foreground">{formatCurrency(Number(selectedInvoice.tax_total))}</span>
-                </div>
-                {Number(selectedInvoice.discount_total) > 0 && (
-                  <div className="flex justify-between text-xs">
-                    <span className="text-rose-500 font-semibold">
-                      Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
-                    </span>
-                    <span className="text-rose-500 font-bold">-{formatCurrency(Number(selectedInvoice.discount_total))}</span>
+            {(() => {
+              const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
+              const returnD = Number(selectedInvoice.return_deduction) || 0;
+              const totalDeductions = scrapD + returnD;
+              const sub = Number(selectedInvoice.subtotal) || 0;
+              const tax = Number(selectedInvoice.tax_total) || 0;
+              const disc = Number(selectedInvoice.discount_total) || 0;
+              const ptsDisc = Number(selectedInvoice.points_redeemed_discount) || 0;
+              const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+
+              const refundAmount = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+              const netPayable = Math.max(0, preDeductionTotal - totalDeductions);
+
+              return (
+                <div className="rounded-xl border border-primary/20 overflow-hidden bg-primary/[0.02]">
+                  <div className="px-4 py-3 space-y-2 bg-card">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground font-semibold">Subtotal</span>
+                      <span className="font-bold text-foreground">{formatCurrency(sub)}</span>
+                    </div>
+                    {tax > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-muted-foreground font-semibold">Tax (GST)</span>
+                        <span className="font-bold text-foreground">{formatCurrency(tax)}</span>
+                      </div>
+                    )}
+                    {disc > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">
+                          Discount{selectedInvoice.discount_type === 'PERCENTAGE' && selectedInvoice.discount_value ? ` (${selectedInvoice.discount_value}%)` : ''}
+                        </span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(disc)}</span>
+                      </div>
+                    )}
+                    {ptsDisc > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">Points Discount</span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(ptsDisc)}</span>
+                      </div>
+                    )}
+                    {scrapD > 0 && (
+                      <div className="flex justify-between text-xs items-center">
+                        <span className="text-orange-500 font-semibold">
+                          Scrap Credit {selectedInvoice.scrap_invoice_number ? `(${selectedInvoice.scrap_invoice_number})` : ''}
+                        </span>
+                        <span className="text-orange-500 font-bold">-{formatCurrency(scrapD)}</span>
+                      </div>
+                    )}
+                    {returnD > 0 && (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-rose-500 font-semibold">
+                          Return Credit {selectedInvoice.return_invoice_number ? `(${selectedInvoice.return_invoice_number})` : ''}
+                        </span>
+                        <span className="text-rose-500 font-bold">-{formatCurrency(returnD)}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
-                <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
-                <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
-              </div>
-            </div>
+                  {refundAmount > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-t border-primary/10">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Pre-Deduction Total</span>
+                        <span className="text-sm font-bold text-foreground">{formatCurrency(preDeductionTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3 bg-emerald-500/10 border-t border-emerald-500/20">
+                        <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-widest">Refund Amount</span>
+                        <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatCurrency(refundAmount)}</span>
+                      </div>
+                    </>
+                  ) : totalDeductions > 0 ? (
+                    <>
+                      <div className="flex items-center justify-between px-4 py-2 bg-primary/5 border-t border-primary/10">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Pre-Deduction Total</span>
+                        <span className="text-sm font-bold text-foreground">{formatCurrency(preDeductionTotal)}</span>
+                      </div>
+                      <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                        <span className="text-xs font-black text-primary uppercase tracking-widest">Grand Total</span>
+                        <span className="text-lg font-black text-foreground">{formatCurrency(netPayable)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-between px-4 py-3 bg-primary/10 border-t border-primary/20">
+                      <span className="text-[10px] font-black text-primary uppercase tracking-widest">Grand Total</span>
+                      <span className="text-lg font-black text-foreground">{formatCurrency(Number(selectedInvoice.grand_total))}</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </Modal>

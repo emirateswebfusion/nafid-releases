@@ -532,7 +532,7 @@ export function BillingPage() {
   // credit excess is refunded as cash (existing behavior).
   const returnConsumed = Math.min(storeReturnDeduction || 0, grandTotal);
   const scrapConsumed = Math.min(storeScrapDeduction || 0, Math.max(0, grandTotal - returnConsumed));
-  const refundAmount = !isScrapMode ? Math.max(0, (storeScrapDeduction || 0) - scrapConsumed) : 0;
+  const refundAmount = !isScrapMode ? Math.max(0, totalDeductions - grandTotal) : 0;
 
   const returnTotal = items.filter(i => i.isReturnItem).reduce((sum, item) => {
     return sum + (Number(item.originalUnitPrice) || 0) * (Number(item.quantity) || 0);
@@ -931,14 +931,20 @@ export function BillingPage() {
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const tid = tenantId || 'global';
-      const list = await window.electronAPI.dbGetPendingReturnInvoices({ tenant_id: tid, search: returnDeductionSearchQuery });
+      const list = await window.electronAPI.dbGetPendingReturnInvoices({ tenant_id: tid });
       if (Array.isArray(list)) {
         const q = returnDeductionSearchQuery.toUpperCase();
         const getNumPart = getNumericPart;
+        const qNum = getNumPart(q);
         const filtered = list.filter((r: any) => {
           const retNum = String(r.return_number).toUpperCase();
+          const custName = String(r.customer_name || '').toUpperCase();
+          const custPhone = String(r.customer_phone || '').toUpperCase();
           const numPart = getNumPart(retNum);
-          return retNum.includes(q) || (q.length >= 1 && getNumPart(q).length > 0 && numPart.includes(getNumPart(q)));
+          return retNum.includes(q) ||
+            custName.includes(q) ||
+            custPhone.includes(q) ||
+            (q.length >= 1 && qNum.length > 0 && numPart.includes(qNum));
         });
         setReturnDeductionResults(filtered.slice(0, 8));
         if (filtered.length > 0 && returnDeductionInputRef.current) {

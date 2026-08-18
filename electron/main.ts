@@ -2190,6 +2190,9 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
   try {
     transaction();
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateInvoice]', error);
@@ -2220,6 +2223,9 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       payload.balance_amount,
       payload.invoice_id
     );
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateInvoicePayment]', error);
@@ -2354,7 +2360,7 @@ ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, s
   let query = `
     SELECT * FROM returns 
     WHERE tenant_id = ? 
-      AND refund_method = 'ADJUST_BILL' 
+      AND (refund_method = 'ADJUST_BILL' OR refund_method = 'STORE_CREDIT' OR refund_method IS NULL OR refund_method = '')
       AND grand_total > COALESCE(adjusted_amount, 0)
   `;
   const params: any[] = [tenant_id];
@@ -2362,7 +2368,7 @@ ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, s
     query += ' AND (return_number LIKE ? OR customer_name LIKE ? OR customer_phone LIKE ?)';
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
-  query += ' ORDER BY created_at DESC LIMIT 10';
+  query += ' ORDER BY created_at DESC LIMIT 50';
   return db.prepare(query).all(...params);
 }));
 
@@ -2870,6 +2876,11 @@ ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: s
 ipcMain.handle('sync:runInitial', async (event) => {
   const { runInitialSync } = await import('./sync/syncWorker.js');
   return runInitialSync(event.sender);
+});
+
+ipcMain.handle('sync:forceResyncInvoices', async (event) => {
+  const { forceResyncInvoices } = await import('./sync/syncWorker.js');
+  return forceResyncInvoices(event.sender);
 });
 
 ipcMain.handle('sync:getProgress', async () => {

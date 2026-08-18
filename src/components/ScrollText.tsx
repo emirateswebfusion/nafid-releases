@@ -12,7 +12,7 @@ export function ScrollText({ text, className = '' }: ScrollTextProps) {
   const textRef = useRef<HTMLSpanElement>(null);
   const [overflows, setOverflows] = useState(false);
   const [distance, setDistance] = useState(0);
-  const [duration, setDuration] = useState(8);
+  const [duration, setDuration] = useState(6);
   const [hovered, setHovered] = useState(false);
 
   useLayoutEffect(() => {
@@ -25,7 +25,7 @@ export function ScrollText({ text, className = '' }: ScrollTextProps) {
       setOverflows(over);
       if (over) {
         setDistance(delta);
-        setDuration(Math.min(24, Math.max(6, delta / 40)));
+        setDuration(Math.min(18, Math.max(4, delta / 25)));
       }
     };
     measure();
@@ -41,13 +41,18 @@ export function ScrollText({ text, className = '' }: ScrollTextProps) {
   return (
     <div
       ref={containerRef}
-      className={clsx('overflow-hidden whitespace-nowrap', className)}
+      className={clsx('overflow-hidden whitespace-nowrap min-w-0', className)}
+      title={text}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={overflows
         ? {
-            maskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%)',
+            maskImage: hovered
+              ? 'linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)'
+              : 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)',
+            WebkitMaskImage: hovered
+              ? 'linear-gradient(90deg, transparent 0, #000 8px, #000 calc(100% - 12px), transparent 100%)'
+              : 'linear-gradient(90deg, #000 0%, #000 calc(100% - 16px), transparent 100%)',
           }
         : undefined}
     >
@@ -56,7 +61,7 @@ export function ScrollText({ text, className = '' }: ScrollTextProps) {
         className="inline-block"
         style={overflows && hovered
           ? ({
-              animation: `marquee-x ${duration}s linear infinite`,
+              animation: `marquee-pingpong ${duration}s ease-in-out infinite`,
               '--marquee-distance': `-${distance}px`,
             } as CSSProperties)
           : undefined}
@@ -66,3 +71,4 @@ export function ScrollText({ text, className = '' }: ScrollTextProps) {
     </div>
   );
 }
+
