@@ -1,3 +1,10 @@
+# Vendora v1.5.15 Release Notes
+
+## What's Changed
+- Implemented CashierSettlement updates for managing pending invoices and daily cash reconciliation
+- Improved main process IPC handlers and barcode management modules
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.14...v1.5.15
+
 # Vendora v1.5.14 Release Notes
 
 ## What's Changed
