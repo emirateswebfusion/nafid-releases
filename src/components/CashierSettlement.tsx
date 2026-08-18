@@ -116,6 +116,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [rowDiscPercents, setRowDiscPercents] = useState<Record<string, number>>({});
   const [rowPluses, setRowPluses] = useState<Record<string, number>>({});
   const [rowPlusPercents, setRowPlusPercents] = useState<Record<string, number>>({});
+  const [rowNetInputs, setRowNetInputs] = useState<Record<string, string>>({});
+  const [rowPlusInputs, setRowPlusInputs] = useState<Record<string, string>>({});
+  const [rowPlusPercentInputs, setRowPlusPercentInputs] = useState<Record<string, string>>({});
+  const [rowDiscInputs, setRowDiscInputs] = useState<Record<string, string>>({});
+  const [rowDiscPercentInputs, setRowDiscPercentInputs] = useState<Record<string, string>>({});
   const [rowMethods, setRowMethods] = useState<Record<string, PaymentMethod>>({});
   const [payingRow, setPayingRow] = useState<string | null>(null);
 
@@ -240,6 +245,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   };
 
   const handleDiscPercentChange = (invoiceId: string, val: string) => {
+    setRowDiscPercentInputs((p) => ({ ...p, [invoiceId]: val }));
+    setRowDiscInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowNetInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+
     if (val === '') {
       setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
@@ -249,12 +258,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.max(0, rawNet);
-    const flat = base && !isNaN(percent) ? (base * percent) / 100 : 0;
+    const flat = base && !isNaN(percent) ? Math.round(((base * percent) / 100) * 100) / 100 : 0;
     setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
-    setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+    setRowDiscs((p) => ({ ...p, [invoiceId]: flat }));
   };
 
   const handleDiscFlatChange = (invoiceId: string, val: string) => {
+    setRowDiscInputs((p) => ({ ...p, [invoiceId]: val }));
+    setRowDiscPercentInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowNetInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+
     if (val === '') {
       setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
@@ -264,12 +277,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.max(0, rawNet);
-    const percent = base && !isNaN(flat) ? (flat / base) * 100 : 0;
-    setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+    const percent = base && !isNaN(flat) ? Math.round(((flat / base) * 100) * 100) / 100 : 0;
+    setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
     setRowDiscs((p) => ({ ...p, [invoiceId]: Math.max(0, flat) }));
   };
 
   const handlePlusPercentChange = (invoiceId: string, val: string) => {
+    setRowPlusPercentInputs((p) => ({ ...p, [invoiceId]: val }));
+    setRowPlusInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowNetInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+
     if (val === '') {
       setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowPluses((p) => ({ ...p, [invoiceId]: 0 }));
@@ -279,12 +296,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.abs(rawNet);
-    const flat = base && !isNaN(percent) ? (base * percent) / 100 : 0;
+    const flat = base && !isNaN(percent) ? Math.round(((base * percent) / 100) * 100) / 100 : 0;
     setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
-    setRowPluses((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+    setRowPluses((p) => ({ ...p, [invoiceId]: flat }));
   };
 
   const handlePlusFlatChange = (invoiceId: string, val: string) => {
+    setRowPlusInputs((p) => ({ ...p, [invoiceId]: val }));
+    setRowPlusPercentInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowNetInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+
     if (val === '') {
       setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowPluses((p) => ({ ...p, [invoiceId]: 0 }));
@@ -294,13 +315,19 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const inv = pendingInvoices.find(i => i.invoice_id === invoiceId);
     const rawNet = inv ? getRawNet(inv) : 0;
     const base = Math.abs(rawNet);
-    const percent = base && !isNaN(flat) ? (flat / base) * 100 : 0;
-    setRowPlusPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
+    const percent = base && !isNaN(flat) ? Math.round(((flat / base) * 100) * 100) / 100 : 0;
+    setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
     setRowPluses((p) => ({ ...p, [invoiceId]: isNaN(flat) ? 0 : flat }));
   };
 
   const handleNetChange = (invoiceId: string, val: string) => {
-    if (val === '') {
+    setRowNetInputs((p) => ({ ...p, [invoiceId]: val }));
+    setRowPlusInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowPlusPercentInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowDiscInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+    setRowDiscPercentInputs((p) => { const n = { ...p }; delete n[invoiceId]; return n; });
+
+    if (val === '' || val === '-') {
       setRowDiscPercents((p) => ({ ...p, [invoiceId]: 0 }));
       setRowDiscs((p) => ({ ...p, [invoiceId]: 0 }));
       setRowPlusPercents((p) => ({ ...p, [invoiceId]: 0 }));
@@ -315,18 +342,18 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (rawNet < 0) {
       if (!isNaN(netVal)) {
         const targetNet = netVal > 0 ? -netVal : netVal;
-        const plusVal = targetNet - rawNet;
+        const plusVal = Math.round((targetNet - rawNet) * 100) / 100;
         const base = Math.abs(rawNet);
-        const percent = base ? (plusVal / base) * 100 : 0;
-        setRowPlusPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
-        setRowPluses((p) => ({ ...p, [invoiceId]: Math.round(plusVal * 100) / 100 }));
+        const percent = base ? Math.round(((plusVal / base) * 100) * 100) / 100 : 0;
+        setRowPlusPercents((p) => ({ ...p, [invoiceId]: percent }));
+        setRowPluses((p) => ({ ...p, [invoiceId]: plusVal }));
       }
     } else {
       if (rawNet && !isNaN(netVal)) {
-        const flat = Math.max(0, rawNet - netVal);
-        const percent = (flat / rawNet) * 100;
-        setRowDiscPercents((p) => ({ ...p, [invoiceId]: Math.round(percent * 100) / 100 }));
-        setRowDiscs((p) => ({ ...p, [invoiceId]: Math.round(flat * 100) / 100 }));
+        const flat = Math.max(0, Math.round((rawNet - netVal) * 100) / 100);
+        const percent = Math.round(((flat / rawNet) * 100) * 100) / 100;
+        setRowDiscPercents((p) => ({ ...p, [invoiceId]: percent }));
+        setRowDiscs((p) => ({ ...p, [invoiceId]: flat }));
       }
     }
   };
@@ -1141,8 +1168,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       <div className="flex items-center border border-emerald-500/30 rounded-xl overflow-hidden focus-within:border-emerald-500 transition-all bg-card" title="Plus / Addition for minus amount">
                         <input
                           type="number"
-                          value={rowPlusPercents[inv.invoice_id] || ''}
+                          value={rowPlusPercentInputs[inv.invoice_id] !== undefined ? rowPlusPercentInputs[inv.invoice_id] : (rowPlusPercents[inv.invoice_id] || '')}
                           onChange={(e) => handlePlusPercentChange(inv.invoice_id, e.target.value)}
+                          onBlur={() => setRowPlusPercentInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
                           step="0.01" min="0" placeholder="%"
@@ -1150,8 +1178,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         <span className="w-px h-5 bg-emerald-500/20 shrink-0" />
                         <input
                           type="number"
-                          value={rowPluses[inv.invoice_id] || ''}
+                          value={rowPlusInputs[inv.invoice_id] !== undefined ? rowPlusInputs[inv.invoice_id] : (rowPluses[inv.invoice_id] || '')}
                           onChange={(e) => handlePlusFlatChange(inv.invoice_id, e.target.value)}
+                          onBlur={() => setRowPlusInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
                           step="0.01" placeholder="+₹"
@@ -1161,8 +1190,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       <div className="flex items-center border border-amber-500/20 rounded-xl overflow-hidden focus-within:border-amber-500/60 transition-all bg-card">
                         <input
                           type="number"
-                          value={rowDiscPercents[inv.invoice_id] || ''}
+                          value={rowDiscPercentInputs[inv.invoice_id] !== undefined ? rowDiscPercentInputs[inv.invoice_id] : (rowDiscPercents[inv.invoice_id] || '')}
                           onChange={(e) => handleDiscPercentChange(inv.invoice_id, e.target.value)}
+                          onBlur={() => setRowDiscPercentInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
                           step="0.01" min="0" placeholder="%"
@@ -1170,8 +1200,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         <span className="w-px h-5 bg-amber-500/20 shrink-0" />
                         <input
                           type="number"
-                          value={rd || ''}
+                          value={rowDiscInputs[inv.invoice_id] !== undefined ? rowDiscInputs[inv.invoice_id] : (rd || '')}
                           onChange={(e) => handleDiscFlatChange(inv.invoice_id, e.target.value)}
+                          onBlur={() => setRowDiscInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                           onWheel={(e) => (e.target as HTMLInputElement).blur()}
                           className="w-full py-2 text-[10px] font-bold bg-transparent outline-none text-foreground tabular-nums text-center no-spinners"
                           step="1" min="0" placeholder="₹"
@@ -1187,8 +1218,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-emerald-600 dark:text-emerald-400 select-none leading-none">-₹</span>
                             <input
                               type="number"
-                              value={absNet === 0 ? '' : absNet.toFixed(2)}
-                              onChange={(e) => handleNetChange(inv.invoice_id, e.target.value === '' ? '' : `-${e.target.value}`)}
+                              value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (absNet === 0 ? '' : absNet.toFixed(2))}
+                              onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
+                              onBlur={() => setRowNetInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
                               className="w-full py-1 pr-2 pl-1 text-[10px] font-black bg-transparent outline-none text-emerald-600 dark:text-emerald-400 tabular-nums text-center no-spinners"
                               step="0.01" min="0" placeholder={absRawNet.toFixed(2)}
@@ -1201,8 +1233,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             <span className="pl-2 shrink-0 whitespace-nowrap text-[10px] font-black text-primary select-none leading-none">₹</span>
                             <input
                               type="number"
-                              value={net === 0 ? '' : net.toFixed(2)}
+                              value={rowNetInputs[inv.invoice_id] !== undefined ? rowNetInputs[inv.invoice_id] : (net === 0 ? '' : net.toFixed(2))}
                               onChange={(e) => handleNetChange(inv.invoice_id, e.target.value)}
+                              onBlur={() => setRowNetInputs((p) => { const n = { ...p }; delete n[inv.invoice_id]; return n; })}
                               onWheel={(e) => (e.target as HTMLInputElement).blur()}
                               className="w-full py-1 pr-2 pl-0.5 text-[10px] font-black bg-transparent outline-none text-primary tabular-nums text-center no-spinners"
                               step="0.01" min="0" placeholder={displayAmount.toFixed(2)}
