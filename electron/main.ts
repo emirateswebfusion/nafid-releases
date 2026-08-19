@@ -1196,13 +1196,13 @@ function recalcPartyBalances(db: any, partyId: string) {
     `SELECT COALESCE(SUM(CASE WHEN balance_type = 'GST' THEN credit_amount - debit_amount ELSE 0 END), 0) AS gst,
             COALESCE(SUM(CASE WHEN balance_type = 'ESTIMATE' THEN credit_amount - debit_amount ELSE 0 END), 0) AS estimate,
             COALESCE(SUM(credit_amount - debit_amount), 0) AS total
-     FROM party_ledger WHERE party_id = ?`
+     FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`
   ).get(partyId) as any;
   const gst = parseFloat(rows.gst) || 0;
   const estimate = parseFloat(rows.estimate) || 0;
   const total = gst + estimate;
   const latest = db.prepare(
-    `SELECT transaction_date FROM party_ledger WHERE party_id = ? ORDER BY transaction_date DESC LIMIT 1`
+    `SELECT transaction_date FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date DESC LIMIT 1`
   ).get(partyId) as any;
   db.prepare(`UPDATE parties SET balance = ?, gst_balance = ?, estimate_balance = ?, last_transaction_date = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ?`)
     .run(total, gst, estimate, latest ? latest.transaction_date : null, partyId);
@@ -1228,12 +1228,33 @@ ipcMain.handle('db:getPartyLedger', (event, partyId: string) => {
       reference_number TEXT,
       created_by TEXT,
       created_by_name TEXT,
+      is_deleted INTEGER DEFAULT 0,
       sync_status TEXT DEFAULT 'SYNCED',
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )`);
+    try { db.exec(`ALTER TABLE party_ledger ADD COLUMN is_deleted INTEGER DEFAULT 0`); } catch {}
+    // Clean up any legacy orphan purchase bill ledger entries where the purchase bill was deleted
+    try {
+      const orphans = db.prepare(`
+        SELECT pl.ledger_id FROM party_ledger pl
+        WHERE pl.party_id = ?
+          AND (pl.is_deleted IS NULL OR pl.is_deleted = 0)
+          AND pl.reference_number IS NOT NULL
+          AND pl.description LIKE 'Purchase bill %'
+          AND NOT EXISTS (
+            SELECT 1 FROM purchase_bills pb WHERE pb.bill_number = pl.reference_number
+          )
+      `).all(partyId) as any[];
+      if (orphans.length > 0) {
+        for (const orphan of orphans) {
+          db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(orphan.ledger_id);
+        }
+        recalcPartyBalances(db, partyId);
+      }
+    } catch {}
     return db.prepare(`
-      SELECT * FROM party_ledger WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+      SELECT * FROM party_ledger WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC
     `).all(partyId);
   } catch (error: any) {
     console.error('[db:getPartyLedger]', error);
@@ -1321,7 +1342,7 @@ ipcMain.handle('db:updatePartyLedgerEntry', (event, entry) => {
     // Recalculate running balances for all entries
     const entries = db.prepare(`
       SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
-      WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC
     `).all(entry.party_id) as any[];
 
     let running = 0;
@@ -1343,12 +1364,12 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
   try {
     const db = getDb();
     
-    db.prepare('DELETE FROM party_ledger WHERE ledger_id = ? AND party_id = ?').run(ledger_id, party_id);
+    db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ? AND party_id = ?").run(ledger_id, party_id);
 
     // Recalculate running balance
     const entries = db.prepare(`
       SELECT ledger_id, credit_amount, debit_amount FROM party_ledger
-      WHERE party_id = ? ORDER BY transaction_date ASC, created_at ASC
+      WHERE party_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY transaction_date ASC, created_at ASC
     `).all(party_id) as any[];
 
     let running = 0;
@@ -1358,6 +1379,10 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
     }
 
     recalcPartyBalances(db, party_id);
+
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Sync after delete error:', e));
+    }).catch(() => {});
 
     return { success: true };
   } catch (error: any) {
@@ -1479,7 +1504,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     transaction();
 
     // Trigger immediate background sync so the invoice appears on web portal instantly
-    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+    import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync, runInitialSync }) => {
+      triggerUrgentInvoiceSync().catch(e => console.error('[Main] Immediate urgent sync error:', e));
       runInitialSync().catch(e => console.error('[Main] Immediate sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
 
@@ -3576,7 +3602,7 @@ ipcMain.handle('db:deleteScrapInvoice', (event, { tenant_id, scrap_invoice_numbe
         'SELECT * FROM party_ledger WHERE tenant_id = ? AND reference_number = ?'
       ).all(tenant_id, scrap_invoice_number);
       for (const entry of ledgerEntries) {
-        db.prepare('DELETE FROM party_ledger WHERE ledger_id = ?').run(entry.ledger_id);
+        db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
         recalcPartyBalances(db, entry.party_id);
       }
       return { success: true };
@@ -3611,7 +3637,7 @@ ipcMain.handle('db:upsertScrapCreditLedger', safeHandler((event, { tenant_id, sc
       ).get(tenant_id, scrap_invoice_number);
 
       const removeEntry = (entry: any) => {
-        db.prepare('DELETE FROM party_ledger WHERE ledger_id = ?').run(entry.ledger_id);
+        db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
         recalcPartyBalances(db, entry.party_id);
       };
 
@@ -4352,9 +4378,22 @@ ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
   try {
     const db = getDb();
     db.transaction(() => {
+      const bill = db.prepare('SELECT supplier_id, bill_number, tenant_id FROM purchase_bills WHERE purchase_bill_id = ?').get(purchase_bill_id) as any;
+      if (bill && bill.supplier_id && bill.bill_number) {
+        const ledgerEntries = db.prepare(
+          'SELECT ledger_id FROM party_ledger WHERE tenant_id = ? AND party_id = ? AND reference_number = ?'
+        ).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as any[];
+        for (const entry of ledgerEntries) {
+          db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
+        }
+        recalcPartyBalances(db, bill.supplier_id);
+      }
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(purchase_bill_id);
       db.prepare('DELETE FROM purchase_bills WHERE purchase_bill_id = ?').run(purchase_bill_id);
     })();
+    import('./sync/syncWorker.js').then(({ runInitialSync }) => {
+      runInitialSync().catch(e => console.error('[Main] Sync after delete error:', e));
+    }).catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error('[db:deletePurchaseBill]', error);
@@ -4676,6 +4715,10 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
     });
     
     tx();
+    // Trigger immediate background sync so settled status updates on cloud & other terminals instantly
+    import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync }) => {
+      triggerUrgentInvoiceSync().catch(e => console.error('[Main] Immediate urgent sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:settlePayment]', error);

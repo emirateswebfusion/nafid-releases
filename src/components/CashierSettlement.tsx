@@ -458,12 +458,18 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   loadRef.current = load;
   useEffect(() => {
     const refresh = () => { loadRef.current(); };
-    const onCheckout = () => refresh();
-    window.electronAPI?.onSyncDataUpdated?.(refresh);
+    const unsubscribeSync = window.electronAPI?.onSyncDataUpdated?.(refresh);
     window.addEventListener('focus', refresh);
-    window.addEventListener('checkout:completed', onCheckout);
+    window.addEventListener('checkout:completed', refresh);
+    window.addEventListener('storage', refresh);
     const interval = setInterval(refresh, 1500);
-    return () => { window.removeEventListener('focus', refresh); window.removeEventListener('checkout:completed', onCheckout); clearInterval(interval); };
+    return () => {
+      if (typeof unsubscribeSync === 'function') (unsubscribeSync as any)();
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('checkout:completed', refresh);
+      window.removeEventListener('storage', refresh);
+      clearInterval(interval);
+    };
   }, []);
 
   // When drawer is null (no auto-open), check if yesterday was not closed

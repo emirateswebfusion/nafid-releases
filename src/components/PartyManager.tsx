@@ -312,6 +312,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     if (!selectedParty || !isOwner) { showStatus('Only owners can delete transactions', 'error'); return; }
     if (!confirm('Delete this transaction? The balance will be recalculated.')) return;
     try {
+      setLedger(prev => prev.filter(e => e.ledger_id !== entry.ledger_id));
       await window.electronAPI.dbDeletePartyLedgerEntry(entry.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
       await loadLedger(selectedParty.party_id);
@@ -320,6 +321,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       if (updatedParty) setSelectedParty(updatedParty);
     } catch {
       showStatus('Delete failed', 'error');
+      await loadLedger(selectedParty.party_id);
     }
   };
 

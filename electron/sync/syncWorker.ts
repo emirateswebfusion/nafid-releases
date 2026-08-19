@@ -221,9 +221,38 @@ export function initSyncWorker() {
   }, SYNC_INTERVAL_MS);
 }
 
+let urgentInvoiceSyncInProgress = false;
+
+export async function triggerUrgentInvoiceSync(): Promise<void> {
+  if (urgentInvoiceSyncInProgress) {
+    console.log('[SyncWorker] Urgent invoice sync already in progress, skipping...');
+    return;
+  }
+  const config = getAuthConfig();
+  if (!config) return;
+  const { jwt_token, tenant_id } = config;
+  if (isJwtExpired(jwt_token)) return;
+
+  urgentInvoiceSyncInProgress = true;
+  try {
+    console.log('[SyncWorker] Express priority invoice push/pull running...');
+    await syncInvoices(jwt_token, tenant_id);
+    const updated = await pullInvoices(jwt_token, tenant_id);
+    notifyRenderer();
+    if (updated) {
+      console.log('[SyncWorker] Express priority invoice sync completed: renderer notified.');
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Express invoice sync error:', err.message);
+  } finally {
+    urgentInvoiceSyncInProgress = false;
+  }
+}
+
 export async function runInitialSync(sender?: WebContents) {
   console.log('[SyncWorker] Running explicit initial sync...');
   isSyncActive = true;
+  triggerUrgentInvoiceSync().catch(() => {});
   await runSyncCycle(sender);
   return { success: true };
 }
@@ -1585,10 +1614,10 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
   const upsert = db.prepare(`
     INSERT INTO party_ledger (
       ledger_id, party_id, tenant_id, transaction_date, description, credit_amount, debit_amount,
-      running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, sync_status, created_at, updated_at
+      running_balance, balance_type, payment_method, reference_number, created_by, created_by_name, is_deleted, sync_status, created_at, updated_at
     ) VALUES (
       @ledger_id, @party_id, @tenant_id, @transaction_date, @description, @credit_amount, @debit_amount,
-      @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, 'SYNCED', @created_at, @updated_at
+      @running_balance, @balance_type, @payment_method, @reference_number, @created_by, @created_by_name, @is_deleted, 'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(ledger_id) DO UPDATE SET
       transaction_date = excluded.transaction_date,
@@ -1601,8 +1630,10 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
       reference_number = excluded.reference_number,
       created_by = excluded.created_by,
       created_by_name = excluded.created_by_name,
+      is_deleted = excluded.is_deleted,
       updated_at = excluded.updated_at,
       sync_status = 'SYNCED'
+    WHERE party_ledger.sync_status != 'PENDING'
   `);
 
   const result = await pullPaginated({
@@ -1630,6 +1661,7 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
               reference_number: e.reference_number || null,
               created_by: e.created_by || null,
               created_by_name: e.created_by_name || null,
+              is_deleted: e.is_deleted ? 1 : 0,
               created_at: toSqliteDate(e.created_at),
               updated_at: toSqliteDate(e.updated_at),
             });
