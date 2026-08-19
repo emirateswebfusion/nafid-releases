@@ -162,10 +162,10 @@ function toSqliteDate(iso: string | number | null | undefined): string {
   return str.replace('T', ' ').replace('Z', '');
 }
 
-// Sync interval in minutes (default 0.025 = every 1.5s) so new bills appear
-// instantly on the web portal / other POS terminals.
-const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '0.025');
-const SYNC_INTERVAL_MS = Math.max(1500, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
+// Background sync interval (default 0.166 = every 10s).
+// Express priority sync is automatically triggered immediately on urgent user actions (bill creation/edits).
+const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '0.166');
+const SYNC_INTERVAL_MS = Math.max(5000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
 
 function getCloudApiBase() {
   return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
@@ -210,15 +210,37 @@ async function clearAuthAndNotify() {
   }
 }
 
+const FAST_INVOICE_PULL_MS = 2000;
+let fastInvoicePullInProgress = false;
+
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
-  // We do not run the sync cycle immediately here.
-  // The frontend will invoke 'sync:runInitial' once it verifies authentication.
+  // 1. Full multi-table background sync cycle (every 10s)
   setInterval(() => {
     if (isSyncActive) {
       runSyncCycle().catch(err => console.error('[SyncWorker] Background sync error:', err.message));
     }
   }, SYNC_INTERVAL_MS);
+
+  // 2. High-speed priority invoice pull (every 2s) for instant Cashier Counter updates
+  setInterval(async () => {
+    if (isSyncActive && !fastInvoicePullInProgress && !syncInProgress) {
+      const config = getAuthConfig();
+      if (config && !isJwtExpired(config.jwt_token)) {
+        fastInvoicePullInProgress = true;
+        try {
+          const updated = await pullInvoices(config.jwt_token, config.tenant_id);
+          if (updated) {
+            notifyRenderer();
+          }
+        } catch {
+          // ignore transient fast pull errors
+        } finally {
+          fastInvoicePullInProgress = false;
+        }
+      }
+    }
+  }, FAST_INVOICE_PULL_MS);
 }
 
 let urgentInvoiceSyncInProgress = false;
@@ -272,7 +294,6 @@ export async function forceResyncInvoices(sender?: WebContents) {
 
 async function runSyncCycle(sender?: WebContents): Promise<void> {
   if (syncInProgress) {
-    console.log('[SyncWorker] Sync already in progress, waiting for it...');
     return syncPromise ?? Promise.resolve();
   }
 
@@ -285,18 +306,15 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(0, sender);
         const res = await fetch(getCloudApiBase() + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
         if (!res.ok) {
-          console.log('[SyncWorker] Cloud offline. Skipping sync cycle.');
           notifyOnlineStatus(false);
           return;
         }
       } catch {
-        console.log('[SyncWorker] Offline. Skipping sync cycle.');
         notifyOnlineStatus(false);
         return;
       }
 
       notifyOnlineStatus(true);
-      console.log('[SyncWorker] Online. Running sync...');
 
       const config = getAuthConfig();
       if (!config) {
@@ -725,10 +743,7 @@ function setMeta(key: string, value: string) {
 // cursor (or with identical timestamps) are re-fetched and reconciled idempotently.
 function replaySince(cursor: string | null): string | null {
   if (!cursor) return null;
-  const d = new Date(cursor);
-  if (isNaN(d.getTime())) return cursor;
-  d.setSeconds(d.getSeconds() - CURSOR_REPLAY_SECONDS);
-  return d.toISOString();
+  return cursor;
 }
 
 // Shared progress context for the parallel pull phase (set by runSyncCycle).
@@ -738,7 +753,7 @@ let pullProgressCtx: { done: number; total: number } | null = null;
 // Fetches a table in pages of `pageSize`, passing each page to `processPage`
 // (which performs the table-specific upsert inside its own transaction), tracks
 // the newest timestamp seen as the per-table cursor, and only requests rows
-// modified after `cursor - replay window` on subsequent cycles. First sync on a
+// modified after `cursor` on subsequent cycles. First sync on a
 // fresh device has no cursor and therefore performs a full paginated download.
 async function pullPaginated(opts: {
   token: string;
@@ -803,7 +818,7 @@ async function pullPaginated(opts: {
     reconciled += opts.processPage(rows);
     count += rows.length;
     for (const r of rows) {
-      const ts = r?.[tsColumn];
+      const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;
       if (ts && (!maxTs || String(ts) > maxTs)) maxTs = String(ts);
     }
     opts.onProgress?.(count);
@@ -1400,7 +1415,9 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
     });
 
     tx(cloudUsers);
-    console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
+    if (cloudUsers.length > 0) {
+      console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
+    }
     return true;
   } catch (err: any) {
     console.error('[SyncWorker] Pull users failed:', err.message);
