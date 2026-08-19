@@ -1,3 +1,11 @@
+# Vendora v1.5.21 Release Notes
+
+## What's Changed
+- Implemented automatic background downloading on application startup
+- Configured GitHub authorization headers to autoUpdater for private repository downloads
+- Fixed soft-delete string parsing and real-time sales history synchronization
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.17...v1.5.21
+
 # Vendora v1.5.17 Release Notes
 
 ## What's Changed
