@@ -340,12 +340,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setIsResyncing(true);
     try {
       showToast('Re-syncing all cloud invoices...', 'success');
-      console.log('[SalesHistory UI] User clicked Force Resync Cloud Invoices. Triggering forceResyncInvoices IPC call...');
       await window.electronAPI.forceResyncInvoices();
       await loadInvoices(true);
       showToast('Invoices re-synced from cloud successfully!', 'success');
     } catch (err: any) {
-      console.error('[SalesHistory UI] Force resync error:', err);
+      console.error('[SalesHistory] Force resync error:', err);
       showToast('Re-sync failed: ' + (err?.message || 'Error'), 'error');
     } finally {
       setIsResyncing(false);
@@ -376,7 +375,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
-        console.log('[SalesHistory UI] Sync data updated event received from main process. Triggering invoice reload...');
         loadInvoices(true);
       });
     }
@@ -427,7 +425,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (window.electronAPI) {
       const { userId, role, tenantId } = useAuthStore.getState();
       const currentOffset = reset ? 0 : offset;
-      console.log(`[SalesHistory UI] Loading invoices (reset=${reset}, offset=${currentOffset}, limit=${LIMIT}, tenantId=${tenantId}, role=${role}, userId=${userId}, search="${search}", paymentFilter="${paymentFilter}", typeFilter="${invoiceTypeFilter}", dateRange="${filterDate}" to "${filterDateEnd}")`);
       
       try {
         const data = await window.electronAPI.dbGetInvoices({
@@ -439,7 +436,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         });
 
         if (Array.isArray(data)) {
-          console.log(`[SalesHistory UI] dbGetInvoices returned ${data.length} records. (reset=${reset})`);
           if (reset) {
             setInvoices(data);
           }
@@ -447,25 +443,24 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             setInvoices(prev => {
               const existingIds = new Set(prev.map(i => i.invoice_id));
               const newItems = data.filter(i => !existingIds.has(i.invoice_id));
-              console.log(`[SalesHistory UI] Appending ${newItems.length} new unique invoices to existing list of ${prev.length}.`);
               return [...prev, ...newItems];
             });
           }
           setOffset(currentOffset + data.length);
           setHasMore(data.length === LIMIT);
         } else if (data && typeof data === 'object' && 'error' in data) {
-          console.error('[SalesHistory UI] dbGetInvoices returned an error object:', data);
+          console.error('[SalesHistory] dbGetInvoices returned an error object:', data);
         } else {
-          console.warn('[SalesHistory UI] Unexpected non-array response from dbGetInvoices:', data);
+          console.warn('[SalesHistory] Unexpected response from dbGetInvoices:', data);
         }
       } catch (err: any) {
-        console.error('[SalesHistory UI] Exception while calling dbGetInvoices:', err);
+        console.error('[SalesHistory] Exception while calling dbGetInvoices:', err);
       } finally {
         setLoading(false);
         setIsFetching(false);
       }
     } else {
-      console.warn('[SalesHistory UI] window.electronAPI is missing - unable to query local database.');
+      console.warn('[SalesHistory] window.electronAPI is missing - unable to query local database.');
       setLoading(false);
       setIsFetching(false);
     }

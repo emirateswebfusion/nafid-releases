@@ -1349,11 +1349,9 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   });
 
   if (result.count > 0) {
-    console.log(`[SalesHistory Log:SyncWorker] Pulled ${result.count} invoices from cloud for tenantId=${tenantId}.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+    console.log(`[SyncWorker] Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
-    console.error(`[SalesHistory Log:SyncWorker] Pull invoices failed for tenantId=${tenantId}.`);
-  } else {
-    console.log(`[SalesHistory Log:SyncWorker] Pull invoices check complete. No new/updated cloud invoices for tenantId=${tenantId}.`);
+    console.error(`[SyncWorker] Pull invoices failed for tenantId=${tenantId}.`);
   }
   return result.count > 0;
 }
