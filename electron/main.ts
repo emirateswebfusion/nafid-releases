@@ -295,7 +295,7 @@ app.whenReady().then(async () => {
     console.log('[Updater] Configured GitHub authorization headers for private repo updates.');
   }
 
-  autoUpdater.autoDownload = false;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on('update-available', (info) => {
