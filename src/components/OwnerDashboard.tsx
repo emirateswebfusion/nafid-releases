@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { ShoppingBag, Users, User, TrendingUp, Settings, Package, ArrowRight, LogOut, Sun, Moon, Handshake, FileText, Trash, Printer, Shield, Receipt, Banknote, Tags, Undo2, Wallet, Layers } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -84,16 +84,28 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     }, [tenantId]);
 
     useEffect(() => {
-        if (!window.electronAPI?.onSyncCycleComplete) return;
-        const now = Date.now();
-        setLastSyncTime(now);
-        setDisplayTime('just now');
-        window.electronAPI.onSyncCycleComplete(() => {
-            const t = Date.now();
-            setLastSyncTime(t);
-            setDisplayTime('just now');
+        if (!window.electronAPI) return;
+
+        if (window.electronAPI.onSyncCycleComplete) {
+            window.electronAPI.onSyncCycleComplete(() => {
+                const t = Date.now();
+                setLastSyncTime(t);
+                setDisplayTime('just now');
+                loadStats();
+            });
+        }
+
+        if (window.electronAPI.onSyncDataUpdated) {
+            window.electronAPI.onSyncDataUpdated(() => {
+                loadStats();
+            });
+        }
+
+        const interval = setInterval(() => {
             loadStats();
-        });
+        }, 10000);
+
+        return () => clearInterval(interval);
     }, [setLastSyncTime, loadStats]);
 
     useEffect(() => {

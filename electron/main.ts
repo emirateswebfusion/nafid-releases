@@ -1988,18 +1988,32 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     const db = getDb();
     const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd } = filters || {};
 
-    if (!tenant_id) return []; // Safety: always require tenant_id
+    if (!tenant_id) {
+      console.warn('[SalesHistory Log:db:getInvoices] Missing tenant_id in filters, returning empty array.', filters);
+      return []; // Safety: always require tenant_id
+    }
+
+    const totalInTenantRow = db.prepare("SELECT COUNT(*) as cnt FROM invoices WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)").get(tenant_id) as any;
+    const totalInTenant = totalInTenantRow?.cnt || 0;
+
+    console.log(`[SalesHistory Log:db:getInvoices] Fetching invoices for tenant_id=${tenant_id} (Total in local DB: ${totalInTenant})`, {
+      user_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd
+    });
 
     let query = `
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+      WHERE i.tenant_id = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
     `;
     const params: any[] = [tenant_id];
 
     // If Biller: strictly filter by their ID within the tenant
     if (role === 'BILLER' && user_id) {
+      const totalForUserRow = db.prepare("SELECT COUNT(*) as cnt FROM invoices WHERE tenant_id = ? AND user_id = ? AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)").get(tenant_id, user_id) as any;
+      const totalForUser = totalForUserRow?.cnt || 0;
+      console.log(`[SalesHistory Log:db:getInvoices] Role is BILLER for user_id=${user_id}. ${totalForUser} of ${totalInTenant} tenant invoices belong to this biller. (${totalInTenant - totalForUser} invoices created by other billers/computers are excluded by BILLER role filter).`);
+      
       query += ' AND i.user_id = ?';
       params.push(user_id);
     }
@@ -2042,9 +2056,11 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       params.push(offset);
     }
 
-    return db.prepare(query).all(...params);
+    const results = db.prepare(query).all(...params);
+    console.log(`[SalesHistory Log:db:getInvoices] Query executed successfully. Returned ${results.length} invoices. (Limit: ${limit || 'None'}, Offset: ${offset || 0})`);
+    return results;
   } catch (error: any) {
-    console.error('[db:getInvoices]', error);
+    console.error('[SalesHistory Log:db:getInvoices] Error fetching invoices:', error);
     return { error: 'Operation failed' };
   }
 });
@@ -2057,7 +2073,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const row = db.prepare(`
       SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL AND (is_deleted IS NULL OR is_deleted = 0)
+      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
     `).get(tenantId, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
@@ -4525,21 +4541,33 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
     const db = getDb();
     if (!tenant_id) return [];
     
+    const totalInvoicesInDb = (db.prepare("SELECT COUNT(*) as cnt FROM invoices WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)").get(tenant_id) as any)?.cnt || 0;
+    const totalPendingInDb = (db.prepare("SELECT COUNT(*) as cnt FROM invoices WHERE tenant_id = ? AND payment_method = 'PENDING' AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)").get(tenant_id) as any)?.cnt || 0;
+
+    console.log(`[SalesHistory Log:db:cashier:getPendingInvoices] Fetching pending invoices for tenant_id=${tenant_id}. Total local DB invoices: ${totalInvoicesInDb}, Total PENDING: ${totalPendingInDb}. Search query: "${search || ''}"`);
+
     let query = `
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING' AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING' AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
     `;
     const params: any[] = [tenant_id];
     
     if (search) {
       query += ` AND (i.invoice_number LIKE ? OR i.customer_name LIKE ?)`;
       params.push(`%${search}%`, `%${search}%`);
+
+      const nonPendingMatches = db.prepare(`SELECT invoice_number, payment_method, grand_total, created_at FROM invoices WHERE tenant_id = ? AND (invoice_number LIKE ? OR customer_name LIKE ?) AND payment_method != 'PENDING' AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)`).all(tenant_id, `%${search}%`, `%${search}%`);
+      if (nonPendingMatches && nonPendingMatches.length > 0) {
+        console.log(`[SalesHistory Log:db:cashier:getPendingInvoices] Note: Search "${search}" matched ${nonPendingMatches.length} non-PENDING (already paid/settled) invoice(s) in local DB:`, nonPendingMatches);
+      }
     }
     
     query += ` ORDER BY i.created_at DESC LIMIT 1000`;
-    return db.prepare(query).all(...params);
+    const results = db.prepare(query).all(...params);
+    console.log(`[SalesHistory Log:db:cashier:getPendingInvoices] Returning ${results.length} PENDING invoices.`);
+    return results;
   } catch (error: any) {
     console.error('[db:cashier:getPendingInvoices]', error);
     return { error: 'Operation failed' };

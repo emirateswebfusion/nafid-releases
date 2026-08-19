@@ -171,6 +171,11 @@ function getCloudApiBase() {
   return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
 }
 
+function parseIsDeleted(val: any): number {
+  if (val === true || val === 1 || val === '1' || val === 'true') return 1;
+  return 0;
+}
+
 function getAuthConfig(): { jwt_token: string; tenant_id: string } | null {
   try {
     const payload = readAuthPayload();
@@ -837,7 +842,7 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
               rate: g.rate,
               purchase_price: g.purchase_price ?? 0,
               offer_price: g.offer_price ?? null,
-              is_deleted: g.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(g.is_deleted),
               created_at: toSqliteDate(g.created_at),
               updated_at: toSqliteDate(g.updated_at),
             });
@@ -899,7 +904,7 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
               name: t.name,
               is_active: t.is_active ? 1 : 0,
               sort_order: t.sort_order ?? 0,
-              is_deleted: t.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(t.is_deleted),
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),
             });
@@ -960,7 +965,7 @@ async function pullProductPricing(token: string, tenantId: string): Promise<bool
               product_id: pp.product_id,
               pricing_tier_id: pp.pricing_tier_id,
               price: pp.price ?? 0,
-              is_deleted: pp.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(pp.is_deleted),
               created_at: toSqliteDate(pp.created_at),
               updated_at: toSqliteDate(pp.updated_at),
             });
@@ -1065,7 +1070,7 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
                 brand_manufacturer: currentP.brand_manufacturer || null,
                 current_stock: currentP.current_stock ?? 0,
                 reorder_level: currentP.reorder_level ?? 0,
-                is_deleted: currentP.is_deleted ? 1 : 0,
+                is_deleted: parseIsDeleted(currentP.is_deleted),
                 domain_attributes: currentP.domain_attributes 
                   ? (typeof currentP.domain_attributes === 'string' ? currentP.domain_attributes : JSON.stringify(currentP.domain_attributes)) 
                   : '{}',
@@ -1262,11 +1267,11 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 converted_from_invoice_number: currentInv.converted_from_invoice_number || null,
                 converted_to_invoice_id: currentInv.converted_to_invoice_id || null,
                 converted_to_invoice_number: currentInv.converted_to_invoice_number || null,
-                is_deleted: currentInv.is_deleted ? 1 : 0,
+                is_deleted: parseIsDeleted(currentInv.is_deleted),
               });
 
               // If this invoice is soft-deleted and was active locally before this pull, restore local product stock
-              const isDeletedPull = currentInv.is_deleted === true || currentInv.is_deleted === 1 || currentInv.is_deleted === '1' || currentInv.is_deleted === 'true';
+              const isDeletedPull = parseIsDeleted(currentInv.is_deleted) === 1;
               if (isDeletedPull && prior && !prior.is_deleted && Array.isArray(currentInv.items)) {
                 const isConversionCopy = !!(currentInv.converted_from_invoice_id || currentInv.converted_from_invoice_number);
                 if (!isConversionCopy) {
@@ -1315,9 +1320,11 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   });
 
   if (result.count > 0) {
-    console.log(`[SyncWorker] Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+    console.log(`[SalesHistory Log:SyncWorker] Pulled ${result.count} invoices from cloud for tenantId=${tenantId}.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
-    console.error('[SyncWorker] Pull invoices failed.');
+    console.error(`[SalesHistory Log:SyncWorker] Pull invoices failed for tenantId=${tenantId}.`);
+  } else {
+    console.log(`[SalesHistory Log:SyncWorker] Pull invoices check complete. No new/updated cloud invoices for tenantId=${tenantId}.`);
   }
   return result.count > 0;
 }
@@ -1492,7 +1499,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
               notes: p.notes || null,
               last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
               pricing_tier_id: p.pricing_tier_id || null,
-              is_deleted: p.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(p.is_deleted),
               created_at: toSqliteDate(p.created_at),
               updated_at: toSqliteDate(p.updated_at),
             });
@@ -1744,7 +1751,7 @@ async function pullScrapCategories(token: string, tenantId: string): Promise<boo
               selling_price: c.selling_price ?? 0,
               current_stock: c.current_stock ?? 0,
               unit: c.unit || 'Kgs',
-              is_deleted: c.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(c.is_deleted),
               created_at: toSqliteDate(c.created_at),
               updated_at: toSqliteDate(c.updated_at),
             });
@@ -1820,7 +1827,7 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
               notes: t.notes || null,
               scrap_invoice_number: t.scrap_invoice_number || null,
               payment_status: t.payment_status || 'CASH',
-              is_deleted: t.is_deleted ? 1 : 0,
+              is_deleted: parseIsDeleted(t.is_deleted),
               transaction_date: toSqliteDate(t.transaction_date),
               created_at: toSqliteDate(t.created_at),
               updated_at: toSqliteDate(t.updated_at),

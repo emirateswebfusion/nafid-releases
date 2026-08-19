@@ -333,6 +333,24 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [exportStatusMsg, setExportStatusMsg] = useState<string | null>(null);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [deleteSaving, setDeleteSaving] = useState(false);
+  const [isResyncing, setIsResyncing] = useState(false);
+
+  const handleForceResync = async () => {
+    if (!window.electronAPI) return;
+    setIsResyncing(true);
+    try {
+      showToast('Re-syncing all cloud invoices...', 'success');
+      console.log('[SalesHistory UI] User clicked Force Resync Cloud Invoices. Triggering forceResyncInvoices IPC call...');
+      await window.electronAPI.forceResyncInvoices();
+      await loadInvoices(true);
+      showToast('Invoices re-synced from cloud successfully!', 'success');
+    } catch (err: any) {
+      console.error('[SalesHistory UI] Force resync error:', err);
+      showToast('Re-sync failed: ' + (err?.message || 'Error'), 'error');
+    } finally {
+      setIsResyncing(false);
+    }
+  };
 
   const selectedBosInvoices = useMemo(() =>
     invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id] && selectedInvoiceIds.has(i.invoice_id)),
@@ -358,6 +376,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   useEffect(() => {
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
+        console.log('[SalesHistory UI] Sync data updated event received from main process. Triggering invoice reload...');
         loadInvoices(true);
       });
     }
@@ -408,24 +427,45 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (window.electronAPI) {
       const { userId, role, tenantId } = useAuthStore.getState();
       const currentOffset = reset ? 0 : offset;
-      const data = await window.electronAPI.dbGetInvoices({
-        user_id: userId, tenant_id: tenantId, role,
-        limit: LIMIT, offset: currentOffset,
-        search, payment_method: paymentFilter || undefined,
-        invoice_type: invoiceTypeFilter || undefined,
-        filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
-      });
-      if (Array.isArray(data)) {
-        if (reset) { setInvoices(data); }
-        else {
-          setInvoices(prev => {
-            const existingIds = new Set(prev.map(i => i.invoice_id));
-            return [...prev, ...data.filter(i => !existingIds.has(i.invoice_id))];
-          });
+      console.log(`[SalesHistory UI] Loading invoices (reset=${reset}, offset=${currentOffset}, limit=${LIMIT}, tenantId=${tenantId}, role=${role}, userId=${userId}, search="${search}", paymentFilter="${paymentFilter}", typeFilter="${invoiceTypeFilter}", dateRange="${filterDate}" to "${filterDateEnd}")`);
+      
+      try {
+        const data = await window.electronAPI.dbGetInvoices({
+          user_id: userId, tenant_id: tenantId, role,
+          limit: LIMIT, offset: currentOffset,
+          search, payment_method: paymentFilter || undefined,
+          invoice_type: invoiceTypeFilter || undefined,
+          filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
+        });
+
+        if (Array.isArray(data)) {
+          console.log(`[SalesHistory UI] dbGetInvoices returned ${data.length} records. (reset=${reset})`);
+          if (reset) {
+            setInvoices(data);
+          }
+          else {
+            setInvoices(prev => {
+              const existingIds = new Set(prev.map(i => i.invoice_id));
+              const newItems = data.filter(i => !existingIds.has(i.invoice_id));
+              console.log(`[SalesHistory UI] Appending ${newItems.length} new unique invoices to existing list of ${prev.length}.`);
+              return [...prev, ...newItems];
+            });
+          }
+          setOffset(currentOffset + data.length);
+          setHasMore(data.length === LIMIT);
+        } else if (data && typeof data === 'object' && 'error' in data) {
+          console.error('[SalesHistory UI] dbGetInvoices returned an error object:', data);
+        } else {
+          console.warn('[SalesHistory UI] Unexpected non-array response from dbGetInvoices:', data);
         }
-        setOffset(currentOffset + data.length);
-        setHasMore(data.length === LIMIT);
+      } catch (err: any) {
+        console.error('[SalesHistory UI] Exception while calling dbGetInvoices:', err);
+      } finally {
+        setLoading(false);
+        setIsFetching(false);
       }
+    } else {
+      console.warn('[SalesHistory UI] window.electronAPI is missing - unable to query local database.');
       setLoading(false);
       setIsFetching(false);
     }
@@ -971,6 +1011,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 : <Download className="w-3 h-3" />
               }
               {isExporting ? 'Exporting…' : 'CSV'}
+            </button>
+
+            <button
+              onClick={handleForceResync}
+              disabled={isResyncing}
+              title="Force full re-sync of all historical invoices from cloud"
+              className="h-8 px-3 rounded-xl text-[11px] font-bold transition-all duration-150 cursor-pointer border flex items-center gap-1.5 bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/25 hover:bg-blue-500/20 disabled:opacity-50 shrink-0"
+            >
+              <RefreshCw className={clsx("w-3 h-3", isResyncing && "animate-spin")} />
+              {isResyncing ? 'Syncing…' : 'Sync Cloud'}
             </button>
 
             <button

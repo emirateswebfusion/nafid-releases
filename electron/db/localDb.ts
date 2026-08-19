@@ -1035,8 +1035,15 @@ export function initDb() {
       console.log('[DB Migration] Adding is_deleted to invoices...');
       db.exec("ALTER TABLE invoices ADD COLUMN is_deleted INTEGER DEFAULT 0");
     }
+    // Normalize string '0.0' or '0' or NULL to integer 0 for clean SQLite queries across all tables
+    const tablesToNormalize = ['invoices', 'products', 'parties', 'scrap_categories', 'product_grades', 'pricing_tiers', 'product_pricing'];
+    for (const tbl of tablesToNormalize) {
+      try {
+        db.exec(`UPDATE ${tbl} SET is_deleted = 0 WHERE is_deleted = '0.0' OR is_deleted = '0' OR is_deleted = 0.0 OR is_deleted IS NULL;`);
+      } catch {}
+    }
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add is_deleted to invoices:', e.message);
+    console.warn('[DB Migration] Failed to add/normalize is_deleted to invoices:', e.message);
   }
 
   // Migration: Add bill_type column to purchase_bills
