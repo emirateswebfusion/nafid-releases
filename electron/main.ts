@@ -287,6 +287,14 @@ app.whenReady().then(async () => {
   });
 
   // Auto-Update Configuration
+  const updaterToken = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || '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';
+  if (updaterToken) {
+    autoUpdater.requestHeaders = {
+      Authorization: `token ${updaterToken}`
+    };
+    console.log('[Updater] Configured GitHub authorization headers for private repo updates.');
+  }
+
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
 
