@@ -554,6 +554,25 @@ export function BillingPage() {
   const balanceAmount = receivedAmount - displayGrandTotal;
   const _bothActive = storeScrapDeduction > 0 && storeReturnDeduction > 0;
 
+  const totalProducts = items.length;
+  const totalKgs = items.reduce((sum, item) => {
+    if (item.billing_type === 'WEIGHT') {
+      return sum + (Number(item.quantity) || 0);
+    }
+    return sum;
+  }, 0);
+  const totalPcs = items.reduce((sum, item) => {
+    if (item.billing_type === 'WEIGHT') {
+      if (item.pieces_per_kg) {
+        const weightKg = Number(item.quantity) || 0;
+        const pieces = item.pieces_override ?? Math.round(weightKg * item.pieces_per_kg);
+        return sum + pieces;
+      }
+      return sum;
+    }
+    return sum + (Number(item.quantity) || 0);
+  }, 0);
+
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
@@ -1091,6 +1110,20 @@ export function BillingPage() {
             item.uom = p.uom || 'PCS';
             item.hsn = p.hsn || '';
 
+            let piecesPerKg;
+            if (p.billing_type === 'WEIGHT' && p.domain_attributes) {
+              try {
+                const da = typeof p.domain_attributes === 'string'
+                  ? JSON.parse(p.domain_attributes)
+                  : p.domain_attributes;
+                const storedPpk = Number(da.pcs_per_kg) || 0;
+                const totalPcs = Number(da.pcs) || 0;
+                const stockKg = Number(p.current_stock) || 0;
+                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
+              } catch {}
+            }
+            item.pieces_per_kg = piecesPerKg;
+
             // Recover MRP, offer, and discount from product data + sold price
             const mrp = Number(p.base_price) || 0;
             const soldPrice = Number(item.unit_price) || 0;
@@ -1154,11 +1187,12 @@ export function BillingPage() {
             base_price: Number(item.base_price) || 0,
             purchase_price: Number(item.purchase_price) || 0,
             tax_rate_percent: Number(item.tax_rate_percent) || 0,
-      billing_type: item.billing_type,
-      pricing_mode: item.pricing_mode,
-      grade_id: item.grade_id,
-      grade_rate: item.grade_rate,
-      discount_percent: item.discount_percent ?? null,
+            billing_type: item.billing_type,
+            pieces_per_kg: item.pieces_per_kg,
+            pricing_mode: item.pricing_mode,
+            grade_id: item.grade_id,
+            grade_rate: item.grade_rate,
+            discount_percent: item.discount_percent ?? null,
             discount_flat: item.discount_flat ?? null,
             offer_price: item.offer_price ?? null,
             sku_barcode: item.sku_barcode || null,
@@ -4094,6 +4128,7 @@ notes: '',
               </div>
             )}
           </div>
+
           {/* Cart List */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {items.length === 0 ? (
@@ -4943,9 +4978,7 @@ notes: '',
                   <textarea
                     value={quotationTerms}
                     onChange={e => setQuotationTerms(e.target.value)}
-                    rows={3}
-                    placeholder="Terms and conditions..."
-                    className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
+className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none"
                   />
                 </div>
               </div>
@@ -4958,6 +4991,23 @@ notes: '',
 
             {/* Calculation breakdown */}
             <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border">
+              {items.length > 0 && (
+                <div className="flex justify-between items-center pb-1 border-b border-border/40 text-muted-foreground">
+                  <span className="font-bold text-xs text-muted-foreground">Items Summary</span>
+                  <span className="font-extrabold text-xs text-foreground flex items-center gap-1.5">
+                    <span>{totalProducts} {totalProducts === 1 ? 'Product' : 'Products'}</span>
+                    <span>&middot;</span>
+                    <span>{totalPcs} Pcs</span>
+                    {totalKgs > 0 && (
+                      <>
+                        <span>&middot;</span>
+                        <span className="text-amber-600 dark:text-amber-400">{totalKgs.toFixed(3)} Kg</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+              )}
+
               {(!isScrapMode || subtotal > 0) && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
