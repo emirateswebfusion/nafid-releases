@@ -452,11 +452,11 @@ export function ActionPane() {
       <div className="p-4 grid grid-cols-2 gap-3 border-t border-border bg-card">
         <Button 
           variant="outline"
-          className="col-span-1 h-auto py-2 flex items-center justify-center gap-2 rounded-xl"
+          className="relative col-span-1 h-auto py-2 flex items-center justify-center gap-2 rounded-xl"
         >
           <FileText className="w-4 h-4" />
           <span className="font-semibold text-sm">Hold Bill</span>
-          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded">[F3]</span>
+          <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F3</span>
         </Button>
 
         <Button 

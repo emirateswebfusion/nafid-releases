@@ -3156,18 +3156,7 @@ notes: '',
       handleHoldBill();
     },
     'F5': () => {
-      // Quotation Mode
-      if (featureFlags && featureFlags.quotations === false) return;
-      const next = !isQuotationMode;
-      setQuotationMode(next);
-      if (next && isScrapMode) setIsScrapMode(false);
-      if (next && isReturnMode) setReturnMode(false);
-      if (next && isPastBillMode) setIsPastBillMode(false);
-      if (next) reserveQuotationNumberForTab();
-      setTimeout(() => searchRef.current?.focus(), 100);
-    },
-    'F6': () => {
-      // Scrap Mode
+      // Scrap Mode (F5)
       if (!enableScrap || (featureFlags && featureFlags.scrap === false)) return;
       const next = !isScrapMode;
       setIsScrapMode(next);
@@ -3183,6 +3172,17 @@ notes: '',
         }
         updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
       }
+      setTimeout(() => searchRef.current?.focus(), 100);
+    },
+    'F6': () => {
+      // Quotation Mode (F6)
+      if (featureFlags && featureFlags.quotations === false) return;
+      const next = !isQuotationMode;
+      setQuotationMode(next);
+      if (next && isScrapMode) setIsScrapMode(false);
+      if (next && isReturnMode) setReturnMode(false);
+      if (next && isPastBillMode) setIsPastBillMode(false);
+      if (next) reserveQuotationNumberForTab();
       setTimeout(() => searchRef.current?.focus(), 100);
     },
     'F7': async () => {
@@ -3339,27 +3339,6 @@ notes: '',
             <span>History</span>
           </button>
           )}
-          <button
-            onClick={() => {
-              setIsScrapMode(false);
-              setReturnMode(false);
-              setQuotationMode(false);
-              setIsPastBillMode(false);
-              setSelectedReturnInvoice(null);
-              setTimeout(() => searchRef.current?.focus(), 100);
-            }}
-            className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-              !isScrapMode && !isReturnMode && !isQuotationMode && !isPastBillMode
-                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-sm"
-                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
-            )}
-            title="Normal Billing Mode (F1)"
-          >
-            <Store className={clsx("w-4 h-4", !isScrapMode && !isReturnMode && !isQuotationMode && !isPastBillMode && "text-emerald-500")} />
-            <span>Normal</span>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F1</kbd>
-          </button>
           {enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
@@ -3380,16 +3359,16 @@ notes: '',
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}
               className={clsx(
-                "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
+                "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
                 isScrapMode
                   ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
               )}
-              title="Scrap Mode (F6)"
+              title="Scrap Mode (F5)"
             >
               <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
               <span>Scrap</span>
-              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F6</kbd>
+              <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F5</span>
             </button>
           )}
           {(!featureFlags || featureFlags.quotations) && (
@@ -3404,16 +3383,16 @@ notes: '',
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}
             className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
+              "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
               isQuotationMode
                 ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
-            title="Quotation Mode (F5)"
+            title="Quotation Mode (F6)"
           >
             <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
             <span>Quotation</span>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F5</kbd>
+            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F6</span>
           </button>
           )}
           {(!featureFlags || featureFlags.returns) && (
@@ -3429,7 +3408,7 @@ notes: '',
               setTimeout(() => searchRef.current?.focus(), 100);
             }}
             className={clsx(
-              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
+              "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
               isReturnMode
                 ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
@@ -3438,7 +3417,7 @@ notes: '',
           >
             <ArrowLeftRight className={clsx("w-4 h-4", isReturnMode && "text-rose-500")} />
             <span>Return</span>
-            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F7</kbd>
+            <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F7</span>
           </button>
           )}
           {showCashRegister && (!featureFlags || featureFlags.cash_register) && (
@@ -4057,9 +4036,9 @@ notes: '',
                   <p className="text-xs text-muted-foreground/80 mt-0.5">Search or scan to add items</p>
                 </div>
                 <div className="flex gap-1.5 mt-1">
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F2: Search</kbd>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F8: {isScrapMode ? 'Extra' : 'Discount'}</kbd>
-                  <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-card border rounded shadow-sm">F12: Print</kbd>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F2: Search</span>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F8: {isScrapMode ? 'Extra' : 'Discount'}</span>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F12: Print</span>
                 </div>
               </div>
             ) : (
@@ -4897,7 +4876,7 @@ notes: '',
                         <span className="text-[10px] px-1 py-0.5 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 rounded font-bold leading-none">+</span>
                         Extra / Bonus
                       </span>
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 leading-none shadow-xs">F8</span>
                       {extraBonus > 0 && (
                         <span className="text-xs font-black text-emerald-600 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">+{formatCurrency(extraBonus)}</span>
                       )}
@@ -4905,7 +4884,7 @@ notes: '',
                   ) : (
                     <>
                       <span className="text-muted-foreground font-semibold text-sm">Discount</span>
-                      <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F8</kbd>
+                      <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 leading-none shadow-xs">F8</span>
                       {discount > 0 && (
                         <span className="text-xs font-black text-destructive bg-destructive/10 px-1.5 py-0.5 rounded-full">-{formatCurrency(discount)}</span>
                       )}
@@ -5171,23 +5150,29 @@ notes: '',
                 ) : (
                   /* Neither is applied: show standard selector tabs and full-width input */
                   <div>
-                    <div className="flex bg-muted/20 p-0.5 border-b border-border/40">
+                    <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">
                       <button
                         onClick={() => setReturnDeductionSearchMode(false)}
-                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg',
+                        className={clsx('relative flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center',
                           !returnDeductionSearchMode
                             ? 'bg-orange-500/10 text-orange-600 shadow-sm'
                             : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                         )}
-                      >Scrap</button>
+                      >
+                        <span>Scrap Deduction</span>
+                        <span className="absolute -top-1.5 -right-1 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1 text-[9px] font-black rounded-full leading-none shadow-xs border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
+                      </button>
                       <button
                         onClick={() => setReturnDeductionSearchMode(true)}
-                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg',
+                        className={clsx('relative flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center',
                           returnDeductionSearchMode
                             ? 'bg-rose-500/10 text-rose-600 shadow-sm'
                             : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                         )}
-                      >Return</button>
+                      >
+                        <span>Return Deduction</span>
+                        <span className="absolute -top-1.5 -right-1 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1 text-[9px] font-black rounded-full leading-none shadow-xs border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-1 px-2 py-1.5">
@@ -5549,11 +5534,11 @@ notes: '',
                   <button
                     onClick={handleHoldBill}
                     disabled={items.length === 0}
-                    className="w-[22%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                    className="relative w-[22%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
                     title="Save Temp / Hold Bill (F3)"
                   >
                     <span>Save Temp</span>
-                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F3</kbd>
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 text-[9px] font-black rounded-full bg-amber-500 text-white shadow-sm border-2 border-background leading-none">F3</span>
                   </button>
                   <button
                     onClick={() => handleCheckout(true)}
