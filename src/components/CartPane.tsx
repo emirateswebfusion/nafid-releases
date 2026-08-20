@@ -8,10 +8,17 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
 export function CartPane() {
-  const { items, updateQuantity, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
+  const { items, lastAddedProductId, updateQuantity, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const qtyInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   const searchContainerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (lastAddedProductId && itemRefs.current[lastAddedProductId]) {
+      itemRefs.current[lastAddedProductId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [lastAddedProductId, items]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<any[]>([]);
@@ -255,10 +262,26 @@ export function CartPane() {
                 updateQuantity(item.product_id, +newKg.toFixed(3));
               };
 
+              const isLastAdded = item.product_id === lastAddedProductId;
+
               return (
-                <div key={item.product_id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-muted/30 transition-colors">
+                <div
+                  key={item.product_id}
+                  ref={el => { itemRefs.current[item.product_id] = el; }}
+                  className={clsx(
+                    "grid grid-cols-12 gap-4 px-6 py-4 items-center transition-all duration-200",
+                    isLastAdded
+                      ? "ring-2 ring-primary bg-primary/10 border-l-4 border-l-primary shadow-md scale-[1.005]"
+                      : "hover:bg-muted/30"
+                  )}
+                >
                   <div className="col-span-5">
-                    <h3 className="text-foreground font-medium">{item.name}</h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-foreground font-medium">{item.name}</h3>
+                      {isLastAdded && (
+                        <span className="text-[9px] font-black text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
+                      )}
+                    </div>
                     <div className="flex gap-3 text-xs mt-1">
                       <span className="text-muted-foreground">Tax: {item.tax_rate_percent}%</span>
                       {item.pricing_mode === 'GRADE_RATE' && (

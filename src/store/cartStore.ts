@@ -67,6 +67,8 @@ interface CartState {
   editingInvoiceRole: 'OWNER' | 'BILLER' | null;
   pendingScrapInvoiceToEdit: string | null;
 
+  lastAddedProductId: string | null;
+
   // Actions
   addItem: (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => void;
   removeItem: (productId: string) => void;
@@ -94,6 +96,7 @@ interface CartState {
   setEditingQuotation: (quotationId: string | null, quotationNumber: string | null) => void;
   setEditingInvoice: (id: string | null, number: string | null, role: 'OWNER' | 'BILLER' | null) => void;
   setPendingScrapInvoiceToEdit: (invoiceNumber: string | null) => void;
+  setLastAddedProductId: (id: string | null) => void;
   clearCart: () => void;
 }
 
@@ -101,6 +104,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set) => ({
       items: [],
+      lastAddedProductId: null,
       invoiceType: 'BILL_OF_SUPPLY',
       discountType: 'FIXED',
       discountValue: 0,
@@ -125,12 +129,14 @@ export const useCartStore = create<CartState>()(
       pendingScrapInvoiceToEdit: null,
       setPendingScrapInvoiceToEdit: (invoiceNumber) => set({ pendingScrapInvoiceToEdit: invoiceNumber }),
       setIsScrapMode: (isScrapMode) => set({ isScrapMode }),
+      setLastAddedProductId: (id) => set({ lastAddedProductId: id }),
 
       addItem: (newItem) =>
         set((state) => {
           const existingItem = state.items.find(i => i.product_id === newItem.product_id);
           if (existingItem) {
             return {
+              lastAddedProductId: newItem.product_id,
               items: state.items.map(i => {
                 if (i.product_id === newItem.product_id) {
                   const delta = i.billing_type === 'WEIGHT' && !i.pieces_per_kg ? 0.1 : 1;
@@ -144,6 +150,7 @@ export const useCartStore = create<CartState>()(
           const catalogDiscFlat = newItem.catalog_discount_flat !== undefined ? newItem.catalog_discount_flat : (newItem.discount_flat ?? null);
           const catalogOfferPrice = newItem.catalog_offer_price !== undefined ? newItem.catalog_offer_price : (newItem.offer_price ?? null);
           return {
+            lastAddedProductId: newItem.product_id,
             items: [
               ...state.items,
               {
@@ -159,6 +166,7 @@ export const useCartStore = create<CartState>()(
 
       removeItem: (productId) =>
         set((state) => ({
+          lastAddedProductId: state.lastAddedProductId === productId ? null : state.lastAddedProductId,
           items: state.items.filter(i => i.product_id !== productId),
         })),
 
@@ -226,7 +234,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
+      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'vendora-cart-storage',

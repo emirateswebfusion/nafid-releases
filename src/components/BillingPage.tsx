@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -94,7 +94,7 @@ export function BillingPage() {
   const pendingFocusProductIdRef = useRef<string | null>(null);
 
   const {
-    items, invoiceType, setInvoiceType, clearCart, setDiscount,
+    items, lastAddedProductId, invoiceType, setInvoiceType, clearCart, setDiscount,
     currentUserRole, setRole, discountType, discountValue,
     addItem, updateQuantity, removeItem, updateItemDiscount, removeItemDiscount, updateItemOfferPrice, updatePiecesOverride,
     customerState, setCustomerState,
@@ -104,6 +104,15 @@ export function BillingPage() {
     setReturnDeduction, clearReturnDeduction,
     editingInvoiceId: editingActive, editingInvoiceNumber,
   } = useCartStore();
+
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    if (lastAddedProductId && itemRefs.current[lastAddedProductId]) {
+      itemRefs.current[lastAddedProductId]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [lastAddedProductId, items]);
+
   const tabs = useTabStore(s => s.tabs);
   const activeTabId = useTabStore(s => s.activeTabId);
   const addTab = useTabStore(s => s.addTab);
@@ -2916,14 +2925,25 @@ notes: '',
     }
   };
 
-  // Held Bills state
-  const [_heldBills, setHeldBills] = useState<any[]>([]);
+  const [heldBills, setHeldBills] = useState<any[]>([]);
   const [showHeldBillsPanel, setShowHeldBillsPanel] = useState(false);
-  const [_heldBillsLoading, setHeldBillsLoading] = useState(false);
+  const [heldBillsLoading, setHeldBillsLoading] = useState(false);
 
   // Load active held bills from backend
   const loadHeldBills = useCallback(async () => {
-    if (!window.electronAPI) return;
+    if (!window.electronAPI) {
+      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const now = Date.now();
+      const valid = stored.filter((b: any) => {
+        const time = new Date(b.heldAt).getTime();
+        return !isNaN(time) && (now - time < 24 * 60 * 60 * 1000);
+      });
+      if (valid.length !== stored.length) {
+        localStorage.setItem('vendora-held-bills', JSON.stringify(valid));
+      }
+      setHeldBills(valid);
+      return;
+    }
     setHeldBillsLoading(true);
     try {
       const bills = await window.electronAPI.dbGetHeldBills({ tenant_id: tenantId || 'global' });
@@ -2958,11 +2978,12 @@ notes: '',
     if (isScrapMode || isReturnMode || isQuotationMode) return;
     if (!window.electronAPI) {
       // Fallback for non-electron: save to localStorage
-      const bill = { id: uuidv4(), heldAt: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T'), items, invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
+      const bill = { id: uuidv4(), heldAt: new Date().toISOString(), items: [...items], invoiceType, discountType, discountValue, customerName, customerPhone, paymentMethod, customerGstin };
       const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
       stored.push(bill);
       localStorage.setItem('vendora-held-bills', JSON.stringify(stored));
       clearCart(); updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' }); syncActiveSnapshot();
+      loadHeldBills();
       return;
     }
 
@@ -3038,8 +3059,31 @@ notes: '',
   };
 
   // Recall a held bill — load its items back into cart
-  const _handleRecallHeldBill = async (heldInvoice: any) => {
-    if (!window.electronAPI) return;
+  const handleRecallHeldBill = async (heldInvoice: any) => {
+    if (!window.electronAPI) {
+      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const target = stored.find((b: any) => b.id === (heldInvoice.id || heldInvoice.invoice_id));
+      if (target) {
+        clearCart();
+        if (Array.isArray(target.items)) {
+          for (const item of target.items) {
+            addItem(item);
+            if (item.quantity) updateQuantity(item.product_id, item.quantity);
+          }
+        }
+        updateActiveTab({
+          customerName: target.customerName || '',
+          customerPhone: target.customerPhone || '',
+          customerGstin: target.customerGstin || '',
+        });
+        const remaining = stored.filter((b: any) => b.id !== (heldInvoice.id || heldInvoice.invoice_id));
+        localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
+        setHeldBills(remaining);
+      }
+      setShowHeldBillsPanel(false);
+      return;
+    }
+
     setHeldBillsLoading(true);
     try {
       const result = await window.electronAPI.dbRecallHeldBill({ invoice_id: heldInvoice.invoice_id });
@@ -3114,8 +3158,14 @@ notes: '',
   };
 
   // Release (delete) a held bill — revert stock, mark as expired
-  const _handleReleaseHeldBill = async (invoiceId: string) => {
-    if (!window.electronAPI) return;
+  const handleReleaseHeldBill = async (invoiceId: string) => {
+    if (!window.electronAPI) {
+      const stored = JSON.parse(localStorage.getItem('vendora-held-bills') || '[]');
+      const remaining = stored.filter((b: any) => b.id !== invoiceId);
+      localStorage.setItem('vendora-held-bills', JSON.stringify(remaining));
+      setHeldBills(remaining);
+      return;
+    }
     try {
       const result = await window.electronAPI.dbReleaseHeldBill({ invoice_id: invoiceId });
       if (result.success) {
@@ -3339,6 +3389,27 @@ notes: '',
             <span>History</span>
           </button>
           )}
+          <button
+            onClick={() => {
+              loadHeldBills();
+              setShowHeldBillsPanel(true);
+            }}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer border",
+              heldBills.length > 0
+                ? "bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+            )}
+            title="View Held Bills / Drafts"
+          >
+            <PauseCircle className={clsx("w-4 h-4", heldBills.length > 0 ? "text-amber-500" : "text-primary")} />
+            <span>Held Bills</span>
+            {heldBills.length > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[18px] h-4.5 px-1.5 text-[9px] font-black rounded-full bg-amber-500 text-white leading-none shadow-xs">
+                {heldBills.length}
+              </span>
+            )}
+          </button>
           {enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
@@ -4043,14 +4114,28 @@ notes: '',
               </div>
             ) : (
               items.map(item => {
+                const isLastAdded = item.product_id === lastAddedProductId;
+
                 if (item.isServiceItem) {
                   const serviceAmount = Number(item.offer_price ?? item.base_price) || 0;
                   return (
-                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-violet-500/5 border border-violet-500/30 hover:border-violet-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group">
+                    <div
+                      key={item.product_id}
+                      ref={el => { itemRefs.current[item.product_id] = el; }}
+                      className={clsx(
+                        "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 hover:shadow-sm group",
+                        isLastAdded
+                          ? "ring-2 ring-violet-500 bg-violet-500/15 border-violet-500 shadow-md scale-[1.01]"
+                          : "bg-violet-500/5 border border-violet-500/30 hover:border-violet-500/50"
+                      )}
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                           <span className="text-[9px] font-bold text-violet-600 bg-violet-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Service</span>
+                          {isLastAdded && (
+                            <span className="text-[9px] font-black text-violet-600 bg-violet-500/20 border border-violet-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                           <span className="text-violet-600 font-semibold">Enter amount</span>
@@ -4089,11 +4174,23 @@ notes: '',
                   const total = rate * qtyText;
                   const avail = item.availableToReturn ?? 0;
                   return (
-                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-rose-500/5 border border-rose-500/30 hover:border-rose-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group">
+                    <div
+                      key={item.product_id}
+                      ref={el => { itemRefs.current[item.product_id] = el; }}
+                      className={clsx(
+                        "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 hover:shadow-sm group",
+                        isLastAdded
+                          ? "ring-2 ring-rose-500 bg-rose-500/15 border-rose-500 shadow-md scale-[1.01]"
+                          : "bg-rose-500/5 border border-rose-500/30 hover:border-rose-500/50"
+                      )}
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                           <span className="text-[9px] font-bold text-rose-600 bg-rose-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Return</span>
+                          {isLastAdded && (
+                            <span className="text-[9px] font-black text-rose-600 bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                           <span className="font-semibold">{formatCurrency(rate)}/unit</span>
@@ -4177,11 +4274,23 @@ notes: '',
                   const total = effectivePrice * qty;
 
                   return (
-                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50 rounded-xl transition-all duration-200 hover:shadow-sm group">
+                    <div
+                      key={item.product_id}
+                      ref={el => { itemRefs.current[item.product_id] = el; }}
+                      className={clsx(
+                        "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 hover:shadow-sm group",
+                        isLastAdded
+                          ? "ring-2 ring-orange-500 bg-orange-500/15 border-orange-500 shadow-md scale-[1.01]"
+                          : "bg-orange-500/5 border border-orange-500/30 hover:border-orange-500/50"
+                      )}
+                    >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm text-foreground truncate">{item.name}</span>
                           <span className="text-[9px] font-bold text-orange-600 bg-orange-500/15 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">Scrap</span>
+                          {isLastAdded && (
+                            <span className="text-[9px] font-black text-orange-600 bg-orange-500/20 border border-orange-500/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
+                          )}
                         </div>
                         <div className="text-[10px] text-muted-foreground/70 mt-0.5">
                           <span className="text-orange-600 font-semibold">{formatCurrency(rate)}/{(item as any).unit || 'Kg'}</span>
@@ -4404,7 +4513,16 @@ notes: '',
                 };
 
                 return (
-                    <div key={item.product_id} className="flex items-center gap-3 px-3 py-2 bg-card border border-border/80 hover:border-primary/40 rounded-xl transition-all duration-200 hover:shadow-sm group">
+                  <div
+                    key={item.product_id}
+                    ref={el => { itemRefs.current[item.product_id] = el; }}
+                    className={clsx(
+                      "flex items-center gap-3 px-3 py-2 rounded-xl transition-all duration-200 hover:shadow-sm group",
+                      isLastAdded
+                        ? "ring-2 ring-primary bg-primary/10 border-primary shadow-md scale-[1.01]"
+                        : "bg-card border border-border/80 hover:border-primary/40"
+                    )}
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-foreground truncate flex items-center gap-1.5">
@@ -4420,6 +4538,9 @@ notes: '',
                             </span>
                           )}
                         </span>
+                        {isLastAdded && (
+                          <span className="text-[9px] font-black text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
+                        )}
                         {item.sku_barcode && (
                           <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
                         )}
@@ -5153,25 +5274,25 @@ notes: '',
                     <div className="flex bg-muted/20 p-0.5 border-b border-border/40 gap-1">
                       <button
                         onClick={() => setReturnDeductionSearchMode(false)}
-                        className={clsx('relative flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center',
+                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
                           !returnDeductionSearchMode
                             ? 'bg-orange-500/10 text-orange-600 shadow-sm'
                             : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                         )}
                       >
                         <span>Scrap Deduction</span>
-                        <span className="absolute -top-1.5 -right-1 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1 text-[9px] font-black rounded-full leading-none shadow-xs border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F9</span>
                       </button>
                       <button
                         onClick={() => setReturnDeductionSearchMode(true)}
-                        className={clsx('relative flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center',
+                        className={clsx('flex-1 py-1.5 text-[10px] font-extrabold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-lg flex items-center justify-center gap-1.5',
                           returnDeductionSearchMode
                             ? 'bg-rose-500/10 text-rose-600 shadow-sm'
                             : 'bg-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'
                         )}
                       >
                         <span>Return Deduction</span>
-                        <span className="absolute -top-1.5 -right-1 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1 text-[9px] font-black rounded-full leading-none shadow-xs border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
+                        <span className="inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-xs bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F10</span>
                       </button>
                     </div>
 
@@ -5535,10 +5656,10 @@ notes: '',
                     onClick={handleHoldBill}
                     disabled={items.length === 0}
                     className="relative w-[22%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
-                    title="Save Temp / Hold Bill (F3)"
+                    title="Hold Bill (F3)"
                   >
-                    <span>Save Temp</span>
-                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[18px] h-4.5 px-1 text-[9px] font-black rounded-full bg-amber-500 text-white shadow-sm border-2 border-background leading-none">F3</span>
+                    <span>Hold</span>
+                    <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F3</span>
                   </button>
                   <button
                     onClick={() => handleCheckout(true)}
@@ -5579,6 +5700,84 @@ notes: '',
         </div>
 
       </div>
+
+      {/* ─── Held Bills / Drafts Modal ─── */}
+      <Modal
+        isOpen={showHeldBillsPanel}
+        onClose={() => setShowHeldBillsPanel(false)}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <PauseCircle className="w-5 h-5 text-amber-500" />
+            <span>Held Bills / Drafts ({heldBills.length})</span>
+          </div>
+        }
+      >
+        <div className="space-y-3 min-w-[540px] max-w-2xl text-foreground">
+          {heldBillsLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="w-6 h-6 border-2 border-amber-500/30 border-t-amber-500 rounded-full animate-spin" />
+            </div>
+          ) : heldBills.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground space-y-2">
+              <PauseCircle className="w-10 h-10 mx-auto text-muted-foreground/40" />
+              <p className="font-bold text-sm text-foreground/80">No Held Bills</p>
+              <p className="text-xs text-muted-foreground max-w-xs mx-auto">
+                When you click <strong className="text-foreground">Hold (F3)</strong> on active items in cart, they will be saved here so you can resume them anytime within 24 hours.
+              </p>
+            </div>
+          ) : (
+            <div className="max-h-[60vh] overflow-y-auto space-y-2.5 pr-1">
+              {heldBills.map((bill: any) => {
+                const billId = bill.invoice_id || bill.id;
+                const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
+                const createdTime = bill.created_at ? new Date(bill.created_at).toLocaleString() : (bill.heldAt ? new Date(bill.heldAt).toLocaleString() : '');
+                const totalAmt = Number(bill.grand_total) || 0;
+                const itemCount = Array.isArray(bill.items) ? bill.items.length : 0;
+                const customer = bill.customer_name || bill.customerName || (bill.customer_phone || bill.customerPhone ? (bill.customer_phone || bill.customerPhone) : 'Walk-in Customer');
+
+                return (
+                  <div key={billId} className="flex items-center justify-between p-3.5 bg-card border border-border/80 hover:border-amber-500/50 rounded-2xl transition-all duration-200 shadow-2xs group gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-extrabold text-sm text-foreground">{invNum}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">HELD</span>
+                        <span className="text-xs text-muted-foreground">{createdTime}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                        <span>👤 <strong className="text-foreground/80">{customer}</strong></span>
+                        {itemCount > 0 && <span>• {itemCount} Item{itemCount > 1 ? 's' : ''}</span>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-base font-black text-foreground">{formatCurrency(totalAmt)}</div>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleRecallHeldBill(bill)}
+                          className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all cursor-pointer"
+                          title="Resume / Recall Bill"
+                        >
+                          <Play className="w-3.5 h-3.5 fill-current" />
+                          <span>Take / Resume</span>
+                        </button>
+                        <button
+                          onClick={() => handleReleaseHeldBill(billId)}
+                          className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all active:scale-95 cursor-pointer"
+                          title="Discard / Delete Held Bill"
+                        >
+                          <Trash className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </Modal>
 
       {/* ─── Scrap Invoice View Modal ─── */}
       <Modal

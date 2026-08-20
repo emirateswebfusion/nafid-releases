@@ -1532,7 +1532,7 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number,
         held_until, is_held, hold_note
       )
-      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours'), 1, ?)
+      VALUES (?, ?, ?, ?, 'HOLD', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED', ?, ?, ?, ?, datetime('now', '+24 hours', 'localtime'), 1, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
