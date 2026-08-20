@@ -1,3 +1,11 @@
+# Vendora v1.5.22 Release Notes
+
+## What's Changed
+- Implemented BillingPage scanner-burst protection and real-time scale integration
+- Added checkout invoice number auto-refresh and panel layout optimizations
+- Integrated cashier settlement daily cash reconciliation modules
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.21...v1.5.22
+
 # Vendora v1.5.21 Release Notes
 
 ## What's Changed
