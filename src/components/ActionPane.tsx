@@ -456,7 +456,7 @@ export function ActionPane() {
         >
           <FileText className="w-4 h-4" />
           <span className="font-semibold text-sm">Hold Bill</span>
-          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded">[F9]</span>
+          <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1 rounded">[F3]</span>
         </Button>
 
         <Button 

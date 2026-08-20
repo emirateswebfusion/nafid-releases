@@ -165,6 +165,7 @@ export function CreateReturn({
           tax_total: taxTotal,
           grand_total: grandTotal,
           reason: reason || null,
+          refund_method: 'ADJUST_BILL',
           items: selectedItems.map((s) => ({
             return_item_id: uuidv4(),
             invoice_item_id: s.invoice_item_id,

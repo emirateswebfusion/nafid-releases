@@ -944,7 +944,7 @@ export function BillingPage() {
           return retNum.includes(q) ||
             custName.includes(q) ||
             custPhone.includes(q) ||
-            (q.length >= 1 && qNum.length > 0 && numPart.includes(qNum));
+            (q.length >= 1 && qNum.length > 0 && (numPart.includes(qNum) || Number(numPart) === Number(qNum)));
         });
         setReturnDeductionResults(filtered.slice(0, 8));
         if (filtered.length > 0 && returnDeductionInputRef.current) {
@@ -953,7 +953,7 @@ export function BillingPage() {
             position: 'fixed',
             bottom: `${window.innerHeight - rect.top + 4}px`,
             left: `${rect.left}px`,
-            width: `${rect.width}px`,
+            width: `${Math.max(rect.width, 280)}px`,
             zIndex: 9999,
           });
         } else {
@@ -3141,8 +3141,73 @@ notes: '',
       if (authRole === 'OWNER') setRole('OWNER');
       else logout();
     },
+    'F1': () => {
+      // Normal Billing Mode
+      setIsScrapMode(false);
+      setReturnMode(false);
+      setQuotationMode(false);
+      setIsPastBillMode(false);
+      setSelectedReturnInvoice(null);
+      setTimeout(() => searchRef.current?.focus(), 100);
+    },
     'F2': () => searchRef.current?.focus(),
+    'F3': () => {
+      // Save as Temp / Hold Bill
+      handleHoldBill();
+    },
+    'F5': () => {
+      // Quotation Mode
+      if (featureFlags && featureFlags.quotations === false) return;
+      const next = !isQuotationMode;
+      setQuotationMode(next);
+      if (next && isScrapMode) setIsScrapMode(false);
+      if (next && isReturnMode) setReturnMode(false);
+      if (next && isPastBillMode) setIsPastBillMode(false);
+      if (next) reserveQuotationNumberForTab();
+      setTimeout(() => searchRef.current?.focus(), 100);
+    },
+    'F6': () => {
+      // Scrap Mode
+      if (!enableScrap || (featureFlags && featureFlags.scrap === false)) return;
+      const next = !isScrapMode;
+      setIsScrapMode(next);
+      if (next && isQuotationMode) setQuotationMode(false);
+      if (next && isReturnMode) setReturnMode(false);
+      if (next && isPastBillMode) setIsPastBillMode(false);
+      if (next) {
+        reserveScrapInvoiceNumberForTab();
+      } else {
+        if (editingInvoiceNumber) {
+          useCartStore.getState().setEditingInvoice(null, null, null);
+          setDiscount(0, 'FIXED');
+        }
+        updateActiveTab({ scrapPaymentStatus: 'PENDING', reservedScrapInvoiceNumber: '' });
+      }
+      setTimeout(() => searchRef.current?.focus(), 100);
+    },
+    'F7': async () => {
+      // Return Mode
+      if (featureFlags && featureFlags.returns === false) return;
+      const next = !isReturnMode;
+      if (next) await reserveReturnNumberForTab();
+      setReturnMode(next);
+      if (next && isScrapMode) setIsScrapMode(false);
+      if (next && isQuotationMode) setQuotationMode(false);
+      if (next && isPastBillMode) setIsPastBillMode(false);
+      if (!next) { setSelectedReturnInvoice(null); }
+      setTimeout(() => searchRef.current?.focus(), 100);
+    },
     'F8': () => { discountRef.current?.focus(); },
+    'F9': () => {
+      // Scrap Deduction
+      setReturnDeductionSearchMode(false);
+      setTimeout(() => scrapDeductionInputRef.current?.focus(), 100);
+    },
+    'F10': () => {
+      // Return Deduction
+      setReturnDeductionSearchMode(true);
+      setTimeout(() => returnDeductionInputRef.current?.focus(), 100);
+    },
     'F12': () => {
       if (isScrapMode) {
         handleCheckout();
@@ -3274,6 +3339,27 @@ notes: '',
             <span>History</span>
           </button>
           )}
+          <button
+            onClick={() => {
+              setIsScrapMode(false);
+              setReturnMode(false);
+              setQuotationMode(false);
+              setIsPastBillMode(false);
+              setSelectedReturnInvoice(null);
+              setTimeout(() => searchRef.current?.focus(), 100);
+            }}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
+              !isScrapMode && !isReturnMode && !isQuotationMode && !isPastBillMode
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-sm"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+            )}
+            title="Normal Billing Mode (F1)"
+          >
+            <Store className={clsx("w-4 h-4", !isScrapMode && !isReturnMode && !isQuotationMode && !isPastBillMode && "text-emerald-500")} />
+            <span>Normal</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F1</kbd>
+          </button>
           {enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
@@ -3299,10 +3385,11 @@ notes: '',
                   ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
               )}
-              title="Scrap Mode"
+              title="Scrap Mode (F6)"
             >
               <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
               <span>Scrap</span>
+              <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F6</kbd>
             </button>
           )}
           {(!featureFlags || featureFlags.quotations) && (
@@ -3322,10 +3409,11 @@ notes: '',
                 ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
-            title="Quotation Mode"
+            title="Quotation Mode (F5)"
           >
             <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
             <span>Quotation</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F5</kbd>
           </button>
           )}
           {(!featureFlags || featureFlags.returns) && (
@@ -3346,10 +3434,11 @@ notes: '',
                 ? "bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
-            title="Return Mode"
+            title="Return Mode (F7)"
           >
             <ArrowLeftRight className={clsx("w-4 h-4", isReturnMode && "text-rose-500")} />
             <span>Return</span>
+            <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F7</kbd>
           </button>
           )}
           {showCashRegister && (!featureFlags || featureFlags.cash_register) && (
@@ -4647,12 +4736,12 @@ notes: '',
               <div className="flex flex-col gap-2">
                 <div className="grid grid-cols-6 gap-1.5">
                   {[
+                    { value: 'ADJUST_BILL' as const, label: 'Adjust Bill', icon: ArrowLeftRight, activeBg: 'bg-rose-500/10', activeText: 'text-rose-600 dark:text-rose-400', activeBorder: 'border-rose-500', activeIconBg: 'bg-rose-500/15' },
                     { value: 'CASH' as const, label: 'Cash', icon: Banknote, activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
                     { value: 'UPI' as const, label: 'UPI', icon: Smartphone, activeBg: 'bg-violet-500/10', activeText: 'text-violet-600 dark:text-violet-400', activeBorder: 'border-violet-500', activeIconBg: 'bg-violet-500/15' },
                     { value: 'CARD' as const, label: 'Card', icon: Wallet, activeBg: 'bg-blue-500/10', activeText: 'text-blue-600 dark:text-blue-400', activeBorder: 'border-blue-500', activeIconBg: 'bg-blue-500/15' },
                     { value: 'BANK_TRANSFER' as const, label: 'Bank Transfer', icon: Building, activeBg: 'bg-sky-500/10', activeText: 'text-sky-600 dark:text-sky-400', activeBorder: 'border-sky-500', activeIconBg: 'bg-sky-500/15' },
                     { value: 'STORE_CREDIT' as const, label: 'Store Credit', icon: Gift, activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
-                    { value: 'ADJUST_BILL' as const, label: 'Adjust Bill', icon: ArrowLeftRight, activeBg: 'bg-rose-500/10', activeText: 'text-rose-600 dark:text-rose-400', activeBorder: 'border-rose-500', activeIconBg: 'bg-rose-500/15' },
                   ].map(opt => {
                     const isActive = returnRefundMethod === opt.value;
                     return (
@@ -5460,9 +5549,11 @@ notes: '',
                   <button
                     onClick={handleHoldBill}
                     disabled={items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[22%] py-3 rounded-xl border-2 border-border text-muted-foreground font-black text-sm hover:bg-muted hover:text-foreground hover:border-muted-foreground/30 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center justify-center gap-1"
+                    title="Save Temp / Hold Bill (F3)"
                   >
-                    Hold
+                    <span>Save Temp</span>
+                    <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-muted border rounded text-muted-foreground/60 shadow-sm">F3</kbd>
                   </button>
                   <button
                     onClick={() => handleCheckout(true)}

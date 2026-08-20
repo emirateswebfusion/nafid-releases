@@ -116,7 +116,7 @@ export const useCartStore = create<CartState>()(
       isQuotationMode: false,
       isReturnMode: false,
       isScrapMode: false,
-      returnRefundMethod: 'CASH',
+      returnRefundMethod: 'ADJUST_BILL',
       editingQuotationId: null,
       editingQuotationNumber: null,
       editingInvoiceId: null,
@@ -226,7 +226,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'CASH', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
+      clearCart: () => set((state) => ({ items: [], discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'vendora-cart-storage',

@@ -113,8 +113,9 @@ function notifyProgress(phaseIndex: number, sender?: WebContents, recordsSynced?
     const synced = totalRecords !== undefined ? totalRecords - remaining : (recordsSynced ?? 0);
     const total = totalRecords ?? remaining + synced;
     currentSyncProgress = { percent, label: SYNC_PHASES[phaseIndex], recordsSynced: synced, totalRecords: total };
-    const target = getWebContents(sender);
-    if (target) target.send('sync:progress', currentSyncProgress);
+    if (sender && !sender.isDestroyed()) {
+      sender.send('sync:progress', currentSyncProgress);
+    }
   }
 }
 
@@ -127,8 +128,9 @@ function notifyPercent(percent: number, label: string, sender?: WebContents, rec
     recordsSynced: recordsSynced ?? 0,
     totalRecords: totalRecords ?? 0,
   };
-  const target = getWebContents(sender);
-  if (target) target.send('sync:progress', currentSyncProgress);
+  if (sender && !sender.isDestroyed()) {
+    sender.send('sync:progress', currentSyncProgress);
+  }
 }
 
 export function getSyncProgress(): { percent: number; label: string; recordsSynced: number; totalRecords: number } | null {
@@ -142,10 +144,9 @@ function notifyRenderer() {
   }
 }
 
-function notifyCycleComplete() {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win) {
-    win.webContents.send('sync:cycle-complete');
+function notifyCycleComplete(sender?: WebContents) {
+  if (sender && !sender.isDestroyed()) {
+    sender.send('sync:cycle-complete');
   }
 }
 
@@ -416,7 +417,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       if (dataUpdated) {
         notifyRenderer();
       }
-      notifyCycleComplete();
+      notifyCycleComplete(sender);
     } finally {
       syncInProgress = false;
       syncPromise = null;
@@ -1372,6 +1373,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
 }
 
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
+let lastUsersHash = '';
+
 async function pullUsers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
@@ -1389,6 +1392,9 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
 
     const cloudUsers: any[] = await response.json();
     if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
+
+    const currentHash = JSON.stringify(cloudUsers.map(u => ({ id: u.user_id, name: u.name, role: u.role, page: u.restricted_page })));
+    const hasChanged = currentHash !== lastUsersHash;
 
     const upsert = db.prepare(`
       INSERT INTO users (user_id, tenant_id, name, email, role, restricted_page, created_at)
@@ -1415,10 +1421,11 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
     });
 
     tx(cloudUsers);
-    if (cloudUsers.length > 0) {
+    if (hasChanged) {
+      lastUsersHash = currentHash;
       console.log(`[SyncWorker] Pulled ${cloudUsers.length} users from cloud.`);
     }
-    return true;
+    return hasChanged;
   } catch (err: any) {
     console.error('[SyncWorker] Pull users failed:', err.message);
     return false;

@@ -2392,7 +2392,28 @@ ipcMain.handle('db:getReturnableInvoices', safeHandler((event, { tenant_id, sear
 
 ipcMain.handle('db:getReturnInvoiceByNumber', safeHandler((event, { tenant_id, return_number }: { tenant_id: string; return_number: string }) => {
   const db = getDb();
-  return db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ?').get(tenant_id, return_number);
+  const q = String(return_number || '').trim();
+  if (!q) return null;
+  const qNum = (q.match(/\d+/g) || []).join('');
+
+  // 1. Direct match by exact return_number
+  let row = db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND return_number = ?').get(tenant_id, q);
+  if (row) return row;
+
+  // 2. Direct match by common prefixes
+  row = db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND (return_number = ? OR return_number = ?)').get(tenant_id, `RET-${q}`, `RTN-${q}`);
+  if (row) return row;
+
+  // 3. Fallback: match by numeric part
+  if (qNum) {
+    const list = db.prepare('SELECT * FROM returns WHERE tenant_id = ? AND grand_total > COALESCE(adjusted_amount, 0)').all(tenant_id) as any[];
+    const match = list.find((r: any) => {
+      const numStr = (String(r.return_number || '').match(/\d+/g) || []).join('');
+      return numStr === qNum || Number(numStr) === Number(qNum) || numStr.endsWith(qNum);
+    });
+    if (match) return match;
+  }
+  return null;
 }));
 
 ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
@@ -2400,7 +2421,7 @@ ipcMain.handle('db:getPendingReturnInvoices', safeHandler((event, { tenant_id, s
   let query = `
     SELECT * FROM returns 
     WHERE tenant_id = ? 
-      AND (refund_method = 'ADJUST_BILL' OR refund_method = 'STORE_CREDIT' OR refund_method IS NULL OR refund_method = '')
+      AND (refund_method = 'ADJUST_BILL' OR refund_method IS NULL OR refund_method = '')
       AND grand_total > COALESCE(adjusted_amount, 0)
   `;
   const params: any[] = [tenant_id];
