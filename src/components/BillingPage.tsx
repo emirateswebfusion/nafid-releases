@@ -435,31 +435,36 @@ export function BillingPage() {
   const customerAddress = activeTab?.customerAddress ?? '';
 
   const scrapPaymentStatus = activeTab?.scrapPaymentStatus ?? 'PENDING';
-
   const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
   const nextScrapInvoiceNumber = activeTab?.reservedScrapInvoiceNumber ?? '';
   const nextQuotationNumber = activeTab?.reservedQuotationNumber ?? '';
   const nextReturnNumber = activeTab?.reservedReturnNumber ?? '';
 
-  const reserveInvoiceNumberForTab = useCallback(async () => {
+  const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab) return;
     if (isScrapMode || isQuotationMode || isReturnMode) return;
-    if (tab.reservedInvoiceNumber) {
-      updateActiveTab({ title: tab.reservedInvoiceNumber });
-      return;
-    }
+    if (editingActive) return;
+
     try {
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
-        updateActiveTab({ reservedInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
+        const nextNum = result.invoiceNumber;
+        const oldReserved = tab.reservedInvoiceNumber;
+        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
+          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
+          updateActiveTab({
+            reservedInvoiceNumber: nextNum,
+            title: shouldUpdateTitle ? nextNum : tab.title
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to peek invoice number', e);
     }
-  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode]);
+  }, [tenantId, getActiveTab, updateActiveTab, enableThreeInvoiceSeries, invoiceType, customerGstin, isScrapMode, isQuotationMode, isReturnMode, editingActive]);
 
   const handleInvoiceTypeChange = async (type: 'GST' | 'BILL_OF_SUPPLY') => {
     setInvoiceType(type);
@@ -481,59 +486,76 @@ export function BillingPage() {
     }
   };
 
-  const reserveScrapInvoiceNumberForTab = useCallback(async () => {
+  const reserveScrapInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab) return;
-    if (tab.reservedScrapInvoiceNumber) {
-      updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
-      return;
-    }
+    if (editingActive) return;
+
     try {
       const result = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (result.success && result.invoiceNumber) {
-        updateActiveTab({ reservedScrapInvoiceNumber: result.invoiceNumber, title: result.invoiceNumber });
+        const nextNum = result.invoiceNumber;
+        const oldReserved = tab.reservedScrapInvoiceNumber;
+        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
+          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
+          updateActiveTab({
+            reservedScrapInvoiceNumber: nextNum,
+            title: shouldUpdateTitle ? nextNum : tab.title
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to reserve scrap invoice number', e);
     }
-  }, [getActiveTab, updateActiveTab]);
+  }, [getActiveTab, updateActiveTab, editingActive]);
 
-  const reserveQuotationNumberForTab = useCallback(async () => {
+  const reserveQuotationNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab) return;
-    if (tab.reservedQuotationNumber) {
-      updateActiveTab({ title: tab.reservedQuotationNumber });
-      return;
-    }
+    if (editingQuotationId) return;
+
     try {
       const result = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
       if (result.success && result.quotationNumber) {
-        updateActiveTab({ reservedQuotationNumber: result.quotationNumber, title: result.quotationNumber });
+        const nextNum = result.quotationNumber;
+        const oldReserved = tab.reservedQuotationNumber;
+        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
+          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
+          updateActiveTab({
+            reservedQuotationNumber: nextNum,
+            title: shouldUpdateTitle ? nextNum : tab.title
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to reserve quotation number', e);
     }
-  }, [getActiveTab, updateActiveTab]);
+  }, [getActiveTab, updateActiveTab, editingQuotationId]);
 
-  const reserveReturnNumberForTab = useCallback(async () => {
+  const reserveReturnNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
     const tab = getActiveTab();
     if (!tab) return;
-    if (tab.reservedReturnNumber) {
-      updateActiveTab({ title: tab.reservedReturnNumber });
-      return;
-    }
+
     try {
       const result = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
       if (result.success && result.returnNumber) {
-        updateActiveTab({ reservedReturnNumber: result.returnNumber, title: result.returnNumber });
+        const nextNum = result.returnNumber;
+        const oldReserved = tab.reservedReturnNumber;
+        if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
+          const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
+          updateActiveTab({
+            reservedReturnNumber: nextNum,
+            title: shouldUpdateTitle ? nextNum : tab.title
+          });
+        }
       }
     } catch (e) {
       console.error('Failed to reserve return number', e);
     }
-  }, [getActiveTab, updateActiveTab, tenantId]);
+  }, [tenantId, getActiveTab, updateActiveTab]);
 
   const totalDeductions = (storeScrapDeduction || 0) + (storeReturnDeduction || 0);
   // Return credit is consumed first (up to the bill total); its leftover stays as
@@ -707,6 +729,28 @@ export function BillingPage() {
       reserveReturnNumberForTab();
     }
   }, [activeTabId, reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
+
+  // Whenever checkout/billing completes, invalidate stale reserved numbers across tabs and re-peek
+  useEffect(() => {
+    const handleInvoiceCreated = () => {
+      const { tabs } = useTabStore.getState();
+      const updated = tabs.map(t => {
+        if (!t.snapshot.editingInvoiceId) {
+          return { ...t, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' };
+        }
+        return t;
+      });
+      useTabStore.setState({ tabs: updated });
+      reserveInvoiceNumberForTab(true);
+    };
+
+    window.addEventListener('checkout:completed', handleInvoiceCreated);
+    window.addEventListener('invoice:created', handleInvoiceCreated);
+    return () => {
+      window.removeEventListener('checkout:completed', handleInvoiceCreated);
+      window.removeEventListener('invoice:created', handleInvoiceCreated);
+    };
+  }, [reserveInvoiceNumberForTab]);
 
   // Ensure tab title stays synced with scrap editing invoice number
   useEffect(() => {
@@ -4822,11 +4866,6 @@ notes: '',
 
         {/* ═══ RIGHT SIDE: Transaction Console & Payment (42%) ═══ */}
         <div className="flex flex-col w-[42%] bg-card dark:bg-card shadow-2xl z-25 border-l border-border">
-
-          {/* ── RIGHT PANEL HEADER ── */}
-          <div className="shrink-0 px-5 py-2.5 border-b border-border bg-transparent">
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.15em]">Transaction Console</p>
-          </div>
 
           {/* ── Scrollable content area ── */}
           <div className="flex-1 overflow-y-auto px-5 py-2">
