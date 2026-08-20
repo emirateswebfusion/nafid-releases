@@ -4023,7 +4023,6 @@ notes: '',
               </div>
             )}
           </div>
-
           {/* Cart List */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
             {items.length === 0 ? (
@@ -4035,7 +4034,8 @@ notes: '',
                   <p className="font-bold text-sm text-foreground/80">Your cart is empty</p>
                   <p className="text-xs text-muted-foreground/80 mt-0.5">Search or scan to add items</p>
                 </div>
-                <div className="flex gap-1.5 mt-1">
+                <div className="flex gap-1.5 mt-1 flex-wrap justify-center">
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F1: Normal</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F2: Search</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F8: {isScrapMode ? 'Extra' : 'Discount'}</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F12: Print</span>
