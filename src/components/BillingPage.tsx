@@ -893,24 +893,33 @@ export function BillingPage() {
     return () => clearTimeout(t);
   }, [searchQuery, isScrapMode, invoiceType, isQuotationMode]);
 
-  // Fetch categories when product create form opens
+  // Fetch categories & grades immediately so options are ready instantly when form opens
+  const loadCategoriesAndGrades = useCallback(() => {
+    if (!window.electronAPI || !tenantId) return;
+    window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 500 })
+      .then((res: any[]) => {
+        if (Array.isArray(res)) {
+          const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
+          setConfiguredCategories(cats);
+        }
+      })
+      .catch(console.error);
+    window.electronAPI.dbGetGrades(tenantId)
+      .then((res: any[]) => {
+        if (Array.isArray(res)) setNewProductGrades(res);
+      })
+      .catch(console.error);
+  }, [tenantId]);
+
   useEffect(() => {
-    if (window.electronAPI && tenantId && showProductCreateForm) {
-      window.electronAPI.dbGetProducts({ tenant_id: tenantId, limit: 200 })
-        .then((res: any[]) => {
-          if (Array.isArray(res)) {
-            const cats = [...new Set(res.map(p => p.category).filter(Boolean))] as string[];
-            setConfiguredCategories(cats);
-          }
-        })
-        .catch(console.error);
-      window.electronAPI.dbGetGrades(tenantId)
-        .then((res: any[]) => {
-          if (Array.isArray(res)) setNewProductGrades(res);
-        })
-        .catch(console.error);
+    loadCategoriesAndGrades();
+  }, [loadCategoriesAndGrades]);
+
+  useEffect(() => {
+    if (showProductCreateForm) {
+      loadCategoriesAndGrades();
     }
-  }, [showProductCreateForm, tenantId]);
+  }, [showProductCreateForm, loadCategoriesAndGrades]);
 
   // Scrap category search (when scrap mode active - categories ARE items)
   useEffect(() => {

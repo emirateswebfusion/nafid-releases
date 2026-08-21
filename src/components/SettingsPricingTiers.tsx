@@ -151,7 +151,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
   const [view, setView] = useState<'list' | 'matrix'>('list');
   const [tiers, setTiers] = useState<PricingTier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [operating, setOperating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -180,7 +180,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     return () => clearTimeout(t);
   }, [statusMessage]);
 
-  useEffect(() => { loadData(true); }, []);
+  useEffect(() => { loadData(false); }, []);
 
   const loadData = async (showFullLoading = false) => {
     if (!window.electronAPI) return;
