@@ -151,7 +151,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
   const [view, setView] = useState<'list' | 'matrix'>('list');
   const [tiers, setTiers] = useState<PricingTier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -180,10 +180,13 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     return () => clearTimeout(t);
   }, [statusMessage]);
 
-  useEffect(() => { loadData(false); }, []);
+  useEffect(() => { loadData(true); }, []);
 
-  const loadData = async (showFullLoading = false) => {
-    if (!window.electronAPI) return;
+  const loadData = async (showFullLoading = true) => {
+    if (!window.electronAPI) {
+      setLoading(false);
+      return;
+    }
     if (showFullLoading) setLoading(true);
     setError(null);
     try {
@@ -194,14 +197,26 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
         window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
         window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'allow_biller_price_override' }),
       ]);
-      if (Array.isArray(tierRes)) setTiers(tierRes);
-      if (Array.isArray(productRes)) setProducts(productRes.filter((p: any) => !p.is_deleted));
+      if (Array.isArray(tierRes)) {
+        setTiers(tierRes);
+      } else if (tierRes && (tierRes as any).error) {
+        setError((tierRes as any).error || 'Failed to load pricing tiers');
+      }
+
+      if (Array.isArray(productRes)) {
+        setProducts(productRes.filter((p: any) => !p.is_deleted));
+      } else if (productRes && (productRes as any).error) {
+        setError((productRes as any).error || 'Failed to load products');
+      }
+
       const map: Record<string, Record<string, string>> = {};
       if (Array.isArray(pricingRes)) {
         for (const row of pricingRes) {
           if (!map[row.product_id]) map[row.product_id] = {};
           map[row.product_id][row.pricing_tier_id] = (row.price === null || row.price === undefined) ? '' : String(row.price);
         }
+      } else if (pricingRes && (pricingRes as any).error) {
+        setError((pricingRes as any).error || 'Failed to load product pricing');
       }
       setPricingMap(map);
       setInitialPricingMap(map);
@@ -209,8 +224,9 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     } catch (e) {
       console.error('[SettingsPricingTiers] load failed', e);
       setError('Failed to load pricing data.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const activeTiers = useMemo(() => tiers.filter(t => t.is_active), [tiers]);
@@ -493,28 +509,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
       </div>
 
       {/* ── MAIN BODY ── */}
-      {loading ? (
-        <div className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full space-y-6 animate-in fade-in duration-200">
-          <Skeleton className="h-28 w-full rounded-[28px]" />
-          <div className="bg-card border border-border rounded-[28px] p-6 space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-border">
-              <Skeleton className="h-5 w-32 rounded-lg" />
-              <Skeleton className="h-5 w-24 rounded-lg" />
-            </div>
-            {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className="flex items-center justify-between py-3 border-b border-border/50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <Skeleton className="h-5 w-8 rounded-md" />
-                  <Skeleton className="h-5 w-40 rounded-lg" />
-                </div>
-                <Skeleton className="h-6 w-20 rounded-full" />
-                <Skeleton className="h-6 w-12 rounded-full" />
-                <Skeleton className="h-8 w-20 rounded-xl" />
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : view === 'list' ? (
+      {view === 'list' ? (
 
         /* ═══════════════════════════════════════════════════════════════
             TIERS LIST VIEW
@@ -564,7 +559,28 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
 
               {/* Rows */}
               <div className="divide-y divide-border">
-                {tiers.length === 0 ? (
+                {loading ? (
+                  [1, 2, 3, 4].map(i => (
+                    <div key={i} className="grid grid-cols-12 gap-3 px-6 py-4 items-center">
+                      <div className="col-span-1 flex items-center gap-2">
+                        <Skeleton className="h-4 w-4 rounded-md" />
+                      </div>
+                      <div className="col-span-5">
+                        <Skeleton className="h-4 w-48 rounded-lg" />
+                      </div>
+                      <div className="col-span-2 flex justify-center">
+                        <Skeleton className="h-5 w-16 rounded-full" />
+                      </div>
+                      <div className="col-span-2 flex justify-center">
+                        <Skeleton className="h-5 w-10 rounded-full" />
+                      </div>
+                      <div className="col-span-2 flex justify-center gap-2">
+                        <Skeleton className="h-7 w-7 rounded-lg" />
+                        <Skeleton className="h-7 w-7 rounded-lg" />
+                      </div>
+                    </div>
+                  ))
+                ) : tiers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                     <Tags className="w-10 h-10 mb-3 opacity-30" />
                     <p className="font-bold text-sm text-foreground">No pricing tiers yet</p>
@@ -838,7 +854,20 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                 onScroll={handleScroll}
                 className="flex-1 overflow-y-auto divide-y divide-border relative"
               >
-                {matrixTiers.length === 0 ? (
+                {loading ? (
+                  [1, 2, 3, 4, 5].map(i => (
+                    <div key={i} className="flex items-center gap-4 px-6 py-3 border-b border-border/50">
+                      <Skeleton className="w-12 h-4 rounded" />
+                      <div className="flex-1 space-y-1">
+                        <Skeleton className="h-4 w-40 rounded" />
+                        <Skeleton className="h-3 w-20 rounded" />
+                      </div>
+                      <Skeleton className="w-28 h-4 rounded ml-auto" />
+                      <Skeleton className="w-36 h-8 rounded-xl" />
+                      <Skeleton className="w-14 h-8 rounded-lg" />
+                    </div>
+                  ))
+                ) : matrixTiers.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
                     <Tags className="w-10 h-10 mb-3 opacity-30" />
                     <p className="text-sm font-bold text-foreground">No active tiers to display</p>
