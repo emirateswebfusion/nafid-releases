@@ -3164,7 +3164,8 @@ notes: '',
 
     setHeldBillsLoading(true);
     try {
-      const result = await window.electronAPI.dbRecallHeldBill({ invoice_id: heldInvoice.invoice_id });
+      const targetId = heldInvoice.invoice_id || heldInvoice.id;
+      const result = await window.electronAPI.dbRecallHeldBill({ invoice_id: targetId });
       if (!result.success) {
         setHardwareError(result.error || 'Failed to recall held bill');
         return;
@@ -3216,7 +3217,7 @@ notes: '',
         customerPhone: result.invoice?.customer_phone || '',
         customerGstin: result.invoice?.customer_gstin || '',
         customerAddress: result.invoice?.customer_address || '',
-        paymentMethod: result.invoice?.payment_method || 'PENDING',
+        paymentMethod: 'PENDING',
         receivedAmount: Number(result.invoice?.received_amount) || 0,
       });
 
@@ -3227,6 +3228,7 @@ notes: '',
 
       setShowHeldBillsPanel(false);
       syncActiveSnapshot();
+      loadHeldBills();
     } catch (e) {
       setHardwareError('Failed to recall held bill');
       console.error(e);

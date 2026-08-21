@@ -1613,28 +1613,60 @@ ipcMain.handle('db:getHeldBills', (event, { tenant_id }: { tenant_id: string }) 
   }
 });
 
-// Get a specific held bill's full data (header + items) for recall
+// Get a specific held bill's full data for recall, restore stock, and mark as recalled
 ipcMain.handle('db:recallHeldBill', (event, { invoice_id }: { invoice_id: string }) => {
   try {
     const db = getDb();
-    const invoice = db.prepare(
-      `SELECT * FROM invoices WHERE invoice_id = ? AND invoice_type = 'HOLD' AND is_held = 1`
-    ).get(invoice_id) as any;
-    if (!invoice) {
-      return { success: false, error: 'Held bill not found or already expired' };
-    }
-    const items = db.prepare(
-      `SELECT ii.*, p.sku_barcode, p.brand_manufacturer, p.grade_id, p.pricing_mode, p.grade_rate, 
-              p.discount_percent, p.discount_flat, p.offer_price, p.purchase_price, p.base_price,
-              p.tax_rate_percent as gst_percent, p.uom, p.hsn_sac_code as hsn, p.billing_type
-       FROM invoice_items ii
-       LEFT JOIN products p ON ii.product_id = p.product_id
-       WHERE ii.invoice_id = ?`
-    ).all(invoice_id);
-    return { success: true, invoice, items };
+    if (!invoice_id) return { success: false, error: 'Missing invoice ID' };
+
+    let resultInvoice: any = null;
+    let resultItems: any[] = [];
+
+    const transaction = db.transaction(() => {
+      // 1. Get the held invoice
+      resultInvoice = db.prepare(
+        `SELECT * FROM invoices WHERE invoice_id = ? AND (invoice_type = 'HOLD' OR is_held = 1)`
+      ).get(invoice_id) as any;
+
+      if (!resultInvoice) {
+        throw new Error('Held bill not found or already recalled');
+      }
+
+      // 2. Get line items
+      resultItems = db.prepare(
+        `SELECT ii.*, p.sku_barcode, p.brand_manufacturer, p.grade_id, p.pricing_mode, p.grade_rate, 
+                p.discount_percent, p.discount_flat, p.offer_price, p.purchase_price, p.base_price,
+                p.tax_rate_percent as gst_percent, p.uom, p.hsn_sac_code as hsn, p.billing_type
+         FROM invoice_items ii
+         LEFT JOIN products p ON ii.product_id = p.product_id
+         WHERE ii.invoice_id = ?`
+      ).all(invoice_id) as any[];
+
+      // 3. Revert stock (add back stock reserved during hold)
+      const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
+      for (const item of resultItems) {
+        if (!item.is_service_item && item.product_id) {
+          stockStmt.run(item.quantity, item.product_id);
+        }
+      }
+
+      // 4. Mark invoice as recalled / deleted so it disappears from held list & sales history
+      db.prepare(`
+        UPDATE invoices 
+        SET is_held = 0, 
+            invoice_type = 'RECALLED_HOLD',
+            is_deleted = 1,
+            sync_status = 'SYNCED', 
+            updated_at = CURRENT_TIMESTAMP 
+        WHERE invoice_id = ?
+      `).run(invoice_id);
+    });
+
+    transaction();
+    return { success: true, invoice: resultInvoice, items: resultItems };
   } catch (error: any) {
     console.error('[db:recallHeldBill]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error.message || 'Operation failed' };
   }
 });
 
@@ -1669,6 +1701,7 @@ ipcMain.handle('db:releaseHeldBill', (event, { invoice_id }: { invoice_id: strin
         UPDATE invoices 
         SET is_held = 0, 
             invoice_type = 'EXPIRED_HOLD', 
+            is_deleted = 1,
             sync_status = 'SYNCED', 
             updated_at = CURRENT_TIMESTAMP 
         WHERE invoice_id = ?
@@ -1694,8 +1727,7 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
       const expired = db.prepare(`
         SELECT invoice_id FROM invoices 
         WHERE tenant_id = ? 
-          AND invoice_type = 'HOLD' 
-          AND is_held = 1 
+          AND (invoice_type = 'HOLD' OR is_held = 1)
           AND held_until <= datetime('now', 'localtime')
       `).all(tenant_id) as any[];
 
@@ -1708,16 +1740,17 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
         // 3. Revert stock
         const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
         for (const item of items) {
-          if (!item.is_service_item) {
+          if (!item.is_service_item && item.product_id) {
             stockStmt.run(item.quantity, item.product_id);
           }
         }
 
-        // 4. Mark as expired (keep sync_status='SYNCED' so it stays out of the sync queue)
+        // 4. Mark as expired & deleted
         db.prepare(`
           UPDATE invoices 
           SET is_held = 0, 
               invoice_type = 'EXPIRED_HOLD', 
+              is_deleted = 1,
               sync_status = 'SYNCED', 
               updated_at = CURRENT_TIMESTAMP 
           WHERE invoice_id = ?
@@ -1725,6 +1758,9 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
 
         expiredCount++;
       }
+
+      // Cleanup any non-held EXPIRED_HOLD or RECALLED_HOLD records so they never leak into queries
+      db.prepare(`UPDATE invoices SET is_deleted = 1, is_held = 0 WHERE tenant_id = ? AND invoice_type IN ('EXPIRED_HOLD', 'RECALLED_HOLD') AND (is_deleted IS NULL OR is_deleted = 0)`).run(tenant_id);
     });
 
     transaction();
@@ -2030,7 +2066,10 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+      WHERE i.tenant_id = ? 
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+        AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (i.is_held IS NULL OR i.is_held = 0)
     `;
     const params: any[] = [tenant_id];
 
@@ -2094,7 +2133,12 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const row = db.prepare(`
       SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE tenant_id = ? AND created_at >= ? AND converted_to_invoice_id IS NULL AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
+      WHERE tenant_id = ? 
+        AND created_at >= ? 
+        AND converted_to_invoice_id IS NULL 
+        AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
+        AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (is_held IS NULL OR is_held = 0)
     `).get(tenantId, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
@@ -4600,7 +4644,11 @@ ipcMain.handle('db:cashier:getPendingInvoices', (event, { tenant_id, search }: {
       SELECT i.*, u.name as biller_name 
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? AND i.payment_method = 'PENDING' AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+      WHERE i.tenant_id = ? 
+        AND i.payment_method = 'PENDING' 
+        AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (i.is_held IS NULL OR i.is_held = 0)
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
     `;
     const params: any[] = [tenant_id];
     
@@ -4839,8 +4887,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method != 'PENDING' AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -4861,7 +4909,12 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
       SELECT i.*, u.name as biller_name
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.user_id
-      WHERE i.tenant_id = ? AND i.payment_method != 'PENDING' AND date(i.updated_at) = ? AND (i.is_deleted IS NULL OR i.is_deleted = 0)
+      WHERE i.tenant_id = ? 
+        AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
+        AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (i.is_held IS NULL OR i.is_held = 0)
+        AND date(i.updated_at) = ? 
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY i.updated_at DESC
     `).all(tenant_id, business_date);
   } catch (error: any) {
@@ -4972,7 +5025,7 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
              points_redeemed_discount, previous_points_balance, remaining_points_balance,
              created_at
       FROM invoices
-      WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)
+      WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY created_at DESC
     `).all(customer_id, tenant_id);
   } catch (error: any) {

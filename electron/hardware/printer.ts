@@ -225,23 +225,33 @@ export function initPrinter() {
         throw new Error('No barcode printer configured in settings');
       }
 
+      const allBarcodes = items.map(i => i.barcode);
       if (config.type === 'network') {
-        const buffers = items.flatMap(item => {
+        // Send per-product so a paper-out / timeout stops cleanly at the exact
+        // product and we can report exactly which products were flushed.
+        const printed: string[] = [];
+        for (const item of items) {
           const barcodeData = Buffer.from(item.barcode, 'ascii');
           const gsBarcode = Buffer.from([0x1D, 0x6B, 0x49, barcodeData.length, ...barcodeData]);
           const singleLabelBuffer = Buffer.concat([ESC_INIT, gsBarcode, Buffer.from('\n\n\n'), ESC_CUT]);
-          return Array(item.quantity).fill(singleLabelBuffer);
-        });
-        const finalBuffer = Buffer.concat(buffers);
-        await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
+          const itemBuffer = Buffer.concat(Array(item.quantity).fill(singleLabelBuffer));
+          try {
+            await sendToNetworkPrinter(config.ip, config.port || 9100, itemBuffer);
+            printed.push(item.barcode);
+          } catch (error: any) {
+            return { success: false, printed, error: `Print stopped at ${item.barcode}: ${error?.message || 'Printer connection timed out'}` };
+          }
+        }
+        return { success: true, printed };
       } else if (config.type === 'usb' && config.deviceName) {
         await printBulkBarcodeUSB(items, config.deviceName, config.labelWidthMm, config.labelHeightMm, config.labelColumns, codeType);
+        return { success: true, printed: allBarcodes };
       } else if (config.type === 'usb') {
         throw new Error('USB printing requested but deviceName not configured');
       } else {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
-      return { success: true };
+      return { success: true, printed: allBarcodes };
     } catch (error: any) {
       console.error('[Hardware] Bulk Barcode Print Error:', error);
       return { success: false, error: error.message || 'Print failed' };
@@ -370,11 +380,17 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
     }
 
     const timer = setTimeout(() => {
+      // Paper-out or slow spooler: keep the window alive so the OS print
+      // queue keeps the job; the print callback resolves once it completes.
+      console.warn('[Hardware] USB bulk print still spooling after 60s — keeping job alive');
+    }, 60000);
+
+    const watchdog = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
         printWindow.close();
         reject(new Error('USB bulk print timeout'));
       }
-    }, 60000); // give it more time for bulk
+    }, 300000); // hard cap 5 min; print callback normally resolves long before
 
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
       printWindow.webContents.print({
@@ -384,6 +400,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         pageSize: { width: labelW * 1000, height: labelH * 1000 }
       }, (success, failureReason) => {
         clearTimeout(timer);
+        clearTimeout(watchdog);
         setTimeout(() => {
           if (!printWindow.isDestroyed()) printWindow.close();
         }, 3000);

@@ -1,9 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Plus, Trash, Pencil, Check, X, Loader2, ArrowLeft,
-  Tags, ChevronUp, ChevronDown, Shield, Grid3X3, Save, Search
+  Plus, Trash, Pencil, Check, X, Loader2,
+  Tags, ChevronUp, ChevronDown, Shield, Save, Search,
+  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee
 } from 'lucide-react';
-import { Button } from './ui/Button';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
@@ -16,113 +16,255 @@ interface PricingTier {
   sort_order: number;
 }
 
-interface ProductRow {
+interface Product {
   product_id: string;
   name: string;
+  sku_barcode?: string;
+  category?: string;
   base_price: number;
-  tier_price: number | null;
+  is_deleted?: number;
 }
 
+// ── MEMOIZED MATRIX ROW FOR 60FPS TYPING & ZERO LAG ───────────────────
+interface MatrixRowProps {
+  product: Product;
+  matrixTiers: PricingTier[];
+  rowPrices: Record<string, string>;
+  initPrices: Record<string, string>;
+  operating: boolean;
+  onPriceChange: (productId: string, tierId: string, value: string) => void;
+  onSaveRow: (productId: string) => void;
+}
+
+const MatrixRow = React.memo(({
+  product,
+  matrixTiers,
+  rowPrices,
+  initPrices,
+  operating,
+  onPriceChange,
+  onSaveRow
+}: MatrixRowProps) => {
+  const pId = product.product_id;
+  const isModified = matrixTiers.some(t => (rowPrices[t.pricing_tier_id] ?? '') !== (initPrices[t.pricing_tier_id] ?? ''));
+
+  return (
+    <div
+      className={clsx(
+        'flex items-center gap-4 px-6 py-2.5 border-b border-border/50 hover:bg-muted/30',
+        isModified && 'bg-amber-500/5'
+      )}
+    >
+      {/* Product Info */}
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-bold text-foreground truncate">{product.name}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          {product.sku_barcode && <span className="text-[10px] font-mono text-muted-foreground">{product.sku_barcode}</span>}
+          {product.category && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary">{product.category}</span>}
+        </div>
+      </div>
+
+      {/* Base MRP */}
+      <div className="w-28 text-right text-xs font-black text-muted-foreground shrink-0">
+        ₹{Number(product.base_price || 0).toFixed(2)}
+      </div>
+
+      {/* Tier Price Inputs */}
+      {matrixTiers.map(t => {
+        const val = rowPrices[t.pricing_tier_id] ?? '';
+        const isCustom = val !== '' && !isNaN(Number(val));
+        return (
+          <div key={t.pricing_tier_id} className="w-36 shrink-0">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={val}
+                onChange={e => onPriceChange(pId, t.pricing_tier_id, e.target.value)}
+                onWheel={e => (e.target as HTMLInputElement).blur()}
+                placeholder={Number(product.base_price || 0).toFixed(2)}
+                className={clsx(
+                  'w-full pl-7 pr-6 py-2 text-xs font-bold bg-background border rounded-xl focus:outline-none focus:ring-2 no-spinners text-right',
+                  isCustom
+                    ? 'border-primary text-foreground bg-primary/5 focus:ring-primary/10'
+                    : 'border-border text-muted-foreground focus:border-primary focus:ring-primary/10'
+                )}
+              />
+              {isCustom && (
+                <button
+                  type="button"
+                  onClick={() => onPriceChange(pId, t.pricing_tier_id, '')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Save Row */}
+      <div className="w-14 flex justify-center shrink-0">
+        <button
+          onClick={() => onSaveRow(pId)}
+          disabled={operating || !isModified}
+          title={isModified ? 'Save row' : 'No changes'}
+          className={clsx(
+            'p-2 rounded-lg cursor-pointer inline-flex items-center justify-center',
+            isModified
+              ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary/90 active:scale-90'
+              : 'bg-muted text-muted-foreground/30 cursor-not-allowed'
+          )}
+        >
+          <Save className="w-3.5 h-3.5" />
+        </button>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  if (prevProps.product !== nextProps.product) return false;
+  if (prevProps.matrixTiers !== nextProps.matrixTiers) return false;
+  if (prevProps.operating !== nextProps.operating) return false;
+  if (prevProps.rowPrices !== nextProps.rowPrices) return false;
+  if (prevProps.initPrices !== nextProps.initPrices) return false;
+  return true;
+});
+
+// ── MAIN COMPONENT ───────────────────────────────────────────────────
 export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
   useCloseOnEscape(onClose);
   const { tenantId, role } = useAuthStore();
   const isOwner = role === 'OWNER';
 
+  const [view, setView] = useState<'list' | 'matrix'>('list');
   const [tiers, setTiers] = useState<PricingTier[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [operating, setOperating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const [newName, setNewName] = useState('');
+  const newNameRef = useRef<HTMLInputElement>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
-
-  const [selectedTier, setSelectedTier] = useState<PricingTier | null>(null);
-  const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
-  const [priceSearch, setPriceSearch] = useState('');
-  const [pricingMap, setPricingMap] = useState<Record<string, Record<string, number>>>({});
-
-  const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+  // Pricing Data Maps
+  const [pricingMap, setPricingMap] = useState<Record<string, Record<string, string>>>({});
+  const [initialPricingMap, setInitialPricingMap] = useState<Record<string, Record<string, string>>>({});
+  
+  const [searchQuery, setSearchQuery] = useState('');
+  const [tierFilter, setTierFilter] = useState<string>('all');
+  const [allowBillerOverride, setAllowBillerOverride] = useState(true);
+
+  // Progressive loading for ultra-smooth matrix rendering
+  const [visibleCount, setVisibleCount] = useState(50);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!statusMessage) return;
+    const t = setTimeout(() => setStatusMessage(null), 3000);
+    return () => clearTimeout(t);
+  }, [statusMessage]);
+
+  useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
     if (!window.electronAPI) return;
     setLoading(true);
+    setError(null);
     try {
-    const tid = tenantId || '';
-    const [tierRes, productRes, pricingRes, overrideRes] = await Promise.all([
-      window.electronAPI.dbGetPricingTiers(tid),
-      window.electronAPI.dbGetProducts({ tenant_id: tid, include_inactive: true }),
-      window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
-      window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'allow_biller_price_override' }),
-    ]);
-    if (Array.isArray(tierRes)) setTiers(tierRes);
-    if (Array.isArray(productRes)) setProducts(productRes);
-    if (Array.isArray(pricingRes)) {
-      const map: Record<string, Record<string, number>> = {};
-      for (const row of pricingRes) {
-        if (!map[row.product_id]) map[row.product_id] = {};
-        map[row.product_id][row.pricing_tier_id] = Number(row.price) || 0;
+      const tid = tenantId || '';
+      const [tierRes, productRes, pricingRes, overrideRes] = await Promise.all([
+        window.electronAPI.dbGetPricingTiers(tid),
+        window.electronAPI.dbGetProducts({ tenant_id: tid, include_inactive: true }),
+        window.electronAPI.dbGetProductPricing ? window.electronAPI.dbGetProductPricing(tid) : Promise.resolve([]),
+        window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'allow_biller_price_override' }),
+      ]);
+      if (Array.isArray(tierRes)) setTiers(tierRes);
+      if (Array.isArray(productRes)) setProducts(productRes.filter((p: any) => !p.is_deleted));
+      const map: Record<string, Record<string, string>> = {};
+      if (Array.isArray(pricingRes)) {
+        for (const row of pricingRes) {
+          if (!map[row.product_id]) map[row.product_id] = {};
+          map[row.product_id][row.pricing_tier_id] = (row.price === null || row.price === undefined) ? '' : String(row.price);
+        }
       }
       setPricingMap(map);
-    }
-    setAllowBillerOverride(overrideRes === null || overrideRes === undefined ? true : !!overrideRes);
+      setInitialPricingMap(map);
+      setAllowBillerOverride(overrideRes === null || overrideRes === undefined ? true : !!overrideRes);
     } catch (e) {
       console.error('[SettingsPricingTiers] load failed', e);
+      setError('Failed to load pricing data.');
     }
     setLoading(false);
   };
 
-  const handleAdd = async () => {
-    if (!newName.trim()) {
-      setError('Please enter a pricing tier name.');
-      return;
-    }
-    setError(null);
+  const activeTiers = useMemo(() => tiers.filter(t => t.is_active), [tiers]);
+
+  const handleAddTier = async () => {
+    if (!newName.trim()) return;
     setOperating(true);
     const res = await window.electronAPI.dbAddPricingTier({
       pricing_tier_id: crypto.randomUUID(),
       tenant_id: tenantId || '',
       name: newName.trim(),
       is_active: true,
-      sort_order: null,
+      sort_order: tiers.length,
     });
     if (res.success) {
       setNewName('');
+      setStatusMessage({ text: `Tier "${newName.trim()}" created!`, type: 'success' });
       await loadData();
+      setTimeout(() => newNameRef.current?.focus(), 100);
     } else {
-      setError(res.error || 'Failed to add pricing tier');
+      setError(res.error || 'Failed to create tier');
     }
     setOperating(false);
   };
 
-  const handleRename = async (tier: PricingTier) => {
+  const handleRenameTier = async (tier: PricingTier) => {
     if (!editName.trim()) return;
+    setOperating(true);
     const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, name: editName.trim() });
     if (res.success) {
       setEditingId(null);
+      setStatusMessage({ text: 'Tier renamed!', type: 'success' });
       await loadData();
     } else {
-      setError(res.error || 'Failed to update pricing tier');
+      setError(res.error || 'Failed to rename tier');
     }
+    setOperating(false);
   };
 
   const toggleActive = async (tier: PricingTier) => {
-    const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, is_active: !tier.is_active });
-    if (res.success) await loadData();
+    setOperating(true);
+    const next = !tier.is_active;
+    const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, is_active: next });
+    if (res.success) {
+      setStatusMessage({ text: `"${tier.name}" turned ${next ? 'ON' : 'OFF'}`, type: 'success' });
+      await loadData();
+    } else {
+      setError(res.error || 'Failed to update status');
+    }
+    setOperating(false);
   };
 
-  const handleDelete = async (tierId: string) => {
-    const res = await window.electronAPI.dbDeletePricingTier(tierId);
+  const handleDeleteTier = async (tier: PricingTier) => {
+    setOperating(true);
+    const res = await window.electronAPI.dbDeletePricingTier(tier.pricing_tier_id);
     if (res.success) {
       setConfirmDeleteId(null);
+      setStatusMessage({ text: `"${tier.name}" deleted!`, type: 'success' });
       await loadData();
+    } else {
+      setError(res.error || 'Failed to delete tier');
     }
+    setOperating(false);
   };
 
   const moveTier = async (index: number, dir: -1 | 1) => {
@@ -133,420 +275,573 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     reordered.splice(target, 0, moved);
     const payload = reordered.map((t, i) => ({ pricing_tier_id: t.pricing_tier_id, sort_order: i }));
     const res = await window.electronAPI.dbReorderPricingTiers(payload);
-    if (res.success) {
-      setTiers(reordered.map((t, i) => ({ ...t, sort_order: i })));
-    }
+    if (res.success) setTiers(reordered.map((t, i) => ({ ...t, sort_order: i })));
   };
 
   const toggleOverride = async (value: boolean) => {
     setAllowBillerOverride(value);
-    await window.electronAPI.settingsSet({
-      tenant_id: tenantId || 'global',
-      key: 'allow_biller_price_override',
-      value,
-    });
+    await window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'allow_biller_price_override', value });
+    setStatusMessage({ text: `Staff price override ${value ? 'enabled' : 'disabled'}`, type: 'success' });
   };
 
-  // ── Price grid for a single tier ──────────────────────────────────────────
-  const openGrid = (tier: PricingTier) => {
-    setSelectedTier(tier);
-    const map: Record<string, string> = {};
-    for (const p of products) {
-      const price = pricingMap[p.product_id]?.[tier.pricing_tier_id];
-      map[p.product_id] = price === undefined || price === null ? '' : String(price);
-    }
-    setTierPrices(map);
-    setPriceSearch('');
-  };
+  const handlePriceChange = useCallback((productId: string, tierId: string, value: string) => {
+    setPricingMap(prev => ({ ...prev, [productId]: { ...(prev[productId] || {}), [tierId]: value } }));
+  }, []);
+
+  const modifiedProductIds = useMemo(() => {
+    return Object.keys(pricingMap).filter(pId => {
+      const cur = pricingMap[pId] || {};
+      const ini = initialPricingMap[pId] || {};
+      return Object.keys(cur).some(tId => (cur[tId] ?? '') !== (ini[tId] ?? ''));
+    });
+  }, [pricingMap, initialPricingMap]);
 
   const filteredProducts = useMemo(() => {
-    if (!selectedTier) return [];
-    const q = priceSearch.toLowerCase();
-    return products
-      .filter((p: any) => !p.is_deleted)
-      .filter((p: any) => p.name.toLowerCase().includes(q) || (p.sku_barcode || '').toLowerCase().includes(q))
-      .slice(0, 200);
-  }, [products, selectedTier, priceSearch]);
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return products;
+    return products.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.sku_barcode || '').toLowerCase().includes(q) ||
+      (p.category || '').toLowerCase().includes(q)
+    );
+  }, [products, searchQuery]);
 
-  const saveGrid = async () => {
-    if (!selectedTier) return;
+  // Reset pagination on search query change
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [searchQuery, tierFilter]);
+
+  const handleScroll = useCallback(() => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    if (scrollHeight - scrollTop - clientHeight < 200) {
+      setVisibleCount(prev => Math.min(prev + 50, filteredProducts.length));
+    }
+  }, [filteredProducts.length]);
+
+  const displayedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
+
+  const matrixTiers = useMemo(() => {
+    if (tierFilter === 'all') return activeTiers;
+    return activeTiers.filter(t => t.pricing_tier_id === tierFilter);
+  }, [activeTiers, tierFilter]);
+
+  const saveProductRow = useCallback(async (productId: string) => {
+    const current = pricingMap[productId] || {};
+    const pricing = Object.entries(current).map(([tierId, val]) => ({
+      pricing_tier_id: tierId,
+      price: val === '' || isNaN(Number(val)) ? null : Number(val),
+    }));
     setOperating(true);
-    const pricing = products
-      .filter((p: any) => !p.is_deleted)
-      .map((p: any) => ({
-        product_id: p.product_id,
-        price: tierPrices[p.product_id] === '' ? null : Number(tierPrices[p.product_id]),
-      }));
-    const res = await window.electronAPI.dbSetTierPricing({
-      tenant_id: tenantId || '',
-      pricing_tier_id: selectedTier.pricing_tier_id,
-      pricing,
-    });
+    const res = await window.electronAPI.dbSetProductPricing({ tenant_id: tenantId || '', product_id: productId, pricing });
     if (res.success) {
-      await loadData();
+      setStatusMessage({ text: 'Prices saved!', type: 'success' });
+      setInitialPricingMap(prev => ({ ...prev, [productId]: { ...current } }));
     } else {
-      setError(res.error || 'Failed to save prices');
+      setError(res.error || 'Failed to save');
+    }
+    setOperating(false);
+  }, [pricingMap, tenantId]);
+
+  const saveAllPrices = async () => {
+    if (!modifiedProductIds.length) return;
+    setOperating(true);
+    let ok = 0; let fail = false;
+    for (const pId of modifiedProductIds) {
+      const current = pricingMap[pId] || {};
+      const pricing = Object.entries(current).map(([tierId, val]) => ({
+        pricing_tier_id: tierId,
+        price: val === '' || isNaN(Number(val)) ? null : Number(val),
+      }));
+      const res = await window.electronAPI.dbSetProductPricing({ tenant_id: tenantId || '', product_id: pId, pricing });
+      if (res.success) ok++;
+      else fail = true;
+    }
+    if (!fail) {
+      setStatusMessage({ text: `Saved prices for ${ok} product(s)!`, type: 'success' });
+      setInitialPricingMap(pricingMap);
+    } else {
+      setError('Some prices could not be saved.');
     }
     setOperating(false);
   };
 
-  return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200 overflow-hidden">
-      {/* Top Bar Header */}
-      <header className="sticky top-0 z-20 flex items-center justify-between gap-4 px-6 py-4 border-b border-border bg-card/90 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-3.5">
-          {selectedTier ? (
-            <button
-              type="button"
-              onClick={() => setSelectedTier(null)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold bg-muted hover:bg-muted/80 text-foreground rounded-xl transition-all cursor-pointer shadow-sm"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back to Tiers
-            </button>
-          ) : (
-            <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shrink-0 shadow-sm shadow-primary/5">
-              <Tags className="w-5 h-5" />
-            </div>
-          )}
-          <div>
-            <div className="flex items-center gap-2.5">
-              <h1 className="text-base font-black text-foreground tracking-tight">
-                {selectedTier ? `Pricing Matrix — ${selectedTier.name}` : 'Pricing Tiers Management'}
-              </h1>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
-                {selectedTier ? 'Grid View' : 'Dedicated Page'}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {selectedTier
-                ? 'Set selling price for products under this tier. Leave blank to fallback to base price.'
-                : 'Configure custom multi-tier pricing strategies (Retail, Wholesale, Wholesale A, etc.) across Billing & Inventory.'}
-            </p>
-          </div>
-        </div>
+  const resetEdits = () => setPricingMap(initialPricingMap);
 
-        <div className="flex items-center gap-2">
-          {selectedTier && (
-            <Button variant="default" size="sm" onClick={saveGrid} disabled={operating} className="gap-2 shadow-sm">
-              {operating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-              Save All Prices
-            </Button>
-          )}
-          {onClose && (
+  /* ═══════════════════════════════════════════════════════════════════════
+      RENDER
+  ═══════════════════════════════════════════════════════════════════════ */
+  return (
+    <div className="fixed inset-0 z-40 flex flex-col bg-background font-sans select-none">
+
+      {/* ── HEADER ── */}
+      <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
+        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+              <Tags className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <div className="flex items-center gap-2">
+                <h1 className="text-sm font-bold text-foreground truncate">Pricing Tiers</h1>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                {view === 'matrix' && modifiedProductIds.length > 0 && (
+                  <span className="text-[10px] font-black px-1.5 py-0.5 rounded-md bg-amber-500 text-white animate-pulse">
+                    {modifiedProductIds.length} unsaved
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
+                {view === 'list'
+                  ? `${tiers.length} tier${tiers.length !== 1 ? 's' : ''} · ${activeTiers.length} active`
+                  : `${filteredProducts.length} products · ${matrixTiers.length} tier column${matrixTiers.length !== 1 ? 's' : ''}`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {/* View Toggle Tabs */}
+            <div className="flex gap-1 p-1 bg-muted/50 border border-border rounded-2xl shadow-inner select-none">
+              {([
+                { key: 'list' as const, label: 'Tiers', icon: Layers },
+                { key: 'matrix' as const, label: 'Price Matrix', icon: Package },
+              ]).map(({ key, label, icon: Icon }) => (
+                <button
+                  key={key}
+                  onClick={() => setView(key)}
+                  className={clsx(
+                    'flex items-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0',
+                    view === key
+                      ? 'bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  <Icon className={clsx('w-3.5 h-3.5', view === key ? 'text-primary' : '')} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+
+            {view === 'matrix' && (
+              <>
+                {modifiedProductIds.length > 0 && (
+                  <button
+                    onClick={resetEdits}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-input bg-background text-foreground shadow-sm font-bold hover:bg-secondary transition-all active:scale-95 py-2 px-3.5 cursor-pointer text-xs"
+                  >
+                    Reset
+                  </button>
+                )}
+                <button
+                  onClick={saveAllPrices}
+                  disabled={operating || modifiedProductIds.length === 0}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all active:scale-95 py-2 px-4 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                >
+                  {operating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                  Save All ({modifiedProductIds.length})
+                </button>
+              </>
+            )}
+
             <button
-              type="button"
               onClick={onClose}
-              className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold bg-secondary hover:bg-secondary/80 text-secondary-foreground rounded-xl transition-all cursor-pointer shadow-sm"
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
             >
-              <ArrowLeft className="w-4 h-4" /> Exit
+              <X className="w-4 h-4 text-destructive" />
             </button>
-          )}
+          </div>
         </div>
       </header>
 
-      {error && (
-        <div className="px-6 pt-4 shrink-0 max-w-7xl mx-auto w-full">
-          <div className="bg-destructive/10 text-destructive text-xs font-bold px-4 py-3 rounded-2xl border border-destructive/20 flex items-center justify-between shadow-sm">
-            <span>{error}</span>
-            <button type="button" onClick={() => setError(null)} className="p-1 hover:bg-destructive/20 rounded-lg cursor-pointer transition-colors">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Body */}
-      <main className="flex-1 overflow-y-auto p-6 md:p-8">
-        <div className="max-w-7xl mx-auto w-full space-y-6">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-              <p className="text-xs font-bold uppercase tracking-wider animate-pulse">Loading Pricing Data...</p>
+      {/* ── STATUS / ERROR BANNERS ── */}
+      {(statusMessage || error) && (
+        <div className="max-w-7xl mx-auto w-full px-6 pt-3 shrink-0 space-y-2">
+          {statusMessage && (
+            <div className={clsx(
+              'text-xs font-bold px-4 py-2.5 rounded-2xl border flex items-center justify-between shadow-sm animate-in fade-in duration-150',
+              statusMessage.type === 'success'
+                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                : 'bg-destructive/10 text-destructive border-destructive/20'
+            )}>
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>{statusMessage.text}</span>
+              </div>
+              <button type="button" onClick={() => setStatusMessage(null)} className="p-0.5 hover:bg-black/5 rounded cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
-          ) : selectedTier ? (
-            <div className="space-y-6">
-              {/* Header Toolbar */}
-              <div className="flex flex-col sm:flex-row gap-4 sm:items-center justify-between bg-card border border-border/60 rounded-2xl p-4 shadow-sm">
-                <div className="relative max-w-md w-full">
-                  <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={priceSearch}
-                    onChange={(e) => setPriceSearch(e.target.value)}
-                    placeholder="Search products by name or barcode..."
-                    className="w-full pl-10 pr-4 py-2.5 text-xs font-semibold bg-background border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="text-xs text-muted-foreground font-semibold bg-muted/50 px-3 py-1.5 rounded-xl border border-border/40">
-                    Showing <strong className="text-foreground">{filteredProducts.length}</strong> products
-                  </span>
-                  <Button variant="default" size="sm" onClick={saveGrid} disabled={operating} className="gap-2 shadow-sm">
-                    {operating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                    Save All Prices
-                  </Button>
-                </div>
+          )}
+          {error && (
+            <div className="bg-destructive/10 text-destructive text-xs font-bold px-4 py-2.5 rounded-2xl border border-destructive/20 flex items-center justify-between shadow-sm">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <span>{error}</span>
               </div>
-
-              {/* Price Matrix Table */}
-              <div className="border border-border/60 rounded-2xl overflow-hidden bg-card shadow-sm">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-muted/50 text-muted-foreground text-[11px] font-black uppercase tracking-wider border-b border-border/60">
-                        <th className="px-6 py-4">Product Details</th>
-                        <th className="px-6 py-4 w-44">Base Selling Price</th>
-                        <th className="px-6 py-4 w-56 text-primary">{selectedTier.name} Custom Price</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/50">
-                      {filteredProducts.map((p: any) => (
-                        <tr key={p.product_id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-6 py-3.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-foreground">{p.name}</span>
-                              {p.sku_barcode && (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border/40">
-                                  {p.sku_barcode}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="px-6 py-3.5 text-xs font-black text-muted-foreground">
-                            ₹{Number(p.base_price).toFixed(2)}
-                          </td>
-                          <td className="px-6 py-3.5">
-                            <div className="relative">
-                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={tierPrices[p.product_id] ?? ''}
-                                onChange={(e) => setTierPrices({ ...tierPrices, [p.product_id]: e.target.value })}
-                                placeholder={Number(p.base_price).toFixed(2)}
-                                className="w-full pl-7 pr-3 py-2 text-xs font-bold bg-background border border-border/80 rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {filteredProducts.length === 0 && (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-xs font-semibold text-muted-foreground">
-                            No products match your search query.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-8">
-              {/* Add New Tier Card */}
-              <div className="bg-card border border-border/60 rounded-3xl p-6 md:p-8 space-y-4 shadow-sm">
-                <div className="flex items-center gap-2.5 text-xs font-black uppercase tracking-widest text-primary">
-                  <Plus className="w-4.5 h-4.5 text-primary" /> Create New Pricing Tier
-                </div>
-                <div className="flex flex-col sm:flex-row gap-3">
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
-                    placeholder="e.g. Retail, Wholesale, Tier A, Preferred Customers…"
-                    className="flex-1 px-4 py-3 text-sm font-semibold bg-background border border-border/80 rounded-2xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all"
-                  />
-                  <Button variant="default" onClick={handleAdd} disabled={operating || !newName.trim()} className="gap-2 px-6 py-3 rounded-2xl shadow-sm">
-                    {operating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                    Create Tier
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                  The tier display sequence below dictates pricing evaluation during checkout when a customer tier lacks an explicit price override — the first active matching tier price applies. Use <b>Set Prices</b> to customize per-product prices.
-                </p>
-              </div>
-
-              {/* Tiers List Section */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-black uppercase tracking-widest text-muted-foreground">
-                    Configured Pricing Tiers ({tiers.length})
-                  </h2>
-                </div>
-
-                {tiers.length === 0 ? (
-                  <div className="bg-card border border-dashed border-border/80 rounded-3xl p-12 text-center">
-                    <Tags className="w-10 h-10 mx-auto text-muted-foreground/40 mb-3" />
-                    <p className="text-sm font-bold text-foreground">No Pricing Tiers Created</p>
-                    <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
-                      Create your first tier above. Products will default to standard base prices until assigned custom tier pricing.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-3">
-                    {tiers.map((tier, index) => (
-                      <div
-                        key={tier.pricing_tier_id}
-                        className="bg-card border border-border/60 hover:border-primary/30 rounded-2xl px-5 py-4 flex items-center gap-4 transition-all shadow-sm"
-                      >
-                        <div className="flex flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => moveTier(index, -1)}
-                            disabled={index === 0}
-                            className="p-0.5 text-muted-foreground/60 hover:text-primary disabled:opacity-20 cursor-pointer transition-colors"
-                          >
-                            <ChevronUp className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveTier(index, 1)}
-                            disabled={index === tiers.length - 1}
-                            className="p-0.5 text-muted-foreground/60 hover:text-primary disabled:opacity-20 cursor-pointer transition-colors"
-                          >
-                            <ChevronDown className="w-4 h-4" />
-                          </button>
-                        </div>
-
-                        {editingId === tier.pricing_tier_id ? (
-                          <div className="flex items-center gap-2 flex-1">
-                            <input
-                              type="text"
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              onKeyDown={(e) => e.key === 'Enter' && handleRename(tier)}
-                              autoFocus
-                              className="flex-1 px-3.5 py-2 text-sm font-bold bg-background border border-border rounded-xl focus:outline-none focus:border-primary"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => handleRename(tier)}
-                              className="p-2 text-emerald-500 hover:bg-emerald-500/10 rounded-xl cursor-pointer transition-colors"
-                            >
-                              <Check className="w-4.5 h-4.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingId(null)}
-                              className="p-2 text-muted-foreground hover:bg-muted rounded-xl cursor-pointer transition-colors"
-                            >
-                              <X className="w-4.5 h-4.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2.5">
-                              <span className={clsx('text-sm font-extrabold truncate', tier.is_active ? 'text-foreground' : 'text-muted-foreground line-through')}>
-                                {tier.name}
-                              </span>
-                              <span className={clsx(
-                                'text-[10px] font-bold px-2 py-0.5 rounded-md border',
-                                tier.is_active
-                                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                                  : 'bg-muted text-muted-foreground border-border/40'
-                              )}>
-                                {tier.is_active ? 'Active' : 'Disabled'}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {tier.is_active ? 'Available across POS Billing & Parties' : 'Hidden from Billing selection'}
-                            </p>
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => toggleActive(tier)}
-                          className={clsx(
-                            'relative w-11 h-6 rounded-full transition-colors cursor-pointer shrink-0',
-                            tier.is_active ? 'bg-emerald-500' : 'bg-muted'
-                          )}
-                          title={tier.is_active ? 'Disable tier' : 'Enable tier'}
-                        >
-                          <span className={clsx(
-                            'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all',
-                            tier.is_active ? 'left-[22px]' : 'left-0.5'
-                          )} />
-                        </button>
-
-                        <Button variant="outline" size="sm" onClick={() => openGrid(tier)} className="gap-2 shrink-0 rounded-xl">
-                          <Grid3X3 className="w-3.5 h-3.5 text-primary" /> Set Prices
-                        </Button>
-
-                        <button
-                          type="button"
-                          onClick={() => { setEditingId(tier.pricing_tier_id); setEditName(tier.name); }}
-                          className="p-2 text-muted-foreground hover:text-primary hover:bg-muted/80 rounded-xl cursor-pointer transition-colors"
-                          title="Rename"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
-
-                        {confirmDeleteId === tier.pricing_tier_id ? (
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleDelete(tier.pricing_tier_id)}
-                              className="px-3 py-1.5 text-xs font-extrabold uppercase tracking-wide bg-destructive text-destructive-foreground rounded-xl cursor-pointer transition-all shadow-sm"
-                            >
-                              Confirm Delete
-                            </button>
-                            <button type="button" onClick={() => setConfirmDeleteId(null)} className="p-1.5 text-muted-foreground hover:bg-muted rounded-xl cursor-pointer">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => setConfirmDeleteId(tier.pricing_tier_id)}
-                            className="p-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl cursor-pointer shrink-0 transition-colors"
-                            title="Delete tier"
-                          >
-                            <Trash className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Owner Permission Panel */}
-              {isOwner && (
-                <div className="bg-card border border-border/60 rounded-3xl p-6 md:p-8 space-y-4 shadow-sm">
-                  <div className="flex items-center gap-2.5 text-xs font-black uppercase tracking-widest text-primary">
-                    <Shield className="w-4.5 h-4.5 text-primary" /> Biller Price Override Permissions
-                  </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-border/40">
-                    <div>
-                      <p className="text-sm font-extrabold text-foreground">Allow Billing Staff to Override Prices</p>
-                      <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed max-w-2xl">
-                        When enabled, POS billing staff can manually edit unit rates during checkout outside of assigned tier pricing rules. Store Owners can always override prices regardless.
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleOverride(!allowBillerOverride)}
-                      className={clsx(
-                        'relative w-12 h-6.5 rounded-full transition-colors cursor-pointer shrink-0',
-                        allowBillerOverride ? 'bg-emerald-500' : 'bg-muted'
-                      )}
-                    >
-                      <span className={clsx(
-                        'absolute top-0.5 w-5.5 h-5.5 bg-white rounded-full shadow transition-all',
-                        allowBillerOverride ? 'left-[26px]' : 'left-0.5'
-                      )} />
-                    </button>
-                  </div>
-                </div>
-              )}
+              <button type="button" onClick={() => setError(null)} className="p-0.5 hover:bg-destructive/20 rounded cursor-pointer">
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
-      </main>
+      )}
+
+      {/* ── MAIN BODY ── */}
+      {loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <p className="text-xs font-bold uppercase tracking-widest">Loading...</p>
+        </div>
+      ) : view === 'list' ? (
+
+        /* ═══════════════════════════════════════════════════════════════
+            TIERS LIST VIEW
+        ═══════════════════════════════════════════════════════════════ */
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-7xl mx-auto w-full px-6 pt-6 pb-10 space-y-4">
+
+            {/* Create Tier Card */}
+            <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm">
+              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+                <div className="p-1.5 rounded-lg bg-primary/10 text-primary"><Tags className="w-4 h-4" /></div>
+                <span className="text-xs font-black text-primary uppercase tracking-wider">Create New Tier</span>
+              </div>
+              <div className="flex gap-3">
+                <input
+                  ref={newNameRef}
+                  type="text"
+                  value={newName}
+                  onChange={e => setNewName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddTier()}
+                  placeholder="e.g. Retail, Wholesale, Tier A, B2B…"
+                  className="flex-1 bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm font-semibold"
+                />
+                <button
+                  onClick={handleAddTier}
+                  disabled={operating || !newName.trim()}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary text-primary-foreground shadow-sm font-bold hover:bg-primary/95 transition-all active:scale-95 py-2.5 px-5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {operating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                  Add Tier
+                </button>
+              </div>
+            </section>
+
+            {/* Tiers Table */}
+            <section className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
+              {/* Column Header */}
+              <div className="grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 border-b border-border select-none">
+                <div className="col-span-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest">#</div>
+                <div className="col-span-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tier Name</div>
+                <div className="col-span-2 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Status</div>
+                <div className="col-span-2 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active</div>
+                <div className="col-span-2 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Actions</div>
+              </div>
+
+              {/* Rows */}
+              <div className="divide-y divide-border">
+                {tiers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+                    <Tags className="w-10 h-10 mb-3 opacity-30" />
+                    <p className="font-bold text-sm text-foreground">No pricing tiers yet</p>
+                    <p className="text-xs mt-1">Create one above to get started</p>
+                  </div>
+                ) : tiers.map((tier, index) => (
+                  <div
+                    key={tier.pricing_tier_id}
+                    className={clsx(
+                      'grid grid-cols-12 gap-3 px-6 py-3.5 items-center hover:bg-muted/30',
+                      !tier.is_active && 'opacity-60'
+                    )}
+                  >
+                    {/* Sort Arrows */}
+                    <div className="col-span-1 flex flex-col gap-0.5">
+                      <button
+                        onClick={() => moveTier(index, -1)}
+                        disabled={index === 0 || operating}
+                        className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveTier(index, 1)}
+                        disabled={index === tiers.length - 1 || operating}
+                        className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Name / Inline Edit */}
+                    <div className="col-span-5">
+                      {editingId === tier.pricing_tier_id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && handleRenameTier(tier)}
+                            autoFocus
+                            className="flex-1 bg-background border border-primary rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/10"
+                          />
+                          <button onClick={() => handleRenameTier(tier)} className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg cursor-pointer">
+                            <Check className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setEditingId(null)} className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg cursor-pointer">
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className={clsx('text-sm font-bold', tier.is_active ? 'text-foreground' : 'text-muted-foreground line-through')}>
+                            {tier.name}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                            {tier.is_active ? 'Visible in Inventory & POS Billing' : 'Hidden from all selections'}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="col-span-2 flex justify-center">
+                      <span className={clsx(
+                        'text-[10px] font-bold px-2.5 py-1 rounded-full border',
+                        tier.is_active
+                          ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                          : 'bg-muted text-muted-foreground border-border/40'
+                      )}>
+                        {tier.is_active ? 'Active' : 'Disabled'}
+                      </span>
+                    </div>
+
+                    {/* Toggle Switch */}
+                    <div className="col-span-2 flex justify-center">
+                      <button
+                        onClick={() => toggleActive(tier)}
+                        disabled={operating}
+                        title={tier.is_active ? 'Turn OFF' : 'Turn ON'}
+                        className={clsx(
+                          'relative w-11 h-6 rounded-full transition-colors cursor-pointer disabled:opacity-50',
+                          tier.is_active ? 'bg-emerald-500' : 'bg-muted'
+                        )}
+                      >
+                        <span className={clsx(
+                          'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all',
+                          tier.is_active ? 'left-[22px]' : 'left-0.5'
+                        )} />
+                      </button>
+                    </div>
+
+                    {/* Action Buttons */}
+                    <div className="col-span-2 flex items-center justify-center gap-1">
+                      <button
+                        onClick={() => { setTierFilter(tier.pricing_tier_id); setView('matrix'); }}
+                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
+                        title="Set Prices in Matrix"
+                      >
+                        <IndianRupee className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => { setEditingId(tier.pricing_tier_id); setEditName(tier.name); }}
+                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg cursor-pointer"
+                        title="Rename"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      {confirmDeleteId === tier.pricing_tier_id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleDeleteTier(tier)}
+                            className="px-2 py-1 text-[10px] font-black bg-destructive text-destructive-foreground rounded-lg cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                          <button onClick={() => setConfirmDeleteId(null)} className="p-1 text-muted-foreground cursor-pointer">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmDeleteId(tier.pricing_tier_id)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg cursor-pointer"
+                          title="Delete"
+                        >
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Staff Permission (Owner Only) */}
+            {isOwner && (
+              <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm">
+                <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
+                  <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500"><Shield className="w-4 h-4" /></div>
+                  <span className="text-xs font-black text-amber-500 uppercase tracking-wider">Staff Permissions</span>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-bold text-foreground">Allow Billing Staff to Override Prices</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Cashiers can manually edit unit prices during checkout, outside tier rules
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => toggleOverride(!allowBillerOverride)}
+                    className={clsx(
+                      'relative w-11 h-6 rounded-full transition-colors cursor-pointer shrink-0',
+                      allowBillerOverride ? 'bg-emerald-500' : 'bg-muted'
+                    )}
+                  >
+                    <span className={clsx(
+                      'absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all',
+                      allowBillerOverride ? 'left-[22px]' : 'left-0.5'
+                    )} />
+                  </button>
+                </div>
+              </section>
+            )}
+          </div>
+        </div>
+      ) : (
+
+        /* ═══════════════════════════════════════════════════════════════
+            PRICE MATRIX VIEW
+        ═══════════════════════════════════════════════════════════════ */
+        <div className="flex-1 flex flex-col min-h-0">
+
+          {/* Toolbar */}
+          <div className="max-w-7xl mx-auto w-full px-6 pt-6 shrink-0">
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 select-none">
+              {/* Search */}
+              <div className="relative w-full sm:max-w-xs flex-1">
+                <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search by name, barcode, or category..."
+                  value={searchQuery}
+                  onChange={e => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground/60 hover:text-foreground p-1 hover:bg-muted rounded-lg cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5 text-destructive" />
+                  </button>
+                )}
+              </div>
+
+              {/* Tier Filter Pills */}
+              <div className="flex gap-1.5 p-1.5 bg-muted/50 dark:bg-muted/20 border border-border rounded-2xl overflow-x-auto scrollbar-none max-w-fit shadow-inner select-none shrink-0 items-center">
+                <Filter className="w-3 h-3 text-muted-foreground/60 ml-1 shrink-0" />
+                <button
+                  onClick={() => setTierFilter('all')}
+                  className={clsx(
+                    'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0',
+                    tierFilter === 'all'
+                      ? 'bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                  )}
+                >
+                  All ({activeTiers.length})
+                </button>
+                {activeTiers.map(t => (
+                  <button
+                    key={t.pricing_tier_id}
+                    onClick={() => setTierFilter(t.pricing_tier_id)}
+                    className={clsx(
+                      'flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 whitespace-nowrap cursor-pointer border border-transparent shrink-0',
+                      tierFilter === t.pricing_tier_id
+                        ? 'bg-background shadow-md shadow-foreground/[0.03] text-primary border-border/40 font-extrabold'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
+                    )}
+                  >
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Product Price Table */}
+          <div className="max-w-7xl mx-auto w-full px-6 pb-6 pt-3 flex flex-col flex-1 min-h-0">
+            <div className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm flex-1 flex flex-col min-h-0">
+
+              {/* Column Header */}
+              <div className="hidden sm:flex items-center px-6 py-3.5 bg-muted/20 dark:bg-muted/10 border-b border-border select-none shrink-0 gap-4">
+                <div className="flex-1 min-w-0 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Product</div>
+                <div className="w-28 text-right text-[10px] font-black text-muted-foreground uppercase tracking-widest">Base MRP</div>
+                {matrixTiers.map(t => (
+                  <div key={t.pricing_tier_id} className="w-36 text-right text-[10px] font-black text-primary uppercase tracking-widest">
+                    {t.name}
+                  </div>
+                ))}
+                <div className="w-14 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Save</div>
+              </div>
+
+              {/* Scrollable Rows Container with Progressive Chunking */}
+              <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto divide-y divide-border relative"
+              >
+                {matrixTiers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+                    <Tags className="w-10 h-10 mb-3 opacity-30" />
+                    <p className="text-sm font-bold text-foreground">No active tiers to display</p>
+                    <p className="text-xs mt-1">
+                      Enable tiers from the{' '}
+                      <button onClick={() => setView('list')} className="text-primary underline cursor-pointer">Tiers</button>
+                      {' '}tab
+                    </p>
+                  </div>
+                ) : filteredProducts.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full py-16 text-muted-foreground">
+                    <p className="text-sm font-bold text-foreground">No products found</p>
+                    <p className="text-xs mt-1">Try a different search term</p>
+                  </div>
+                ) : (
+                  <>
+                    {displayedProducts.map(p => (
+                      <MatrixRow
+                        key={p.product_id}
+                        product={p}
+                        matrixTiers={matrixTiers}
+                        rowPrices={pricingMap[p.product_id] || {}}
+                        initPrices={initialPricingMap[p.product_id] || {}}
+                        operating={operating}
+                        onPriceChange={handlePriceChange}
+                        onSaveRow={saveProductRow}
+                      />
+                    ))}
+                    {visibleCount < filteredProducts.length && (
+                      <div className="py-4 text-center text-xs font-bold text-muted-foreground/60 bg-muted/10">
+                        Scroll down to load more products ({displayedProducts.length} of {filteredProducts.length} loaded)…
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Footer */}
+              {filteredProducts.length > 0 && (
+                <div className="shrink-0 border-t border-border bg-muted/20 px-6 py-3 text-center text-xs font-bold text-muted-foreground">
+                  Showing {displayedProducts.length} of {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} · blank fields fallback to Base MRP
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

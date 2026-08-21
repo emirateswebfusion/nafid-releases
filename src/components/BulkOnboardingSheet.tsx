@@ -504,18 +504,32 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
       });
 
       const printRes = await window.electronAPI.printBulkBarcodes(tenantId || 'global', printItems);
+      const printedBarcodes = (printRes as any).printed as string[] | undefined;
 
       if (printRes.success) {
-        const ids = pendingProducts.map(p => p.product_id);
+        const ids = printedBarcodes
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          : pendingProducts.map(p => p.product_id);
         const updateRes = await window.electronAPI.dbUpdatePrintStatus(ids);
         if (updateRes.success) {
-          setPrintStatusMsg({ type: 'success', text: `Successfully sent labels for ${pendingProducts.length} products to printer.` });
+          setPrintStatusMsg({ type: 'success', text: `Successfully sent labels for ${ids.length} products to printer.` });
           loadPendingPrintCount();
         } else {
           setPrintStatusMsg({ type: 'error', text: `Printed, but failed to update status: ${updateRes.error}` });
         }
       } else {
-         setPrintStatusMsg({ type: 'error', text: `Print failed: ${printRes.error}` });
+        const printedIds = printedBarcodes
+          ? pendingProducts.filter(p => printedBarcodes.includes(p.sku_barcode)).map(p => p.product_id)
+          : [];
+        if (printedIds.length > 0) {
+          const updateRes = await window.electronAPI.dbUpdatePrintStatus(printedIds);
+          setPrintStatusMsg({ type: 'error', text: updateRes.success
+            ? `Print stopped: ${printRes.error}. ${printedIds.length} products marked printed; remaining stay pending — fix printer and print again.`
+            : `Print stopped: ${printRes.error}. Also failed to update status: ${updateRes.error}` });
+          loadPendingPrintCount();
+        } else {
+          setPrintStatusMsg({ type: 'error', text: `Print failed: ${printRes.error}` });
+        }
       }
     } catch (err: any) {
       console.error('Bulk print error:', err);
