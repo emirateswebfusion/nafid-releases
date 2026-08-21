@@ -1,3 +1,11 @@
+# Vendora v1.5.23 Release Notes
+
+## What's Changed
+- Implemented party and ledger management UI with pricing tier integration
+- Added party and ledger CRUD capabilities and transaction tracking modules
+- Preloaded categories and grades in BillingPage for instant form options and optimized SettingsPricingTiers loading overlays
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.22...v1.5.23
+
 # Vendora v1.5.22 Release Notes
 
 ## What's Changed
