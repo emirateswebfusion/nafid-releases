@@ -1,3 +1,11 @@
+# Vendora v1.5.25 Release Notes
+
+## What's Changed
+- Optimized CashierSettlement daily totals and cash drawer reports
+- Refactored invoice and receipt generator utilities with proper typography support
+- Enhanced grade configuration settings, sorting filters, and preview modals
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.24...v1.5.25
+
 # Vendora v1.5.24 Release Notes
 
 ## What's Changed
