@@ -855,14 +855,14 @@ export function BillingPage() {
 
   useEffect(() => {
     // In scrap mode, return mode, or past bill mode, skip product search
-    if (isScrapMode || isReturnMode || isPastBillMode || searchQuery.length < 2) { setResults([]); return; }
+    if (isScrapMode || isReturnMode || isPastBillMode || searchQuery.length < 1) { setResults([]); return; }
     const t = setTimeout(async () => {
       if (!window.electronAPI) return;
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Numeric searches fetch more results so client-side prefix filtering doesn't miss valid barcode matches
-      const fetchLimit = /^\d+$/.test(searchQuery) ? 50 : 8;
+      // Fetch up to 50 results so single-letter or text searches display all matching items
+      const fetchLimit = 50;
       const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) });
       if (Array.isArray(products)) {
         // Client-side filter: for numeric searches, only show prefix matches on barcode/item_code
@@ -2234,7 +2234,7 @@ export function BillingPage() {
       } else {
         // Normal billing / quotation mode:
         const trimmedQuery = searchQuery.trim();
-        if (trimmedQuery.length >= 2 && !isQuotationMode && window.electronAPI) {
+        if (trimmedQuery.length >= 1 && !isQuotationMode && window.electronAPI) {
           try {
             const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: trimmedQuery });
             if (Array.isArray(products) && products.length > 0) {
@@ -2251,7 +2251,7 @@ export function BillingPage() {
 
         if (results[selectedIndex]) {
           handleSelectProduct(results[selectedIndex]);
-        } else if (!showProductCreateForm && searchQuery.length >= 2 && !isQuotationMode) {
+        } else if (!showProductCreateForm && searchQuery.length >= 1 && !isQuotationMode) {
           setShowProductCreateForm(true);
           setNewProductName(searchQuery);
         }
@@ -3758,6 +3758,43 @@ notes: '',
                 </div>
               </div>
 
+              {!isScrapMode && !isReturnMode && !isPastBillMode && (
+                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none mt-1.5 py-1 px-1.5 bg-muted/20 border border-border/60 rounded-xl select-none text-[11px] font-bold">
+                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-black px-1 shrink-0">A-Z Quick Filter:</span>
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
+                    className={clsx(
+                      "px-2 py-0.5 rounded-md transition-all cursor-pointer shrink-0 font-bold text-xs",
+                      searchQuery === '' ? "bg-primary text-primary-foreground shadow-2xs" : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    All
+                  </button>
+                  {['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'].map(letter => {
+                    const isSelected = searchQuery.toUpperCase() === letter;
+                    return (
+                      <button
+                        key={letter}
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery(letter);
+                          searchRef.current?.focus();
+                        }}
+                        className={clsx(
+                          "px-1.5 py-0.5 rounded-md transition-all cursor-pointer shrink-0 font-bold min-w-[20px] text-center text-xs",
+                          isSelected
+                            ? "bg-primary text-primary-foreground shadow-2xs font-extrabold"
+                            : "hover:bg-muted text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {letter}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {isPastBillMode && pastBillResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <div className="max-h-[320px] overflow-y-auto">
@@ -3812,7 +3849,13 @@ notes: '',
               )}
               {!isPastBillMode && (isScrapMode ? scrapSearchResults.length > 0 : isReturnMode ? returnSearchResults.length > 0 : results.length > 0) && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
-                  <div className="max-h-[320px] overflow-y-auto">
+                  {!isScrapMode && !isReturnMode && (
+                    <div className="px-3 py-1.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider bg-muted/30 border-b border-border flex items-center justify-between">
+                      <span>Products found ({results.length})</span>
+                      {searchQuery && <span className="text-primary font-bold">Matching "{searchQuery}"</span>}
+                    </div>
+                  )}
+                  <div className="max-h-[350px] overflow-y-auto">
                     {!isScrapMode && !isReturnMode && results.map((p, i) => {
                       const mrp = getTierPriceForProduct(p) ?? (p.pricing_mode === 'GRADE_RATE' ? (p.grade_rate || 0) : p.base_price);
                       const showOffer = p.offer_price && Number(p.offer_price) > 0;
@@ -3961,7 +4004,7 @@ notes: '',
                   </div>
                 </div>
               )}
-              {!isPastBillMode && !isScrapMode && !isReturnMode && !isQuotationMode && searchQuery.length >= 2 && results.length === 0 && !showProductCreateForm && (
+              {!isPastBillMode && !isScrapMode && !isReturnMode && !isQuotationMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <button
                     type="button"
@@ -4011,6 +4054,7 @@ notes: '',
                       <button key={c.customer_id}
                         onClick={() => {
                           updateActiveTab({ customerName: c.name, customerPhone: c.phone || '', customerAddress: c.address || '' });
+                          applyPartyTier(c.name, c.phone || '');
                           setLoyaltyCustomerData({ customerId: c.customer_id, pointsBalance: Number(c.current_points_balance) || 0 });
                           setCustomerSearchResults([]);
                         }}

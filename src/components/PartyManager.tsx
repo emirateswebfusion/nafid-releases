@@ -3,10 +3,10 @@ import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
-  Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
+  Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save, Check,
   UserCircle, Banknote, FileText, Phone, MapPin,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
-  CreditCard, Building2, Smartphone, MoreHorizontal,
+  CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -139,9 +139,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3500);
   };
 
-  const loadParties = useCallback(async () => {
+  const loadParties = useCallback(async (showLoading = true) => {
     if (!tenantId) return;
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const data = await window.electronAPI.dbGetParties(tenantId);
       const list = Array.isArray(data) ? data : [];
@@ -150,7 +150,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     } catch {
       showStatus('Failed to load parties', 'error');
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, [tenantId]);
 
@@ -165,8 +165,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       .catch(console.error);
   }, [tenantId]);
 
-  const loadLedger = async (partyId: string) => {
-    setLedgerLoading(true);
+  const loadLedger = async (partyId: string, showLoading = true) => {
+    if (showLoading) setLedgerLoading(true);
     try {
       const data = await window.electronAPI.dbGetPartyLedger(partyId);
       if (data && !Array.isArray(data) && (data as any).error) {
@@ -177,7 +177,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     } catch {
       showStatus('Failed to load ledger', 'error');
     } finally {
-      setLedgerLoading(false);
+      if (showLoading) setLedgerLoading(false);
     }
   };
 
@@ -219,7 +219,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         });
         showStatus('Party created successfully', 'success');
       }
-      await loadParties();
+      await loadParties(false);
       setView('list');
       resetPartyForm();
     } catch {
@@ -296,8 +296,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
         showStatus('Transaction added', 'success');
       }
-      await loadLedger(selectedParty.party_id);
-      const freshParties = await loadParties();
+      await loadLedger(selectedParty.party_id, false);
+      const freshParties = await loadParties(false);
       const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
       if (updatedParty) setSelectedParty(updatedParty);
       setView('ledger');
@@ -315,13 +315,13 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       setLedger(prev => prev.filter(e => e.ledger_id !== entry.ledger_id));
       await window.electronAPI.dbDeletePartyLedgerEntry(entry.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
-      await loadLedger(selectedParty.party_id);
-      const freshParties = await loadParties();
+      await loadLedger(selectedParty.party_id, false);
+      const freshParties = await loadParties(false);
       const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
       if (updatedParty) setSelectedParty(updatedParty);
     } catch {
       showStatus('Delete failed', 'error');
-      await loadLedger(selectedParty.party_id);
+      await loadLedger(selectedParty.party_id, false);
     }
   };
 
@@ -462,7 +462,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-24 rounded-md mb-1" />
+                  ) : (
+                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
+                  )}
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Receivable</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">Owed to you</p>
                 </div>
@@ -474,7 +478,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-24 rounded-md mb-1" />
+                  ) : (
+                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
+                  )}
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Payable</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">You owe</p>
                 </div>
@@ -486,7 +494,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
+                  {loading ? (
+                    <Skeleton className="h-7 w-16 rounded-md mb-1" />
+                  ) : (
+                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
+                  )}
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Total Parties</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
                 </div>
@@ -567,11 +579,17 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <p className="font-bold text-sm text-foreground truncate">{party.name}</p>
                           {party.gstin && (
                             <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/20 px-1.5 py-0.5 rounded-md shrink-0">
                               GST
+                            </span>
+                          )}
+                          {party.pricing_tier_id && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 dark:bg-violet-500/20 border border-violet-500/20 px-1.5 py-0.5 rounded-md shrink-0">
+                              <Tag className="w-2.5 h-2.5" />
+                              {pricingTiers.find(t => t.pricing_tier_id === party.pricing_tier_id)?.name || 'Tier'}
                             </span>
                           )}
                         </div>
@@ -719,21 +737,30 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               </div>
-              {pricingTiers.length > 0 && (
-                <div className="mt-4">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Pricing Tier (default)</label>
+              <div className="mt-4 pt-4 border-t border-border/60">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-violet-500" />
+                  Default Pricing Tier
+                </label>
+                {pricingTiers.length > 0 ? (
                   <Select
                     value={partyForm.pricing_tier_id}
                     onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
                     options={[
                       { value: '', label: 'Default (MRP)' },
-                      ...pricingTiers.filter(t => t.is_active === 1 && !t.is_deleted).map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                      ...pricingTiers
+                        .filter(t => (t.is_active === 1 || t.is_active === true || Boolean(t.is_active)) && !t.is_deleted)
+                        .map(t => ({ value: t.pricing_tier_id, label: t.name })),
                     ]}
                     triggerClassName="rounded-xl h-[46px] w-full"
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will auto-apply this tier's prices.</p>
-                </div>
-              )}
+                ) : (
+                  <div className="p-3 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground">
+                    No custom pricing tiers configured yet. Standard MRP price will be applied. (Configure tiers in <span className="font-bold text-foreground">Settings &gt; Pricing Tiers</span>).
+                  </div>
+                )}
+                <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will automatically apply the selected pricing tier's rates.</p>
+              </div>
             </section>
             {!editingParty && (
               <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm transition-all duration-300">
@@ -815,34 +842,24 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-            {statusMessage && (
-              <div className={clsx(
-                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                {statusMessage.text}
-              </div>
-            )}
-            <div className="flex items-center justify-end gap-2">
+          <div className="shrink-0 border-t border-border bg-card px-5 py-3 flex items-center justify-end">
+            <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
               <button
                 type="button"
                 onClick={() => { setView('list'); resetPartyForm(); }}
-                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-destructive/20 bg-background hover:bg-destructive/10 text-xs font-bold text-destructive transition-all active:scale-95 cursor-pointer shadow-xs"
               >
-                Cancel
+                <X className="w-4 h-4 shrink-0 text-destructive" />
+                <span>Cancel</span>
               </button>
               <button
                 type="button"
                 disabled={isSavingParty}
                 onClick={handleSaveParty}
-                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+                className="flex items-center gap-1.5 px-4.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
               >
-                {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {isSavingParty ? 'Saving…' : editingParty ? 'Update Party' : 'Create Party'}
+                <Check className="w-4 h-4 shrink-0 text-white" />
+                <span>{isSavingParty ? 'Saving…' : editingParty ? 'Update Party' : 'Create Party'}</span>
               </button>
             </div>
           </div>
@@ -885,6 +902,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   {selectedParty.address && (
                     <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-white/60 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
                       <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
+                    </span>
+                  )}
+                  {selectedParty.pricing_tier_id && (
+                    <span className="flex items-center gap-1 text-xs font-bold text-violet-600 dark:text-violet-400 bg-violet-500/10 dark:bg-violet-500/20 border border-violet-500/20 px-2 py-0.5 rounded-lg">
+                      <Tag className="w-3 h-3 shrink-0" /> {pricingTiers.find(t => t.pricing_tier_id === selectedParty.pricing_tier_id)?.name || 'Pricing Tier'}
                     </span>
                   )}
                 </div>
@@ -1250,17 +1272,6 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
           {/* Footer */}
           <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-            {statusMessage && (
-              <div className={clsx(
-                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                {statusMessage.text}
-              </div>
-            )}
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground font-medium">
                 {txForm.amount && parseFloat(txForm.amount) > 0 && (
@@ -1269,27 +1280,47 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
                 <button
                   type="button"
                   onClick={() => setView('ledger')}
-                  className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-destructive/20 bg-background hover:bg-destructive/10 text-xs font-bold text-destructive transition-all active:scale-95 cursor-pointer shadow-xs"
                 >
-                  Cancel
+                  <X className="w-4 h-4 shrink-0 text-destructive" />
+                  <span>Cancel</span>
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingTx}
-                  className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+                  className="flex items-center gap-1.5 px-4.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
                 >
-                  {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                  {isSavingTx ? 'Saving…' : editingTx ? 'Update' : 'Add Transaction'}
+                  <Check className="w-4 h-4 shrink-0 text-white" />
+                  <span>{isSavingTx ? 'Saving…' : editingTx ? 'Update' : 'Add Transaction'}</span>
                 </button>
               </div>
             </div>
           </div>
         </form>
       )}
+
+      {/* ─── FLOATING TOAST MESSAGES ─── */}
+      <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start gap-2 max-w-md pointer-events-none">
+        {statusMessage && (
+          <div className={clsx(
+            "px-5 py-3 rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto border bg-background",
+            statusMessage.type === 'success'
+              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
+              : "bg-destructive/10 border-destructive/30 text-destructive"
+          )}>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4.5 h-4.5 shrink-0 text-emerald-500 animate-bounce" />
+            ) : (
+              <AlertCircle className="w-4.5 h-4.5 shrink-0 text-destructive" />
+            )}
+            <span>{statusMessage.text}</span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -25,7 +25,7 @@ export function CartPane() {
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
-    if (searchQuery.length < 2) {
+    if (searchQuery.length < 1) {
       setResults([]);
       return;
     }
@@ -36,7 +36,7 @@ export function CartPane() {
         const products = await window.electronAPI.dbGetProducts({ 
           tenant_id: tenantId, 
           search: searchQuery, 
-          limit: 8 
+          limit: 50 
         });
         if (Array.isArray(products)) {
           setResults(products);

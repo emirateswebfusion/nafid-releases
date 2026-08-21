@@ -534,7 +534,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       domain_attributes: (() => {
         try {
           const da = JSON.parse(product.domain_attributes || '{}');
-          if (da.pcs_stock !== undefined) da.pcs = da.pcs_stock;
+          const pcsVal = da.pcs !== undefined ? da.pcs : (da.pcs_stock !== undefined ? da.pcs_stock : '');
+          da.pcs = pcsVal;
+          da.pcs_stock = pcsVal;
           return da;
         } catch { return {}; }
       })(),
@@ -735,10 +737,16 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   };
 
   const handleDomainAttrChange = (field: string, value: any) => {
-    setFormData(prev => ({
-      ...prev,
-      domain_attributes: { ...prev.domain_attributes, [field]: value }
-    }));
+    setFormData(prev => {
+      const nextAttrs = { ...prev.domain_attributes, [field]: value };
+      if (field === 'pcs') {
+        nextAttrs.pcs_stock = value;
+      }
+      return {
+        ...prev,
+        domain_attributes: nextAttrs
+      };
+    });
     if (field === 'pcs') {
       setPrintQuantity(value === '' || value === 0 ? '' : Number(value));
     }
@@ -1094,7 +1102,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       is_gst_applicable: formData.is_gst_applicable ? 1 : 0,
       domain_attributes: (() => {
         const da = { ...formData.domain_attributes };
-        const rawPcs = Number(da?.pcs) || 0;
+        const rawPcs = Number(da?.pcs !== undefined ? da.pcs : da?.pcs_stock) || 0;
         const rawStock = (view === 'add' && formData.show_gst_purchase)
           ? 0
           : (Number(formData.current_stock) || 0);
@@ -1104,6 +1112,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           delete da.pcs_per_kg;
         }
         da.pcs_stock = rawPcs > 0 ? rawPcs : 0;
+        da.pcs = rawPcs > 0 ? rawPcs : 0;
         return JSON.stringify(da);
       })(),
       discount_percent: formData.discount_percent === '' ? null : Number(formData.discount_percent),
@@ -1829,14 +1838,14 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                     triggerClassName="rounded-xl h-[46px]"
                   />
                 </div>
-                <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', ['Kgs', 'Grams', 'Mtrs', 'Ltrs'].includes(formData.uom) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
+                <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (formData.billing_type === 'WEIGHT' || ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((formData.uom || '').toLowerCase())) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
                   <div className="flex items-center gap-1 mb-1.5">
                     <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
                     <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
                   </div>
                   <input
                     type="number" min="1" step="1"
-                    value={(formData.domain_attributes?.pcs_stock ?? formData.domain_attributes?.pcs) || ''}
+                    value={formData.domain_attributes?.pcs !== undefined ? formData.domain_attributes.pcs : (formData.domain_attributes?.pcs_stock ?? '')}
                     onChange={e => handleDomainAttrChange('pcs', e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
                     placeholder="e.g. 20"
