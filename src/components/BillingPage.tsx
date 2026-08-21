@@ -19,6 +19,7 @@ import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { loadFeatureFlags } from '../featureFlags';
+import { sortProductsBySearchPriority } from '../utils/productSort';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -861,21 +862,34 @@ export function BillingPage() {
       const { tenantId } = useAuthStore.getState();
       // GST invoices: only show GST-applicable products (quotations stay unfiltered)
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
-      // Fetch up to 50 results so single-letter or text searches display all matching items
-      const fetchLimit = 50;
+      // Fetch up to 100 results so numeric or text searches capture all matching items
+      const fetchLimit = 100;
       const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) });
       if (Array.isArray(products)) {
-        // Client-side filter: for numeric searches, only show prefix matches on barcode/item_code
-        // (backend fix in main.ts requires Electron restart, this works immediately)
-        const filtered = /^\d+$/.test(searchQuery)
-          ? products.filter(p => {
-              const barcode = String(p.sku_barcode || '');
-              const code = String(p.item_code || '');
-              return barcode.startsWith(searchQuery) || code.startsWith(searchQuery);
-            })
-          : products;
+        const q = searchQuery.trim().toLowerCase();
+
+        // Sort results to prioritize barcode matches (exact -> prefix -> includes, in numeric ascending order) before name matches
+        const sorted = sortProductsBySearchPriority(products, searchQuery);
+
+        // Keep all products matching barcode, code, name, brand, category, or HSN
+        const filtered = sorted.filter(p => {
+          const barcode = String(p.sku_barcode || '').trim().toLowerCase();
+          const code = String(p.item_code || '').trim().toLowerCase();
+          const name = String(p.name || '').trim().toLowerCase();
+          const brand = String(p.brand_manufacturer || '').trim().toLowerCase();
+          const cat = String(p.category || '').trim().toLowerCase();
+          const hsn = String(p.hsn_sac_code || '').trim().toLowerCase();
+          return (
+            barcode.includes(q) ||
+            code.includes(q) ||
+            name.includes(q) ||
+            brand.includes(q) ||
+            cat.includes(q) ||
+            hsn.includes(q)
+          );
+        });
+
         // Collapse duplicate service charge items to a single row
-        // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
         const deduped: any[] = [];
         let serviceFound = false;
         for (const p of filtered) {
@@ -3767,42 +3781,7 @@ notes: '',
                 </div>
               </div>
 
-              {!isScrapMode && !isReturnMode && !isPastBillMode && (
-                <div className="flex items-center gap-1 overflow-x-auto scrollbar-none mt-1.5 py-1 px-1.5 bg-muted/20 border border-border/60 rounded-xl select-none text-[11px] font-bold">
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-black px-1 shrink-0">A-Z Quick Filter:</span>
-                  <button
-                    type="button"
-                    onClick={() => { setSearchQuery(''); setResults([]); searchRef.current?.focus(); }}
-                    className={clsx(
-                      "px-2 py-0.5 rounded-md transition-all cursor-pointer shrink-0 font-bold text-xs",
-                      searchQuery === '' ? "bg-primary text-primary-foreground shadow-2xs" : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    All
-                  </button>
-                  {['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z'].map(letter => {
-                    const isSelected = searchQuery.toUpperCase() === letter;
-                    return (
-                      <button
-                        key={letter}
-                        type="button"
-                        onClick={() => {
-                          setSearchQuery(letter);
-                          searchRef.current?.focus();
-                        }}
-                        className={clsx(
-                          "px-1.5 py-0.5 rounded-md transition-all cursor-pointer shrink-0 font-bold min-w-[20px] text-center text-xs",
-                          isSelected
-                            ? "bg-primary text-primary-foreground shadow-2xs font-extrabold"
-                            : "hover:bg-muted text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {letter}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+
 
               {isPastBillMode && pastBillResults.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">

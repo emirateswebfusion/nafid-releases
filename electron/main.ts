@@ -449,13 +449,15 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     }
 
     if (barcode) {
-       query += ' AND (p.sku_barcode = ? OR p.item_code = ?)';
-       params.push(barcode, barcode);
+       const cleanBarcode = String(barcode).trim();
+       query += ' AND (TRIM(p.sku_barcode) = ? OR LOWER(p.sku_barcode) = LOWER(?) OR TRIM(p.item_code) = ? OR LOWER(p.item_code) = LOWER(?))';
+       params.push(cleanBarcode, cleanBarcode, cleanBarcode, cleanBarcode);
     } else if (search) {
+       const cleanSearch = String(search).trim();
        // Any character (letter, number, symbol) matches products across all fields:
        // name, barcode, item code, brand, category, HSN, and product id.
        query += ' AND (p.name LIKE ? OR p.sku_barcode LIKE ? OR p.item_code LIKE ? OR p.brand_manufacturer LIKE ? OR p.category LIKE ? OR p.hsn_sac_code LIKE ? OR p.product_id = ?)';
-       params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`, search);
+       params.push(`%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, cleanSearch);
     }
 
     if (filterDate) {
@@ -471,6 +473,32 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     if (sortBy === 'created_at') query += ' ORDER BY p.created_at DESC, p.product_id ASC';
     else if (sortBy === 'updated_at') query += ' ORDER BY p.updated_at DESC, p.product_id ASC';
     else if (sortBy === 'stock') query += ' ORDER BY p.current_stock ASC, p.product_id ASC';
+    else if (search) {
+       const cleanSearch = String(search).trim();
+       query += ` ORDER BY 
+         CASE 
+           WHEN TRIM(p.sku_barcode) = ? OR TRIM(p.item_code) = ? THEN 1
+           WHEN TRIM(p.sku_barcode) LIKE ? OR TRIM(p.item_code) LIKE ? THEN 2
+           WHEN p.sku_barcode LIKE ? OR p.item_code LIKE ? THEN 3
+           WHEN p.name LIKE ? THEN 4
+           ELSE 5
+         END ASC,
+         CASE 
+           WHEN p.sku_barcode GLOB '[0-9]*' THEN CAST(p.sku_barcode AS INTEGER)
+           WHEN p.item_code GLOB '[0-9]*' THEN CAST(p.item_code AS INTEGER)
+           ELSE 99999999
+         END ASC,
+         LENGTH(COALESCE(p.sku_barcode, p.item_code, '')) ASC,
+         COALESCE(p.sku_barcode, p.item_code, '') ASC,
+         p.name COLLATE NOCASE ASC,
+         p.product_id ASC`;
+       params.push(
+         cleanSearch, cleanSearch,
+         `${cleanSearch}%`, `${cleanSearch}%`,
+         `%${cleanSearch}%`, `%${cleanSearch}%`,
+         `${cleanSearch}%`
+       );
+    }
     else query += ' ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC';
 
     if (limit) {

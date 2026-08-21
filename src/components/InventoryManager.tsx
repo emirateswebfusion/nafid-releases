@@ -13,6 +13,7 @@ import { Select } from './ui/Select';
 import { ScrollText } from './ScrollText';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
+import { sortProductsBySearchPriority } from '../utils/productSort';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {
@@ -369,13 +370,15 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       }
 
       if (Array.isArray(result)) {
+        const sortedResult = currentSearch ? sortProductsBySearchPriority(result, currentSearch) : result;
         if (reset) {
-          setProducts(result);
+          setProducts(sortedResult);
         } else {
           setProducts(prev => {
              // filter out duplicates just in case
              const existingIds = new Set(prev.map(p => p.product_id));
-             return [...prev, ...result.filter(p => !existingIds.has(p.product_id))];
+             const merged = [...prev, ...sortedResult.filter(p => !existingIds.has(p.product_id))];
+             return currentSearch ? sortProductsBySearchPriority(merged, currentSearch) : merged;
           });
         }
         setOffset(currentOffset + result.length);
