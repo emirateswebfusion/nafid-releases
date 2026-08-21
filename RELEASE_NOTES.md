@@ -1,3 +1,10 @@
+# Vendora v1.5.24 Release Notes
+
+## What's Changed
+- Implemented a custom confirmation delete modal in `InventoryManager` instead of the browser native dialog
+- Enhanced loading skeletons and background fetch stability in `SettingsPricingTiers`
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.23...v1.5.24
+
 # Vendora v1.5.23 Release Notes
 
 ## What's Changed
