@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import {
   Search, Loader2, UserPlus,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
-  Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save, Check,
+  Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText, Phone, MapPin,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
@@ -139,9 +139,9 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     setTimeout(() => setStatusMessage(null), 3500);
   };
 
-  const loadParties = useCallback(async (showLoading = true) => {
+  const loadParties = useCallback(async () => {
     if (!tenantId) return;
-    if (showLoading) setLoading(true);
+    setLoading(true);
     try {
       const data = await window.electronAPI.dbGetParties(tenantId);
       const list = Array.isArray(data) ? data : [];
@@ -150,7 +150,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     } catch {
       showStatus('Failed to load parties', 'error');
     } finally {
-      if (showLoading) setLoading(false);
+      setLoading(false);
     }
   }, [tenantId]);
 
@@ -165,8 +165,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       .catch(console.error);
   }, [tenantId]);
 
-  const loadLedger = async (partyId: string, showLoading = true) => {
-    if (showLoading) setLedgerLoading(true);
+  const loadLedger = async (partyId: string) => {
+    setLedgerLoading(true);
     try {
       const data = await window.electronAPI.dbGetPartyLedger(partyId);
       if (data && !Array.isArray(data) && (data as any).error) {
@@ -177,7 +177,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     } catch {
       showStatus('Failed to load ledger', 'error');
     } finally {
-      if (showLoading) setLedgerLoading(false);
+      setLedgerLoading(false);
     }
   };
 
@@ -219,7 +219,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
         });
         showStatus('Party created successfully', 'success');
       }
-      await loadParties(false);
+      await loadParties();
       setView('list');
       resetPartyForm();
     } catch {
@@ -296,8 +296,8 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
         showStatus('Transaction added', 'success');
       }
-      await loadLedger(selectedParty.party_id, false);
-      const freshParties = await loadParties(false);
+      await loadLedger(selectedParty.party_id);
+      const freshParties = await loadParties();
       const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
       if (updatedParty) setSelectedParty(updatedParty);
       setView('ledger');
@@ -315,13 +315,13 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       setLedger(prev => prev.filter(e => e.ledger_id !== entry.ledger_id));
       await window.electronAPI.dbDeletePartyLedgerEntry(entry.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
-      await loadLedger(selectedParty.party_id, false);
-      const freshParties = await loadParties(false);
+      await loadLedger(selectedParty.party_id);
+      const freshParties = await loadParties();
       const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
       if (updatedParty) setSelectedParty(updatedParty);
     } catch {
       showStatus('Delete failed', 'error');
-      await loadLedger(selectedParty.party_id, false);
+      await loadLedger(selectedParty.party_id);
     }
   };
 
@@ -462,11 +462,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <TrendingUp className="w-5 h-5" />
                 </div>
                 <div>
-                  {loading ? (
-                    <Skeleton className="h-7 w-24 rounded-md mb-1" />
-                  ) : (
-                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
-                  )}
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalReceivable.toFixed(2)}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Receivable</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">Owed to you</p>
                 </div>
@@ -478,11 +474,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <TrendingDown className="w-5 h-5" />
                 </div>
                 <div>
-                  {loading ? (
-                    <Skeleton className="h-7 w-24 rounded-md mb-1" />
-                  ) : (
-                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
-                  )}
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">₹{totalPayable.toFixed(2)}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Payable</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">You owe</p>
                 </div>
@@ -494,11 +486,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   <Activity className="w-5 h-5" />
                 </div>
                 <div>
-                  {loading ? (
-                    <Skeleton className="h-7 w-16 rounded-md mb-1" />
-                  ) : (
-                    <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
-                  )}
+                  <p className="text-2xl font-black tracking-tight text-foreground font-mono">{parties.length}</p>
                   <p className="text-[10px] text-muted-foreground/80 font-bold uppercase tracking-wider leading-none">Total Parties</p>
                   <p className="text-[9px] text-muted-foreground/60 font-semibold mt-1 leading-none">{parties.length === 1 ? 'Active contact' : 'Active contacts'}</p>
                 </div>
@@ -842,24 +830,34 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-border bg-card px-5 py-3 flex items-center justify-end">
-            <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
+          <div className="shrink-0 border-t border-border bg-card px-5 py-3">
+            {statusMessage && (
+              <div className={clsx(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                {statusMessage.text}
+              </div>
+            )}
+            <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={() => { setView('list'); resetPartyForm(); }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-destructive/20 bg-background hover:bg-destructive/10 text-xs font-bold text-destructive transition-all active:scale-95 cursor-pointer shadow-xs"
+                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
               >
-                <X className="w-4 h-4 shrink-0 text-destructive" />
-                <span>Cancel</span>
+                Cancel
               </button>
               <button
                 type="button"
                 disabled={isSavingParty}
                 onClick={handleSaveParty}
-                className="flex items-center gap-1.5 px-4.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+                className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
               >
-                <Check className="w-4 h-4 shrink-0 text-white" />
-                <span>{isSavingParty ? 'Saving…' : editingParty ? 'Update Party' : 'Create Party'}</span>
+                {isSavingParty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {isSavingParty ? 'Saving…' : editingParty ? 'Update Party' : 'Create Party'}
               </button>
             </div>
           </div>
@@ -1272,6 +1270,17 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
           {/* Footer */}
           <div className="shrink-0 border-t border-border bg-card px-5 py-3">
+            {statusMessage && (
+              <div className={clsx(
+                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
+                statusMessage.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
+                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
+              )}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
+                {statusMessage.text}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground font-medium">
                 {txForm.amount && parseFloat(txForm.amount) > 0 && (
@@ -1280,47 +1289,27 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2 bg-muted/40 p-1.5 rounded-2xl border border-border">
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setView('ledger')}
-                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-destructive/20 bg-background hover:bg-destructive/10 text-xs font-bold text-destructive transition-all active:scale-95 cursor-pointer shadow-xs"
+                  className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
                 >
-                  <X className="w-4 h-4 shrink-0 text-destructive" />
-                  <span>Cancel</span>
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSavingTx}
-                  className="flex items-center gap-1.5 px-4.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
+                  className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
                 >
-                  <Check className="w-4 h-4 shrink-0 text-white" />
-                  <span>{isSavingTx ? 'Saving…' : editingTx ? 'Update' : 'Add Transaction'}</span>
+                  {isSavingTx ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  {isSavingTx ? 'Saving…' : editingTx ? 'Update' : 'Add Transaction'}
                 </button>
               </div>
             </div>
           </div>
         </form>
       )}
-
-      {/* ─── FLOATING TOAST MESSAGES ─── */}
-      <div className="fixed bottom-5 left-5 z-50 flex flex-col items-start gap-2 max-w-md pointer-events-none">
-        {statusMessage && (
-          <div className={clsx(
-            "px-5 py-3 rounded-2xl flex items-center gap-2.5 text-sm font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto border bg-background",
-            statusMessage.type === 'success'
-              ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-              : "bg-destructive/10 border-destructive/30 text-destructive"
-          )}>
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4.5 h-4.5 shrink-0 text-emerald-500 animate-bounce" />
-            ) : (
-              <AlertCircle className="w-4.5 h-4.5 shrink-0 text-destructive" />
-            )}
-            <span>{statusMessage.text}</span>
-          </div>
-        )}
-      </div>
     </div>
   );
 }

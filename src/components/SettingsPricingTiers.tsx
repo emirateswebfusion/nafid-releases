@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { useAuthStore } from '../store/authStore';
+import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
 
 interface PricingTier {
@@ -179,11 +180,11 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     return () => clearTimeout(t);
   }, [statusMessage]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(true); }, []);
 
-  const loadData = async () => {
+  const loadData = async (showFullLoading = false) => {
     if (!window.electronAPI) return;
-    setLoading(true);
+    if (showFullLoading) setLoading(true);
     setError(null);
     try {
       const tid = tenantId || '';
@@ -227,7 +228,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     if (res.success) {
       setNewName('');
       setStatusMessage({ text: `Tier "${newName.trim()}" created!`, type: 'success' });
-      await loadData();
+      await loadData(false);
       setTimeout(() => newNameRef.current?.focus(), 100);
     } else {
       setError(res.error || 'Failed to create tier');
@@ -242,7 +243,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     if (res.success) {
       setEditingId(null);
       setStatusMessage({ text: 'Tier renamed!', type: 'success' });
-      await loadData();
+      await loadData(false);
     } else {
       setError(res.error || 'Failed to rename tier');
     }
@@ -255,7 +256,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     const res = await window.electronAPI.dbUpdatePricingTier({ ...tier, is_active: next });
     if (res.success) {
       setStatusMessage({ text: `"${tier.name}" turned ${next ? 'ON' : 'OFF'}`, type: 'success' });
-      await loadData();
+      await loadData(false);
     } else {
       setError(res.error || 'Failed to update status');
     }
@@ -268,7 +269,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     if (res.success) {
       setConfirmDeleteId(null);
       setStatusMessage({ text: `"${tier.name}" deleted!`, type: 'success' });
-      await loadData();
+      await loadData(false);
     } else {
       setError(res.error || 'Failed to delete tier');
     }
@@ -464,44 +465,54 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
         </div>
       </header>
 
-      {/* ── STATUS / ERROR BANNERS ── */}
-      {(statusMessage || error) && (
-        <div className="max-w-7xl mx-auto w-full px-6 pt-3 shrink-0 space-y-2">
-          {statusMessage && (
-            <div className={clsx(
-              'text-xs font-bold px-4 py-2.5 rounded-2xl border flex items-center justify-between shadow-sm animate-in fade-in duration-150',
-              statusMessage.type === 'success'
-                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
-                : 'bg-destructive/10 text-destructive border-destructive/20'
-            )}>
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0" />
-                <span>{statusMessage.text}</span>
-              </div>
-              <button type="button" onClick={() => setStatusMessage(null)} className="p-0.5 hover:bg-black/5 rounded cursor-pointer">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-          {error && (
-            <div className="bg-destructive/10 text-destructive text-xs font-bold px-4 py-2.5 rounded-2xl border border-destructive/20 flex items-center justify-between shadow-sm">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{error}</span>
-              </div>
-              <button type="button" onClick={() => setError(null)} className="p-0.5 hover:bg-destructive/20 rounded cursor-pointer">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+      {/* ── FLOATING TOAST MESSAGES ── */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5 w-full max-w-sm pointer-events-none">
+        {statusMessage && (
+          <div className={clsx(
+            'px-4 py-3 bg-card border rounded-2xl flex items-center gap-2.5 text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto',
+            statusMessage.type === 'success'
+              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
+              : 'bg-destructive/10 text-destructive border-destructive/30'
+          )}>
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span className="flex-1">{statusMessage.text}</span>
+            <button type="button" onClick={() => setStatusMessage(null)} className="p-1 hover:bg-muted rounded-full text-muted-foreground cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+        {error && (
+          <div className="px-4 py-3 bg-card border border-destructive/30 bg-destructive/10 text-destructive text-xs font-bold rounded-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            <span className="flex-1">{error}</span>
+            <button type="button" onClick={() => setError(null)} className="p-1 hover:bg-muted rounded-full text-muted-foreground cursor-pointer">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* ── MAIN BODY ── */}
       {loading ? (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-muted-foreground">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-xs font-bold uppercase tracking-widest">Loading...</p>
+        <div className="flex-1 overflow-y-auto p-6 max-w-7xl mx-auto w-full space-y-6 animate-in fade-in duration-200">
+          <Skeleton className="h-28 w-full rounded-[28px]" />
+          <div className="bg-card border border-border rounded-[28px] p-6 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <Skeleton className="h-5 w-32 rounded-lg" />
+              <Skeleton className="h-5 w-24 rounded-lg" />
+            </div>
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex items-center justify-between py-3 border-b border-border/50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-8 rounded-md" />
+                  <Skeleton className="h-5 w-40 rounded-lg" />
+                </div>
+                <Skeleton className="h-6 w-20 rounded-full" />
+                <Skeleton className="h-6 w-12 rounded-full" />
+                <Skeleton className="h-8 w-20 rounded-xl" />
+              </div>
+            ))}
+          </div>
         </div>
       ) : view === 'list' ? (
 
@@ -600,12 +611,25 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                             autoFocus
                             className="flex-1 bg-background border border-primary rounded-xl px-3 py-1.5 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/10"
                           />
-                          <button onClick={() => handleRenameTier(tier)} className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg cursor-pointer">
-                            <Check className="w-4 h-4" />
-                          </button>
-                          <button onClick={() => setEditingId(null)} className="p-1.5 text-muted-foreground hover:bg-muted rounded-lg cursor-pointer">
-                            <X className="w-4 h-4" />
-                          </button>
+                          <div className="inline-flex items-center p-0.5 bg-muted/60 border border-border rounded-xl shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleRenameTier(tier)}
+                              className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 rounded-lg cursor-pointer transition-all active:scale-90"
+                              title="Save"
+                            >
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <span className="w-px h-4 bg-border/60" />
+                            <button
+                              type="button"
+                              onClick={() => setEditingId(null)}
+                              className="p-1.5 text-rose-500 hover:bg-rose-500/15 rounded-lg cursor-pointer transition-all active:scale-90"
+                              title="Cancel"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
                       ) : (
                         <div>
@@ -666,15 +690,21 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                         <Pencil className="w-3.5 h-3.5" />
                       </button>
                       {confirmDeleteId === tier.pricing_tier_id ? (
-                        <div className="flex items-center gap-1">
+                        <div className="inline-flex items-center gap-1 p-0.5 bg-muted/60 border border-border rounded-xl shrink-0">
                           <button
+                            type="button"
                             onClick={() => handleDeleteTier(tier)}
-                            className="px-2 py-1 text-[10px] font-black bg-destructive text-destructive-foreground rounded-lg cursor-pointer"
+                            className="px-2.5 py-1 text-[10px] font-black bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-lg cursor-pointer transition-all active:scale-95"
                           >
                             Delete
                           </button>
-                          <button onClick={() => setConfirmDeleteId(null)} className="p-1 text-muted-foreground cursor-pointer">
-                            <X className="w-3 h-3" />
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeleteId(null)}
+                            className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg cursor-pointer transition-all active:scale-90"
+                            title="Cancel"
+                          >
+                            <X className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ) : (
