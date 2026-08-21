@@ -7,6 +7,7 @@ import { generateInvoiceHtml, type InvoiceData, type InvoiceItemDisplay } from '
 
 const SAMPLE_ITEMS: ReceiptItem[] = [
   { name: 'Premium Basmati Rice', brand: 'India Gate', quantity: 2, unit_price: 125.00, total: 250.00, originalRate: 140.00, discountLabel: '₹15 off' },
+  { name: 'Fresh Apples (Weight)', quantity: 0.5, unit_price: 180.00, total: 90.00, billing_type: 'WEIGHT', pieces_per_kg: 6 },
   { name: 'Organic Wheat Flour', quantity: 1, unit_price: 45.00, total: 45.00 },
   { name: 'Cold Pressed Coconut Oil', brand: 'Parachute', quantity: 3, unit_price: 85.00, total: 255.00 },
   { name: 'Honey (500g)', quantity: 1, unit_price: 120.00, total: 120.00 },

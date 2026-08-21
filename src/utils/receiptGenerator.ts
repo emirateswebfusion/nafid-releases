@@ -6,6 +6,10 @@ export interface ReceiptItem {
   originalRate?: number;
   discountLabel?: string;
   brand?: string;
+  billing_type?: string;
+  pieces_override?: number;
+  pieces_per_kg?: number;
+  unit?: string;
 }
 
 export interface BillSettings {
@@ -25,6 +29,9 @@ export interface BillSettings {
   printFullName?: boolean;
   showBrandName?: boolean;
   instructions?: string;
+  showWeightDetails?: boolean;
+  showPcsForWeightProducts?: boolean;
+  showPcsUnit?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -44,7 +51,59 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   printFullName: true,
   showBrandName: true,
   instructions: '',
+  showWeightDetails: true,
+  showPcsForWeightProducts: true,
+  showPcsUnit: false,
 };
+
+export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
+  displayQty: string;
+  displayRate: string;
+  displayTotal: string;
+  isWeightHidden: boolean;
+} {
+  const showWeightDetails = bs?.showWeightDetails !== false;
+  const isWeightProduct = item.billing_type === 'WEIGHT' || item.unit === 'KG' || item.unit === 'Kg' || item.unit === 'kg' || item.unit === 'KGS' || item.unit === 'Kgs';
+  const isWeightHidden = !showWeightDetails && isWeightProduct;
+
+  let qtyStr: string;
+  let rateVal = item.unit_price;
+
+  if (isWeightHidden) {
+    let pcs = item.pieces_override;
+    if (pcs == null || pcs <= 0) {
+      if (item.pieces_per_kg && item.pieces_per_kg > 0) {
+        pcs = Math.round(Number(item.quantity) * item.pieces_per_kg);
+      } else {
+        const numQty = Number(item.quantity);
+        pcs = Number.isInteger(numQty) && numQty > 0 ? numQty : Math.max(1, Math.round(numQty));
+      }
+    }
+    if (pcs > 0) {
+      rateVal = item.total / pcs;
+    }
+    const appendPcs = bs?.showPcsUnit !== false || bs?.showPcsForWeightProducts !== false;
+    qtyStr = appendPcs ? `${pcs} PCS` : `${pcs}`;
+  } else {
+    const numQty = Number(item.quantity);
+    let rawQtyStr = isNaN(numQty)
+      ? String(item.quantity)
+      : (isWeightProduct ? numQty.toFixed(3).replace(/\.0+$/, '') : String(numQty));
+
+    if (bs?.showPcsUnit) {
+      qtyStr = `${rawQtyStr} PCS`;
+    } else {
+      qtyStr = rawQtyStr;
+    }
+  }
+
+  return {
+    displayQty: qtyStr,
+    displayRate: rateVal.toFixed(2),
+    displayTotal: item.total.toFixed(2),
+    isWeightHidden,
+  };
+}
 
 let appTimeFormat: '12h' | '24h' = '12h';
 
@@ -355,8 +414,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += LIGHT + '\n';
 
     data.items.forEach((item, i) => {
-      const qty = String(item.quantity);
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const qty = fmt.displayQty;
+      const total = fmt.displayTotal;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
       nameLines.forEach((name, li) => {
@@ -371,12 +431,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += `${brandLine.substring(0, charsPerLine)}\n`;
       }
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${item.unit_price.toFixed(2)}`;
+        const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         const clipped = mrpLine.length > charsPerLine ? mrpLine.substring(0, charsPerLine - 3) + '..' : mrpLine;
         text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
       } else if (data.invoiceType === 'SCRAP') {
         // Rate | Weight | Total sub-line for scrap items
-        const subLine = `  ${padLeft(item.unit_price.toFixed(2), 7)} ${padLeft(String(item.quantity), 5)} ${padLeft(item.total.toFixed(2), 8)}`;
+        const subLine = `  ${padLeft(fmt.displayRate, 7)} ${padLeft(qty, 5)} ${padLeft(fmt.displayTotal, 8)}`;
         text += subLine.substring(0, charsPerLine) + '\n';
       }
     });
@@ -511,7 +571,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Items (name + total right-aligned, qty inline) ──
     data.items.forEach(item => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - total.length - 2) : [rawName.length > charsPerLine - 14 ? rawName.substring(0, charsPerLine - 17) + '..' : rawName];
       nameLines.forEach((name, li) => {
@@ -523,11 +584,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += ` MRP ${item.originalRate.toFixed(2)}@${item.unit_price.toFixed(2)}`;
+        text += ` MRP ${item.originalRate.toFixed(2)}@${fmt.displayRate}`;
         if (item.discountLabel) text += ` (${item.discountLabel})`;
-        text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
+        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
       } else {
-        text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
+        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
@@ -656,7 +717,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Items (▸ bullets, qty+rate on separate line) ──
     data.items.forEach(item => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - total.length - 4) : [rawName.length > charsPerLine - 12 ? rawName.substring(0, charsPerLine - 15) + '..' : rawName];
       nameLines.forEach((name, li) => {
@@ -668,11 +730,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += `  MRP ₹${item.originalRate.toFixed(2)} → ₹${item.unit_price.toFixed(2)}`;
+        text += `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? ` (~ ${item.discountLabel})\n` : '\n';
-        text += `  ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
+        text += `  ${fmt.displayQty} x ${fmt.displayRate}\n`;
       } else {
-        text += `  ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
+        text += `  ${fmt.displayQty} x ${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
       }
     });
@@ -816,9 +878,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       nameW = charsPerLine - qtyW - colGap - rateW - colGap - amtW;
       text += `${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item) => {
-        const qty = Number(item.quantity).toFixed(3).replace(/\.0+$/, '');
-        const rate = item.unit_price.toFixed(2);
-        const amt = item.total.toFixed(2);
+        const fmt = formatPrintItem(item, selectedBillSettings);
+        const qty = fmt.displayQty;
+        const rate = fmt.displayRate;
+        const amt = fmt.displayTotal;
         const rawName = item.name || '';
         const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
         nameLines.forEach((name, li) => {
@@ -830,15 +893,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
         if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-          text += `  MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
+          text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
       });
     } else {
       text += `${padRight('No', idxW)} ${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item, i) => {
-        const qty = Number(item.quantity).toFixed(3).replace(/\.0+$/, '');
-        const rate = item.unit_price.toFixed(2);
-        const amt = item.total.toFixed(2);
+        const fmt = formatPrintItem(item, selectedBillSettings);
+        const qty = fmt.displayQty;
+        const rate = fmt.displayRate;
+        const amt = fmt.displayTotal;
         const rawName = item.name || '';
         const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
         nameLines.forEach((name, li) => {
@@ -850,7 +914,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         });
         if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
         if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-          text += `  MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
+          text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
         }
       });
     }
@@ -1000,7 +1064,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Items (numbered: "1. Name             ₹XXX") ──
     data.items.forEach((item, i) => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const prefix = `${i + 1}. `;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - prefix.length - total.length - 1) : [rawName.length > charsPerLine - 14 ? rawName.substring(0, charsPerLine - 17) + '..' : rawName];
@@ -1013,11 +1078,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += `     MRP ₹${item.originalRate.toFixed(2)} → ₹${item.unit_price.toFixed(2)}`;
+        text += `     MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? `  [${item.discountLabel}]\n` : '\n';
-        text += `     ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
+        text += `     ${fmt.displayQty} x ${fmt.displayRate}\n`;
       } else {
-        text += `     ${item.quantity} x ${item.unit_price.toFixed(2)}\n`;
+        text += `     ${fmt.displayQty} x ${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `     [${item.discountLabel}]\n`;
       }
     });
@@ -1156,7 +1221,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     };
 
     data.items.forEach(item => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - totalW - 4) : [rawName.length > charsPerLine - totalW - 4 ? rawName.substring(0, charsPerLine - totalW - 7) + '..' : rawName];
       nameLines.forEach((name, li) => {
@@ -1168,10 +1234,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += `  MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
-        text += `  ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
+        text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
+        text += `  ${fmt.displayQty}x${fmt.displayRate}\n`;
       } else {
-        text += `  ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
+        text += `  ${fmt.displayQty}x${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
@@ -1277,7 +1343,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Items (name + total right-aligned, no qty/rate unless offer) ──
     data.items.forEach(item => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - total.length - 2) : [rawName.length > charsPerLine - totalW - 2 ? rawName.substring(0, charsPerLine - totalW - 5) + '..' : rawName];
       nameLines.forEach((name, li) => {
@@ -1289,9 +1356,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += ` ${item.quantity}x${item.unit_price.toFixed(2)}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
+        text += ` ${fmt.displayQty}x${fmt.displayRate}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
       } else {
-        text += ` ${item.quantity}x${item.unit_price.toFixed(2)}\n`;
+        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += ` ${item.discountLabel}\n`;
       }
     });
@@ -1402,7 +1469,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += THIN + '\n';
 
     data.items.forEach((item, i) => {
-      const total = item.total.toFixed(2);
+      const fmt = formatPrintItem(item, selectedBillSettings);
+      const total = fmt.displayTotal;
       const prefix = `${i + 1}.`;
       const rawName = item.name || '';
       const nameLines = printFullName ? wrapText(rawName, charsPerLine - prefix.length - 1 - total.length - 1) : [rawName.length > charsPerLine - 14 ? rawName.substring(0, charsPerLine - 17) + '..' : rawName];
@@ -1415,12 +1483,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += `     ${item.quantity} \u00D7 ${item.unit_price.toFixed(2)}`;
+        text += `     ${fmt.displayQty} \u00D7 ${fmt.displayRate}`;
         text += `    MRP \u20B9${item.originalRate.toFixed(2)}`;
         text += item.discountLabel ? ` (${item.discountLabel})` : '';
         text += '\n';
       } else {
-        text += `     ${item.quantity} \u00D7 ${item.unit_price.toFixed(2)}\n`;
+        text += `     ${fmt.displayQty} \u00D7 ${fmt.displayRate}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `     ${item.discountLabel}\n`;
       }
     });
@@ -1684,10 +1752,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += B_SEP(colWidths);
 
     data.items.forEach((item, i) => {
+      const fmt = formatPrintItem(item, selectedBillSettings);
       const idx = String(i + 1);
-      const qty = String(item.quantity);
-      const rate = item.unit_price.toFixed(2);
-      const amt = item.total.toFixed(2);
+      const qty = fmt.displayQty;
+      const rate = fmt.displayRate;
+      const amt = fmt.displayTotal;
       const mrpStr = mrpW && item.originalRate ? item.originalRate.toFixed(2) : '';
       const rawName = item.name || '';
 
@@ -1715,7 +1784,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         // 1. Add a small gap row before the offer note (45% line-height) - no extra column dividers
         text += '[[LH:0.45]]' + B_ROW(['', ''], offerWidths);
 
-        const offerLabel = ` MRP ${item.originalRate.toFixed(2)} @ ${item.unit_price.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
+        const offerLabel = ` MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}`;
         // 2. Print as 2-column row: empty Sr. column, offer label in remaining space
         text += B_ROW(['', offerLabel], offerWidths);
 

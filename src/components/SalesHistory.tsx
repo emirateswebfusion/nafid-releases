@@ -513,7 +513,22 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           }
         }
       }
-      return { ...item, originalRate, discountLabel, brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined };
+      let pcsPerKg: number | undefined;
+      if (p?.domain_attributes) {
+        try {
+          const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+          if (attrs?.pcs_per_kg) pcsPerKg = Number(attrs.pcs_per_kg);
+        } catch {}
+      }
+      return {
+        ...item,
+        originalRate,
+        discountLabel,
+        brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined,
+        billing_type: p?.billing_type || item.billing_type || undefined,
+        pieces_per_kg: pcsPerKg,
+        unit: p?.uom || item.unit || undefined,
+      };
     });
   };
 
@@ -622,7 +637,19 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
         billerName: selectedInvoice.biller_name,
-        items: items.map(item => ({ name: item.name, quantity: Number(item.quantity) || 0, unit_price: item.unit_price, total: item.total, originalRate: item.originalRate, discountLabel: item.discountLabel, brand: item.brand_manufacturer || undefined })),
+        items: items.map(item => ({
+          name: item.name,
+          quantity: Number(item.quantity) || 0,
+          unit_price: item.unit_price,
+          total: item.total,
+          originalRate: item.originalRate,
+          discountLabel: item.discountLabel,
+          brand: item.brand_manufacturer || undefined,
+          billing_type: item.billing_type,
+          pieces_override: item.pieces_override,
+          pieces_per_kg: item.pieces_per_kg,
+          unit: item.unit,
+        })),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
         cgst: cgst,

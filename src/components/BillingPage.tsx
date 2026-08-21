@@ -2685,7 +2685,19 @@ notes: '',
         originalRate = mrpRate;
         discountLabel = 'Offer';
       }
-      return { name: item.name, quantity: qty, unit_price: unitPrice, total, originalRate, discountLabel, brand: item.brand_manufacturer || undefined };
+      return {
+        name: item.name,
+        quantity: qty,
+        unit_price: unitPrice,
+        total,
+        originalRate,
+        discountLabel,
+        brand: item.brand_manufacturer || undefined,
+        billing_type: item.billing_type,
+        pieces_override: item.pieces_override,
+        pieces_per_kg: item.pieces_per_kg,
+        unit: item.unit,
+      };
     });
 
     try {

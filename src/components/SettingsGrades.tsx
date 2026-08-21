@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Badge } from './ui/Badge';
 import { useAuthStore } from '../store/authStore';
@@ -265,16 +266,37 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
   if (loading) {
     return (
-      <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200">
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4 text-muted-foreground">
-            <div className="relative">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-2 h-2 rounded-full bg-primary/30 animate-ping" />
-              </div>
+      <div className="fixed inset-0 z-40 flex flex-col bg-background">
+        <header className="px-6 py-3 border-b border-border bg-card flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-9 h-9 rounded-xl" />
+            <div className="space-y-1.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-3 w-48" />
             </div>
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground/75 animate-pulse">Loading categories...</span>
+          </div>
+          <Skeleton className="h-9 w-28 rounded-xl" />
+        </header>
+
+        <div className="flex-1 p-6 space-y-6 overflow-hidden">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-10 w-72 rounded-xl" />
+            <Skeleton className="h-9 w-36 rounded-xl" />
+          </div>
+
+          <div className="grid grid-cols-3 gap-5">
+            {[1, 2, 3, 4, 5, 6].map((cat) => (
+              <div key={cat} className="p-4 rounded-2xl border border-border bg-card space-y-3">
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-5 w-28" />
+                  <Skeleton className="h-6 w-14 rounded-full" />
+                </div>
+                <div className="space-y-2">
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                  <Skeleton className="h-8 w-full rounded-lg" />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

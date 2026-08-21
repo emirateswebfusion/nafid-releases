@@ -13,6 +13,7 @@ import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
+import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
@@ -592,10 +593,55 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 text-primary animate-spin" />
-          <p className="text-muted-foreground text-sm font-medium">Loading configurations...</p>
+      <div className="fixed inset-0 z-40 flex flex-col bg-background">
+        {/* Header Skeleton */}
+        <header className="px-6 py-4 border-b border-border flex items-center justify-between bg-card shrink-0">
+          <div className="flex items-center gap-3">
+            <Skeleton className="w-10 h-10 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-5 w-40" />
+              <Skeleton className="h-3 w-56" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-9 w-24 rounded-xl" />
+            <Skeleton className="h-9 w-28 rounded-xl" />
+          </div>
+        </header>
+
+        {/* Body Skeleton with Sidebar & Main Content */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar Skeleton */}
+          <div className="w-64 border-r border-border p-4 space-y-6 bg-card/50 shrink-0">
+            {[1, 2, 3, 4, 5].map((g) => (
+              <div key={g} className="space-y-2">
+                <Skeleton className="h-3 w-20 mb-3" />
+                <Skeleton className="h-9 w-full rounded-xl" />
+                <Skeleton className="h-9 w-full rounded-xl" />
+              </div>
+            ))}
+          </div>
+
+          {/* Content Pane Skeleton */}
+          <div className="flex-1 p-8 overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-72" />
+              </div>
+              <Skeleton className="h-9 w-32 rounded-xl" />
+            </div>
+
+            <div className="grid grid-cols-2 gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div key={i} className="p-5 rounded-2xl border border-border bg-card space-y-3">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-10 w-full rounded-xl" />
+                  <Skeleton className="h-3 w-40" />
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -1449,6 +1495,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                           { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
                           { key: 'printFullName', label: 'Full Product Name' },
                           { key: 'showBrandName', label: 'Product Brand Name' },
+                          { key: 'showWeightDetails', label: 'Weight & Per-Weight Rate (Weight Items)' },
+                          { key: 'showPcsForWeightProducts', label: 'Show Weight Items in PCS (Pieces)' },
+                          { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
                         ].map(({ key, label }) => {
                           const forcedOn = key === 'showTitle' && billSettings.estimateMode;
                           return (
