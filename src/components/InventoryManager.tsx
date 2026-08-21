@@ -92,6 +92,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const [filterDate, setFilterDate] = useState('');
   const [filterDateEnd, setFilterDateEnd] = useState('');
   const firstInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [formData, setFormData] = useState({ ...DEFAULT_FORM });
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -151,6 +152,16 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   useEffect(() => { filterDateRef.current = filterDate; }, [filterDate]);
   useEffect(() => { filterDateEndRef.current = filterDateEnd; }, [filterDateEnd]);
   useEffect(() => { offsetRef.current = offset; }, [offset]);
+
+  // Focus search input on open / view switch
+  useEffect(() => {
+    if (view === 'list') {
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [view]);
 
   // Load products when search or sort changes (reset)
   useEffect(() => {
@@ -1298,10 +1309,12 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           <div className="relative w-full sm:max-w-xs flex-1">
             <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
             <input
+              ref={searchInputRef}
               type="text"
               placeholder="Search by name, barcode, brand, or category..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
+              autoFocus
               className="w-full pl-10 pr-8 py-2.5 text-xs bg-background/50 border border-border rounded-xl focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all placeholder:text-muted-foreground/40 font-semibold text-foreground"
             />
             {searchQuery && (

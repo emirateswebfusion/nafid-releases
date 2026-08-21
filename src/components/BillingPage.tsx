@@ -4051,42 +4051,41 @@ notes: '',
                 />
               </div>
             </div>
-            <div className="relative mb-2">
-              <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
-              <input
-                placeholder="Customer Address (optional)"
-                value={customerAddress}
-                onChange={e => updateActiveTab({ customerAddress: e.target.value })}
-                className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
-              />
-            </div>
-            {pricingTiers.length > 0 && (
-              <div className="flex items-center gap-2 mb-2">
-                <div className="p-1 rounded-lg bg-violet-500/10 text-violet-500 shrink-0">
-                  <Layers className="w-3.5 h-3.5" />
-                </div>
-                <Select
-                  size="sm"
-                  triggerClassName="h-auto"
-                  className="w-44"
-                  value={selectedTierId}
-                  onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
-                  options={[
-                    { value: '', label: 'Default (MRP)' },
-                    ...pricingTiers.map(t => ({ value: t.pricing_tier_id, label: t.name })),
-                  ]}
-                  disabled={!canOverrideTier}
+            <div className="flex items-center gap-2 mb-2">
+              <div className="relative flex-1">
+                <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
+                <input
+                  placeholder="Customer Address (optional)"
+                  value={customerAddress}
+                  onChange={e => updateActiveTab({ customerAddress: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
                 />
-                {selectedTierId && (
-                  <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider shrink-0">
-                    {pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name} prices
-                  </span>
-                )}
-                {!canOverrideTier && (
-                  <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
-                )}
               </div>
-            )}
+              {pricingTiers.length > 0 && (
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Select
+                    size="sm"
+                    triggerClassName="h-auto py-2"
+                    className="w-40 sm:w-44"
+                    value={selectedTierId}
+                    onChange={v => { if (canOverrideTier) setSelectedTierId(v); }}
+                    options={[
+                      { value: '', label: 'Default (MRP)' },
+                      ...pricingTiers.map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                    ]}
+                    disabled={!canOverrideTier}
+                  />
+                  {selectedTierId && (
+                    <span className="text-[10px] font-bold text-violet-500 uppercase tracking-wider shrink-0 hidden lg:inline">
+                      {pricingTiers.find(t => t.pricing_tier_id === selectedTierId)?.name} prices
+                    </span>
+                  )}
+                  {!canOverrideTier && (
+                    <span className="text-[10px] text-muted-foreground shrink-0" title="Owner has disabled biller price overrides">🔒 locked</span>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex bg-muted/60 p-0.5 rounded-lg border border-border">
                 <button

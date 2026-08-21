@@ -27,6 +27,7 @@ interface Product {
 
 // ── MEMOIZED MATRIX ROW FOR 60FPS TYPING & ZERO LAG ───────────────────
 interface MatrixRowProps {
+  index: number;
   product: Product;
   matrixTiers: PricingTier[];
   rowPrices: Record<string, string>;
@@ -37,6 +38,7 @@ interface MatrixRowProps {
 }
 
 const MatrixRow = React.memo(({
+  index,
   product,
   matrixTiers,
   rowPrices,
@@ -55,6 +57,11 @@ const MatrixRow = React.memo(({
         isModified && 'bg-amber-500/5'
       )}
     >
+      {/* Sl. No. */}
+      <div className="w-12 text-center text-xs font-bold text-muted-foreground shrink-0">
+        {index + 1}
+      </div>
+
       {/* Product Info */}
       <div className="flex-1 min-w-0">
         <p className="text-sm font-bold text-foreground truncate">{product.name}</p>
@@ -125,6 +132,7 @@ const MatrixRow = React.memo(({
     </div>
   );
 }, (prevProps, nextProps) => {
+  if (prevProps.index !== nextProps.index) return false;
   if (prevProps.product !== nextProps.product) return false;
   if (prevProps.matrixTiers !== nextProps.matrixTiers) return false;
   if (prevProps.operating !== nextProps.operating) return false;
@@ -534,7 +542,9 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
             <section className="bg-card border border-border rounded-[28px] overflow-hidden shadow-sm">
               {/* Column Header */}
               <div className="grid grid-cols-12 gap-3 px-6 py-3.5 bg-muted/20 dark:bg-muted/10 border-b border-border select-none">
-                <div className="col-span-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest">#</div>
+                <div className="col-span-1 text-[10px] font-black text-muted-foreground uppercase tracking-widest flex items-center gap-1">
+                  <span>Sl. No.</span>
+                </div>
                 <div className="col-span-5 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Tier Name</div>
                 <div className="col-span-2 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Status</div>
                 <div className="col-span-2 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest">Active</div>
@@ -557,22 +567,25 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                       !tier.is_active && 'opacity-60'
                     )}
                   >
-                    {/* Sort Arrows */}
-                    <div className="col-span-1 flex flex-col gap-0.5">
-                      <button
-                        onClick={() => moveTier(index, -1)}
-                        disabled={index === 0 || operating}
-                        className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveTier(index, 1)}
-                        disabled={index === tiers.length - 1 || operating}
-                        className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
+                    {/* Sl. No. & Sort Arrows */}
+                    <div className="col-span-1 flex items-center gap-2">
+                      <span className="text-xs font-bold text-muted-foreground w-4 text-center">{index + 1}</span>
+                      <div className="flex flex-col gap-0.5">
+                        <button
+                          onClick={() => moveTier(index, -1)}
+                          disabled={index === 0 || operating}
+                          className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => moveTier(index, 1)}
+                          disabled={index === tiers.length - 1 || operating}
+                          className="p-0.5 text-muted-foreground/50 hover:text-primary disabled:opacity-20 cursor-pointer"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Name / Inline Edit */}
@@ -778,6 +791,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
 
               {/* Column Header */}
               <div className="hidden sm:flex items-center px-6 py-3.5 bg-muted/20 dark:bg-muted/10 border-b border-border select-none shrink-0 gap-4">
+                <div className="w-12 text-center text-[10px] font-black text-muted-foreground uppercase tracking-widest shrink-0">Sl. No.</div>
                 <div className="flex-1 min-w-0 text-[10px] font-black text-muted-foreground uppercase tracking-widest">Product</div>
                 <div className="w-28 text-right text-[10px] font-black text-muted-foreground uppercase tracking-widest">Base MRP</div>
                 {matrixTiers.map(t => (
@@ -811,9 +825,10 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
                   </div>
                 ) : (
                   <>
-                    {displayedProducts.map(p => (
+                    {displayedProducts.map((p, idx) => (
                       <MatrixRow
                         key={p.product_id}
+                        index={idx}
                         product={p}
                         matrixTiers={matrixTiers}
                         rowPrices={pricingMap[p.product_id] || {}}

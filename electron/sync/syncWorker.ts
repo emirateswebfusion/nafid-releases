@@ -750,6 +750,9 @@ function replaySince(cursor: string | null): string | null {
 // Shared progress context for the parallel pull phase (set by runSyncCycle).
 let pullProgressCtx: { done: number; total: number } | null = null;
 
+// Cache of per-table content hashes to prevent duplicate log spam when fetched data is unchanged
+const tableContentHashes: Record<string, string> = {};
+
 // ── Generic paginated + delta pull (Cloud → Edge) ───────────────────────────────
 // Fetches a table in pages of `pageSize`, passing each page to `processPage`
 // (which performs the table-specific upsert inside its own transaction), tracks
@@ -766,7 +769,7 @@ async function pullPaginated(opts: {
   tsColumn?: 'updated_at' | 'created_at';
   onProgress?: (fetched: number) => void;
   processPage: (rows: any[]) => number;
-}): Promise<{ count: number; reconciled: number; failed: boolean }> {
+}): Promise<{ count: number; reconciled: number; failed: boolean; hasChanged: boolean }> {
   const pageSize = opts.pageSize ?? PULL_PAGE_SIZE;
   const tsColumn = opts.tsColumn ?? 'updated_at';
   const since = replaySince(getMeta(cursorKey(opts.tenantId, opts.table)));
@@ -775,6 +778,8 @@ async function pullPaginated(opts: {
   let reconciled = 0;
   let maxTs: string | null = null;
   let failed = false;
+  let hasChanged = false;
+  const fetchedRowSignatures: string[] = [];
 
   const fetchPage = async (offsetVal: number): Promise<any[] | null> => {
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offsetVal) });
@@ -821,6 +826,10 @@ async function pullPaginated(opts: {
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;
       if (ts && (!maxTs || String(ts) > maxTs)) maxTs = String(ts);
+
+      // Create clean row signature (ignoring volatile server timestamps)
+      const { updated_at, created_at, opened_at, ...clean } = r || {};
+      fetchedRowSignatures.push(JSON.stringify(clean));
     }
     opts.onProgress?.(count);
 
@@ -831,8 +840,17 @@ async function pullPaginated(opts: {
     offset += pageSize;
   }
 
+  if (count > 0) {
+    const combinedHash = fetchedRowSignatures.join('|');
+    const previousHash = tableContentHashes[opts.table];
+    if (combinedHash !== previousHash) {
+      hasChanged = true;
+      tableContentHashes[opts.table] = combinedHash;
+    }
+  }
+
   if (maxTs && count > 0) setMeta(cursorKey(opts.tenantId, opts.table), maxTs);
-  return { count, reconciled, failed };
+  return { count, reconciled, failed, hasChanged };
 }
 
 // Progress reporter shared by all pull wrappers during the parallel phase.
@@ -901,12 +919,12 @@ async function pullGrades(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} grades from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull grades failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Pricing Tiers (Cloud → Edge) ──────────────────────────────────────────
@@ -963,12 +981,12 @@ async function pullPricingTiers(token: string, tenantId: string): Promise<boolea
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} pricing tiers from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull pricing tiers failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Product Pricing (Cloud → Edge) ────────────────────────────────────────
@@ -1024,12 +1042,12 @@ async function pullProductPricing(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} product pricing rows from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull product pricing failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Products (Cloud → Edge) ─────────────────────────────────────────────
@@ -1152,17 +1170,20 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} products from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull products failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
+
+let lastInvoicesHash = '';
 
 // ── Pull Invoices (Cloud → Edge) ─────────────────────────────────────────────
 async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
+  let hasContentChanged = false;
 
   const upsertInv = db.prepare(`
     INSERT INTO invoices (
@@ -1260,6 +1281,18 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
     label: 'invoices',
     onProgress: (fetched) => notifyPullProgress('invoices', fetched),
     processPage: (rows) => {
+      const currentHash = JSON.stringify(rows.map(r => ({
+        id: r.invoice_id,
+        num: r.invoice_number,
+        total: r.grand_total,
+        status: r.payment_method,
+        del: r.is_deleted,
+      })));
+      if (currentHash !== lastInvoicesHash) {
+        hasContentChanged = true;
+        lastInvoicesHash = currentHash;
+      }
+
       const tx = db.transaction((invoices: any[]) => {
         for (const inv of invoices) {
           let currentInv = { ...inv };
@@ -1364,12 +1397,12 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (hasContentChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
     console.error(`[SyncWorker] Pull invoices failed for tenantId=${tenantId}.`);
   }
-  return result.count > 0;
+  return hasContentChanged && result.count > 0;
 }
 
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
@@ -1564,12 +1597,12 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} parties from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull parties failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Party Ledger Sync (Edge → Cloud) ──────────────────────────────────────────
@@ -1697,12 +1730,12 @@ async function pullPartyLedger(token: string, tenantId: string): Promise<boolean
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} ledger entries from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull party ledger failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Scrap Categories Sync (Edge → Cloud) ─────────────────────────────────────
@@ -1819,12 +1852,12 @@ async function pullScrapCategories(token: string, tenantId: string): Promise<boo
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} scrap categories from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull scrap categories failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Scrap Transactions (Cloud → Edge) ─────────────────────────────────
@@ -1896,12 +1929,12 @@ async function pullScrapTransactions(token: string, tenantId: string): Promise<b
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} scrap transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull scrap transactions failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Settings (Cloud → Edge) ─────────────────────────────────────────────
@@ -1991,12 +2024,12 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} settings from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull settings failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Sync Purchase Bills (Edge → Cloud) ───────────────────────────────────────
@@ -2161,12 +2194,12 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} purchase bills from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull purchase bills failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
@@ -2238,9 +2271,12 @@ async function syncCashCategories(token: string, tenantId: string) {
   }
 }
 
+let lastCashDrawerHash = '';
+
 // ── Pull Cash Drawer (Cloud → Edge) ─────────────────────────────────────────────
 async function pullCashDrawer(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
+  let hasContentChanged = false;
 
   const upsert = db.prepare(`
     INSERT INTO cash_drawer (
@@ -2272,6 +2308,21 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     label: 'cash drawer',
     onProgress: (fetched) => notifyPullProgress('cash drawer', fetched),
     processPage: (rows) => {
+      const currentHash = JSON.stringify(rows.map(r => ({
+        id: r.drawer_id,
+        status: r.status,
+        opening: r.opening_balance,
+        sales: r.cash_sales,
+        in: r.cash_in,
+        out: r.cash_out,
+        cash: r.current_cash,
+        date: r.business_date,
+      })));
+      if (currentHash !== lastCashDrawerHash) {
+        hasContentChanged = true;
+        lastCashDrawerHash = currentHash;
+      }
+
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
           try {
@@ -2307,12 +2358,12 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     },
   });
 
-  if (result.count > 0) {
+  if (hasContentChanged && result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash drawer records from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash drawer failed.');
   }
-  return result.count > 0;
+  return hasContentChanged && result.hasChanged && result.count > 0;
 }
 
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
@@ -2360,12 +2411,12 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} customers.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull customers failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 async function pullLoyaltyTransactions(token: string, tenantId: string): Promise<boolean> {
@@ -2413,12 +2464,12 @@ async function pullLoyaltyTransactions(token: string, tenantId: string): Promise
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} loyalty transactions.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull loyalty transactions failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Sync Returns (Edge → Cloud) ──────────────────────────────────────────
@@ -2523,12 +2574,12 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} returns from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull returns failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Payment Sources Sync (Edge → Cloud) ─────────────────────────────────────────
@@ -2632,12 +2683,12 @@ async function pullPaymentSources(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment sources from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment sources failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Payment Source Transactions (Cloud → Edge) ─────────────────────────────
@@ -2691,10 +2742,10 @@ async function pullPaymentSourceTransactions(token: string, tenantId: string): P
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment source transactions from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment source transactions failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
