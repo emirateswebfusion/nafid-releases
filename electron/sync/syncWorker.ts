@@ -272,10 +272,39 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   }
 }
 
+let urgentCashSyncInProgress = false;
+
+export async function triggerUrgentCashSync(): Promise<void> {
+  if (urgentCashSyncInProgress) return;
+  const config = getAuthConfig();
+  if (!config) return;
+  const { jwt_token, tenant_id } = config;
+  if (isJwtExpired(jwt_token)) return;
+
+  urgentCashSyncInProgress = true;
+  try {
+    console.log('[SyncWorker] Express priority cash push/pull running...');
+    await syncCashDrawer(jwt_token, tenant_id);
+    await syncCashTransactions(jwt_token, tenant_id);
+    await syncCashCategories(jwt_token, tenant_id);
+    const drawerUpdated = await pullCashDrawer(jwt_token, tenant_id);
+    const txsUpdated = await pullCashTransactions(jwt_token, tenant_id);
+    if (drawerUpdated || txsUpdated) {
+      notifyRenderer();
+      console.log('[SyncWorker] Express priority cash sync completed: renderer notified.');
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Express cash sync error:', err.message);
+  } finally {
+    urgentCashSyncInProgress = false;
+  }
+}
+
 export async function runInitialSync(sender?: WebContents) {
   console.log('[SyncWorker] Running explicit initial sync...');
   isSyncActive = true;
   triggerUrgentInvoiceSync().catch(() => {});
+  triggerUrgentCashSync().catch(() => {});
   await runSyncCycle(sender);
   return { success: true };
 }
@@ -391,6 +420,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           { run: () => pullScrapTransactions(jwt_token, tenant_id) },
           { run: () => pullPurchaseBills(jwt_token, tenant_id) },
           { run: () => pullCashDrawer(jwt_token, tenant_id) },
+          { run: () => pullCashTransactions(jwt_token, tenant_id) },
+          { run: () => pullCashCategories(jwt_token, tenant_id) },
           { run: () => pullReturns(jwt_token, tenant_id) },
           { run: () => pullPaymentSources(jwt_token, tenant_id) },
           { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
@@ -2288,7 +2319,8 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
       @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
     )
-    ON CONFLICT(drawer_id) DO UPDATE SET
+    ON CONFLICT(tenant_id, business_date) DO UPDATE SET
+      drawer_id = excluded.drawer_id,
       opening_balance = excluded.opening_balance, cash_sales = excluded.cash_sales,
       cash_in = excluded.cash_in, cash_out = excluded.cash_out,
       current_cash = excluded.current_cash, expected_closing = excluded.expected_closing,
@@ -2364,6 +2396,134 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     console.error('[SyncWorker] Pull cash drawer failed.');
   }
   return hasContentChanged && result.hasChanged && result.count > 0;
+}
+
+// ── Pull Cash Transactions (Cloud → Edge) ───────────────────────────────────────
+async function pullCashTransactions(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsert = db.prepare(`
+    INSERT INTO cash_transactions (
+      transaction_id, tenant_id, drawer_id, type, amount, category, notes, reference_number,
+      entered_by, entered_by_name, transaction_date, sync_status, created_at, updated_at
+    ) VALUES (
+      @transaction_id, @tenant_id, @drawer_id, @type, @amount, @category, @notes, @reference_number,
+      @entered_by, @entered_by_name, @transaction_date, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(transaction_id) DO UPDATE SET
+      drawer_id = excluded.drawer_id,
+      type = excluded.type,
+      amount = excluded.amount,
+      category = excluded.category,
+      notes = excluded.notes,
+      reference_number = excluded.reference_number,
+      entered_by = excluded.entered_by,
+      entered_by_name = excluded.entered_by_name,
+      transaction_date = excluded.transaction_date,
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE cash_transactions.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'cash_transactions',
+    urlPath: '/api/sync/cash_transactions',
+    label: 'cash transactions',
+    onProgress: (fetched) => notifyPullProgress('cash transactions', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((transactions: any[]) => {
+        for (const t of transactions) {
+          try {
+            upsert.run({
+              transaction_id: t.transaction_id,
+              tenant_id: tenantId,
+              drawer_id: t.drawer_id,
+              type: t.type,
+              amount: t.amount ?? 0,
+              category: t.category || null,
+              notes: t.notes || null,
+              reference_number: t.reference_number || null,
+              entered_by: t.entered_by || null,
+              entered_by_name: t.entered_by_name || null,
+              transaction_date: toSqliteDate(t.transaction_date),
+              created_at: toSqliteDate(t.created_at),
+              updated_at: toSqliteDate(t.updated_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling cash transaction:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'cash_transactions', 'transaction_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} cash transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull cash transactions failed.');
+  }
+  return result.hasChanged && result.count > 0;
+}
+
+// ── Pull Cash Categories (Cloud → Edge) ─────────────────────────────────────────
+async function pullCashCategories(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsert = db.prepare(`
+    INSERT INTO cash_categories (
+      category_id, tenant_id, name, type, sort_order, is_default, sync_status, created_at
+    ) VALUES (
+      @category_id, @tenant_id, @name, @type, @sort_order, @is_default, 'SYNCED', @created_at
+    )
+    ON CONFLICT(category_id) DO UPDATE SET
+      name = excluded.name,
+      type = excluded.type,
+      sort_order = excluded.sort_order,
+      is_default = excluded.is_default,
+      sync_status = 'SYNCED'
+    WHERE cash_categories.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'cash_categories',
+    urlPath: '/api/sync/cash_categories',
+    label: 'cash categories',
+    onProgress: (fetched) => notifyPullProgress('cash categories', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((categories: any[]) => {
+        for (const c of categories) {
+          try {
+            upsert.run({
+              category_id: c.category_id,
+              tenant_id: tenantId,
+              name: c.name,
+              type: c.type,
+              sort_order: c.sort_order ?? 0,
+              is_default: c.is_default ? 1 : 0,
+              created_at: toSqliteDate(c.created_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling cash category:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'cash_categories', 'category_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} cash categories from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull cash categories failed.');
+  }
+  return result.hasChanged && result.count > 0;
 }
 
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {

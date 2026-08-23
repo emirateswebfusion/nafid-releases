@@ -4785,6 +4785,9 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `).run(crypto.randomUUID(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
     
+    import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:setOpeningBalance]', error);
@@ -4934,8 +4937,9 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
     
     tx();
     // Trigger immediate background sync so settled status updates on cloud & other terminals instantly
-    import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync }) => {
+    import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync, triggerUrgentCashSync }) => {
       triggerUrgentInvoiceSync().catch(e => console.error('[Main] Immediate urgent sync error:', e));
+      triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
@@ -4993,6 +4997,9 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
     });
     
     tx();
+    import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:addTransaction]', error);
@@ -5032,6 +5039,9 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     });
     
     tx();
+    import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
+      triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
+    }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:dayClosing]', error);
