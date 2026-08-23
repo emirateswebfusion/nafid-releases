@@ -1,3 +1,11 @@
+# Vendora v1.5.26 Release Notes
+
+## What's Changed
+- Integrated real-time cash drawer adjustments for deleted and modified invoices in CashierSettlement
+- Allowed change-payment action for non-pending bills from SalesHistory for administrator roles
+- Fixed discount total fallback parsing on invoice loads and removed duplicate Settings cards
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.25...v1.5.26
+
 # Vendora v1.5.25 Release Notes
 
 ## What's Changed
