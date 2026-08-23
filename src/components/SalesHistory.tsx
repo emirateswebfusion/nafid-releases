@@ -298,6 +298,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [canReturn, setCanReturn] = useState(true);
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewMode, setViewMode] = useState<'bills' | 'analytics'>('bills');
+  const [showGraphBanner, setShowGraphBanner] = useState(false);
   const [search, setSearch] = useState('');
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -1018,6 +1020,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       {/* ─── HEADER ─── */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
+          {/* Left Title */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
               <Receipt className="w-4 h-4" />
@@ -1031,6 +1034,35 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             </div>
           </div>
 
+          {/* Center: View Mode Segmented Switcher */}
+          <div className="flex items-center bg-muted/40 p-1 rounded-2xl border border-border/70 gap-1 shadow-inner">
+            <button
+              onClick={() => setViewMode('bills')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border',
+                viewMode === 'bills'
+                  ? 'bg-card text-foreground border-border shadow-xs'
+                  : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-card/50'
+              )}
+            >
+              <Receipt className="w-3.5 h-3.5 text-primary" />
+              Bills List
+            </button>
+            <button
+              onClick={() => setViewMode('analytics')}
+              className={clsx(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border',
+                viewMode === 'analytics'
+                  ? 'bg-card text-foreground border-border shadow-xs'
+                  : 'text-muted-foreground border-transparent hover:text-foreground hover:bg-card/50'
+              )}
+            >
+              <BarChart3 className="w-3.5 h-3.5 text-violet-500" />
+              Analytics &amp; Graph
+            </button>
+          </div>
+
+          {/* Right Controls */}
           <div className="flex items-center gap-2 shrink-0">
             <DateRangeFilter
               startDate={filterDate}
@@ -1075,262 +1107,251 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       {/* ─── BODY ─── */}
       <div className="flex-1 flex overflow-hidden">
 
-        {/* ══ LEFT: Stats + Table (full or narrowed) ══ */}
-        <div className="flex flex-col flex-1 overflow-hidden w-full">
+        {/* ══ VIEW MODE 1: BILLS LIST (DE-CONGESTED) ══ */}
+        {viewMode === 'bills' ? (
+          <div className="flex flex-col flex-1 overflow-hidden w-full">
 
-          {/* Stats & Graph Side-by-Side Container */}
-          <div className="px-3 py-2.5 border-b border-border bg-background shrink-0">
-            <div className="flex gap-3 items-stretch">
-              
-              {/* Left Side: Stats cards (2x2 grid) */}
-              <div className="grid grid-cols-2 gap-2 shrink-0 w-[45%]">
-                {loading ? (
-                  Array.from({ length: 4 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-border bg-card">
-                      <Skeleton className="h-6 w-6 rounded-lg shrink-0" />
-                      <div className="space-y-1 flex-1">
-                        <Skeleton className="h-2 w-10" />
-                        <Skeleton className="h-3 w-14" />
-                      </div>
+            {/* Compact Single-Row High-Density KPI Bar */}
+            <div className="px-4 py-2 border-b border-border/70 bg-card/60 shrink-0">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
+                  {/* KPI 1: Total Revenue */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[170px]">
+                    <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500 shrink-0">
+                      <IndianRupee className="w-3.5 h-3.5" />
                     </div>
-                  ))
-                ) : (
-                  <>
-                    <StatCard icon={IndianRupee} label="Total Revenue" value={formatCurrency(summary.totalSales)} colorClass="text-emerald-500" bgClass="bg-emerald-500/10" sub={`${summary.totalInvoices} invoice${summary.totalInvoices !== 1 ? 's' : ''}`} />
-                    <StatCard icon={TrendingUp} label="Avg Order Value" value={formatCurrency(summary.avgOrder)} colorClass="text-blue-500" bgClass="bg-blue-500/10" />
-                    <StatCard icon={Percent} label="Total Tax" value={formatCurrency(summary.totalTax)} colorClass="text-violet-500" bgClass="bg-violet-500/10" />
-                    {summary.totalDiscount > 0
-                      ? <StatCard icon={Tag} label="Discounts Given" value={formatCurrency(summary.totalDiscount)} colorClass="text-rose-500" bgClass="bg-rose-500/10" sub="Total savings" />
-                      : <StatCard icon={Layers} label="Invoices" value={String(summary.totalInvoices)} colorClass="text-amber-500" bgClass="bg-amber-500/10" sub="All time" />
-                    }
-                  </>
-                )}
-              </div>
-
-              {/* Right Side: Graph / Chart */}
-              {!loading && invoices.length > 1 && (
-                <div className="flex-1 bg-card dark:bg-card border border-border rounded-[28px] p-4 flex flex-col justify-between overflow-hidden shadow-sm transition-all duration-300">
-                  {/* Chart header inside block */}
-                  <div className="flex items-center justify-between px-2 pb-1 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      <BarChart3 className="w-3.5 h-3.5 text-primary" />
-                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Daily Revenue Trend</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-[9px] text-muted-foreground font-semibold">
-                      <span className="flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary/70 inline-block" />
-                        Revenue
-                      </span>
-                      <span className="bg-muted/60 border border-border px-1 py-px rounded text-[8px] font-bold text-foreground/70">
-                        {dailySales.length}d
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Revenue</span>
+                      <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono tabular-nums leading-tight block mt-0.5">
+                        {loading ? '…' : formatCurrency(summary.totalSales)}
                       </span>
                     </div>
                   </div>
-                  {/* Chart body */}
-                  <div className="flex-1 min-h-[75px]">
+
+                  {/* KPI 2: Avg Order Value */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[160px]">
+                    <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500 shrink-0">
+                      <TrendingUp className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Avg Order Value</span>
+                      <span className="text-xs font-black text-blue-600 dark:text-blue-400 font-mono tabular-nums leading-tight block mt-0.5">
+                        {loading ? '…' : formatCurrency(summary.avgOrder)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* KPI 3: Total Tax */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[150px]">
+                    <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500 shrink-0">
+                      <Percent className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total GST Tax</span>
+                      <span className="text-xs font-black text-violet-600 dark:text-violet-400 font-mono tabular-nums leading-tight block mt-0.5">
+                        {loading ? '…' : formatCurrency(summary.totalTax)}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* KPI 4: Total Invoices / Discounts */}
+                  <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-background border border-border/60 shadow-2xs min-w-[150px]">
+                    <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500 shrink-0">
+                      <Receipt className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-black text-muted-foreground uppercase tracking-wider block leading-none">Total Invoices</span>
+                      <span className="text-xs font-black text-foreground font-mono tabular-nums leading-tight block mt-0.5">
+                        {loading ? '…' : `${summary.totalInvoices} Bills`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Toggle for Collapsible Trend Banner */}
+                <button
+                  onClick={() => setShowGraphBanner(!showGraphBanner)}
+                  className={clsx(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all cursor-pointer border shadow-2xs shrink-0',
+                    showGraphBanner
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'bg-background text-muted-foreground hover:text-foreground border-border/70'
+                  )}
+                >
+                  <BarChart3 className="w-3.5 h-3.5" />
+                  {showGraphBanner ? 'Hide Trend Chart' : 'Show Trend Chart'}
+                </button>
+              </div>
+            </div>
+
+            {/* Smooth Collapsible Revenue Trend Banner */}
+            {showGraphBanner && !loading && invoices.length > 1 && (
+              <div className="p-4 border-b border-border bg-card/80 transition-all duration-300 shrink-0">
+                <div className="bg-background border border-border/80 rounded-2xl p-4 shadow-sm">
+                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-border/40">
+                    <div className="flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4 text-primary" />
+                      <span className="text-xs font-black uppercase tracking-widest text-foreground">Daily Revenue Trend</span>
+                    </div>
+                    <span className="text-[10px] font-extrabold text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                      {dailySales.length} Days Tracked
+                    </span>
+                  </div>
+                  <div className="h-44">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={dailySales} margin={{ top: 2, right: 10, left: -20, bottom: 0 }}>
+                      <AreaChart data={dailySales} margin={{ top: 10, right: 15, left: -15, bottom: 0 }}>
                         <defs>
                           <linearGradient id="salesGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%"  stopColor="hsl(var(--primary))" stopOpacity={0.15} />
+                            <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
                             <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                         <XAxis
                           dataKey="date"
-                          tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))', fontWeight: 600 }}
-                          axisLine={false} tickLine={false} dy={2}
+                          tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
+                          axisLine={false} tickLine={false} dy={4}
                         />
                         <YAxis
-                          tick={{ fontSize: 8, fill: 'hsl(var(--muted-foreground))', fontWeight: 600 }}
-                          axisLine={false} tickLine={false} width={45}
-                          tickFormatter={(v: number) =>
-                            v >= 1000 ? `₹${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `₹${v}`
-                          }
+                          tick={{ fontSize: 9, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
+                          axisLine={false} tickLine={false} width={50}
+                          tickFormatter={(v: number) => v >= 1000 ? `₹${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `₹${v}`}
                         />
                         <Tooltip
                           contentStyle={{
                             backgroundColor: 'hsl(var(--card))',
                             border: '1px solid hsl(var(--border))',
-                            borderRadius: 8, fontSize: 10, fontWeight: 700,
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-                            padding: '4px 8px',
+                            borderRadius: 12, fontSize: 11, fontWeight: 800,
+                            boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+                            padding: '6px 12px',
                           }}
-                          labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 800, marginBottom: 1 }}
+                          labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 900, marginBottom: 2 }}
                           itemStyle={{ color: 'hsl(var(--primary))' }}
                           formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
-                          cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1, strokeDasharray: '4 4' }}
+                          cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1.5, strokeDasharray: '4 4' }}
                         />
                         <Area
                           type="monotone" dataKey="sales"
-                          stroke="hsl(var(--primary))" strokeWidth={1.5}
+                          stroke="hsl(var(--primary))" strokeWidth={2}
                           fill="url(#salesGrad)"
-                          dot={{ r: 2, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
-                          activeDot={{ r: 3.5, fill: 'hsl(var(--primary))', stroke: 'hsl(var(--card))', strokeWidth: 1.5 }}
+                          dot={{ r: 3, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
+                          activeDot={{ r: 5, fill: 'hsl(var(--primary))', stroke: 'hsl(var(--card))', strokeWidth: 2 }}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
                 </div>
-              )}
-
-            </div>
-          </div>
-
-          {/* Search + Filters */}
-          <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card">
-            <div className="relative flex-1 max-w-xs">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                type="text"
-                placeholder="Search invoice or customer…"
-                className="pl-9 h-8 text-xs bg-background border-border font-medium"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-              {[
-                { value: '', label: 'All' },
-                { value: 'PENDING', label: 'Pending' },
-                { value: 'CASH', label: 'Cash' },
-                { value: 'CARD', label: 'Card' },
-                { value: 'UPI', label: 'UPI' },
-                { value: 'CREDIT', label: 'Credit' },
-              ].map(opt => {
-                return (
-                  <button
-                    key={opt.value}
-                    onClick={() => setPaymentFilter(opt.value)}
-                    className={clsx(
-                      'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
-                      paymentFilter === opt.value
-                        ? 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15'
-                        : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-                    )}
-                  >
-                    {opt.label}
-                  </button>
-                );
-              })}
-              <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
-              {(() => {
-                const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {
-                  '': { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                  GST_B2B: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                  GST_B2C: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                  BILL_OF_SUPPLY: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
-                };
-                const colors = typeChipColors[invoiceTypeFilter] || typeChipColors[''];
-                return (
-                  <Select
-                    value={invoiceTypeFilter}
-                    onChange={setInvoiceTypeFilter}
-                    options={[
-                      { value: '', label: 'All Types' },
-                      { value: 'GST_B2B', label: 'B2B' },
-                      { value: 'GST_B2C', label: 'B2C' },
-                      { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
-                    ]}
-                    size="xs"
-                    className="w-40"
-                    triggerClassName={clsx('rounded-full h-7 border px-3 transition-all', colors.bg, colors.text, colors.border)}
-                    renderOption={(opt) => {
-                      const typeIcon: Record<string, any> = { '': Receipt, GST_B2B: Building, GST_B2C: User, BILL_OF_SUPPLY: FileText };
-                      const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', BILL_OF_SUPPLY: 'text-amber-500' };
-                      const Icon = typeIcon[opt.value];
-                      return (
-                        <span className={clsx('flex items-center gap-2 text-xs font-bold', typeColor[opt.value])}>
-                          <Icon className="w-3.5 h-3.5" />
-                          {opt.label}
-                        </span>
-                      );
-                    }}
-                  />
-                );
-              })()}
-              {invoiceTypeFilter.startsWith('GST') && (
-                <Select
-                  value={taxPercentageFilter}
-                  onChange={setTaxPercentageFilter}
-                  options={TAX_RATES}
-                  size="xs"
-                  className="w-28"
-                  triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
-                  renderOption={(opt) => (
-                    <span className="flex items-center gap-2 text-xs font-bold text-foreground">
-                      <Percent className="w-3 h-3 text-muted-foreground" />
-                      {opt.label}
-                    </span>
-                  )}
-                />
-              )}
-            </div>
-            <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
-              {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
-            </div>
-            {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
-              <button
-                onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) { setSelectedInvoiceIds(new Set()); } }}
-                className={clsx(
-                  'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
-                  selectionMode
-                    ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                    : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-                )}
-              >
-                <ShieldAlert className="w-3 h-3 inline -mt-0.5 mr-1" />
-                {selectionMode ? 'Cancel' : 'Convert to GST'}
-              </button>
+              </div>
             )}
-          </div>
 
-          {/* Conversion Selection Toolbar */}
-          {selectionMode && (
-            <div className="px-4 py-2.5 flex items-center gap-3 shrink-0 bg-amber-500/5 border-b border-amber-500/20">
-              <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
-                {selectedBosInvoices.length} Bill of Supply invoice{selectedBosInvoices.length !== 1 ? 's' : ''} selected
-              </span>
-              <button
-                onClick={() => {
-                  const allBosIds = invoices
-                    .filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id])
-                    .map(i => i.invoice_id);
-                  if (allBosIds.every(id => selectedInvoiceIds.has(id))) {
-                    setSelectedInvoiceIds(new Set());
-                  } else {
-                    setSelectedInvoiceIds(new Set(allBosIds));
-                  }
-                }}
-                className="text-[11px] font-extrabold text-muted-foreground hover:text-foreground underline underline-offset-2 cursor-pointer"
-              >
+            {/* Search + Payment Method Filter Toolbar */}
+            <div className="px-4 py-3 flex items-center gap-3 shrink-0 border-b border-border bg-card">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Search invoice or customer…"
+                  className="pl-9 h-8 text-xs bg-background border-border font-medium"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <SlidersHorizontal className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                {[
+                  { value: '', label: 'All' },
+                  { value: 'PENDING', label: 'Pending' },
+                  { value: 'CASH', label: 'Cash' },
+                  { value: 'CARD', label: 'Card' },
+                  { value: 'UPI', label: 'UPI' },
+                  { value: 'CREDIT', label: 'Credit' },
+                ].map(opt => {
+                  return (
+                    <button
+                      key={opt.value}
+                      onClick={() => setPaymentFilter(opt.value)}
+                      className={clsx(
+                        'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
+                        paymentFilter === opt.value
+                          ? 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15'
+                          : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+                <span className="w-px h-5 bg-border/60 mx-1 shrink-0" />
                 {(() => {
-                  const convertibleBos = invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id]);
-                  return convertibleBos.every(i => selectedInvoiceIds.has(i.invoice_id))
-                    ? 'Deselect All'
-                    : `Select All (${convertibleBos.length})`;
+                  const typeChipColors: Record<string, { bg: string; text: string; border: string }> = {
+                    '': { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                    GST_B2B: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                    GST_B2C: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                    BILL_OF_SUPPLY: { bg: 'bg-primary/10 text-primary border-primary/25 dark:bg-primary/15', text: 'text-primary', border: 'border-transparent' },
+                  };
+                  const colors = typeChipColors[invoiceTypeFilter] || typeChipColors[''];
+                  return (
+                    <Select
+                      value={invoiceTypeFilter}
+                      onChange={setInvoiceTypeFilter}
+                      options={[
+                        { value: '', label: 'All Types' },
+                        { value: 'GST_B2B', label: 'B2B' },
+                        { value: 'GST_B2C', label: 'B2C' },
+                        { value: 'BILL_OF_SUPPLY', label: 'Bill of Supply' },
+                      ]}
+                      size="xs"
+                      className="w-40"
+                      triggerClassName={clsx('rounded-full h-7 border px-3 transition-all', colors.bg, colors.text, colors.border)}
+                      renderOption={(opt) => {
+                        const typeIcon: Record<string, any> = { '': Receipt, GST_B2B: Building, GST_B2C: User, BILL_OF_SUPPLY: FileText };
+                        const typeColor: Record<string, string> = { '': 'text-foreground', GST_B2B: 'text-blue-500', GST_B2C: 'text-violet-500', BILL_OF_SUPPLY: 'text-amber-500' };
+                        const Icon = typeIcon[opt.value];
+                        return (
+                          <span className={clsx('flex items-center gap-2 text-xs font-bold', typeColor[opt.value])}>
+                            <Icon className="w-3.5 h-3.5" />
+                            {opt.label}
+                          </span>
+                        );
+                      }}
+                    />
+                  );
                 })()}
-              </button>
-              <div className="ml-auto flex items-center gap-2">
+                {invoiceTypeFilter.startsWith('GST') && (
+                  <Select
+                    value={taxPercentageFilter}
+                    onChange={setTaxPercentageFilter}
+                    options={TAX_RATES}
+                    size="xs"
+                    className="w-28"
+                    triggerClassName="rounded-full h-7 border px-3 transition-all bg-primary/10 text-primary border-primary/25 dark:bg-primary/15"
+                    renderOption={(opt) => (
+                      <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                        <Percent className="w-3 h-3 text-muted-foreground" />
+                        {opt.label}
+                      </span>
+                    )}
+                  />
+                )}
+              </div>
+              <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
+                {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
+              </div>
+              {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
                 <button
-                  onClick={() => { setConversionOpen(true); setConversionResults(null); }}
-                  disabled={selectedBosInvoices.length === 0 || converting}
+                  onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) { setSelectedInvoiceIds(new Set()); } }}
                   className={clsx(
-                    'h-7 px-4 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border flex items-center gap-1.5',
-                    selectedBosInvoices.length > 0
-                      ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600 active:scale-95'
-                      : 'bg-muted/50 text-muted-foreground border-border cursor-not-allowed'
+                    'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
+                    selectionMode
+                      ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
+                      : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
                   )}
                 >
-                  <ArrowDownRight className="w-3 h-3" />
-                  Convert{selectedBosInvoices.length > 0 ? ` (${selectedBosInvoices.length})` : ''}
+                  <ShieldAlert className="w-3 h-3 inline -mt-0.5 mr-1" />
+                  {selectionMode ? 'Cancel' : 'Convert to GST'}
                 </button>
-              </div>
+              )}
             </div>
-          )}
-
           {/* Table */}
           <div className="flex-1 overflow-y-auto">
             {loading ? (
@@ -1412,11 +1433,78 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               </table>
             )}
           </div>
-
-
         </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 w-full">
+          {/* Top Stat Cards Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard icon={IndianRupee} label="Total Revenue" value={formatCurrency(summary.totalSales)} colorClass="text-emerald-500" bgClass="bg-emerald-500/10" sub={`${summary.totalInvoices} settled invoices`} />
+            <StatCard icon={TrendingUp} label="Avg Order Value" value={formatCurrency(summary.avgOrder)} colorClass="text-blue-500" bgClass="bg-blue-500/10" />
+            <StatCard icon={Percent} label="Total GST Tax" value={formatCurrency(summary.totalTax)} colorClass="text-violet-500" bgClass="bg-violet-500/10" />
+            {summary.totalDiscount > 0
+              ? <StatCard icon={Tag} label="Discounts Given" value={formatCurrency(summary.totalDiscount)} colorClass="text-rose-500" bgClass="bg-rose-500/10" sub="Total savings" />
+              : <StatCard icon={Layers} label="Invoices" value={String(summary.totalInvoices)} colorClass="text-amber-500" bgClass="bg-amber-500/10" sub="All time" />
+            }
+          </div>
 
-      {/* ─── Centered Invoice Detail Modal ─── */}
+          {/* High-Definition Daily Sales Trend Chart */}
+          <div className="bg-card border border-border rounded-3xl p-6 shadow-sm">
+            <div className="flex items-center justify-between pb-4 border-b border-border/60 mb-4">
+              <div>
+                <h2 className="text-base font-black text-foreground">Daily Revenue Analytics</h2>
+                <p className="text-xs text-muted-foreground font-semibold">Revenue trend over recorded billing dates</p>
+              </div>
+              <div className="px-3 py-1 rounded-full text-xs font-black bg-primary/10 text-primary border border-primary/20">
+                {dailySales.length} Days Recorded
+              </div>
+            </div>
+            <div className="h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={dailySales} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="salesGradFull" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
+                    axisLine={false} tickLine={false} dy={6}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))', fontWeight: 700 }}
+                    axisLine={false} tickLine={false} width={60}
+                    tickFormatter={(v: number) => v >= 1000 ? `₹${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1)}k` : `₹${v}`}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: 14, fontSize: 12, fontWeight: 800,
+                      boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
+                      padding: '8px 14px',
+                    }}
+                    labelStyle={{ color: 'hsl(var(--foreground))', fontWeight: 900, marginBottom: 4 }}
+                    itemStyle={{ color: 'hsl(var(--primary))' }}
+                    formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
+                    cursor={{ stroke: 'hsl(var(--primary))', strokeWidth: 1.5, strokeDasharray: '4 4' }}
+                  />
+                  <Area
+                    type="monotone" dataKey="sales"
+                    stroke="hsl(var(--primary))" strokeWidth={2.5}
+                    fill="url(#salesGradFull)"
+                    dot={{ r: 4, fill: 'hsl(var(--primary))', strokeWidth: 0 }}
+                    activeDot={{ r: 7, fill: 'hsl(var(--primary))', stroke: 'hsl(var(--card))', strokeWidth: 2 }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
       <Modal
         isOpen={drawerOpen}
         onClose={closeDrawer}
@@ -1731,7 +1819,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
         )}
       </Modal>
-      </div>
 
       {/* ─── Collect Payment Modal ─── */}
       <Modal

@@ -146,6 +146,7 @@ export interface IElectronAPI {
   dbCashierGetTransactions: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
+  dbCashierGetDayTransactions?: (params: { tenant_id: string; business_date: string }) => Promise<any[]>;
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => Promise<any[]>;
   dbCashierGetCategories: (params: { tenant_id: string }) => Promise<any[]>;
   dbCashierAddCategory: (params: { tenant_id: string; name: string; type: string }) => Promise<{ success: boolean; error?: string }>;

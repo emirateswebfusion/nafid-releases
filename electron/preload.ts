@@ -168,6 +168,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCashierGetTransactions: (params: { tenant_id: string }) => ipcRenderer.invoke('db:cashier:getTransactions', params),
   dbCashierGetHistory: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getHistory', params),
   dbCashierGetDaySettlements: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDaySettlements', params),
+  dbCashierGetDayTransactions: (params: { tenant_id: string; business_date: string }) => ipcRenderer.invoke('db:cashier:getDayTransactions', params),
   dbCashierGetAuditLog: (params: { tenant_id: string; limit?: number; offset?: number }) => ipcRenderer.invoke('db:cashier:getAuditLog', params),
   dbCashierGetCategories: (params: { tenant_id: string; type?: 'CASH_IN' | 'CASH_OUT' }) => ipcRenderer.invoke('db:cashier:getCategories', params),
   dbCashierAddCategory: (params: { tenant_id: string; name: string; type: 'CASH_IN' | 'CASH_OUT' }) => ipcRenderer.invoke('db:cashier:addCategory', params),

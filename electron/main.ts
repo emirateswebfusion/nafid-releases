@@ -5070,8 +5070,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND date(i.updated_at) = cd.business_date AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.updated_at) = date(cd.business_date) OR date(i.created_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%') AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.updated_at) = date(cd.business_date) OR date(i.created_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%') AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -5088,6 +5088,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
 ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
   try {
     const db = getDb();
+    const cleanDate = business_date ? business_date.split('T')[0] : '';
+    const dateLike = `${cleanDate}%`;
     return db.prepare(`
       SELECT i.*, u.name as biller_name
       FROM invoices i
@@ -5096,12 +5098,30 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
         AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
-        AND date(i.updated_at) = ? 
+        AND (date(i.updated_at) = ? OR date(i.created_at) = ? OR i.updated_at LIKE ? OR i.created_at LIKE ?)
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY i.updated_at DESC
-    `).all(tenant_id, business_date);
+    `).all(tenant_id, cleanDate, cleanDate, dateLike, dateLike);
   } catch (error: any) {
     console.error('[db:cashier:getDaySettlements]', error);
+    return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
+  try {
+    const db = getDb();
+    const cleanDate = business_date ? business_date.split('T')[0] : '';
+    const dateLike = `${cleanDate}%`;
+    const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).all(tenant_id, cleanDate, cleanDate, dateLike) as any[];
+    if (!drawers || drawers.length === 0) {
+      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, cleanDate, dateLike);
+    }
+    const drawerIds = drawers.map(d => d.drawer_id);
+    const placeholders = drawerIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, cleanDate, dateLike);
+  } catch (error: any) {
+    console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };
   }
 });
