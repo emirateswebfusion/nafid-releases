@@ -2167,6 +2167,75 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
   }
 });
 
+ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string }) => {
+  try {
+    const db = getDb();
+    const { user_id, tenant_id, role, search, payment_method, invoice_type, filterDate, filterDateEnd } = filters || {};
+
+    if (!tenant_id) {
+      return { totalSales: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
+    }
+
+    let query = `
+      SELECT 
+        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.grand_total ELSE 0 END), 0) as totalSales,
+        COUNT(CASE WHEN i.converted_to_invoice_id IS NULL THEN 1 END) as totalInvoices,
+        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.tax_total ELSE 0 END), 0) as totalTax,
+        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.discount_total ELSE 0 END), 0) as totalDiscount
+      FROM invoices i 
+      WHERE i.tenant_id = ? 
+        AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
+        AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (i.is_held IS NULL OR i.is_held = 0)
+    `;
+    const params: any[] = [tenant_id];
+
+    if (role === 'BILLER' && user_id) {
+      query += ' AND i.user_id = ?';
+      params.push(user_id);
+    }
+
+    if (search) {
+      query += ' AND (i.invoice_number LIKE ? OR i.customer_name LIKE ? OR i.customer_phone LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (payment_method) {
+      query += ' AND i.payment_method = ?';
+      params.push(payment_method);
+    }
+
+    if (invoice_type === 'GST_B2B') {
+      query += " AND i.invoice_type = 'GST' AND i.customer_gstin IS NOT NULL AND i.customer_gstin != ''";
+    } else if (invoice_type === 'GST_B2C') {
+      query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
+    } else if (invoice_type === 'BILL_OF_SUPPLY') {
+      query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
+    }
+
+    if (filterDate) {
+      query += ' AND i.created_at >= ?';
+      params.push(filterDate);
+    }
+    if (filterDateEnd) {
+      query += ' AND i.created_at <= ?';
+      params.push(filterDateEnd + ' 23:59:59');
+    }
+
+    const row = db.prepare(query).get(...params) as any;
+    const totalSales = row ? Number(row.totalSales) || 0 : 0;
+    const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
+    const totalTax = row ? Number(row.totalTax) || 0 : 0;
+    const totalDiscount = row ? Number(row.totalDiscount) || 0 : 0;
+    const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
+
+    return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
+  } catch (error: any) {
+    console.error('[db:getInvoicesSummary] Error:', error);
+    return { totalSales: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
+  }
+});
+
 ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
   try {
     const db = getDb();
@@ -2230,9 +2299,9 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     isServiceItem?: boolean;
   }>;
 }) => {
-  // Only OWNER can update invoices
-  if (payload.role !== 'OWNER') {
-    return { success: false, error: 'Only owners can edit past bills' };
+  // Only OWNER or ADMINISTRATOR can update invoices
+  if (payload.role !== 'OWNER' && payload.role !== 'ADMINISTRATOR') {
+    return { success: false, error: 'Only owners or administrators can edit past bills' };
   }
   const { items, ...invoice } = payload;
   const db = getDb();
@@ -2281,17 +2350,17 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
-    for (const item of items) {
+    for (const item of (items || [])) {
       itemStmt.run(
         item.item_id || crypto.randomUUID(),
         payload.invoice_id,
-        payload.tenant_id,
-        item.product_id,
-        item.name,
-        item.quantity,
-        item.unit_price,
-        item.tax_amount,
-        item.total,
+        payload.tenant_id || 'global',
+        item.product_id || '',
+        item.name || 'Product',
+        item.quantity ?? 1,
+        item.unit_price ?? 0,
+        item.tax_amount ?? 0,
+        item.total ?? 0,
         (item as any).isServiceItem ? 1 : 0
       );
     }

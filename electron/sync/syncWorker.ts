@@ -733,17 +733,34 @@ function reconcilePending(
   table: string,
   idColumn: string,
   cloudRows: any[],
+  tsColumn: string = 'updated_at'
 ): number {
   if (cloudRows.length === 0) return 0;
 
-  const updateStmt = db.prepare(
-    `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ? AND updated_at = ?`,
-  );
+  let updateStmt: any;
+  try {
+    updateStmt = db.prepare(
+      `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ? AND (${tsColumn} = ? OR ${tsColumn} IS NULL)`
+    );
+  } catch {
+    updateStmt = db.prepare(
+      `UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ?`
+    );
+  }
 
   let count = 0;
   for (const row of cloudRows) {
-    const result = updateStmt.run(row[idColumn], toSqliteDate(row.updated_at));
-    if (result.changes > 0) count++;
+    try {
+      const tsVal = row[tsColumn] || row.updated_at || row.created_at;
+      const result = updateStmt.run(row[idColumn], toSqliteDate(tsVal));
+      if (result.changes > 0) count++;
+    } catch {
+      try {
+        const fallbackStmt = db.prepare(`UPDATE ${table} SET sync_status = 'SYNCED' WHERE sync_status = 'PENDING' AND ${idColumn} = ?`);
+        const result = fallbackStmt.run(row[idColumn]);
+        if (result.changes > 0) count++;
+      } catch {}
+    }
   }
   return count;
 }
@@ -2309,7 +2326,29 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
   const db = getDb();
   let hasContentChanged = false;
 
-  const upsert = db.prepare(`
+  const selectExisting = db.prepare(`SELECT drawer_id, sync_status FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND business_date = ?)`);
+  const updateByDrawerId = db.prepare(`
+    UPDATE cash_drawer SET
+      opening_balance = @opening_balance, cash_sales = @cash_sales, cash_in = @cash_in, cash_out = @cash_out,
+      current_cash = @current_cash, expected_closing = @expected_closing, actual_cash = @actual_cash,
+      cash_short = @cash_short, cash_excess = @cash_excess, closing_remarks = @closing_remarks,
+      status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
+      opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
+      sync_status = 'SYNCED', updated_at = @updated_at
+    WHERE drawer_id = @drawer_id AND sync_status != 'PENDING'
+  `);
+  const updateByDate = db.prepare(`
+    UPDATE cash_drawer SET
+      drawer_id = @drawer_id,
+      opening_balance = @opening_balance, cash_sales = @cash_sales, cash_in = @cash_in, cash_out = @cash_out,
+      current_cash = @current_cash, expected_closing = @expected_closing, actual_cash = @actual_cash,
+      cash_short = @cash_short, cash_excess = @cash_excess, closing_remarks = @closing_remarks,
+      status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
+      opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
+      sync_status = 'SYNCED', updated_at = @updated_at
+    WHERE tenant_id = @tenant_id AND business_date = @business_date AND sync_status != 'PENDING'
+  `);
+  const insertDrawer = db.prepare(`
     INSERT INTO cash_drawer (
       drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out,
       current_cash, expected_closing, actual_cash, cash_short, cash_excess, closing_remarks,
@@ -2319,17 +2358,6 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       @current_cash, @expected_closing, @actual_cash, @cash_short, @cash_excess, @closing_remarks,
       @status, @opened_by, @closed_by, @opened_at, @closed_at, 'SYNCED', @created_at, @updated_at
     )
-    ON CONFLICT(tenant_id, business_date) DO UPDATE SET
-      drawer_id = excluded.drawer_id,
-      opening_balance = excluded.opening_balance, cash_sales = excluded.cash_sales,
-      cash_in = excluded.cash_in, cash_out = excluded.cash_out,
-      current_cash = excluded.current_cash, expected_closing = excluded.expected_closing,
-      actual_cash = excluded.actual_cash, cash_short = excluded.cash_short,
-      cash_excess = excluded.cash_excess, closing_remarks = excluded.closing_remarks,
-      status = excluded.status, closed_by = excluded.closed_by,
-      closed_at = excluded.closed_at, updated_at = excluded.updated_at,
-      sync_status = 'SYNCED'
-    WHERE cash_drawer.sync_status != 'PENDING'
   `);
 
   const result = await pullPaginated({
@@ -2358,7 +2386,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
           try {
-            upsert.run({
+            const drawerData = {
               drawer_id: r.drawer_id,
               tenant_id: tenantId,
               business_date: r.business_date,
@@ -2379,7 +2407,18 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
               closed_at: toSqliteDate(r.closed_at),
               created_at: toSqliteDate(r.created_at),
               updated_at: toSqliteDate(r.updated_at),
-            });
+            };
+
+            const existing = selectExisting.get(r.drawer_id, tenantId, r.business_date) as any;
+            if (existing) {
+              if (existing.drawer_id === r.drawer_id) {
+                updateByDrawerId.run(drawerData);
+              } else {
+                updateByDate.run(drawerData);
+              }
+            } else {
+              insertDrawer.run(drawerData);
+            }
           } catch (e: any) {
             console.error('[SyncWorker] Error pulling cash drawer:', e.message);
           }

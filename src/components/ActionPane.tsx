@@ -196,8 +196,9 @@ export function ActionPane() {
         try {
           window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
         } catch (e) { /* ignore */ }
-      } catch (e) {
-        setHardwareError('Communication error with hardware services.');
+      } catch (e: any) {
+        console.error('[ActionPane Checkout Error]', e);
+        setHardwareError(`Checkout failed: ${e?.message || 'Communication error with hardware services.'}`);
         setIsCheckingOut(false);
         return;
       }

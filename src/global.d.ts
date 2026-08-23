@@ -28,6 +28,7 @@ export interface IElectronAPI {
   dbCheckout: (payload: any & { discount_type?: string, discount_value?: number }) => Promise<{ success: boolean; invoice_id?: string; error?: string }>;
   dbApplyInvoiceDiscount: (payload: { invoice_id: string; discount_type: 'FIXED' | 'PERCENTAGE'; discount_value: number; role: string }) => Promise<{ success: boolean; error?: string }>;
   dbGetInvoices: (filters: any) => Promise<any[]>;
+  dbGetInvoicesSummary: (filters: any) => Promise<{ totalSales: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number }>;
   dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; invoiceCount: number; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;

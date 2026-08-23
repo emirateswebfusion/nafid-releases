@@ -354,7 +354,8 @@ export function initDb() {
         sort_order INTEGER DEFAULT 0,
         is_default INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
     CREATE TABLE IF NOT EXISTS purchase_bill_items (
@@ -614,7 +615,10 @@ export function initDb() {
     loyalty_transactions: [
         'transaction_id', 'tenant_id', 'customer_id', 'invoice_id', 'transaction_type', 'points',
         'points_balance_before', 'points_balance_after', 'reference_number', 'description', 'created_by',
-        'sync_status', 'created_at'
+        'sync_status', 'created_at', 'updated_at'
+    ],
+    cash_categories: [
+        'category_id', 'tenant_id', 'name', 'type', 'sort_order', 'is_default', 'sync_status', 'created_at', 'updated_at'
     ],
     payment_sources: [
         'source_id', 'tenant_id', 'name', 'type', 'bank_name', 'account_number', 'holder_name',

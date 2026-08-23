@@ -317,6 +317,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
   const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
   const LIMIT = 30;
+  const [dbSummary, setDbSummary] = useState<{ totalSales: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number } | null>(null);
 
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<string>>(new Set());
@@ -429,13 +430,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const currentOffset = reset ? 0 : offset;
       
       try {
-        const data = await window.electronAPI.dbGetInvoices({
+        const filters = {
           user_id: userId, tenant_id: tenantId, role,
-          limit: LIMIT, offset: currentOffset,
           search, payment_method: paymentFilter || undefined,
           invoice_type: invoiceTypeFilter || undefined,
           filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
-        });
+        };
+
+        const promises: Promise<any>[] = [
+          window.electronAPI.dbGetInvoices({ ...filters, limit: LIMIT, offset: currentOffset })
+        ];
+        if (reset && window.electronAPI.dbGetInvoicesSummary) {
+          promises.push(window.electronAPI.dbGetInvoicesSummary(filters));
+        }
+
+        const [data, summaryRes] = await Promise.all(promises);
+
+        if (reset && summaryRes && typeof summaryRes === 'object' && !('error' in summaryRes)) {
+          setDbSummary(summaryRes);
+        }
 
         if (Array.isArray(data)) {
           if (reset) {
@@ -562,7 +575,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
   };
 
-  const summary = {
+  const summary = dbSummary || {
     totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.grand_total || 0), 0),
     totalInvoices: invoices.filter(i => !i.converted_to_invoice_id).length,
     totalTax: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
@@ -1335,7 +1348,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 )}
               </div>
               <div className="ml-auto text-[10px] text-muted-foreground font-semibold shrink-0">
-                {loading ? '…' : `${invoices.length} record${invoices.length !== 1 ? 's' : ''}`}
+                {loading ? '…' : invoices.length === summary.totalInvoices ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}` : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
               </div>
               {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
                 <button

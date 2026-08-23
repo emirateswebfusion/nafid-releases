@@ -23,6 +23,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbCheckout: (payload: any) => ipcRenderer.invoke('db:checkout', payload),
   dbApplyInvoiceDiscount: (payload: any) => ipcRenderer.invoke('db:applyInvoiceDiscount', payload),
   dbGetInvoices: (filters: any) => ipcRenderer.invoke('db:getInvoices', filters),
+  dbGetInvoicesSummary: (filters: any) => ipcRenderer.invoke('db:getInvoicesSummary', filters),
   dbGetDashboardStats: (tenantId: string) => ipcRenderer.invoke('db:getDashboardStats', tenantId),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
   dbUpdateInvoice: (payload: any) => ipcRenderer.invoke('db:updateInvoice', payload),

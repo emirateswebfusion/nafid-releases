@@ -430,10 +430,10 @@ export function BillingPage() {
   const activeTab = tabs.find(t => t.id === activeTabId);
   const paymentMethod = activeTab?.paymentMethod ?? 'PENDING';
   const receivedAmount = activeTab?.receivedAmount ?? 0;
-  const customerName = activeTab?.customerName ?? '';
-  const customerPhone = activeTab?.customerPhone ?? '';
-  const customerGstin = activeTab?.customerGstin ?? '';
-  const customerAddress = activeTab?.customerAddress ?? '';
+  const customerName = activeTab?.customerName || '';
+  const customerPhone = activeTab?.customerPhone || '';
+  const customerGstin = activeTab?.customerGstin || '';
+  const customerAddress = activeTab?.customerAddress || '';
 
   const scrapPaymentStatus = activeTab?.scrapPaymentStatus ?? 'PENDING';
   const nextInvoiceNumber = activeTab?.reservedInvoiceNumber ?? '';
@@ -2578,7 +2578,7 @@ notes: '',
 
     // ── Normal Mode Checkout ──
     if (paymentMethod === 'CREDIT') {
-      if (!customerName.trim() || !customerPhone.trim()) {
+      if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
         setHardwareError('Please enter Customer Name and Phone Number for Credit');
         setIsCheckingOut(false);
         return;
@@ -2710,7 +2710,7 @@ notes: '',
 
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
-      const isB2B = invoiceType === 'GST' && customerGstin.trim() !== '';
+      const isB2B = invoiceType === 'GST' && (customerGstin || '').trim() !== '';
       const useA4 = isB2B || printFmt?.format === 'a4';
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
@@ -2769,7 +2769,7 @@ notes: '',
       };
 
       let result: any;
-      const wantsLoyalty = loyaltyEnabled && !!customerName.trim() && (!!customerPhone.trim() || !!customerAddress.trim() || loyaltyCustomerData.customerId);
+      const wantsLoyalty = loyaltyEnabled && !!(customerName || '').trim() && (!!(customerPhone || '').trim() || !!(customerAddress || '').trim() || loyaltyCustomerData.customerId);
       if (isEditing) {
         result = await window.electronAPI.dbUpdateInvoice({
           invoice_id, tenant_id: tenantId || 'global', role: editingInvoiceRole || authRole,
@@ -2808,7 +2808,7 @@ notes: '',
           remaining_points_balance: remainingPointsBalance,
         });
       }
-      if (!result.success) { setHardwareError(isEditing ? 'Update failed' : `Checkout failed: ${result.error}`); setIsCheckingOut(false); return; }
+      if (!result.success) { setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`); setIsCheckingOut(false); return; }
 
       // Consume ADJUST_BILL return credit. Only the portion actually applied to this
       // bill (clamped to the bill total) is settled; any leftover stays as pending
@@ -2892,8 +2892,11 @@ notes: '',
           setHardwareError(`Print warning: ${printErr.message || 'check printer'}`);
         }
       }
-    } catch {
-      setHardwareError('Hardware communication error.'); setIsCheckingOut(false); return;
+    } catch (err: any) {
+      console.error('[Checkout Error]', err);
+      setHardwareError(`Checkout failed: ${err?.message || 'Unexpected error'}`);
+      setIsCheckingOut(false);
+      return;
     }
 
     setCheckoutSuccess(saveOnly ? 'saved' : 'printed');

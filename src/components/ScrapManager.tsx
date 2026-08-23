@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
+import { DateRangeFilter } from './ui/DateRangeFilter';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
@@ -112,6 +113,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   // Invoices state
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [invoiceDateFrom, setInvoiceDateFrom] = useState('');
+  const [invoiceDateTo, setInvoiceDateTo] = useState('');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string>('');
   const [invoiceDetailTxs, setInvoiceDetailTxs] = useState<any[]>([]);
   const [reprintSuccess, setReprintSuccess] = useState(false);
@@ -680,13 +683,31 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
   const filteredInvoices = invoices.filter(inv => {
     const q = invoiceSearch.toLowerCase().trim();
-    if (!q) return true;
-    return (
-      (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q)) ||
-      (inv.party_name && inv.party_name.toLowerCase().includes(q)) ||
-      (inv.customer_phone && inv.customer_phone.toLowerCase().includes(q)) ||
-      (inv.customer_address && inv.customer_address.toLowerCase().includes(q))
-    );
+    if (q) {
+      const matchesSearch = (
+        (inv.invoice_number && inv.invoice_number.toLowerCase().includes(q)) ||
+        (inv.party_name && inv.party_name.toLowerCase().includes(q)) ||
+        (inv.customer_phone && inv.customer_phone.toLowerCase().includes(q)) ||
+        (inv.customer_address && inv.customer_address.toLowerCase().includes(q))
+      );
+      if (!matchesSearch) return false;
+    }
+
+    if (invoiceDateFrom) {
+      const from = new Date(invoiceDateFrom);
+      from.setHours(0, 0, 0, 0);
+      const to = new Date(invoiceDateTo || invoiceDateFrom);
+      to.setHours(23, 59, 59, 999);
+      const d = inv.created_at ? parseUTCDate(inv.created_at) : null;
+      if (!d || isNaN(d.getTime()) || d < from || d > to) return false;
+    } else if (invoiceDateTo) {
+      const to = new Date(invoiceDateTo);
+      to.setHours(23, 59, 59, 999);
+      const d = inv.created_at ? parseUTCDate(inv.created_at) : null;
+      if (!d || isNaN(d.getTime()) || d > to) return false;
+    }
+
+    return true;
   });
 
   const totalStock = categories.reduce((s, c) => s + Number(c.current_stock), 0);
@@ -1682,7 +1703,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   <Layers className="w-5 h-5" />
                 </div>
                 <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{invoices.length}</p>
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{filteredInvoices.length}</p>
                   <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Invoices</p>
                 </div>
               </div>
@@ -1692,7 +1713,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   <IndianRupee className="w-5 h-5" />
                 </div>
                 <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(invoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}</p>
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{formatCurrency(filteredInvoices.reduce((s, inv) => s + Number(inv.total_amount || 0), 0))}</p>
                   <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Scrap Value</p>
                 </div>
               </div>
@@ -1702,15 +1723,15 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   <Package className="w-5 h-5" />
                 </div>
                 <div className="leading-tight text-left min-w-0 flex-1">
-                  <p className="text-2xl font-black text-foreground font-mono truncate">{invoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}</p>
+                  <p className="text-2xl font-black text-foreground font-mono truncate">{filteredInvoices.reduce((s, inv) => s + Number(inv.item_count || 0), 0)}</p>
                   <p className="text-[9px] text-muted-foreground/80 font-bold uppercase tracking-wider mt-0.5">Total Items Collected</p>
                 </div>
               </div>
             </div>
 
             {/* Filter / Search Bar */}
-            <div className="flex flex-col sm:flex-row gap-4 items-center justify-between bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none">
-              <div className="relative w-full sm:max-w-xs flex-1">
+            <div className="flex flex-col sm:flex-row gap-3 items-center justify-start bg-card border border-border p-4 rounded-[28px] shadow-sm px-6 py-3.5 shrink-0 select-none relative z-30">
+              <div className="relative w-full sm:w-80 md:w-96 shrink-0">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/45 pointer-events-none" />
                 <input
                   type="text"
@@ -1727,6 +1748,18 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <DateRangeFilter
+                  startDate={invoiceDateFrom}
+                  endDate={invoiceDateTo}
+                  align="left"
+                  onChange={(start, end) => {
+                    setInvoiceDateFrom(start);
+                    setInvoiceDateTo(end);
+                  }}
+                />
               </div>
             </div>
 
@@ -1746,10 +1779,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                     <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
                       <Recycle className="w-12 h-12 mb-3 text-orange-500/30" />
                       <p className="font-bold text-foreground text-base">
-                        {invoiceSearch ? 'No matching scrap invoices' : 'No scrap invoices found'}
+                        {(invoiceSearch || invoiceDateFrom || invoiceDateTo) ? 'No matching scrap invoices' : 'No scrap invoices found'}
                       </p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {invoiceSearch ? `No invoices match "${invoiceSearch}"` : 'Scrap invoices from billing and purchases will appear here'}
+                        {(invoiceSearch || invoiceDateFrom || invoiceDateTo) ? 'No invoices match the applied search or date filters' : 'Scrap invoices from billing and purchases will appear here'}
                       </p>
                     </div>
                   ) : (

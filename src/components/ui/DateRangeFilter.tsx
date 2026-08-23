@@ -6,6 +6,7 @@ interface DateRangeFilterProps {
   startDate: string;
   endDate: string;
   onChange: (start: string, end: string) => void;
+  align?: 'left' | 'right';
 }
 
 function toDisplay(d: string) {
@@ -88,7 +89,7 @@ const generateCalendarDays = (year: number, month: number): CalendarDay[] => {
   return days;
 };
 
-export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilterProps) {
+export function DateRangeFilter({ startDate, endDate, onChange, align = 'left' }: DateRangeFilterProps) {
   const [open, setOpen] = useState(false);
   const [tempStartDate, setTempStartDate] = useState(startDate);
   const [tempEndDate, setTempEndDate] = useState(endDate);
@@ -212,9 +213,12 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 p-4 animate-in fade-in slide-in-from-top-2">
+        <div className={clsx(
+          "absolute top-full mt-2 w-80 bg-card border border-border rounded-xl shadow-xl z-50 p-3.5 animate-in fade-in slide-in-from-top-2 max-h-[calc(100vh-180px)] overflow-y-auto",
+          align === 'right' ? "right-0" : "left-0"
+        )}>
           {/* Header Split */}
-          <div className="grid grid-cols-2 border-b border-border pb-3 mb-3">
+          <div className="grid grid-cols-2 border-b border-border pb-2 mb-2">
             <div className="px-1">
               <span className="block text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">From</span>
               <span className={clsx("text-xs font-semibold", tempStartDate ? "text-foreground" : "text-muted-foreground")}>
@@ -230,7 +234,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
           </div>
 
           {/* Month Navigation */}
-          <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center justify-between mb-2 px-1">
             <button
               type="button"
               onClick={handlePrevMonth}
@@ -260,7 +264,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
           </div>
 
           {/* Day Grid */}
-          <div className="grid grid-cols-7 gap-y-1">
+          <div className="grid grid-cols-7 gap-y-0.5">
             {days.map((day, idx) => {
               const isStart = day.dateStr === tempStartDate;
               const isEnd = day.dateStr === tempEndDate;
@@ -278,7 +282,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                 <div
                   key={`${day.dateStr}-${idx}`}
                   className={clsx(
-                    "relative py-0.5 flex items-center justify-center w-full",
+                    "relative py-0 flex items-center justify-center w-full",
                     isRangeSelected && inRange && "bg-primary/10 dark:bg-primary/20",
                     isRangeSelected && isStart && "bg-gradient-to-r from-transparent to-primary/10 dark:to-primary/20 rounded-l-full",
                     isRangeSelected && isEnd && "bg-gradient-to-l from-transparent to-primary/10 dark:to-primary/20 rounded-r-full"
@@ -288,7 +292,7 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
                     type="button"
                     onClick={() => handleDayClick(day.dateStr)}
                     className={clsx(
-                      "w-8 h-8 rounded-full flex items-center justify-center text-xs transition-all relative focus:outline-none",
+                      "w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all relative focus:outline-none",
                       !day.isCurrentMonth && "text-muted-foreground/30 hover:text-muted-foreground/60",
                       day.isCurrentMonth && !isStart && !isEnd && "text-foreground hover:bg-muted",
                       (isStart || isEnd) && "bg-primary text-primary-foreground font-semibold shadow-sm",
@@ -303,18 +307,18 @@ export function DateRangeFilter({ startDate, endDate, onChange }: DateRangeFilte
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center gap-2 pt-3 border-t border-border mt-3">
+          <div className="flex items-center gap-2 pt-2.5 border-t border-border mt-2.5">
             <button
               type="button"
               onClick={handleCancel}
-              className="w-full py-2 text-xs font-semibold rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:text-red-600 transition-colors"
+              className="w-full py-1.5 text-xs font-semibold rounded-lg border border-red-200 dark:border-red-900 text-red-500 hover:text-red-600 transition-colors"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleApply}
-              className="w-full py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm transition-all"
+              className="w-full py-1.5 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/95 shadow-sm transition-all"
             >
               Apply
             </button>
