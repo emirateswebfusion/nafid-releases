@@ -702,7 +702,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       currentItems = Array.isArray(data) ? data : [];
     }
     if (!currentItems.length) return;
-    localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
+
+    let freshInvoice = selectedInvoice;
+    try {
+      const { userId, role, tenantId } = useAuthStore.getState();
+      const invoices = await window.electronAPI.dbGetInvoices({
+        user_id: userId, tenant_id: tenantId, role,
+        limit: 1, offset: 0,
+        search: selectedInvoice.invoice_number
+      });
+      if (Array.isArray(invoices) && invoices.length > 0) {
+        freshInvoice = invoices[0];
+      }
+    } catch {}
+
+    localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
     if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
@@ -763,6 +777,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         });
         // Refresh the full list
         loadInvoices(true);
+        // Dispatch event to refresh CashierSettlement drawer cash instantly
+        window.dispatchEvent(new CustomEvent('checkout:completed'));
         setTimeout(() => {
           setCollectPaymentOpen(false);
           setCollectPaymentSuccess(false);
@@ -1485,6 +1501,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   >
                     <CreditCard className="w-3.5 h-3.5 shrink-0" />
                     <span>Collect Payment</span>
+                  </button>
+                )}
+                {selectedInvoice.payment_method !== 'PENDING' && ['OWNER', 'ADMINISTRATOR', 'ADMIN'].includes(useAuthStore.getState().role) && (
+                  <button onClick={openCollectPayment}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-2.5 h-8 bg-violet-500/10 text-violet-600 dark:text-violet-400 hover:bg-violet-500/20 rounded-xl transition-all text-xs font-bold border border-violet-500/20 cursor-pointer active:scale-95 whitespace-nowrap"
+                    title="Change Payment Method (Admin Only)"
+                  >
+                    <CreditCard className="w-3.5 h-3.5 shrink-0" />
+                    <span>Change Payment</span>
                   </button>
                 )}
                 <button onClick={handleReprint}

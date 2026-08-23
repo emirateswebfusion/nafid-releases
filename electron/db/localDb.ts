@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import { app } from 'electron';
 import fs from 'fs';
+import crypto from 'node:crypto';
 
 // ── Local Time Helpers ────────────────────────────────────────────────────
 function localTimestamp(d: Date = new Date()): string {
@@ -1267,9 +1268,128 @@ export function initDb() {
   } catch (e: any) {
     console.error('[DB Migration] Failed to run offer_price cleanup migration:', e.message);
   }
+
+  // Backfill customer records from past transactions
+  backfillCustomersFromInvoices(db);
 }
 
 export function getDb() {
   if (!db) initDb();
   return db;
 }
+
+export function upsertCustomerRecord(
+  db: Database.Database,
+  tenantId: string,
+  rawName?: string | null,
+  rawPhone?: string | null,
+  rawAddress?: string | null
+): string | null {
+  if (!db || !tenantId) return null;
+  const name = (rawName || '').trim();
+  const phone = (rawPhone || '').trim();
+  const address = (rawAddress || '').trim();
+
+  if (!name && !phone) return null;
+
+  try {
+    let existing: any = null;
+    if (phone) {
+      existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND phone = ?').get(tenantId, phone);
+    }
+    if (!existing && name) {
+      existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').get(tenantId, name);
+    }
+
+    const displayName = name || phone;
+
+    if (existing) {
+      db.prepare(`
+        UPDATE customers
+        SET name = ?,
+            phone = CASE WHEN ? != '' THEN ? ELSE phone END,
+            address = CASE WHEN ? != '' THEN ? ELSE address END,
+            last_purchase_date = CURRENT_TIMESTAMP,
+            sync_status = 'PENDING',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE customer_id = ?
+      `).run(displayName, phone, phone, address, address, existing.customer_id);
+      return existing.customer_id as string;
+    } else {
+      const customer_id = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO customers (customer_id, tenant_id, name, phone, address, total_points_earned, total_points_redeemed, current_points_balance, last_purchase_date, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(customer_id, tenantId, displayName, phone, address);
+      return customer_id;
+    }
+  } catch (err: any) {
+    console.error('[DB] upsertCustomerRecord error:', err.message);
+    return null;
+  }
+}
+
+export function backfillCustomersFromInvoices(db: Database.Database) {
+  try {
+    console.log('[DB Migration] Running customer backfill from past transactions...');
+
+    const invoiceCustomers = db.prepare(`
+      SELECT tenant_id, customer_name, customer_phone, customer_address
+      FROM invoices
+      WHERE (customer_name IS NOT NULL AND TRIM(customer_name) != '')
+         OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
+      GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(customer_name))
+    `).all() as any[];
+
+    for (const c of invoiceCustomers) {
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address);
+    }
+
+    db.exec(`
+      UPDATE invoices
+      SET customer_id = (
+        SELECT customer_id FROM customers c
+        WHERE c.tenant_id = invoices.tenant_id
+          AND (
+            (invoices.customer_phone IS NOT NULL AND TRIM(invoices.customer_phone) != '' AND c.phone = TRIM(invoices.customer_phone))
+            OR (c.name = TRIM(invoices.customer_name) COLLATE NOCASE)
+          )
+        LIMIT 1
+      )
+      WHERE customer_id IS NULL
+        AND (
+          (customer_name IS NOT NULL AND TRIM(customer_name) != '')
+          OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
+        );
+    `);
+
+    const scrapCustomers = db.prepare(`
+      SELECT tenant_id, party_name as customer_name, customer_phone, customer_address
+      FROM scrap_transactions
+      WHERE (party_name IS NOT NULL AND TRIM(party_name) != '')
+         OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
+      GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(party_name))
+    `).all() as any[];
+
+    for (const c of scrapCustomers) {
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, c.customer_address);
+    }
+
+    const returnCustomers = db.prepare(`
+      SELECT tenant_id, customer_name, customer_phone
+      FROM returns
+      WHERE (customer_name IS NOT NULL AND TRIM(customer_name) != '')
+         OR (customer_phone IS NOT NULL AND TRIM(customer_phone) != '')
+      GROUP BY tenant_id, COALESCE(NULLIF(TRIM(customer_phone), ''), TRIM(customer_name))
+    `).all() as any[];
+
+    for (const c of returnCustomers) {
+      upsertCustomerRecord(db, c.tenant_id || 'global', c.customer_name, c.customer_phone, null);
+    }
+
+    console.log('[DB Migration] Customer backfill complete.');
+  } catch (err: any) {
+    console.error('[DB Migration] Failed customer backfill:', err.message);
+  }
+}
+

@@ -4,7 +4,7 @@ import {
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
   Smartphone, X, RotateCcw, Maximize2,
-  Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp, Layers,
+  Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
@@ -1241,24 +1241,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       />
                     </div>
                   </div>
-                </div>
-
-                <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm space-y-5">
-                  <div className="flex items-center gap-3 pb-4 border-b border-border">
-                    <Layers className="w-4.5 h-4.5 text-primary" />
-                    <span className="text-xs font-black uppercase tracking-widest text-foreground">Pricing Tiers</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
-                    Create dynamic pricing tiers (Retail, Wholesale, Wholesale A, Dealers…) and set a price for every product in each tier.
-                    Parties map to a default tier that Billing applies automatically.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => window.dispatchEvent(new CustomEvent('open-settings-pricing-tiers'))}
-                    className="flex items-center gap-2 px-5 py-3 text-xs font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer border border-primary/20 hover:border-primary shadow-sm shadow-primary/5"
-                  >
-                    <Layers className="w-4 h-4 shrink-0" /> Manage Pricing Tiers
-                  </button>
                 </div>
               </div>
             )}

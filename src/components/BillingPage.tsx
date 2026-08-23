@@ -1232,8 +1232,12 @@ export function BillingPage() {
         }
 
         // Set discount
-        if (Number(invoice.discount_value) > 0) {
-          setDiscount(Number(invoice.discount_value), invoice.discount_type || 'FIXED');
+        const effDiscValue = Number(invoice.discount_value) > 0 
+          ? Number(invoice.discount_value) 
+          : (Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : 0);
+        const effDiscType = invoice.discount_type || 'FIXED';
+        if (effDiscValue > 0) {
+          setDiscount(effDiscValue, effDiscType);
         }
 
         // Restore scrap / return credits applied on the original bill
@@ -3215,8 +3219,12 @@ notes: '',
       }
 
       // Restore discount
-      if (Number(result.invoice?.discount_value) > 0) {
-        setDiscount(Number(result.invoice.discount_value), result.invoice.discount_type || 'FIXED');
+      const effDiscValue = Number(result.invoice?.discount_value) > 0 
+        ? Number(result.invoice.discount_value) 
+        : (Number(result.invoice?.discount_total) > 0 ? Number(result.invoice.discount_total) : 0);
+      const effDiscType = result.invoice?.discount_type || 'FIXED';
+      if (effDiscValue > 0) {
+        setDiscount(effDiscValue, effDiscType);
       }
 
       // Restore items

@@ -89,7 +89,7 @@ function localDate(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
-import { initDb, getDb } from './db/localDb.js';
+import { initDb, getDb, upsertCustomerRecord } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
@@ -1423,15 +1423,23 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
+    const customerId = invoice.customer_id || upsertCustomerRecord(
+      db,
+      invoice.tenant_id || 'global',
+      invoice.customer_name,
+      invoice.customer_phone,
+      invoice.customer_address
+    );
+
     // 1. Insert invoice
     const invStmt = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
-        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number
+        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -1456,7 +1464,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.scrap_deduction ?? 0,
       invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0,
-      invoice.return_invoice_number || null
+      invoice.return_invoice_number || null,
+      customerId || null
     );
 
     // 2. Insert items and update stock
@@ -1530,6 +1539,11 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
   try {
     transaction();
+
+    const newCash = getCashAmountFromInvoice(invoice);
+    if (newCash > 0) {
+      adjustCashDrawerForInvoice(db, invoice.tenant_id || 'global', localDate(), 0, newCash);
+    }
 
     // Trigger immediate background sync so the invoice appears on web portal instantly
     import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync, runInitialSync }) => {
@@ -2222,7 +2236,18 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
   }
   const { items, ...invoice } = payload;
   const db = getDb();
+  const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
+  const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
+
   const transaction = db.transaction(() => {
+    const customerId = upsertCustomerRecord(
+      db,
+      payload.tenant_id || 'global',
+      invoice.customer_name,
+      invoice.customer_phone,
+      invoice.customer_address
+    );
+
     // 1. Get old items for stock adjustment
     const oldItems = db.prepare('SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ?').all(payload.invoice_id) as any[];
 
@@ -2233,7 +2258,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         discount_value = ?, grand_total = ?, payment_method = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
-        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        customer_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
@@ -2244,6 +2269,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.customer_address || null,
       invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
+      customerId || null,
       payload.invoice_id
     );
 
@@ -2300,6 +2326,12 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
   try {
     transaction();
+
+    const newCash = getCashAmountFromInvoice(payload);
+    if (existingInv) {
+      adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
+    }
+
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
@@ -2319,6 +2351,9 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
 }) => {
   try {
     const db = getDb();
+    const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
+    const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
+
     db.prepare(`
       UPDATE invoices SET
         payment_method = ?,
@@ -2333,6 +2368,15 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       payload.balance_amount,
       payload.invoice_id
     );
+
+    const newCash = payload.payment_method === 'CASH'
+      ? (payload.received_amount > 0 ? payload.received_amount : (existingInv ? Number(existingInv.grand_total) : 0))
+      : 0;
+
+    if (existingInv) {
+      adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
+    }
+
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
@@ -2373,6 +2417,9 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
   const { items, ...returnData } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
+    if (returnData.customer_name || returnData.customer_phone) {
+      upsertCustomerRecord(db, returnData.tenant_id || 'global', returnData.customer_name, returnData.customer_phone, null);
+    }
     db.prepare(`
       INSERT INTO returns (return_id, invoice_id, tenant_id, user_id, return_number, customer_name, customer_phone, subtotal, tax_total, grand_total, reason, refund_method, adjusted_invoice_number, adjusted_amount, sync_status, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
@@ -3328,6 +3375,9 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
     const delta = t.type === 'PURCHASE' ? t.quantity : -t.quantity;
     const paymentStatus = t.payment_status || 'CASH';
     const result = db.transaction(() => {
+      if (t.party_name || t.customer_phone) {
+        upsertCustomerRecord(db, t.tenant_id || 'global', t.party_name, t.customer_phone, t.customer_address);
+      }
       db.prepare(`
         INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
@@ -4585,6 +4635,85 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
   }
 });
 
+// ── Cash Drawer Helpers ───────────────────────────────────────────────────────
+
+function getCashAmountFromInvoice(inv: any): number {
+  if (!inv) return 0;
+  const pm = (inv.payment_method || '').toUpperCase();
+  if (pm === 'CASH') {
+    const rec = Number(inv.received_amount);
+    const grand = Number(inv.grand_total);
+    return rec > 0 ? rec : (grand > 0 ? grand : 0);
+  }
+  if (pm === 'SPLIT') {
+    if (inv.split_details) {
+      try {
+        const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+        return Number(sd.cash) || 0;
+      } catch {}
+    }
+  }
+  return 0;
+}
+
+function adjustCashDrawerForInvoice(
+  db: any,
+  tenantId: string,
+  invoiceCreatedAt: string | Date | undefined,
+  oldCashAmount: number,
+  newCashAmount: number
+) {
+  const diff = (Number(newCashAmount) || 0) - (Number(oldCashAmount) || 0);
+  if (Math.abs(diff) < 0.001) return; // No change in cash amount
+
+  let businessDate = localDate();
+  if (invoiceCreatedAt) {
+    try {
+      const d = new Date(invoiceCreatedAt);
+      if (!isNaN(d.getTime())) {
+        businessDate = localDate(d);
+      }
+    } catch {}
+  }
+
+  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenantId, businessDate) as any;
+
+  if (!drawer) {
+    const todayStr = localDate();
+    drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenantId, todayStr) as any;
+  }
+
+  if (drawer) {
+    const newCashSales = Math.max(0, Number(drawer.cash_sales || 0) + diff);
+    const newCurrentCash = Number(drawer.opening_balance || 0) + newCashSales + Number(drawer.cash_in || 0) - Number(drawer.cash_out || 0);
+    const newExpectedClosing = newCurrentCash;
+
+    let actualCashUpdate = '';
+    const params: any[] = [newCashSales, newCurrentCash, newExpectedClosing];
+
+    if (drawer.status === 'CLOSED' && drawer.actual_cash !== null && drawer.actual_cash !== undefined) {
+      const actual = Number(drawer.actual_cash);
+      const cashShort = actual < newExpectedClosing ? newExpectedClosing - actual : 0;
+      const cashExcess = actual > newExpectedClosing ? actual - newExpectedClosing : 0;
+      actualCashUpdate = `, cash_short = ?, cash_excess = ?`;
+      params.push(cashShort, cashExcess);
+    }
+
+    params.push(drawer.drawer_id);
+
+    db.prepare(`
+      UPDATE cash_drawer 
+      SET cash_sales = ?, 
+          current_cash = ?, 
+          expected_closing = ?
+          ${actualCashUpdate},
+          sync_status = 'PENDING', 
+          updated_at = CURRENT_TIMESTAMP 
+      WHERE drawer_id = ?
+    `).run(...params);
+  }
+}
+
 // ── Cashier & Settlement IPC Handlers ─────────────────────────────────────────
 
 ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { tenant_id: string; business_date?: string }) => {
@@ -4708,14 +4837,30 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       const invoice = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?`).get(invoice_id, tenant_id) as any;
       if (!invoice) throw new Error('Invoice not found');
       
-      const grand_total = Number(invoice.grand_total);
+      const subtotal = Number(invoice.subtotal) || 0;
+      const taxTotal = Number(invoice.tax_total) || 0;
+      const prevDiscount = Number(invoice.discount_total) || 0;
+      const oldGrandTotal = Number(invoice.grand_total) || Math.max(0, subtotal + taxTotal - prevDiscount);
       const received = Number(received_amount);
-      const discount = Math.max(0, grand_total - received);
-      
+
+      const additionalDiscount = Math.max(0, oldGrandTotal - received);
+      const newDiscountTotal = prevDiscount + additionalDiscount;
+      const newGrandTotal = Math.max(0, subtotal + taxTotal - newDiscountTotal);
+      const discountValue = newDiscountTotal;
+      const discountType = 'FIXED';
+
       db.prepare(`
-        UPDATE invoices SET payment_method = ?, received_amount = ?, discount_total = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        UPDATE invoices SET 
+          payment_method = ?, 
+          received_amount = ?, 
+          discount_total = ?, 
+          discount_value = ?, 
+          discount_type = ?, 
+          grand_total = ?, 
+          sync_status = 'PENDING', 
+          updated_at = CURRENT_TIMESTAMP
         WHERE invoice_id = ? AND tenant_id = ?
-      `).run(payment_method, received, discount, invoice_id, tenant_id);
+      `).run(payment_method, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id, tenant_id);
       
       const splitCashAmount = payment_method === 'CASH' 
         ? received 
@@ -4782,7 +4927,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         VALUES (?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(
         crypto.randomUUID(), tenant_id, 'PAYMENT_COMPLETED',
-        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount, payment_method, split_details: split_details || null, grand_total }),
+        JSON.stringify({ invoice_id, invoice_number: invoice.invoice_number, received_amount: received, discount: newDiscountTotal, payment_method, split_details: split_details || null, grand_total: newGrandTotal }),
         user_id, user_name || null
       );
     });
@@ -5065,6 +5210,9 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
 ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
   try {
     const db = getDb();
+    const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(invoice_id) as any;
+    const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
+
     db.transaction(() => {
       const inv = db.prepare('SELECT tenant_id, converted_from_invoice_id, converted_to_invoice_id FROM invoices WHERE invoice_id = ?').get(invoice_id) as any;
 
@@ -5108,6 +5256,11 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
 
       db.prepare("UPDATE invoices SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE invoice_id = ?").run(invoice_id);
     })();
+
+    if (existingInv && oldCash > 0) {
+      adjustCashDrawerForInvoice(db, existingInv.tenant_id, existingInv.created_at, oldCash, 0);
+    }
+
     return { success: true };
   } catch (error: any) {
     console.error('[db:deleteInvoice]', error);
