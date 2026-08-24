@@ -1,3 +1,10 @@
+# Vendora v1.5.28 Release Notes
+
+## What's Changed
+- Added optional Pcs input field for weight-billing items in `PurchaseBillManager`
+- Implemented automatic calculation and storage of `pcs_per_kg` under product `domain_attributes` during purchase bills creation/updates
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.27...v1.5.28
+
 # Vendora v1.5.27 Release Notes
 
 ## What's Changed
