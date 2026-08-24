@@ -395,6 +395,26 @@ function App() {
       setShowCashierSettlement(false);
     };
 
+    const handleOpenEditBill = () => {
+      useCartStore.getState().setRole('BILLER');
+      setShowSalesHistory(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowQuotationManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowPaymentsPage(false);
+      setShowCashierSettlement(false);
+    };
+
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
@@ -414,6 +434,7 @@ function App() {
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
     window.addEventListener('open-return-mode', handleOpenReturnMode);
     window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
+    window.addEventListener('open-edit-bill', handleOpenEditBill);
 
     let unsubscribeScale: (() => void) | undefined;
     if (window.electronAPI) {
@@ -450,6 +471,7 @@ function App() {
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
       window.removeEventListener('open-return-mode', handleOpenReturnMode);
       window.removeEventListener('edit-scrap-invoice', handleOpenScrapEdit);
+      window.removeEventListener('open-edit-bill', handleOpenEditBill);
     };
   }, []);
 

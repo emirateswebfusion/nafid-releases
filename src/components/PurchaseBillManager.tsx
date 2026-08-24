@@ -1623,7 +1623,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
   });
   const [configuredCategories, setConfiguredCategories] = useState<string[]>([]);
-  const [_newProductPcs, setNewProductPcs] = useState('');
+  const [newProductPcs, setNewProductPcs] = useState('');
   const [paymentType, setPaymentType] = useState<'CASH' | 'CREDIT' | 'UPI' | 'BANK_TRANSFER'>('CASH');
   const [editingProductItemId, setEditingProductItemId] = useState<string | null>(null);
   const [sharedEstimateMode, setSharedEstimateMode] = useState(false);
@@ -1662,6 +1662,12 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
           setNewProductCategory(p.category || '');
           setNewProductGradeId(p.grade_id || '');
           setNewProductUom(p.uom || 'Pcs');
+          if (p.domain_attributes) {
+            try {
+              const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+              setNewProductPcs(da.pcs ? String(da.pcs) : '');
+            } catch {}
+          }
           if (!item.purchase_price || Number(item.purchase_price) <= 0) setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : '');
           if (!item.selling_price || Number(item.selling_price) <= 0) setNewProductBasePrice(p.base_price != null ? String(p.base_price) : '');
           setNewProductStock(p.current_stock != null ? String(p.current_stock) : '');
@@ -2145,6 +2151,17 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       const purchasePrice = Number(newProductPurchasePrice) || 0;
       const basePrice = Number(newProductBasePrice) || purchasePrice;
       const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
+      const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+      const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
+      const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
+      const rawPcs = Number(newProductPcs) || 0;
+      const currentStockNum = Number(newProductStock) || 0;
+      const domainAttrsObj: Record<string, any> = {};
+      if (isWeightBilling && rawPcs > 0) {
+        domainAttrsObj.pcs_per_kg = currentStockNum > 0 ? rawPcs / currentStockNum : rawPcs;
+        domainAttrsObj.pcs_stock = rawPcs;
+        domainAttrsObj.pcs = rawPcs;
+      }
       const res = await window.electronAPI.dbUpdateProduct({
         product_id: editingProductItemId,
         tenant_id: tenantId,
@@ -2156,7 +2173,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         uom: newProductUom,
         purchase_price: purchasePrice,
         base_price: basePrice,
-        current_stock: Number(newProductStock) || 0,
+        current_stock: currentStockNum,
         reorder_level: Number(newProductReorderLevel) || 0,
         is_gst_applicable: type === 'GST' ? 1 : 0,
         tax_rate_percent: type === 'GST' ? newProductTaxRate : 0,
@@ -2164,6 +2181,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
         discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
         discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
         offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+        billing_type: billingType,
+        domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
         grade_id: selectedGrade?.grade_id || null,
         pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       });
@@ -2215,6 +2234,16 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
     const purchasePrice = Number(newProductPurchasePrice) || 0;
     const basePrice = Number(newProductBasePrice) || purchasePrice;
     const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
+    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+    const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
+    const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
+    const rawPcs = Number(newProductPcs) || 0;
+    const domainAttrsObj: Record<string, any> = {};
+    if (isWeightBilling && rawPcs > 0) {
+      domainAttrsObj.pcs_per_kg = rawPcs;
+      domainAttrsObj.pcs_stock = rawPcs;
+      domainAttrsObj.pcs = rawPcs;
+    }
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
       tenant_id: tenantId,
@@ -2234,7 +2263,8 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
       discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
-      billing_type: 'PIECE',
+      billing_type: billingType,
+      domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
       grade_id: selectedGrade?.grade_id || null,
       pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       is_deleted: 0,
@@ -2901,6 +2931,20 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             onChange={v => setNewProductUom(v)}
                             options={['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => ({ value: u, label: u }))}
                             triggerClassName="rounded-xl h-[46px]"
+                          />
+                        </div>
+                        <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((newProductUom || '').toLowerCase())) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
+                          <div className="flex items-center gap-1 mb-1.5">
+                            <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
+                            <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
+                          </div>
+                          <input
+                            type="number" min="1" step="1"
+                            onWheel={e => (e.target as HTMLInputElement).blur()}
+                            value={newProductPcs}
+                            onChange={e => setNewProductPcs(e.target.value)}
+                            className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                            placeholder="e.g. 20"
                           />
                         </div>
                       </div>

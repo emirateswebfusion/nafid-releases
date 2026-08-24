@@ -61,7 +61,11 @@ export function CartPane() {
 
   const handleSelectProduct = (product: any) => {
     let piecesPerKg;
-    if (product.billing_type === 'WEIGHT' && product.domain_attributes) {
+    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+    const isWeightProduct = product.billing_type === 'WEIGHT' || weightUoms.includes((product.uom || '').toLowerCase());
+    const effectiveBillingType: 'WEIGHT' | 'PIECE' = isWeightProduct ? 'WEIGHT' : 'PIECE';
+
+    if (isWeightProduct && product.domain_attributes) {
       try {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes)
@@ -70,11 +74,15 @@ export function CartPane() {
         const totalPcs = Number(da.pcs) || 0;
         const stockKg = Number(product.current_stock) || 0;
         // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
-        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
-      } catch {}
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+      } catch {
+        piecesPerKg = 1;
+      }
+    } else if (isWeightProduct) {
+      piecesPerKg = 1;
     }
     // For heavy items (1 piece > 1 Kg), default to 1 piece instead of 1 Kg
-    const initialQtyForProduct = (product.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+    const initialQtyForProduct = (isWeightProduct && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
       ? +(1 / piecesPerKg).toFixed(3)
       : undefined;
     addItem({
@@ -83,7 +91,8 @@ export function CartPane() {
       base_price: product.base_price,
       purchase_price: product.purchase_price ?? 0,
       tax_rate_percent: product.tax_rate_percent ?? 0,
-      billing_type: product.billing_type,
+      uom: product.uom,
+      billing_type: effectiveBillingType,
       pieces_per_kg: piecesPerKg,
       grade_id: product.grade_id,
       pricing_mode: product.pricing_mode,
@@ -252,13 +261,15 @@ export function CartPane() {
                 : isAdhocDiscPctCP ? Math.max(0, catalogPriceCP * (1 - Number(item.discount_percent) / 100))
                 : catalogPriceCP;
 
-              const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
+              const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+              const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+              const ppk = item.pieces_per_kg || 1;
               const weightKg = Number(item.quantity) || 0;
-              const pieces = isPiecesWeight ? Math.round(weightKg * item.pieces_per_kg!) : 0;
+              const pieces = item.pieces_override ?? Math.round(weightKg * ppk);
               const itemTotal = effectiveRate * weightKg;
 
               const handlePcsChange = (pcsVal: number) => {
-                const newKg = pcsVal / item.pieces_per_kg!;
+                const newKg = pcsVal / ppk;
                 updateQuantity(item.product_id, +newKg.toFixed(3));
               };
 

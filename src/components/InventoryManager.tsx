@@ -1128,9 +1128,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         const rawStock = (view === 'add' && formData.show_gst_purchase)
           ? 0
           : (Number(formData.current_stock) || 0);
-        if (rawPcs > 0 && rawStock > 0) {
-          da.pcs_per_kg = rawPcs / rawStock;
-        } else if (!rawPcs) {
+        if (rawPcs > 0) {
+          da.pcs_per_kg = rawStock > 0 ? rawPcs / rawStock : rawPcs;
+        } else {
           delete da.pcs_per_kg;
         }
         da.pcs_stock = rawPcs > 0 ? rawPcs : 0;

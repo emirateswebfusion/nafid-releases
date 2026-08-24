@@ -718,23 +718,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
     if (!currentItems.length) return;
 
-    let freshInvoice = selectedInvoice;
-    try {
-      const { userId, role, tenantId } = useAuthStore.getState();
-      const invoices = await window.electronAPI.dbGetInvoices({
-        user_id: userId, tenant_id: tenantId, role,
-        limit: 1, offset: 0,
-        search: selectedInvoice.invoice_number
-      });
-      if (Array.isArray(invoices) && invoices.length > 0) {
-        freshInvoice = invoices[0];
-      }
-    } catch {}
-
-    localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
+    localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
     if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
-    setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 100);
+    setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
   };
 
   const handleDeleteInvoice = async () => {

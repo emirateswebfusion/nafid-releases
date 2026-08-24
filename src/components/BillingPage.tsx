@@ -6,7 +6,7 @@ import {
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
   CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split
 } from 'lucide-react';
-import { useCartStore, useCartTotals } from '../store/cartStore';
+import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
 import { useAuthStore } from '../store/authStore';
 import { v4 as uuidv4 } from 'uuid';
@@ -20,6 +20,7 @@ import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { loadFeatureFlags } from '../featureFlags';
 import { sortProductsBySearchPriority } from '../utils/productSort';
+import { Skeleton } from './ui/Skeleton';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -251,6 +252,7 @@ export function BillingPage() {
   const [newProductBrand, setNewProductBrand] = useState('');
   const [newProductCategory, setNewProductCategory] = useState('');
   const [newProductUom, setNewProductUom] = useState('Pcs');
+  const [newProductPcs, setNewProductPcs] = useState('');
   const [newProductPurchasePrice, setNewProductPurchasePrice] = useState('');
   const [newProductBasePrice, setNewProductBasePrice] = useState('');
   const [newProductStock, setNewProductStock] = useState('');
@@ -589,13 +591,11 @@ export function BillingPage() {
     return sum;
   }, 0);
   const totalPcs = items.reduce((sum, item) => {
-    if (item.billing_type === 'WEIGHT') {
-      if (item.pieces_per_kg) {
-        const weightKg = Number(item.quantity) || 0;
-        const pieces = item.pieces_override ?? Math.round(weightKg * item.pieces_per_kg);
-        return sum + pieces;
-      }
-      return sum;
+    if (item.billing_type === 'WEIGHT' || ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((item.uom || '').toLowerCase())) {
+      const ppk = item.pieces_per_kg || 1;
+      const weightKg = Number(item.quantity) || 0;
+      const pieces = item.pieces_override ?? Math.round(weightKg * ppk);
+      return sum + pieces;
     }
     return sum + (Number(item.quantity) || 0);
   }, 0);
@@ -1138,7 +1138,7 @@ export function BillingPage() {
     }
   }, [showProductCreateForm]);
 
-
+  const [isLoadingEditBill, setIsLoadingEditBill] = useState(false);
 
   // Listen for Edit Bill from Sales History — loads items directly into cart
   useEffect(() => {
@@ -1150,6 +1150,8 @@ export function BillingPage() {
       try {
         const { invoice, items: invoiceItems, originalRole } = JSON.parse(raw);
         if (!invoiceItems?.length) return;
+
+        setIsLoadingEditBill(true);
 
         if (!useTabStore.getState().activeTabId) {
           tabCounter.current++;
@@ -1167,21 +1169,36 @@ export function BillingPage() {
             }
           } catch {}
         }
-        for (const item of invoiceItems) {
-          const p = productMap[item.product_id];
-          if (p) {
-            item.sku_barcode = p.sku_barcode || null;
-            item.brand_manufacturer = p.brand_manufacturer || null;
-            item.tax_rate_percent = p.gst_percent || 0;
-            item.billing_type = p.billing_type || 'PIECES';
-            item.pricing_mode = p.pricing_mode || 'FIXED';
-            item.purchase_price = p.purchase_price || 0;
-            item.grade_id = p.grade_id || null;
-            item.grade_rate = p.grade_rate || null;
-            item.uom = p.uom || 'PCS';
-            item.hsn = p.hsn || '';
 
-            let piecesPerKg;
+        const enrichedItems: CartItem[] = invoiceItems.map((item: any) => {
+          const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
+          const p = productMap[item.product_id];
+          let sku_barcode = item.sku_barcode || null;
+          let brand_manufacturer = item.brand_manufacturer || null;
+          let tax_rate_percent = Number(item.tax_rate_percent) || 0;
+          let billing_type = item.billing_type || 'PIECES';
+          let pricing_mode = item.pricing_mode || 'FIXED';
+          let purchase_price = Number(item.purchase_price) || 0;
+          let grade_id = item.grade_id || null;
+          let grade_rate = item.grade_rate || null;
+          let uom = item.uom || 'PCS';
+          let pieces_per_kg: number | undefined = undefined;
+          let base_price = Number(item.base_price) || 0;
+          let offer_price = item.offer_price ?? null;
+          let discount_flat = item.discount_flat ?? null;
+          let discount_percent = item.discount_percent ?? null;
+
+          if (p) {
+            sku_barcode = p.sku_barcode || null;
+            brand_manufacturer = p.brand_manufacturer || null;
+            tax_rate_percent = p.gst_percent || 0;
+            billing_type = p.billing_type || 'PIECES';
+            pricing_mode = p.pricing_mode || 'FIXED';
+            purchase_price = p.purchase_price || 0;
+            grade_id = p.grade_id || null;
+            grade_rate = p.grade_rate || null;
+            uom = p.uom || 'PCS';
+
             if (p.billing_type === 'WEIGHT' && p.domain_attributes) {
               try {
                 const da = typeof p.domain_attributes === 'string'
@@ -1190,102 +1207,95 @@ export function BillingPage() {
                 const storedPpk = Number(da.pcs_per_kg) || 0;
                 const totalPcs = Number(da.pcs) || 0;
                 const stockKg = Number(p.current_stock) || 0;
-                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
+                pieces_per_kg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
               } catch {}
             }
-            item.pieces_per_kg = piecesPerKg;
 
-            // Recover MRP, offer, and discount from product data + sold price
             const mrp = Number(p.base_price) || 0;
             const soldPrice = Number(item.unit_price) || 0;
-            item.base_price = Math.max(mrp, soldPrice);
+            base_price = Math.max(mrp, soldPrice);
 
-            if (item.pricing_mode === 'GRADE_RATE' && item.grade_rate) {
-              const rawRate = Number(item.grade_rate) || 0;
+            if (pricing_mode === 'GRADE_RATE' && grade_rate) {
+              const rawRate = Number(grade_rate) || 0;
               if (soldPrice < rawRate) {
                 const currentOffer = p.offer_price ? Number(p.offer_price) : null;
                 if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
-                  item.offer_price = currentOffer;
+                  offer_price = currentOffer;
                 } else {
-                  item.discount_flat = Number((rawRate - soldPrice).toFixed(2));
+                  discount_flat = Number((rawRate - soldPrice).toFixed(2));
                 }
               }
             } else {
               if (soldPrice < mrp) {
                 const currentOffer = p.offer_price ? Number(p.offer_price) : null;
                 if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
-                  item.offer_price = currentOffer;
+                  offer_price = currentOffer;
                 } else {
-                  item.discount_flat = Number((mrp - soldPrice).toFixed(2));
+                  discount_flat = Number((mrp - soldPrice).toFixed(2));
                 }
               } else if (soldPrice > mrp) {
-                item.offer_price = soldPrice;
+                offer_price = soldPrice;
               }
             }
           } else {
-            item.base_price = Number(item.unit_price) || 0;
+            base_price = Number(item.base_price || item.unit_price) || 0;
           }
-        }
 
-        // Clear current cart and load items
-        clearCart();
+          const qty = billing_type === 'WEIGHT'
+            ? Number(item.calculated_weight || item.quantity) || 1
+            : Number(item.quantity) || 1;
 
-        // Set invoice type
-        if (invoice.invoice_type === 'GST' || invoice.invoice_type === 'BILL_OF_SUPPLY') {
-          setInvoiceType(invoice.invoice_type);
-        }
+          return {
+            item_id: item.item_id,
+            product_id: productId,
+            name: item.name || 'Product',
+            base_price,
+            purchase_price,
+            tax_rate_percent,
+            billing_type,
+            quantity: qty,
+            pieces_per_kg,
+            pricing_mode,
+            grade_id,
+            grade_rate,
+            discount_percent,
+            discount_flat,
+            offer_price,
+            sku_barcode,
+            brand_manufacturer,
+            uom,
+          };
+        });
 
         // Set discount
         const effDiscValue = Number(invoice.discount_value) > 0 
           ? Number(invoice.discount_value) 
           : (Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : 0);
         const effDiscType = invoice.discount_type || 'FIXED';
-        if (effDiscValue > 0) {
-          setDiscount(effDiscValue, effDiscType);
-        }
 
-        // Restore scrap / return credits applied on the original bill
-        if (Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number) {
-          setScrapDeduction(Number(invoice.scrap_deduction), invoice.scrap_invoice_number);
-        }
-        if (Number(invoice.return_deduction) > 0 && invoice.return_invoice_number) {
-          setReturnDeduction(Number(invoice.return_deduction), invoice.return_invoice_number);
-        }
-
-        // Add each item to cart
-        invoiceItems.forEach((item: any) => {
-          const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
-          addItem({
-            item_id: item.item_id,
-            product_id: productId,
-            name: item.name || 'Product',
-            base_price: Number(item.base_price) || 0,
-            purchase_price: Number(item.purchase_price) || 0,
-            tax_rate_percent: Number(item.tax_rate_percent) || 0,
-            billing_type: item.billing_type,
-            pieces_per_kg: item.pieces_per_kg,
-            pricing_mode: item.pricing_mode,
-            grade_id: item.grade_id,
-            grade_rate: item.grade_rate,
-            discount_percent: item.discount_percent ?? null,
-            discount_flat: item.discount_flat ?? null,
-            offer_price: item.offer_price ?? null,
-            sku_barcode: item.sku_barcode || null,
-            brand_manufacturer: item.brand_manufacturer || null,
-          });
-          // Set the quantity
-          const qty = item.billing_type === 'WEIGHT'
-            ? Number(item.calculated_weight || item.quantity) || 1
-            : Number(item.quantity) || 1;
-          if (qty > 0) {
-            updateQuantity(productId, qty);
-          }
+        // Clear previous state and set all loaded invoice data in ONE single atomic Zustand update!
+        useCartStore.setState({
+          items: enrichedItems,
+          lastAddedProductId: enrichedItems.length > 0 ? enrichedItems[enrichedItems.length - 1].product_id : null,
+          invoiceType: (invoice.invoice_type === 'GST' || invoice.invoice_type === 'BILL_OF_SUPPLY') ? invoice.invoice_type : useCartStore.getState().invoiceType,
+          discountValue: effDiscValue,
+          discountType: effDiscType,
+          scrapDeduction: Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number ? Number(invoice.scrap_deduction) : 0,
+          scrapInvoiceNumber: Number(invoice.scrap_deduction) > 0 && invoice.scrap_invoice_number ? invoice.scrap_invoice_number : '',
+          returnDeduction: Number(invoice.return_deduction) > 0 && invoice.return_invoice_number ? Number(invoice.return_deduction) : 0,
+          returnInvoiceNumber: Number(invoice.return_deduction) > 0 && invoice.return_invoice_number ? invoice.return_invoice_number : '',
+          customerState: invoice.customer_state || 'KL',
+          editingQuotationId: null,
+          editingQuotationNumber: null,
+          editingInvoiceId: invoice.invoice_id,
+          editingInvoiceNumber: invoice.invoice_number,
+          editingInvoiceRole: originalRole || authRole,
+          isQuotationMode: false,
+          isReturnMode: false,
+          isScrapMode: false,
         });
 
-        // Restore customer state for correct tax type (CGST/SGST vs IGST)
-        setCustomerState(invoice.customer_state || 'KL');
-
-        // Set customer info
+        // Set customer info and title on active tab
         updateActiveTab({
           customerName: invoice.customer_name || '',
           customerPhone: invoice.customer_phone || '',
@@ -1293,19 +1303,19 @@ export function BillingPage() {
           customerAddress: invoice.customer_address || '',
           paymentMethod: invoice.payment_method || 'PENDING',
           receivedAmount: Number(invoice.received_amount) || 0,
+          title: invoice.invoice_number,
         });
-
-        // Mark as editing existing invoice (so checkout updates instead of creating new)
-        useCartStore.getState().setEditingInvoice(invoice.invoice_id, invoice.invoice_number, originalRole || authRole);
-        // Show the editing invoice number in the tab header
-        updateActiveTab({ title: invoice.invoice_number });
 
         // Sync tab snapshot so items persist across tab switches
         syncActiveSnapshot();
       } catch (e) {
         console.error('Failed to load edit bill data', e);
+      } finally {
+        setIsLoadingEditBill(false);
       }
     };
+
+    handler();
 
     window.addEventListener('open-edit-bill', handler);
     return () => window.removeEventListener('open-edit-bill', handler);
@@ -1421,7 +1431,11 @@ export function BillingPage() {
 
   const handleSelectProduct = (product: any) => {
     let piecesPerKg;
-    if (product.billing_type === 'WEIGHT' && product.domain_attributes) {
+    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+    const isWeightProduct = product.billing_type === 'WEIGHT' || weightUoms.includes((product.uom || '').toLowerCase());
+    const effectiveBillingType: 'WEIGHT' | 'PIECE' = isWeightProduct ? 'WEIGHT' : 'PIECE';
+
+    if (isWeightProduct && product.domain_attributes) {
       try {
         const da = typeof product.domain_attributes === 'string'
           ? JSON.parse(product.domain_attributes)
@@ -1430,11 +1444,15 @@ export function BillingPage() {
         const totalPcs = Number(da.pcs) || 0;
         const stockKg = Number(product.current_stock) || 0;
         // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
-        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
-      } catch {}
+        piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+      } catch {
+        piecesPerKg = 1;
+      }
+    } else if (isWeightProduct) {
+      piecesPerKg = 1;
     }
     // For heavy items (1 piece > 1 Kg), default to 1 piece instead of 1 Kg (which rounds to 0 pcs)
-    const initialQtyForProduct = (product.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+    const initialQtyForProduct = (isWeightProduct && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
       ? +(1 / piecesPerKg).toFixed(3)
       : undefined;
     const tierPrice = getTierPriceForProduct(product);
@@ -1446,7 +1464,8 @@ export function BillingPage() {
         ? Number(product.grade_purchase_price)
         : (product.purchase_price ?? 0),
       tax_rate_percent: product.tax_rate_percent ?? 0,
-      billing_type: product.billing_type,
+      uom: product.uom,
+      billing_type: effectiveBillingType,
       pieces_per_kg: piecesPerKg,
       grade_id: tierPrice != null ? null : product.grade_id,
       pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
@@ -1483,6 +1502,7 @@ export function BillingPage() {
     setNewProductIsAddingGrade(false);
     setNewProductGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
     setNewProductUom('Pcs');
+    setNewProductPcs('');
     setNewProductPurchasePrice('');
     setNewProductBasePrice('');
     setNewProductStock('');
@@ -1549,6 +1569,10 @@ export function BillingPage() {
     const qty = Number(newProductStock) || 0;
     const isGstProduct = (invoiceType === 'GST') || newProductIsGstApplicable;
 
+    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+    const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
+    const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
+
     // TEMP item — billing only: no product row, no barcode, no stock/inventory changes
     if (asTemp) {
       const productId = uuidv4();
@@ -1558,7 +1582,8 @@ export function BillingPage() {
         base_price: basePrice,
         purchase_price: purchasePrice,
         tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
-        billing_type: 'PIECE',
+        uom: newProductUom,
+        billing_type: billingType,
         pricing_mode: 'FIXED_PRICE',
         grade_id: null,
         grade_rate: null,
@@ -1586,6 +1611,14 @@ export function BillingPage() {
     const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
     const initialStock = (isGstProduct && qty > 0) ? 0 : qty;
 
+    const rawPcs = Number(newProductPcs) || 0;
+    const domainAttrsObj: Record<string, any> = {};
+    if (isWeightBilling && rawPcs > 0) {
+      domainAttrsObj.pcs_per_kg = initialStock > 0 ? rawPcs / initialStock : rawPcs;
+      domainAttrsObj.pcs_stock = rawPcs;
+      domainAttrsObj.pcs = rawPcs;
+    }
+
     const res = await window.electronAPI.dbAddProduct({
       product_id: productId,
       tenant_id: tenantId,
@@ -1605,7 +1638,8 @@ export function BillingPage() {
       discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
       discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
       offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
-      billing_type: 'PIECE',
+      billing_type: billingType,
+      domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
       grade_id: selectedGrade?.grade_id || null,
       pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
       is_deleted: 0,
@@ -1654,7 +1688,9 @@ export function BillingPage() {
         base_price: basePrice,
         purchase_price: purchasePrice,
         tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
-        billing_type: 'PIECE',
+        uom: newProductUom,
+        billing_type: billingType,
+        domain_attributes: isWeightBilling && rawPcs > 0 ? domainAttrsObj : undefined,
         pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
         grade_id: selectedGrade?.grade_id || null,
         grade_rate: selectedGrade ? Number(selectedGrade.rate) : null,
@@ -1895,9 +1931,13 @@ export function BillingPage() {
             // Add the product directly to the cart
             const prod = products[0];
             
+            const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+            const isWeightProduct = prod.billing_type === 'WEIGHT' || weightUoms.includes((prod.uom || '').toLowerCase());
+            const effectiveBillingType: 'WEIGHT' | 'PIECE' = isWeightProduct ? 'WEIGHT' : 'PIECE';
+
             // Replicate the piece-per-kg logic from handleSelectProduct
             let piecesPerKg;
-            if (prod.billing_type === 'WEIGHT' && prod.domain_attributes) {
+            if (isWeightProduct && prod.domain_attributes) {
               try {
                 const da = typeof prod.domain_attributes === 'string'
                   ? JSON.parse(prod.domain_attributes)
@@ -1906,11 +1946,15 @@ export function BillingPage() {
                 const totalPcs = Number(da.pcs) || 0;
                 const stockKg = Number(prod.current_stock) || 0;
                 // Prefer stored ratio; fall back to pcs count even when stock is 0/negative
-                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : undefined);
-              } catch {}
+                piecesPerKg = storedPpk > 0 ? storedPpk : (totalPcs > 0 ? (stockKg > 0 ? totalPcs / stockKg : totalPcs) : 1);
+              } catch {
+                piecesPerKg = 1;
+              }
+            } else if (isWeightProduct) {
+              piecesPerKg = 1;
             }
             // For heavy items (1 piece > 1 Kg), default to 1 piece
-            const initialQtyForScan = (prod.billing_type === 'WEIGHT' && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
+            const initialQtyForScan = (isWeightProduct && piecesPerKg && piecesPerKg > 0 && piecesPerKg < 1)
               ? +(1 / piecesPerKg).toFixed(3)
               : undefined;
 
@@ -1922,7 +1966,8 @@ export function BillingPage() {
                 ? Number(prod.grade_purchase_price)
                 : (prod.purchase_price ?? 0),
               tax_rate_percent: prod.tax_rate_percent ?? 0,
-              billing_type: prod.billing_type,
+              uom: prod.uom,
+              billing_type: effectiveBillingType,
               pieces_per_kg: piecesPerKg,
               grade_id: prod.grade_id,
               pricing_mode: prod.pricing_mode,
@@ -4245,7 +4290,22 @@ notes: '',
 
           {/* Cart List */}
           <div className="flex-1 overflow-y-auto px-4 py-2 space-y-2">
-            {items.length === 0 ? (
+            {isLoadingEditBill ? (
+              <div className="space-y-3 py-3">
+                {[1, 2, 3].map(n => (
+                  <div key={n} className="p-3.5 bg-card border border-border/60 rounded-xl space-y-2.5 shadow-sm">
+                    <div className="flex items-center justify-between gap-4">
+                      <Skeleton className="h-4 w-1/2 rounded-md" />
+                      <Skeleton className="h-4 w-1/5 rounded-md" />
+                    </div>
+                    <div className="flex items-center justify-between gap-4">
+                      <Skeleton className="h-3 w-1/3 rounded-md" />
+                      <Skeleton className="h-6 w-1/4 rounded-lg" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : items.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full text-muted-foreground/60 gap-2 text-center max-w-xs mx-auto">
                 <div className="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center text-muted-foreground shadow-sm">
                   {emptyIcon}
@@ -4588,9 +4648,11 @@ notes: '',
                 }
 
                 const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
-                const isPiecesWeight = item.billing_type === 'WEIGHT' && !!item.pieces_per_kg;
+                const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
+                const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+                const _ppk = item.pieces_per_kg || 1;
                 const weightKg = Number(item.quantity) || 0;
-                const pieces = isPiecesWeight ? (item.pieces_override ?? Math.round(weightKg * item.pieces_per_kg!)) : 0;
+                const pieces = isPiecesWeight ? (item.pieces_override ?? Math.round(weightKg * _ppk)) : 0;
                 const qty = weightKg;
 
                 // Explicit discount flag — avoids floating-point comparison bugs
@@ -4622,7 +4684,6 @@ notes: '',
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
-                const _ppk = item.pieces_per_kg!;
                 // Commit / live-calculate Pcs value to store and update Kg display
                 const commitPcs = (pcsStr: string, isFinal = false) => {
                   const pcsVal = parseInt(pcsStr, 10);
@@ -5788,8 +5849,12 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 <p className="text-[9px] font-black text-primary uppercase tracking-wider">
                   {isReturnMode ? 'Return Total' : isScrapMode ? 'Scrap Total' : (storeScrapDeduction > 0 || storeReturnDeduction > 0) ? 'After Adj.' : 'Total'}
                 </p>
-                <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
-                {refundAmount > 0 && (
+                {isLoadingEditBill ? (
+                  <Skeleton className="h-6 w-28 my-1 rounded-md" />
+                ) : (
+                  <p className="text-xl font-black text-foreground leading-none">{formatCurrency(displayGrandTotal)}</p>
+                )}
+                {refundAmount > 0 && !isLoadingEditBill && (
                   <p className="text-[10px] font-black text-orange-600 mt-1">
                     Refund Amount: {formatCurrency(refundAmount)}
                   </p>
@@ -6532,6 +6597,20 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         onChange={v => setNewProductUom(v)}
                         options={['Pcs', 'Kgs', 'Grams', 'Mtrs', 'Ltrs', 'Box', 'Dozen'].map(u => ({ value: u, label: u }))}
                         triggerClassName="rounded-xl h-[46px]"
+                      />
+                    </div>
+                    <div className={clsx('flex-1 min-w-0 overflow-hidden transition-all duration-500 ease-in-out', (['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((newProductUom || '').toLowerCase())) ? 'max-w-[250px] opacity-100' : 'max-w-0 opacity-0')}>
+                      <div className="flex items-center gap-1 mb-1.5">
+                        <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider">Pcs</label>
+                        <span className="text-[10px] text-muted-foreground/60 font-normal normal-case">(optional)</span>
+                      </div>
+                      <input
+                        type="number" min="1" step="1"
+                        onWheel={e => (e.target as HTMLInputElement).blur()}
+                        value={newProductPcs}
+                        onChange={e => setNewProductPcs(e.target.value)}
+                        className="w-full bg-background border border-border rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm no-spinners text-sm"
+                        placeholder="e.g. 20"
                       />
                     </div>
                   </div>

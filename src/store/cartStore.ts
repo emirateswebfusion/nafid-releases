@@ -10,6 +10,7 @@ export interface CartItem {
   tax_rate_percent: number;
   quantity: number | string;
   billing_type?: string;
+  uom?: string;
   pieces_per_kg?: number;
   grade_id?: string;
   pricing_mode?: string;
