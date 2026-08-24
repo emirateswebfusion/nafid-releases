@@ -1,6 +1,6 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Shield, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, ShieldCheck, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
@@ -183,7 +183,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-violet-500/10 text-violet-500 shadow-inner shrink-0">
-            <Shield className="w-4 h-4" />
+            <ShieldCheck className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">

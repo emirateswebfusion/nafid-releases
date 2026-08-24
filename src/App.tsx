@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { 
-  ShoppingCart, Banknote, Package, TrendingUp, User, 
-  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags, Undo2, Layers 
+  ShoppingCart, Banknote, Package, TrendingUp, UserCheck, Users,
+  Trash2, FileText, ShieldCheck, Receipt, BarChart3, Settings, LogOut, Store, Tags, Undo2, Boxes, BadgePercent, Handshake, Wallet
 } from 'lucide-react';
 import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
@@ -10,15 +10,15 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing', icon: ShoppingCart },
   CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
   INVENTORY: { label: 'Inventory', icon: Package },
-  COMBO_OFFERS: { label: 'Combo Offers', icon: Layers },
+  COMBO_OFFERS: { label: 'Combo Offers', icon: Boxes },
   GRADES: { label: 'Categories & Grades', icon: Tags },
   SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
-  CUSTOMERS: { label: 'Customers', icon: User },
+  CUSTOMERS: { label: 'Customers', icon: UserCheck },
   SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
   QUOTATIONS: { label: 'Quotations', icon: FileText },
-  WARRANTIES: { label: 'Warranties', icon: Shield },
+  WARRANTIES: { label: 'Warranties', icon: ShieldCheck },
   RETURNS: { label: 'Returns', icon: Undo2 },
-  PURCHASE_BILLS: { label: 'Purchase Bills', icon: BookOpen },
+  PURCHASE_BILLS: { label: 'Purchase Bills', icon: Receipt },
   STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
   SETTINGS: { label: 'Settings', icon: Settings },
 };

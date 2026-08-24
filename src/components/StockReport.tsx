@@ -671,7 +671,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <FileText className="w-4 h-4" />
+              <BarChart3 className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-2">

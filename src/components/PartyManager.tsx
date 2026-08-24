@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
-  Search, Loader2, UserPlus,
+  Search, Loader2, UserPlus, Handshake,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
   Calendar, Hash, User, X, CheckCircle2, AlertCircle, Save,
   UserCircle, Banknote, FileText, Phone, MapPin,
@@ -363,12 +363,11 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
 
-          {/* Icon (list view only) */}
-          {view === 'list' && (
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <BookOpen className="w-4 h-4" />
-            </div>
-          )}
+            {view === 'list' && (
+              <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+                <Handshake className="w-4 h-4" />
+              </div>
+            )}
 
           {/* Title */}
           <div className="flex-1 min-w-0">

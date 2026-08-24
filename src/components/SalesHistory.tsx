@@ -1023,7 +1023,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           {/* Left Title */}
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <Receipt className="w-4 h-4" />
+              <TrendingUp className="w-4 h-4" />
             </div>
             <div>
               <div className="flex items-center gap-2">

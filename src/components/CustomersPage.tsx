@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
-  Search, User, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
+  Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
   ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -160,7 +160,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
               </button>
             ) : (
               <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
-                <User className="w-5 h-5" />
+                <UserCheck className="w-5 h-5" />
               </div>
             )}
 

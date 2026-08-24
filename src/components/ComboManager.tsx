@@ -4,7 +4,7 @@ import {
   Search, Plus, Trash2, Edit3, X, Check, Tag, Package, AlertCircle, 
   RefreshCw, Layers, ToggleLeft, ToggleRight, Sparkles, ShoppingBag, 
   Copy, Filter, Percent, CheckCircle2, Grid, List, Minus, 
-  SlidersHorizontal, Zap, ArrowRight, BarChart2
+  SlidersHorizontal, Zap, ArrowRight, BarChart2, Boxes
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
@@ -334,16 +334,13 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
         <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3.5">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="p-2.5 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 shadow-inner shrink-0">
-              <Layers className="w-5 h-5" />
+              <Boxes className="w-5 h-5" />
             </div>
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-extrabold text-foreground truncate tracking-tight">
                   Combo Offers & Bundles
                 </h1>
-                <span className="px-2 py-0.5 text-[10px] font-extrabold bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-full border border-purple-500/20 uppercase tracking-wider">
-                  Engine
-                </span>
               </div>
               <p className="text-xs text-muted-foreground font-medium leading-none mt-1 truncate">
                 Bundle products at special discount prices with accurate constituent inventory deduction
@@ -362,10 +359,10 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
             {!isRestricted && onClose && (
               <button
                 onClick={onClose}
-                className="p-2 rounded-xl border border-destructive/30 hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-all duration-200 active:scale-95 cursor-pointer"
+                className="p-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all duration-200 active:scale-95 cursor-pointer shadow-xs"
                 title="Close"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-destructive" />
               </button>
             )}
           </div>
@@ -756,6 +753,16 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
           isOpen={showFormModal}
           onClose={() => setShowFormModal(false)}
           title={editingCombo ? 'Edit Combo Offer' : 'Create New Combo Offer'}
+          closeButton={
+            <button
+              type="button"
+              onClick={() => setShowFormModal(false)}
+              className="p-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
+              title="Close"
+            >
+              <X className="w-4 h-4 text-destructive" />
+            </button>
+          }
         >
           <form onSubmit={handleSaveCombo} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -935,18 +942,11 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
             </div>
 
             {/* Modal Footer Actions */}
-            <div className="flex items-center justify-end space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => setShowFormModal(false)}
-                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl transition cursor-pointer"
-              >
-                Cancel
-              </button>
+            <div className="flex items-center justify-end pt-2">
               <button
                 type="submit"
                 disabled={saving}
-                className="px-5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-xl transition shadow-md shadow-purple-500/20 cursor-pointer disabled:opacity-50"
+                className="px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs font-extrabold rounded-xl transition shadow-md shadow-purple-500/20 cursor-pointer disabled:opacity-50"
               >
                 {saving ? 'Saving...' : editingCombo ? 'Update Combo Offer' : 'Save Combo Offer'}
               </button>

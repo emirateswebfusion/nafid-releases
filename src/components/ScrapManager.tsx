@@ -4,7 +4,7 @@ import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import {
   Search, Loader2, Plus,
-  Pencil, Trash, X, Save, TrendingUp, TrendingDown, Recycle,
+  Pencil, Trash, Trash2, X, Save, TrendingUp, TrendingDown, Recycle,
   CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
   IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
   ChevronRight, Activity, FileText, Layers
@@ -727,7 +727,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-orange-500/10 text-orange-500 shadow-inner animate-pulse">
-              <Recycle className="w-5 h-5" />
+              <Trash2 className="w-5 h-5" />
             </div>
             <div>
               <div className="h-4 w-40 bg-muted rounded animate-pulse" />
@@ -760,7 +760,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
             {view === 'list' && (
               <div className="p-2 rounded-xl bg-orange-500/10 text-orange-500 shadow-inner shrink-0">
-                <Recycle className="w-4 h-4" />
+                <Trash2 className="w-4 h-4" />
               </div>
             )}
 

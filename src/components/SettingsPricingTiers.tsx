@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import {
   Plus, Trash, Pencil, Check, X, Loader2,
   Tags, ChevronUp, ChevronDown, Shield, Save, Search,
-  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee
+  Package, CheckCircle2, AlertCircle, Layers, Filter, IndianRupee, BadgePercent
 } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { useAuthStore } from '../store/authStore';
@@ -406,7 +406,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
         <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
-              <Tags className="w-4 h-4" />
+              <BadgePercent className="w-4 h-4" />
             </div>
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center gap-2">
