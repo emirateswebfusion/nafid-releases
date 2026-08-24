@@ -9,6 +9,7 @@ export interface SplitDetails {
   cash: number;
   card: number;
   upi: number;
+  credit?: number;
   bank_transfer?: number;
 }
 

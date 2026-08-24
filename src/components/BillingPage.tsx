@@ -5024,7 +5024,7 @@ notes: '',
                     const isActive = paymentMethod === opt.value;
                     const span = 'col-span-2';
 
-                    // ── In SPLIT mode: Morph Cash, Card, UPI buttons into interactive input tiles ──
+                    // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
                     if (paymentMethod === 'SPLIT') {
                       if (opt.value === 'CASH') {
                         return (
@@ -5037,7 +5037,7 @@ notes: '',
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
                                   updateActiveTab({ splitDetails: { ...splitDetails, cash: rem } });
                                 }}
                                 className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
@@ -5072,7 +5072,7 @@ notes: '',
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
                                   updateActiveTab({ splitDetails: { ...splitDetails, card: rem } });
                                 }}
                                 className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
@@ -5107,7 +5107,7 @@ notes: '',
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0)).toFixed(2)));
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
                                   updateActiveTab({ splitDetails: { ...splitDetails, upi: rem } });
                                 }}
                                 className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md"
@@ -5125,6 +5125,41 @@ notes: '',
                                 onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, upi: e.target.value === '' ? 0 : Number(e.target.value) } })}
                                 placeholder="0"
                                 className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (opt.value === 'CREDIT') {
+                        return (
+                          <div key="CREDIT" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                                <BookOpen className="w-4 h-4" />
+                                <span>Credit</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                  updateActiveTab({ splitDetails: { ...splitDetails, credit: rem } });
+                                }}
+                                className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-amber-500/15 px-1.5 py-0.5 rounded-md"
+                              >
+                                Fill Rest
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={splitDetails.credit || ''}
+                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, credit: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                placeholder="0"
+                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
                               />
                             </div>
                           </div>
