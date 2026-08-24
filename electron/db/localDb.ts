@@ -103,6 +103,7 @@ export function initDb() {
         discount_value REAL DEFAULT 0,
         grand_total REAL NOT NULL DEFAULT 0,
         payment_method TEXT DEFAULT 'CASH',
+        split_details TEXT,
         received_amount REAL DEFAULT 0,
         balance_amount REAL DEFAULT 0,
         user_id TEXT,
@@ -539,7 +540,7 @@ export function initDb() {
     ],
     invoices: [
         'tenant_id', 'invoice_number', 'invoice_type', 'subtotal', 'tax_total', 
-        'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'user_id', 'sync_status',
+        'discount_total', 'discount_type', 'discount_value', 'grand_total', 'payment_method', 'split_details', 'user_id', 'sync_status',
         'customer_gstin', 'customer_state', 'customer_address', 'received_amount', 'balance_amount', 'updated_at',
         'scrap_deduction', 'scrap_invoice_number',
         'return_deduction', 'return_invoice_number',
@@ -641,26 +642,36 @@ export function initDb() {
   };
 
   for (const table in schemaMap) {
-    const info = db.prepare(`PRAGMA table_info(${table})`).all();
-    const existingCols = info.map((c: any) => c.name);
+    let existingCols: string[] = [];
+    try {
+      const info = db.prepare(`PRAGMA table_info(${table})`).all();
+      existingCols = info.map((c: any) => c.name);
+    } catch (e: any) {
+      console.warn(`[DB Migration] Could not retrieve table_info for ${table}:`, e.message);
+      continue;
+    }
 
     for (const col of schemaMap[table]) {
       if (!existingCols.includes(col)) {
         console.log(`[DB Migration] Adding missing column ${col} to ${table} table...`);
         // We use TEXT or REAL depending on column name suffix or type
         let type = 'TEXT';
-        if (col === 'weight_override_allowed' || col === 'is_service_item') {
+        if (col === 'weight_override_allowed' || col === 'is_service_item' || col === 'is_held' || col === 'is_deleted') {
           type = 'INTEGER DEFAULT 0';
         } else if (col === 'print_status') {
           type = "TEXT DEFAULT 'PENDING'";
-        } else if (['discount_percent', 'discount_flat', 'offer_price', 'average_weight_per_piece', 'rate'].includes(col)) {
+        } else if (['discount_percent', 'discount_flat', 'offer_price', 'average_weight_per_piece', 'rate', 'points_earned', 'points_redeemed', 'points_redeemed_discount', 'previous_points_balance', 'remaining_points_balance'].includes(col)) {
           type = 'REAL';
-        } else if (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level')) {
+        } else if (col.includes('price') || col.includes('total') || col.includes('amount') || col.includes('tax') || col.includes('stock') || col.includes('level') || col.includes('deduction')) {
           type = 'REAL DEFAULT 0';
         } else if (col === 'created_at' || col === 'updated_at') {
           type = 'DATETIME'; // SQLite does not allow CURRENT_TIMESTAMP in ALTER TABLE ADD COLUMN
         }
-        db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+        try {
+          db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`);
+        } catch (e: any) {
+          console.warn(`[DB Migration] Failed to add column ${col} to ${table}:`, e.message);
+        }
       }
     }
   }
@@ -1033,13 +1044,42 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add is_deleted to scrap_transactions:', e.message);
   }
 
-  // Migration: Add is_deleted column to invoices
+  // Migration: Add missing columns to invoices explicitly (including split_details)
   try {
     const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
-    if (!invCols.includes('is_deleted')) {
-      console.log('[DB Migration] Adding is_deleted to invoices...');
-      db.exec("ALTER TABLE invoices ADD COLUMN is_deleted INTEGER DEFAULT 0");
+    const invoiceColsToEnsure: Record<string, string> = {
+      split_details: 'TEXT',
+      held_until: 'DATETIME',
+      is_held: 'INTEGER DEFAULT 0',
+      hold_note: 'TEXT',
+      scrap_deduction: 'REAL DEFAULT 0',
+      scrap_invoice_number: 'TEXT',
+      return_deduction: 'REAL DEFAULT 0',
+      return_invoice_number: 'TEXT',
+      customer_id: 'TEXT',
+      points_earned: 'REAL DEFAULT 0',
+      points_redeemed: 'REAL DEFAULT 0',
+      points_redeemed_discount: 'REAL DEFAULT 0',
+      previous_points_balance: 'REAL DEFAULT 0',
+      remaining_points_balance: 'REAL DEFAULT 0',
+      converted_from_invoice_id: 'TEXT',
+      converted_from_invoice_number: 'TEXT',
+      converted_to_invoice_id: 'TEXT',
+      converted_to_invoice_number: 'TEXT',
+      is_deleted: 'INTEGER DEFAULT 0',
+    };
+
+    for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
+      if (!invCols.includes(colName)) {
+        console.log(`[DB Migration] Adding missing column ${colName} (${colType}) to invoices...`);
+        try {
+          db.exec(`ALTER TABLE invoices ADD COLUMN ${colName} ${colType}`);
+        } catch (colErr: any) {
+          console.warn(`[DB Migration] Failed to add column ${colName} to invoices:`, colErr.message);
+        }
+      }
     }
+
     // Normalize string '0.0' or '0' or NULL to integer 0 for clean SQLite queries across all tables
     const tablesToNormalize = ['invoices', 'products', 'parties', 'scrap_categories', 'product_grades', 'pricing_tiers', 'product_pricing'];
     for (const tbl of tablesToNormalize) {
@@ -1048,7 +1088,7 @@ export function initDb() {
       } catch {}
     }
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add/normalize is_deleted to invoices:', e.message);
+    console.warn('[DB Migration] Failed to add/normalize columns in invoices:', e.message);
   }
 
   // Migration: Add bill_type column to purchase_bills
@@ -1277,8 +1317,54 @@ export function initDb() {
   backfillCustomersFromInvoices(db);
 }
 
+export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
+  const d = targetDb || db;
+  if (!d) return;
+  try {
+    const invCols = d.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    const invoiceColsToEnsure: Record<string, string> = {
+      split_details: 'TEXT',
+      held_until: 'DATETIME',
+      is_held: 'INTEGER DEFAULT 0',
+      hold_note: 'TEXT',
+      scrap_deduction: 'REAL DEFAULT 0',
+      scrap_invoice_number: 'TEXT',
+      return_deduction: 'REAL DEFAULT 0',
+      return_invoice_number: 'TEXT',
+      customer_id: 'TEXT',
+      points_earned: 'REAL DEFAULT 0',
+      points_redeemed: 'REAL DEFAULT 0',
+      points_redeemed_discount: 'REAL DEFAULT 0',
+      previous_points_balance: 'REAL DEFAULT 0',
+      remaining_points_balance: 'REAL DEFAULT 0',
+      converted_from_invoice_id: 'TEXT',
+      converted_from_invoice_number: 'TEXT',
+      converted_to_invoice_id: 'TEXT',
+      converted_to_invoice_number: 'TEXT',
+      is_deleted: 'INTEGER DEFAULT 0',
+    };
+
+    for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
+      if (!invCols.includes(colName)) {
+        console.log(`[DB Migration] Auto-ensuring missing column ${colName} (${colType}) in invoices...`);
+        try {
+          d.exec(`ALTER TABLE invoices ADD COLUMN ${colName} ${colType}`);
+        } catch (colErr: any) {
+          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoices:`, colErr.message);
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Auto-ensure invoice columns error:', e.message);
+  }
+}
+
 export function getDb() {
-  if (!db) initDb();
+  if (!db) {
+    initDb();
+  } else {
+    ensureInvoiceColumnsExist(db);
+  }
   return db;
 }
 

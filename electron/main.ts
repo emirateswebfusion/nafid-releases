@@ -1436,10 +1436,10 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
-        payment_method, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
+        payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -1454,6 +1454,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.discount_value || 0,
       invoice.grand_total,
       invoice.payment_method || 'PENDING',
+      typeof invoice.split_details === 'object' ? JSON.stringify(invoice.split_details) : (invoice.split_details || null),
       invoice.received_amount ?? 0,
       invoice.balance_amount ?? 0,
       invoice.customer_name || null,
@@ -2324,7 +2325,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
     db.prepare(`
       UPDATE invoices SET
         subtotal = ?, tax_total = ?, discount_total = ?, discount_type = ?,
-        discount_value = ?, grand_total = ?, payment_method = ?,
+        discount_value = ?, grand_total = ?, payment_method = ?, split_details = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
         customer_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
@@ -2333,6 +2334,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
       invoice.discount_type || 'FIXED', invoice.discount_value || 0,
       invoice.grand_total, invoice.payment_method || 'PENDING',
+      typeof (invoice as any).split_details === 'object' ? JSON.stringify((invoice as any).split_details) : ((invoice as any).split_details || null),
       invoice.customer_name || null, invoice.customer_phone || null,
       invoice.customer_gstin || null, invoice.customer_state || null,
       invoice.customer_address || null,
@@ -4924,6 +4926,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       db.prepare(`
         UPDATE invoices SET 
           payment_method = ?, 
+          split_details = ?, 
           received_amount = ?, 
           discount_total = ?, 
           discount_value = ?, 
@@ -4932,7 +4935,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           sync_status = 'PENDING', 
           updated_at = CURRENT_TIMESTAMP
         WHERE invoice_id = ? AND tenant_id = ?
-      `).run(payment_method, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id, tenant_id);
+      `).run(payment_method, split_details ? (typeof split_details === 'object' ? JSON.stringify(split_details) : split_details) : null, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id, tenant_id);
       
       const splitCashAmount = payment_method === 'CASH' 
         ? received 

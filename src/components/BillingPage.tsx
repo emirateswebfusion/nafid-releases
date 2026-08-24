@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split
 } from 'lucide-react';
 import { useCartStore, useCartTotals } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -43,7 +43,7 @@ const INDIAN_STATES = [
   { code: 'GA', name: 'Goa' },
 ];
 
-type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
+type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'SPLIT';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Wallet; color: string }[] = [
   { value: 'PENDING', label: 'Pending', icon: Clock, color: 'text-gray-500' },
@@ -51,6 +51,7 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: typeof Walle
   { value: 'CREDIT', label: 'Credit', icon: BookOpen, color: 'text-amber-500' },
   { value: 'UPI', label: 'UPI', icon: Smartphone, color: 'text-violet-500' },
   { value: 'CASH', label: 'Cash', icon: Banknote, color: 'text-emerald-500' },
+  { value: 'SPLIT', label: 'Split', icon: Split, color: 'text-purple-500' },
 ];
 
 function formatCurrency(amount: number): string {
@@ -243,6 +244,7 @@ export function BillingPage() {
   const gradeFormDialogRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
+  const [showSplitModal, setShowSplitModal] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
   const [newProductBarcode, setNewProductBarcode] = useState('');
@@ -429,6 +431,8 @@ export function BillingPage() {
 
   const activeTab = tabs.find(t => t.id === activeTabId);
   const paymentMethod = activeTab?.paymentMethod ?? 'PENDING';
+  const splitDetails = activeTab?.splitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
+  const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
   const customerName = activeTab?.customerName || '';
   const customerPhone = activeTab?.customerPhone || '';
@@ -2585,10 +2589,18 @@ notes: '',
       }
     }
 
+    if (paymentMethod === 'SPLIT') {
+      if (splitTotal <= 0) {
+        setHardwareError('Please enter split payment breakdown amounts for Cash, Card, or UPI');
+        setIsCheckingOut(false);
+        return;
+      }
+    }
+
     const isEditing = !!editingInvoiceId;
 
     const isPaymentPending = paymentMethod === 'PENDING';
-    const effectiveReceivedAmount = isPaymentPending ? 0 : receivedAmount;
+    const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : receivedAmount);
     const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
     const invoice_id = isEditing ? editingInvoiceId : uuidv4();
@@ -2776,6 +2788,7 @@ notes: '',
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
+          split_details: paymentMethod === 'SPLIT' ? splitDetails : undefined,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
           customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
@@ -2790,6 +2803,7 @@ notes: '',
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
+          split_details: paymentMethod === 'SPLIT' ? splitDetails : undefined,
           received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
@@ -5004,42 +5018,186 @@ notes: '',
                 )}
               </div>
               ) : (
-              <div className="grid grid-cols-6 gap-1.5">
-                {PAYMENT_OPTIONS.map((opt, idx) => {
-                  const isActive = paymentMethod === opt.value;
-                  const span = idx < 3 ? 'col-span-2' : 'col-span-3';
-                  let activeBg = '';
-                  let activeText = '';
-                  let activeBorder = '';
-                  let activeIconBg = '';
-                  if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
-                  if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
-                  if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
-                  if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
-                  if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
+              <div>
+                <div className="grid grid-cols-6 gap-2">
+                  {PAYMENT_OPTIONS.map((opt) => {
+                    const isActive = paymentMethod === opt.value;
+                    const span = 'col-span-2';
 
-                  return (
-                    <button
-                      key={opt.value}
-                      onClick={() => updateActiveTab({ paymentMethod: opt.value })}
-                      className={clsx(
-                        'flex flex-col items-center justify-center gap-1 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer',
-                        span,
-                        isActive
-                          ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
-                          : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
-                      )}
-                    >
-                      <div className={clsx(
-                        'p-2 rounded-xl transition-colors',
-                        isActive ? activeIconBg : 'bg-muted'
-                      )}>
-                        <opt.icon className="w-4.5 h-4.5" />
-                      </div>
-                      <span className="text-xs font-extrabold">{opt.label}</span>
-                    </button>
-                  );
-                })}
+                    // ── In SPLIT mode: Morph Cash, Card, UPI buttons into interactive input tiles ──
+                    if (paymentMethod === 'SPLIT') {
+                      if (opt.value === 'CASH') {
+                        return (
+                          <div key="CASH" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                                <Banknote className="w-4 h-4" />
+                                <span>Cash</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                  updateActiveTab({ splitDetails: { ...splitDetails, cash: rem } });
+                                }}
+                                className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
+                              >
+                                Fill Rest
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={splitDetails.cash || ''}
+                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, cash: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                placeholder="0"
+                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (opt.value === 'CARD') {
+                        return (
+                          <div key="CARD" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs">
+                                <Wallet className="w-4 h-4" />
+                                <span>Card</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                  updateActiveTab({ splitDetails: { ...splitDetails, card: rem } });
+                                }}
+                                className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
+                              >
+                                Fill Rest
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={splitDetails.card || ''}
+                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, card: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                placeholder="0"
+                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (opt.value === 'UPI') {
+                        return (
+                          <div key="UPI" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-extrabold text-xs">
+                                <Smartphone className="w-4 h-4" />
+                                <span>UPI</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0)).toFixed(2)));
+                                  updateActiveTab({ splitDetails: { ...splitDetails, upi: rem } });
+                                }}
+                                className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md"
+                              >
+                                Fill Rest
+                              </button>
+                            </div>
+                            <div className="relative">
+                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                value={splitDetails.upi || ''}
+                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, upi: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                placeholder="0"
+                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                              />
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (opt.value === 'SPLIT') {
+                        return (
+                          <button
+                            key="SPLIT"
+                            type="button"
+                            onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
+                            className="col-span-2 flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]"
+                            title="Click again to deactivate Split Mode"
+                          >
+                            <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
+                              <Split className="w-4.5 h-4.5" />
+                            </div>
+                            <span className="text-xs font-extrabold">Split</span>
+                          </button>
+                        );
+                      }
+                    }
+
+                    // ── Single Mode: Standard button options ──
+                    let activeBg = '';
+                    let activeText = '';
+                    let activeBorder = '';
+                    let activeIconBg = '';
+                    if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
+                    if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
+                    if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
+                    if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
+                    if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
+                    if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; }
+
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => {
+                          if (opt.value === 'SPLIT') {
+                            if (paymentMethod === 'SPLIT') {
+                              updateActiveTab({ paymentMethod: 'CASH' });
+                            } else {
+                              if (splitTotal === 0 && displayGrandTotal > 0) {
+                                updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
+                              } else {
+                                updateActiveTab({ paymentMethod: 'SPLIT' });
+                              }
+                            }
+                          } else {
+                            updateActiveTab({ paymentMethod: opt.value });
+                          }
+                        }}
+                        className={clsx(
+                          'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px]',
+                          span,
+                          isActive
+                            ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
+                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                        )}
+                      >
+                        <div className={clsx(
+                          'p-1.5 rounded-xl transition-colors',
+                          isActive ? activeIconBg : 'bg-muted'
+                        )}>
+                          <opt.icon className="w-4.5 h-4.5" />
+                        </div>
+                        <span className="text-xs font-extrabold">{opt.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               )}
             </div>
@@ -5086,22 +5244,20 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
             {/* Calculation breakdown */}
             <div className="px-5 pt-2.5 pb-0 space-y-1.5 text-xs border-b border-border">
-              {items.length > 0 && (
-                <div className="flex justify-between items-center pb-1 border-b border-border/40 text-muted-foreground">
-                  <span className="font-bold text-xs text-muted-foreground">Items Summary</span>
-                  <span className="font-extrabold text-xs text-foreground flex items-center gap-1.5">
-                    <span>{totalProducts} {totalProducts === 1 ? 'Product' : 'Products'}</span>
-                    <span>&middot;</span>
-                    <span>{totalPcs} Pcs</span>
-                    {totalKgs > 0 && (
-                      <>
-                        <span>&middot;</span>
-                        <span className="text-amber-600 dark:text-amber-400">{totalKgs.toFixed(3)} Kg</span>
-                      </>
-                    )}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between items-center pb-1 border-b border-border/40 text-muted-foreground transition-all duration-300">
+                <span className="font-bold text-xs text-muted-foreground">Items Summary</span>
+                <span className="font-extrabold text-xs text-foreground flex items-center gap-1.5">
+                  <span className={clsx(items.length === 0 && 'text-muted-foreground/60')}>{totalProducts} {totalProducts === 1 ? 'Product' : 'Products'}</span>
+                  <span className={clsx(items.length === 0 && 'text-muted-foreground/40')}>&middot;</span>
+                  <span className={clsx(items.length === 0 && 'text-muted-foreground/60')}>{totalPcs} Pcs</span>
+                  {totalKgs > 0 && (
+                    <>
+                      <span>&middot;</span>
+                      <span className="text-amber-600 dark:text-amber-400">{totalKgs.toFixed(3)} Kg</span>
+                    </>
+                  )}
+                </span>
+              </div>
 
               {(!isScrapMode || subtotal > 0) && (
               <div className="flex justify-between items-center">

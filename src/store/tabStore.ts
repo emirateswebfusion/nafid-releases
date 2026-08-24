@@ -3,7 +3,14 @@ import { v4 as uuidv4 } from 'uuid';
 import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
 
-type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT';
+export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'SPLIT';
+
+export interface SplitDetails {
+  cash: number;
+  card: number;
+  upi: number;
+  bank_transfer?: number;
+}
 
 export interface TabSnapshot {
   items: CartItem[];
@@ -36,6 +43,7 @@ export interface Tab {
   customerGstin: string;
   customerAddress: string;
   paymentMethod: PaymentMethod;
+  splitDetails?: SplitDetails;
   receivedAmount: number;
   reservedInvoiceNumber: string;
   reservedScrapInvoiceNumber: string;
@@ -159,6 +167,7 @@ function createDefaultTab(): Tab {
     customerGstin: '',
     customerAddress: '',
     paymentMethod: 'PENDING',
+    splitDetails: { cash: 0, card: 0, upi: 0, bank_transfer: 0 },
     receivedAmount: 0,
     reservedInvoiceNumber: '',
     reservedScrapInvoiceNumber: '',
