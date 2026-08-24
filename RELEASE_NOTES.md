@@ -1,3 +1,11 @@
+# Vendora v1.5.29 Release Notes
+
+## What's Changed
+- Implemented Trash2 icon instead of Recycle icon in ScrapManager skeleton loading state
+- Integrated POS scrap, warranty, stock reporting, and customer management interfaces
+- Refactored billing, invoice generation, cashier daily settlements, and transaction tracking modules
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.28...v1.5.29
+
 # Vendora v1.5.28 Release Notes
 
 ## What's Changed
