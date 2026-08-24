@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import {
   Receipt, Search, Calendar, User, Tag, RefreshCw, Printer, Edit3, Trash2, X,
-  BookOpen, IndianRupee, TrendingUp,
+  BookOpen, IndianRupee, TrendingUp, Boxes,
   CheckCircle2, Package, BarChart3, CheckCheck, ChevronRight,
   SlidersHorizontal, Clock, Layers, Banknote, Wallet, Smartphone, AlertCircle, CreditCard,
   ArrowDownRight, ShieldAlert, Building, FileText, Download, Percent
@@ -494,12 +494,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
   const enrichItemsWithMrp = async (invoiceItems: any[]): Promise<any[]> => {
+    const { tenantId } = useAuthStore.getState();
+    let combosList: any[] = [];
+    try {
+      const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId || 'global' });
+      if (Array.isArray(allCombos)) combosList = allCombos;
+    } catch {}
+
     const nonService = invoiceItems.filter((i: any) => !i.is_service_item);
     const productIds = [...new Set(nonService.map((i: any) => i.product_id).filter(Boolean))] as string[];
     const productMap: Record<string, any> = {};
     if (productIds.length > 0) {
       try {
-        const { tenantId } = useAuthStore.getState();
         const products = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
         if (Array.isArray(products)) {
           products.forEach((p: any) => { productMap[p.product_id] = p; });
@@ -509,14 +515,33 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       }
     }
     return invoiceItems.map(item => {
+      let comboItemsParsed: any[] | undefined = undefined;
+      if (item.combo_details) {
+        try {
+          const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+          if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
+        } catch {}
+      }
+
+      const matchedCombo = combosList.find((c: any) =>
+        (item.combo_id && c.combo_id === item.combo_id) ||
+        (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
+        (item.product_id && c.combo_id === item.product_id)
+      );
+
+      if (!comboItemsParsed && matchedCombo && matchedCombo.items) {
+        comboItemsParsed = matchedCombo.items;
+      }
+
+      const isComboItem = Boolean(item.combo_id || matchedCombo || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+
       const p = item.is_service_item ? null : productMap[item.product_id];
-      if (!p) return item;
-      const mrp = p.pricing_mode === 'GRADE_RATE' && Number(p.grade_rate) > 0 ? Number(p.grade_rate) : (Number(p.base_price) || 0);
+      const mrp = p ? (p.pricing_mode === 'GRADE_RATE' && Number(p.grade_rate) > 0 ? Number(p.grade_rate) : (Number(p.base_price) || 0)) : 0;
       const soldPrice = Number(item.unit_price) || 0;
       let originalRate: number | undefined;
       let discountLabel: string | undefined;
       if (mrp > 0 && soldPrice < mrp) {
-        const offerPrice = p.offer_price ? Number(p.offer_price) : null;
+        const offerPrice = p?.offer_price ? Number(p.offer_price) : null;
         if (offerPrice !== null && Math.abs(offerPrice - soldPrice) < 0.01) {
           originalRate = mrp;
           discountLabel = 'Offer';
@@ -543,6 +568,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         billing_type: p?.billing_type || item.billing_type || undefined,
         pieces_per_kg: pcsPerKg,
         unit: p?.uom || item.unit || undefined,
+        isCombo: isComboItem,
+        combo_items: comboItemsParsed,
       };
     });
   };
@@ -640,6 +667,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const sgst = isInterState ? undefined : taxVal / 2;
       const igst = isInterState ? taxVal : undefined;
 
+      // Fetch combo offers for fallback matching on historical bill reprints
+      const allCombos = await window.electronAPI.dbGetComboOffers({ tenant_id: tenantId || 'global' });
+      const combosList = Array.isArray(allCombos) ? allCombos : [];
+
       const receiptData: ReceiptData = {
         shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
         shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -657,10 +688,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           if (item.combo_details) {
             try {
               const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
-              if (Array.isArray(parsed)) comboItemsParsed = parsed;
+              if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
             } catch {}
           }
-          const isComboItem = Boolean(item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+          const matchedCombo = combosList.find((c: any) =>
+            (item.combo_id && c.combo_id === item.combo_id) ||
+            (item.name && c.name && c.name.toLowerCase().trim() === item.name.toLowerCase().trim()) ||
+            (item.product_id && c.combo_id === item.product_id)
+          );
+          if (!comboItemsParsed && matchedCombo && matchedCombo.items) {
+            comboItemsParsed = matchedCombo.items;
+          }
+          const isComboItem = Boolean(item.combo_id || matchedCombo || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
           return {
             name: item.name,
             quantity: Number(item.quantity) || 0,
@@ -1692,26 +1731,55 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                       <RefreshCw className="w-3.5 h-3.5 animate-spin" />
                       <span className="text-xs font-medium">Loading items…</span>
                     </div>
-                  ) : items.map((item, i) => (
-                    <div key={item.item_id} className={clsx('grid grid-cols-12 px-4 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
-                      <div className="col-span-5 flex items-center gap-2 min-w-0">
-                        <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
-                          <Package className="w-3 h-3" />
-                        </div>
-                        <div className="min-w-0">
-                          <span className="font-bold text-foreground truncate block">{item.name || 'Unknown'}</span>
-                          {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
-                            <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
-                              MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
-                            </span>
+                  ) : items.map((item, i) => {
+                    let comboItemsParsed: any[] | undefined = item.combo_items;
+                    if (!comboItemsParsed && item.combo_details) {
+                      try {
+                        const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+                        if (Array.isArray(parsed) && parsed.length > 0) comboItemsParsed = parsed;
+                      } catch {}
+                    }
+                    const isComboItem = Boolean(item.isCombo || item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+
+                    return (
+                      <div key={item.item_id || i} className={clsx('grid grid-cols-12 px-4 py-2.5 items-center text-xs transition-colors hover:bg-muted/20', i % 2 !== 0 && 'bg-muted/[0.03]')}>
+                        <div className="col-span-5 flex items-center gap-2 min-w-0">
+                          {isComboItem ? (
+                            <div className="p-1 rounded-md bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30 shrink-0">
+                              <Boxes className="w-3.5 h-3.5" />
+                            </div>
+                          ) : (
+                            <div className="p-1 rounded-md bg-muted/60 text-muted-foreground shrink-0">
+                              <Package className="w-3 h-3" />
+                            </div>
                           )}
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-bold text-foreground truncate">{item.name || 'Unknown'}</span>
+                              {isComboItem && (
+                                <span className="text-[9px] font-extrabold text-purple-600 dark:text-purple-400 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase leading-none">
+                                  COMBO OFFER
+                                </span>
+                              )}
+                            </div>
+                            {comboItemsParsed && comboItemsParsed.length > 0 && (
+                              <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+                                Includes: {comboItemsParsed.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                              </div>
+                            )}
+                            {item.originalRate != null && Number(item.originalRate) !== Number(item.unit_price) && (
+                              <span className="text-[9px] text-muted-foreground font-semibold block mt-0.5 truncate">
+                                MRP {formatCurrency(Number(item.originalRate))} → {formatCurrency(Number(item.unit_price))}{item.discountLabel ? ` (${item.discountLabel})` : ''}
+                              </span>
+                            )}
+                          </div>
                         </div>
+                        <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
+                        <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
+                        <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
                       </div>
-                      <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
-                      <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
-                      <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
