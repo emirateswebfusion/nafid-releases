@@ -1,3 +1,10 @@
+# Vendora v1.5.27 Release Notes
+
+## What's Changed
+- Added Support for Credit/Ledger payment method split under SPLIT payments console
+- Integrated multi-tab billing systems, SQLite db schemas, cashier audit logs, and deep linking IPC bridges
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.26...v1.5.27
+
 # Vendora v1.5.26 Release Notes
 
 ## What's Changed
