@@ -2801,6 +2801,8 @@ notes: '',
         pieces_override: item.pieces_override,
         pieces_per_kg: item.pieces_per_kg,
         unit: item.unit,
+        isCombo: item.isCombo,
+        combo_items: item.combo_items,
       };
     });
 

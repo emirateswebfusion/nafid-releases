@@ -16,6 +16,7 @@ interface ComboItem {
   quantity: number;
   product_name?: string;
   product_price?: number;
+  offer_price?: number;
   product_stock?: number;
   sku_barcode?: string;
   uom?: string;
@@ -39,8 +40,19 @@ interface Product {
   sku_barcode: string;
   item_code: string;
   base_price: number;
+  offer_price?: number;
+  discount_flat?: number;
+  discount_percent?: number;
   current_stock: number;
   uom: string;
+}
+
+function getEffectiveOfferPrice(prod: any): number {
+  const base = Number(prod.base_price || prod.product_price || 0);
+  if (prod.offer_price && Number(prod.offer_price) > 0) return Number(prod.offer_price);
+  if (prod.discount_flat && Number(prod.discount_flat) > 0) return Math.max(0, base - Number(prod.discount_flat));
+  if (prod.discount_percent && Number(prod.discount_percent) > 0) return Math.max(0, base * (1 - Number(prod.discount_percent) / 100));
+  return base;
 }
 
 export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; isRestricted?: boolean }) {
@@ -176,6 +188,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   // Add product to combo list
   const handleAddProductToCombo = (product: Product) => {
     const existingIndex = selectedItems.findIndex(i => i.product_id === product.product_id);
+    const effOffer = getEffectiveOfferPrice(product);
     if (existingIndex > -1) {
       const updated = [...selectedItems];
       updated[existingIndex].quantity += 1;
@@ -188,6 +201,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
           quantity: 1,
           product_name: product.name,
           product_price: product.base_price,
+          offer_price: effOffer,
           product_stock: product.current_stock,
           sku_barcode: product.sku_barcode,
           uom: product.uom,
@@ -212,6 +226,11 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   // Calculate market MRP total
   const calcStandaloneTotal = () => {
     return selectedItems.reduce((acc, item) => acc + (Number(item.product_price || 0) * item.quantity), 0);
+  };
+
+  // Calculate effective offer price total
+  const calcOfferPriceTotal = () => {
+    return selectedItems.reduce((acc, item) => acc + (Number(item.offer_price || item.product_price || 0) * item.quantity), 0);
   };
 
   // Handle Save Combo
@@ -369,28 +388,26 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
         </div>
       </header>
 
+      {/* Floating Status Toast */}
+      {statusMessage && (
+        <div className={clsx(
+          "fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-xs font-bold flex items-center gap-3 border shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto select-none",
+          statusMessage.type === 'success' 
+            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
+            : "bg-destructive/15 text-destructive border-destructive/30"
+        )}>
+          {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" /> : <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />}
+          <span>{statusMessage.text}</span>
+          <button onClick={() => setStatusMessage(null)} className="ml-2 p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer">
+            <X className="w-3.5 h-3.5 opacity-70 hover:opacity-100" />
+          </button>
+        </div>
+      )}
+
       {/* ═══════════════════════════════════════════════════
           MAIN CONTENT BODY
       ═══════════════════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
-        
-        {/* Toast Status Banner */}
-        {statusMessage && (
-          <div className={clsx(
-            "px-4 py-3 rounded-2xl text-xs font-bold flex items-center justify-between border shadow-sm animate-in slide-in-from-top-2 duration-200",
-            statusMessage.type === 'success' 
-              ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
-              : "bg-destructive/10 text-destructive border-destructive/30"
-          )}>
-            <span className="flex items-center gap-2">
-              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-              {statusMessage.text}
-            </span>
-            <button onClick={() => setStatusMessage(null)} className="p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
 
         {/* KPI Summary Banner Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -835,23 +852,37 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
                 {/* Dropdown Results */}
                 {productResults.length > 0 && (
                   <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl z-30 max-h-48 overflow-y-auto divide-y divide-border">
-                    {productResults.map((prod) => (
-                      <div
-                        key={prod.product_id}
-                        onClick={() => handleAddProductToCombo(prod)}
-                        className="p-2.5 hover:bg-purple-500/10 cursor-pointer flex items-center justify-between text-xs transition-colors"
-                      >
-                        <div>
-                          <span className="font-bold text-foreground">{prod.name}</span>
-                          <span className="text-muted-foreground ml-2 font-mono text-[10px]">{prod.sku_barcode || prod.item_code}</span>
+                    {productResults.map((prod) => {
+                      const effOffer = getEffectiveOfferPrice(prod);
+                      const hasOffer = effOffer > 0 && effOffer < prod.base_price;
+
+                      return (
+                        <div
+                          key={prod.product_id}
+                          onClick={() => handleAddProductToCombo(prod)}
+                          className="p-2.5 hover:bg-purple-500/10 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <span className="font-bold text-foreground">{prod.name}</span>
+                            <span className="text-muted-foreground ml-2 font-mono text-[10px]">{prod.sku_barcode || prod.item_code}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="text-muted-foreground text-[10px]">Stock: {prod.current_stock}</span>
+                            <div className="flex items-center gap-1.5 text-[11px]">
+                              {hasOffer ? (
+                                <>
+                                  <span className="text-muted-foreground/60 line-through">MRP: ₹{prod.base_price}</span>
+                                  <span className="font-extrabold text-emerald-600 dark:text-emerald-400">Offer: ₹{effOffer}</span>
+                                </>
+                              ) : (
+                                <span className="font-bold text-foreground">MRP: ₹{prod.base_price}</span>
+                              )}
+                            </div>
+                            <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                          </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-muted-foreground text-[10px]">Stock: {prod.current_stock}</span>
-                          <span className="font-bold text-foreground">₹{prod.base_price}</span>
-                          <Plus className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -863,41 +894,58 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
                 </div>
               ) : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden divide-y divide-border">
-                  {selectedItems.map((item) => (
-                    <div key={item.product_id} className="p-2.5 flex items-center justify-between text-xs">
-                      <div className="flex-1 pr-2">
-                        <div className="font-bold text-foreground">{item.product_name}</div>
-                        <div className="text-[10px] text-muted-foreground font-mono">
-                          Unit MRP: ₹{item.product_price || 0}
-                        </div>
-                      </div>
+                  {selectedItems.map((item) => {
+                    const hasOffer = item.offer_price && item.offer_price > 0 && item.offer_price < (item.product_price || 0);
+                    const effectiveLinePrice = hasOffer ? item.offer_price! : (item.product_price || 0);
 
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center space-x-1.5 bg-muted/60 rounded-lg p-1 border border-border/60">
-                          <span className="text-[10px] font-bold text-muted-foreground px-1">Qty:</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={item.quantity}
-                            onChange={(e) => handleUpdateItemQty(item.product_id, parseInt(e.target.value) || 0)}
-                            className="w-14 px-1.5 py-0.5 bg-background border border-border rounded text-center text-xs font-black text-foreground"
-                          />
+                    return (
+                      <div key={item.product_id} className="p-2.5 flex items-center justify-between text-xs">
+                        <div className="flex-1 pr-2">
+                          <div className="font-bold text-foreground">{item.product_name}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2">
+                            <span>Unit MRP: <span className={clsx(hasOffer && "line-through opacity-70")}>₹{item.product_price || 0}</span></span>
+                            {hasOffer && (
+                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                                Offer Price: ₹{item.offer_price}
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <span className="font-extrabold text-foreground w-20 text-right">
-                          ₹{((item.product_price || 0) * item.quantity).toFixed(2)}
-                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center space-x-1.5 bg-muted/60 rounded-lg p-1 border border-border/60">
+                            <span className="text-[10px] font-bold text-muted-foreground px-1">Qty:</span>
+                            <input
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateItemQty(item.product_id, parseInt(e.target.value) || 0)}
+                              className="w-14 px-1.5 py-0.5 bg-background border border-border rounded text-center text-xs font-black text-foreground"
+                            />
+                          </div>
 
-                        <button
-                          type="button"
-                          onClick={() => handleUpdateItemQty(item.product_id, 0)}
-                          className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                          <div className="w-24 text-right">
+                            <div className="font-extrabold text-foreground">
+                              ₹{(effectiveLinePrice * item.quantity).toFixed(2)}
+                            </div>
+                            {hasOffer && (
+                              <div className="text-[9px] text-muted-foreground line-through">
+                                ₹{((item.product_price || 0) * item.quantity).toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleUpdateItemQty(item.product_id, 0)}
+                            className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -921,10 +969,15 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
                 </div>
 
                 <div className="text-right">
-                  <div className="text-xs text-muted-foreground font-semibold">Regular Items Total:</div>
+                  <div className="text-xs text-muted-foreground font-semibold">Regular Items MRP Total:</div>
                   <div className="text-base font-bold text-muted-foreground line-through">
                     ₹{standaloneTotal.toFixed(2)}
                   </div>
+                  {calcOfferPriceTotal() < standaloneTotal && (
+                    <div className="text-xs font-extrabold text-emerald-600 dark:text-emerald-400">
+                      Product Offer Total: ₹{calcOfferPriceTotal().toFixed(2)}
+                    </div>
+                  )}
                 </div>
               </div>
 

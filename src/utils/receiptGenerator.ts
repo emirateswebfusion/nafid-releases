@@ -10,6 +10,8 @@ export interface ReceiptItem {
   pieces_override?: number;
   pieces_per_kg?: number;
   unit?: string;
+  isCombo?: boolean;
+  combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
 }
 
 export interface BillSettings {
@@ -417,7 +419,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const fmt = formatPrintItem(item, selectedBillSettings);
       const qty = fmt.displayQty;
       const total = fmt.displayTotal;
-      const rawName = item.name || '';
+      const isComboItem = Boolean(item.isCombo || (item.combo_items && item.combo_items.length > 0));
+      const baseName = item.name || '';
+      const rawName = isComboItem && !/\b(COMBO|Combo|combo)\b/i.test(baseName) ? `[COMBO] ${baseName}` : baseName;
       const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
       nameLines.forEach((name, li) => {
         if (li === 0) {
@@ -429,6 +433,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showBrand && item.brand) {
         const brandLine = `  Brand: ${item.brand}`;
         text += `${brandLine.substring(0, charsPerLine)}\n`;
+      }
+      if (item.isCombo || (item.combo_items && item.combo_items.length > 0)) {
+        const comboTag = `  [COMBO OFFER]`;
+        text += `${comboTag.substring(0, charsPerLine)}\n`;
+        if (item.combo_items && item.combo_items.length > 0) {
+          const comboInc = `  Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}`;
+          text += `${comboInc.substring(0, charsPerLine)}\n`;
+        }
       }
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
         const mrpLine = `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
@@ -1758,7 +1770,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       const rate = fmt.displayRate;
       const amt = fmt.displayTotal;
       const mrpStr = mrpW && item.originalRate ? item.originalRate.toFixed(2) : '';
-      const rawName = item.name || '';
+      const isComboItem = Boolean(item.isCombo || (item.combo_items && item.combo_items.length > 0));
+      const baseName = item.name || '';
+      const rawName = isComboItem && !/\b(COMBO|Combo|combo)\b/i.test(baseName) ? `[COMBO] ${baseName}` : baseName;
 
       // Wrap name across multiple rows when printFullName is enabled
       const nameLines = printFullName
@@ -1771,6 +1785,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
           : [li === 0 ? idx : '', name, li === 0 ? qty : '', li === 0 ? rate : '', li === 0 ? amt : ''];
         text += B_ROW(cells, colWidths);
       });
+
+      // Combo sub-line for included constituent items
+      if (isComboItem && item.combo_items && item.combo_items.length > 0) {
+        const comboWidths = [idxW, INNER - idxW - 1];
+        const comboInc = ` Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}`;
+        const incLines = wrapText(comboInc, INNER - idxW - 1);
+        incLines.forEach(l => {
+          text += B_ROW(['', l], comboWidths);
+        });
+      }
 
       // Brand name — printed under the Product column when enabled
       if (showBrand && item.brand) {

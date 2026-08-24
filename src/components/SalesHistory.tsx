@@ -652,19 +652,31 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
         billerName: selectedInvoice.biller_name,
-        items: items.map(item => ({
-          name: item.name,
-          quantity: Number(item.quantity) || 0,
-          unit_price: item.unit_price,
-          total: item.total,
-          originalRate: item.originalRate,
-          discountLabel: item.discountLabel,
-          brand: item.brand_manufacturer || undefined,
-          billing_type: item.billing_type,
-          pieces_override: item.pieces_override,
-          pieces_per_kg: item.pieces_per_kg,
-          unit: item.unit,
-        })),
+        items: items.map(item => {
+          let comboItemsParsed: any[] | undefined = undefined;
+          if (item.combo_details) {
+            try {
+              const parsed = typeof item.combo_details === 'string' ? JSON.parse(item.combo_details) : item.combo_details;
+              if (Array.isArray(parsed)) comboItemsParsed = parsed;
+            } catch {}
+          }
+          const isComboItem = Boolean(item.combo_id || (Array.isArray(comboItemsParsed) && comboItemsParsed.length > 0));
+          return {
+            name: item.name,
+            quantity: Number(item.quantity) || 0,
+            unit_price: item.unit_price,
+            total: item.total,
+            originalRate: item.originalRate,
+            discountLabel: item.discountLabel,
+            brand: item.brand_manufacturer || undefined,
+            billing_type: item.billing_type,
+            pieces_override: item.pieces_override,
+            pieces_per_kg: item.pieces_per_kg,
+            unit: item.unit,
+            isCombo: isComboItem,
+            combo_items: comboItemsParsed,
+          };
+        }),
         subtotal: selectedInvoice.subtotal,
         tax: selectedInvoice.tax_total,
         cgst: cgst,
