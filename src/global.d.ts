@@ -194,6 +194,13 @@ export interface IElectronAPI {
   // Diagnostic sync helpers
   syncClearPending: (payload: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => Promise<{ success: boolean; error?: string }>;
   syncGetPending: (payload: { tenant_id: string }) => Promise<{ success: boolean; pending: { invoices: any[]; products: any[] }; error?: string }>;
+
+  // Combo Offers
+  dbGetComboOffers: (params: { tenant_id: string; search?: string; only_active?: boolean }) => Promise<any[]>;
+  dbGetComboOfferDetails: (params: { combo_id: string; tenant_id: string }) => Promise<any>;
+  dbSaveComboOffer: (combo: any) => Promise<{ success: boolean; error?: string }>;
+  dbDeleteComboOffer: (params: { combo_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
+  dbToggleComboOfferActive: (params: { combo_id: string; tenant_id: string; is_active: boolean }) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

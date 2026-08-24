@@ -520,6 +520,32 @@ export function initDb() {
         FOREIGN KEY (pricing_tier_id) REFERENCES pricing_tiers(pricing_tier_id)
     );
 
+    CREATE TABLE IF NOT EXISTS combo_offers (
+        combo_id TEXT PRIMARY KEY,
+        tenant_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        sku_barcode TEXT,
+        combo_price REAL NOT NULL DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        is_deleted INTEGER DEFAULT 0,
+        description TEXT,
+        sync_status TEXT DEFAULT 'SYNCED',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(tenant_id, sku_barcode)
+    );
+
+    CREATE TABLE IF NOT EXISTS combo_items (
+        combo_item_id TEXT PRIMARY KEY,
+        combo_id TEXT NOT NULL,
+        tenant_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        quantity REAL NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (combo_id) REFERENCES combo_offers(combo_id) ON DELETE CASCADE,
+        FOREIGN KEY (product_id) REFERENCES products(product_id)
+    );
+
     CREATE TABLE IF NOT EXISTS sync_meta (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
@@ -552,7 +578,7 @@ export function initDb() {
     ],
     invoice_items: [
         'item_id', 'invoice_id', 'tenant_id', 'product_id', 'name', 'quantity', 'unit_price', 'tax_amount', 'total', 'is_service_item',
-        'source_item_id', 'bos_unit_price', 'bos_tax_amount', 'bos_total'
+        'source_item_id', 'bos_unit_price', 'bos_tax_amount', 'bos_total', 'combo_id', 'combo_details'
     ],
     users: [
         'user_id', 'tenant_id', 'name', 'email', 'role', 'created_at'

@@ -12,6 +12,8 @@ export interface InvoiceItemDisplay {
   pieces_override?: number;
   pieces_per_kg?: number;
   unit?: string;
+  isCombo?: boolean;
+  combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
 }
 
 export interface InvoiceData {
@@ -78,10 +80,13 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span class="brand-badge">${item.brand}</span>` : '';
+    const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
+      ? `<br><span style="font-size:10px; color:#7c3aed; font-weight:bold">[COMBO OFFER]</span> <span style="font-size:10px; color:#6b7280; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
+      : '';
     return `
     <tr>
       <td class="text-center">${idx + 1}</td>
-      <td>${item.name}${brandHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
+      <td>${item.name}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
       <td class="text-center">${fmt.displayQty}</td>
       <td class="text-right">₹${fmt.displayRate}</td>
       <td class="text-right">₹${fmt.displayTotal}</td>

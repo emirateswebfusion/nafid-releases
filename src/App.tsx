@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { 
   ShoppingCart, Banknote, Package, TrendingUp, User, 
-  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags, Undo2 
+  Trash2, FileText, Shield, BookOpen, BarChart3, Settings, LogOut, Store, Tags, Undo2, Layers 
 } from 'lucide-react';
 import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
@@ -10,6 +10,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing', icon: ShoppingCart },
   CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
   INVENTORY: { label: 'Inventory', icon: Package },
+  COMBO_OFFERS: { label: 'Combo Offers', icon: Layers },
   GRADES: { label: 'Categories & Grades', icon: Tags },
   SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
   CUSTOMERS: { label: 'Customers', icon: User },
@@ -22,6 +23,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   SETTINGS: { label: 'Settings', icon: Settings },
 };
 import { BillingPage } from './components/BillingPage';
+import { ComboManager } from './components/ComboManager';
 import { DomainWizard } from './components/DomainWizard';
 import { InventoryManager } from './components/InventoryManager';
 import { SalesHistory } from './components/SalesHistory';
@@ -111,6 +113,7 @@ function App() {
   const { isAuthenticated, isLoading, checkAuth, restrictedPage, shopName, logout, role } = useAuthStore();
   const [restrictedActivePage, setRestrictedActivePage] = useState<string>('');
   const [showInventoryManager, setShowInventoryManager] = useState(false);
+  const [showComboManager, setShowComboManager] = useState(false);
   const [showStockReport, setShowStockReport] = useState(false);
   const [showSalesHistory, setShowSalesHistory] = useState(false);
   const [showStaffManager, setShowStaffManager] = useState(false);
@@ -123,7 +126,7 @@ function App() {
   const [enableScrap, setEnableScrap] = useState(false);
   const enableScrapRef = useRef(false);
   enableScrapRef.current = enableScrap;
-  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ billing: true, cash_settlement: true, cash_register: true, inventory: true, categories_grades: true, pricing_tiers: true, stock_report: true, quotations: true, purchase_bills: true, warranties: true, returns: true, scrap: true, parties: true, payments: true, customers: true, staff: true, sales_history: true, loyalty: true });
+  const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ billing: true, cash_settlement: true, cash_register: true, inventory: true, combo_offers: true, categories_grades: true, pricing_tiers: true, stock_report: true, quotations: true, purchase_bills: true, warranties: true, returns: true, scrap: true, parties: true, payments: true, customers: true, staff: true, sales_history: true, loyalty: true });
   const featureFlagsRef = useRef(featureFlags);
   featureFlagsRef.current = featureFlags;
   const [showQuotationManager, setShowQuotationManager] = useState(false);
@@ -415,7 +418,9 @@ function App() {
       setShowCashierSettlement(false);
     };
 
+    const handleOpenComboManager = () => setShowComboManager(true);
     window.addEventListener('open-inventory-manager', handleOpenInv);
+    window.addEventListener('open-combo-manager', handleOpenComboManager);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
     window.addEventListener('open-staff-manager', handleOpenStaff);
@@ -453,6 +458,7 @@ function App() {
         unsubscribeScale();
       }
       window.removeEventListener('open-inventory-manager', handleOpenInv);
+      window.removeEventListener('open-combo-manager', handleOpenComboManager);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
       window.removeEventListener('open-sales-history', handleOpenHistory);
       window.removeEventListener('open-staff-manager', handleOpenStaff);
@@ -522,6 +528,8 @@ function App() {
           return <CashierSettlement onClose={() => {}} isRestricted={true} />;
         case 'INVENTORY':
           return <InventoryManager onClose={() => {}} isRestricted={true} />;
+        case 'COMBO_OFFERS':
+          return <ComboManager onClose={() => {}} />;
         case 'SALES_HISTORY':
           return <SalesHistory onClose={() => {}} isRestricted={true} />;
         case 'CUSTOMERS':
@@ -618,7 +626,9 @@ function App() {
         <UpdateBanner onOpenSettings={() => setShowSettingsManager(true)} />
       </div>
 
-      {showPartyManager ? (
+      {showComboManager ? (
+        <ComboManager onClose={() => setShowComboManager(false)} />
+      ) : showPartyManager ? (
         <PartyManager onClose={() => setShowPartyManager(false)} />
       ) : showCashierSettlement ? (
         <CashierSettlement onClose={() => setShowCashierSettlement(false)} />

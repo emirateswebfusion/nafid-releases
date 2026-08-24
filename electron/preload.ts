@@ -40,6 +40,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetProductPricing: (tenant_id: string) => ipcRenderer.invoke('db:getProductPricing', tenant_id),
   dbSetProductPricing: (payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setProductPricing', payload),
   dbSetTierPricing: (payload: { tenant_id: string; pricing_tier_id: string; pricing: Array<{ product_id: string; price: number | null }> }) => ipcRenderer.invoke('db:setTierPricing', payload),
+  // Combo Offers
+  dbGetComboOffers: (params: { tenant_id: string; search?: string; only_active?: boolean }) => ipcRenderer.invoke('db:getComboOffers', params),
+  dbGetComboOfferDetails: (params: { combo_id: string }) => ipcRenderer.invoke('db:getComboOfferDetails', params),
+  dbSaveComboOffer: (payload: any) => ipcRenderer.invoke('db:saveComboOffer', payload),
+  dbDeleteComboOffer: (params: { combo_id: string }) => ipcRenderer.invoke('db:deleteComboOffer', params),
+  dbToggleComboOfferActive: (params: { combo_id: string; is_active: number }) => ipcRenderer.invoke('db:toggleComboOfferActive', params),
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
   forceResyncInvoices: () => ipcRenderer.invoke('sync:forceResyncInvoices'),
   getSyncProgress: () => ipcRenderer.invoke('sync:getProgress'),

@@ -868,15 +868,35 @@ export function BillingPage() {
       const isGstFilter = !isQuotationMode && invoiceType === 'GST';
       // Fetch up to 100 results so numeric or text searches capture all matching items
       const fetchLimit = 100;
-      const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) });
-      if (Array.isArray(products)) {
+      
+      try {
+        const [products, combos] = await Promise.all([
+          window.electronAPI.dbGetProducts({ tenant_id: tenantId, search: searchQuery, limit: fetchLimit, ...(isGstFilter ? { isGst: 1 } : {}) }),
+          window.electronAPI.dbGetComboOffers({ tenant_id: tenantId, search: searchQuery, only_active: true }),
+        ]);
+
+        const comboResults = (Array.isArray(combos) ? combos : []).map((c: any) => ({
+          product_id: c.combo_id,
+          name: c.name,
+          sku_barcode: c.sku_barcode || '',
+          item_code: c.sku_barcode || '',
+          base_price: c.combo_price,
+          purchase_price: 0,
+          current_stock: 999,
+          uom: 'Combo',
+          billing_type: 'PIECE',
+          isCombo: true,
+          combo_id: c.combo_id,
+          combo_price: c.combo_price,
+          combo_items: c.items,
+          description: c.description,
+        }));
+
+        const rawProducts = Array.isArray(products) ? products : [];
         const q = searchQuery.trim().toLowerCase();
 
-        // Sort results to prioritize barcode matches (exact -> prefix -> includes, in numeric ascending order) before name matches
-        const sorted = sortProductsBySearchPriority(products, searchQuery);
-
-        // Keep all products matching barcode, code, name, brand, category, or HSN
-        const filtered = sorted.filter(p => {
+        const sortedProds = sortProductsBySearchPriority(rawProducts, searchQuery);
+        const filteredProds = sortedProds.filter(p => {
           const barcode = String(p.sku_barcode || '').trim().toLowerCase();
           const code = String(p.item_code || '').trim().toLowerCase();
           const name = String(p.name || '').trim().toLowerCase();
@@ -893,10 +913,9 @@ export function BillingPage() {
           );
         });
 
-        // Collapse duplicate service charge items to a single row
         const deduped: any[] = [];
         let serviceFound = false;
-        for (const p of filtered) {
+        for (const p of filteredProds) {
           const isServiceCharge = Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge';
           if (isServiceCharge) {
             if (serviceFound) continue;
@@ -904,8 +923,10 @@ export function BillingPage() {
           }
           deduped.push(p);
         }
-        setResults(deduped);
+        setResults([...comboResults, ...deduped]);
         setSelectedIndex(0);
+      } catch (err) {
+        console.error('[BillingPage] Product search error:', err);
       }
     }, 150);
     return () => clearTimeout(t);
@@ -1430,6 +1451,28 @@ export function BillingPage() {
   };
 
   const handleSelectProduct = (product: any) => {
+    if (product?.isCombo) {
+      addItem({
+        product_id: product.product_id,
+        name: product.name,
+        base_price: product.combo_price,
+        purchase_price: 0,
+        tax_rate_percent: 0,
+        uom: 'Combo',
+        billing_type: 'PIECE',
+        sku_barcode: product.sku_barcode || null,
+        isCombo: true,
+        combo_id: product.combo_id,
+        combo_price: product.combo_price,
+        combo_items: product.combo_items,
+        quantity: 1,
+      });
+      setSearchQuery('');
+      setResults([]);
+      pendingFocusProductIdRef.current = product.product_id;
+      return;
+    }
+
     let piecesPerKg;
     const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
     const isWeightProduct = product.billing_type === 'WEIGHT' || weightUoms.includes((product.uom || '').toLowerCase());
@@ -3963,9 +4006,16 @@ notes: '',
                               {Number(p.is_service_item) ? (
                                 <span className="ml-1.5 text-[9px] font-bold text-violet-600 bg-violet-500/15 px-1.5 py-0.5 rounded uppercase align-middle">Service</span>
                               ) : null}
+                              {p.isCombo ? (
+                                <span className="ml-1.5 text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase align-middle">COMBO OFFER</span>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
-                              {!Number(p.is_service_item) && (
+                              {p.isCombo && p.combo_items ? (
+                                <span className="text-purple-600 dark:text-purple-400 font-medium text-[11px]">
+                                  Includes: {p.combo_items.map((ci: any) => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                                </span>
+                              ) : !Number(p.is_service_item) && (
                                 <>
                               <span className="font-mono bg-muted/70 px-1 py-0.5 rounded text-[10px]">{p.sku_barcode || 'NO BARCODE'}</span>
                               <span>&middot;</span>
@@ -4748,6 +4798,11 @@ notes: '',
                             </span>
                           )}
                         </span>
+                        {item.isCombo && (
+                          <span className="text-[9px] font-bold text-purple-600 bg-purple-500/15 border border-purple-500/30 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none">
+                            COMBO OFFER
+                          </span>
+                        )}
                         {isLastAdded && (
                           <span className="text-[9px] font-black text-primary bg-primary/20 border border-primary/40 px-1.5 py-0.5 rounded uppercase shrink-0 leading-none animate-pulse">★ LAST ADDED</span>
                         )}
@@ -4755,6 +4810,11 @@ notes: '',
                           <span className="text-[10px] font-mono text-muted-foreground/50 truncate hidden sm:inline">{item.sku_barcode}</span>
                         )}
                       </div>
+                      {item.isCombo && item.combo_items && (
+                        <div className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 mt-0.5">
+                          Includes: {item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground/60 mt-0.5 truncate">
                         {item.brand_manufacturer && <span className="font-medium">{item.brand_manufacturer}</span>}
                         {!item.sku_barcode && !item.brand_manufacturer && <span className="italic">No barcode</span>}

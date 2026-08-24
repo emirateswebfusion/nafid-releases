@@ -1050,6 +1050,169 @@ ipcMain.handle('db:getProductPricing', (event, tenantId: string) => {
   }
 });
 
+// ── Combo Offers Handlers ──────────────────────────────────────────────────
+ipcMain.handle('db:getComboOffers', (event, { tenant_id, search, only_active }: { tenant_id: string; search?: string; only_active?: boolean }) => {
+  try {
+    const db = getDb();
+    if (!tenant_id) return [];
+    
+    let query = `
+      SELECT co.*, 
+        (
+          SELECT json_group_array(json_object(
+            'combo_item_id', ci.combo_item_id,
+            'product_id', ci.product_id,
+            'quantity', ci.quantity,
+            'product_name', p.name,
+            'product_price', p.base_price,
+            'product_stock', p.current_stock,
+            'sku_barcode', p.sku_barcode,
+            'uom', p.uom
+          ))
+          FROM combo_items ci
+          JOIN products p ON ci.product_id = p.product_id
+          WHERE ci.combo_id = co.combo_id AND p.is_deleted = 0
+        ) as items_json
+      FROM combo_offers co
+      WHERE co.tenant_id = ? AND co.is_deleted = 0
+    `;
+    const params: any[] = [tenant_id];
+
+    if (only_active) {
+      query += ` AND co.is_active = 1`;
+    }
+
+    if (search) {
+      const s = `%${String(search).trim()}%`;
+      query += ` AND (co.name LIKE ? OR co.sku_barcode LIKE ? OR co.description LIKE ?)`;
+      params.push(s, s, s);
+    }
+
+    query += ` ORDER BY co.name COLLATE NOCASE ASC`;
+    const rows = db.prepare(query).all(...params) as any[];
+
+    return rows.map(r => {
+      let items = [];
+      try { items = JSON.parse(r.items_json || '[]'); } catch {}
+      return { ...r, items };
+    });
+  } catch (error: any) {
+    console.error('[db:getComboOffers]', error);
+    return [];
+  }
+});
+
+ipcMain.handle('db:getComboOfferDetails', (event, { combo_id }: { combo_id: string }) => {
+  try {
+    const db = getDb();
+    if (!combo_id) return null;
+    const combo = db.prepare(`SELECT * FROM combo_offers WHERE combo_id = ? AND is_deleted = 0`).get(combo_id) as any;
+    if (!combo) return null;
+
+    const items = db.prepare(`
+      SELECT ci.*, p.name as product_name, p.base_price as product_price, p.current_stock as product_stock, p.sku_barcode, p.uom
+      FROM combo_items ci
+      JOIN products p ON ci.product_id = p.product_id
+      WHERE ci.combo_id = ? AND p.is_deleted = 0
+    `).all(combo_id) as any[];
+
+    return { ...combo, items };
+  } catch (error: any) {
+    console.error('[db:getComboOfferDetails]', error);
+    return null;
+  }
+});
+
+ipcMain.handle('db:saveComboOffer', safeHandler((event, payload: {
+  combo_id?: string;
+  tenant_id: string;
+  name: string;
+  sku_barcode?: string;
+  combo_price: number;
+  is_active?: number;
+  description?: string;
+  items: Array<{ product_id: string; quantity: number }>;
+}) => {
+  try {
+    const db = getDb();
+    const { combo_id: reqComboId, tenant_id, name, sku_barcode, combo_price, is_active, description, items } = payload;
+    if (!tenant_id || !name || !items || items.length === 0) {
+      return { success: false, error: 'Name and items are required' };
+    }
+
+    const cleanBarcode = (sku_barcode || '').trim() || null;
+    const combo_id = reqComboId || crypto.randomUUID();
+
+    const tx = db.transaction(() => {
+      db.prepare(`
+        INSERT INTO combo_offers (combo_id, tenant_id, name, sku_barcode, combo_price, is_active, is_deleted, description, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT(combo_id) DO UPDATE SET
+          name = excluded.name,
+          sku_barcode = excluded.sku_barcode,
+          combo_price = excluded.combo_price,
+          is_active = excluded.is_active,
+          description = excluded.description,
+          sync_status = 'PENDING',
+          updated_at = CURRENT_TIMESTAMP
+      `).run(
+        combo_id,
+        tenant_id,
+        name.trim(),
+        cleanBarcode,
+        Number(combo_price) || 0,
+        is_active ?? 1,
+        description?.trim() || null
+      );
+
+      db.prepare(`DELETE FROM combo_items WHERE combo_id = ?`).run(combo_id);
+      const insertItem = db.prepare(`
+        INSERT INTO combo_items (combo_item_id, combo_id, tenant_id, product_id, quantity, created_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+      `);
+      for (const item of items) {
+        insertItem.run(
+          crypto.randomUUID(),
+          combo_id,
+          tenant_id,
+          item.product_id,
+          Number(item.quantity) || 1
+        );
+      }
+    });
+
+    tx();
+    return { success: true, combo_id };
+  } catch (error: any) {
+    console.error('[db:saveComboOffer]', error);
+    return { success: false, error: error.message || 'Operation failed' };
+  }
+}));
+
+ipcMain.handle('db:deleteComboOffer', (event, { combo_id }: { combo_id: string }) => {
+  try {
+    const db = getDb();
+    if (!combo_id) return { success: false, error: 'Missing combo ID' };
+    db.prepare(`UPDATE combo_offers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE combo_id = ?`).run(combo_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:deleteComboOffer]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:toggleComboOfferActive', (event, { combo_id, is_active }: { combo_id: string; is_active: number }) => {
+  try {
+    const db = getDb();
+    if (!combo_id) return { success: false, error: 'Missing combo ID' };
+    db.prepare(`UPDATE combo_offers SET is_active = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE combo_id = ?`).run(is_active ? 1 : 0, combo_id);
+    return { success: true };
+  } catch (error: any) {
+    console.error('[db:toggleComboOfferActive]', error);
+    return { success: false, error: 'Operation failed' };
+  }
+});
+
 // Upsert/delete per-tier prices for a single product
 // payload: { tenant_id, product_id, pricing: [{ pricing_tier_id, price }] }
 ipcMain.handle('db:setProductPricing', safeHandler((event, payload: { tenant_id: string; product_id: string; pricing: Array<{ pricing_tier_id: string; price: number | null }> }) => {
@@ -1471,14 +1634,18 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
     // 2. Insert items and update stock
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item, combo_id, combo_details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
     const getDaStmt = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
     const updDaStmt = db.prepare('UPDATE products SET domain_attributes = ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?');
 
     for (const item of items) {
+      const isCombo = Boolean(item.isCombo || item.combo_id || (item.combo_items && item.combo_items.length > 0));
+      const comboId = item.combo_id || (isCombo ? item.product_id : null);
+      const comboDetailsJson = item.combo_items ? JSON.stringify(item.combo_items) : null;
+
       itemStmt.run(
         item.item_id,
         invoice.invoice_id,
@@ -1489,10 +1656,20 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         item.unit_price,
         item.tax_amount,
         item.total,
-        item.isServiceItem ? 1 : 0
+        item.isServiceItem ? 1 : 0,
+        comboId,
+        comboDetailsJson
       );
       if (!item.isServiceItem) {
-        stockStmt.run(item.quantity, item.product_id);
+        if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
+          for (const ci of item.combo_items) {
+            const qtyToDeduct = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
+            stockStmt.run(qtyToDeduct, ci.product_id);
+          }
+        } else {
+          stockStmt.run(item.quantity, item.product_id);
+        }
+
         if (item.pieces_sold) {
           const row = getDaStmt.get(item.product_id) as any;
           if (row?.domain_attributes) {
@@ -1605,12 +1782,16 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
 
     // 2. Insert items and DEDUCT stock (reserve the inventory for this hold)
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item, combo_id, combo_details)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
 
     for (const item of items) {
+      const isCombo = Boolean(item.isCombo || item.combo_id || (item.combo_items && item.combo_items.length > 0));
+      const comboId = item.combo_id || (isCombo ? item.product_id : null);
+      const comboDetailsJson = item.combo_items ? JSON.stringify(item.combo_items) : null;
+
       itemStmt.run(
         item.item_id,
         invoice.invoice_id,
@@ -1621,10 +1802,19 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
         item.unit_price,
         item.tax_amount,
         item.total,
-        item.isServiceItem ? 1 : 0
+        item.isServiceItem ? 1 : 0,
+        comboId,
+        comboDetailsJson
       );
       if (!item.isServiceItem) {
-        stockStmt.run(item.quantity, item.product_id);
+        if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
+          for (const ci of item.combo_items) {
+            const qtyToDeduct = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
+            stockStmt.run(qtyToDeduct, ci.product_id);
+          }
+        } else {
+          stockStmt.run(item.quantity, item.product_id);
+        }
       }
     }
   });
@@ -1688,8 +1878,22 @@ ipcMain.handle('db:recallHeldBill', (event, { invoice_id }: { invoice_id: string
       // 3. Revert stock (add back stock reserved during hold)
       const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
       for (const item of resultItems) {
-        if (!item.is_service_item && item.product_id) {
-          stockStmt.run(item.quantity, item.product_id);
+        if (!item.is_service_item) {
+          if (item.combo_details) {
+            try {
+              const comboItems = JSON.parse(item.combo_details);
+              if (Array.isArray(comboItems)) {
+                for (const ci of comboItems) {
+                  const qtyToRevert = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
+                  stockStmt.run(qtyToRevert, ci.product_id);
+                }
+                continue;
+              }
+            } catch {}
+          }
+          if (item.product_id) {
+            stockStmt.run(item.quantity, item.product_id);
+          }
         }
       }
 
@@ -1728,14 +1932,28 @@ ipcMain.handle('db:releaseHeldBill', (event, { invoice_id }: { invoice_id: strin
 
       // 2. Get items to revert stock
       const items = db.prepare(
-        'SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?'
+        'SELECT product_id, quantity, is_service_item, combo_details FROM invoice_items WHERE invoice_id = ?'
       ).all(invoice_id) as any[];
 
       // 3. Revert stock (add back)
       const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
       for (const item of items) {
         if (!item.is_service_item) {
-          stockStmt.run(item.quantity, item.product_id);
+          if (item.combo_details) {
+            try {
+              const comboItems = JSON.parse(item.combo_details);
+              if (Array.isArray(comboItems)) {
+                for (const ci of comboItems) {
+                  const qtyToRevert = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
+                  stockStmt.run(qtyToRevert, ci.product_id);
+                }
+                continue;
+              }
+            } catch {}
+          }
+          if (item.product_id) {
+            stockStmt.run(item.quantity, item.product_id);
+          }
         }
       }
 
@@ -1777,14 +1995,28 @@ ipcMain.handle('db:expireStaleHeldBills', (event, { tenant_id }: { tenant_id: st
       for (const bill of expired) {
         // 2. Get items to revert stock
         const items = db.prepare(
-          'SELECT product_id, quantity, is_service_item FROM invoice_items WHERE invoice_id = ?'
+          'SELECT product_id, quantity, is_service_item, combo_details FROM invoice_items WHERE invoice_id = ?'
         ).all(bill.invoice_id) as any[];
 
         // 3. Revert stock
         const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock + ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
         for (const item of items) {
-          if (!item.is_service_item && item.product_id) {
-            stockStmt.run(item.quantity, item.product_id);
+          if (!item.is_service_item) {
+            if (item.combo_details) {
+              try {
+                const comboItems = JSON.parse(item.combo_details);
+                if (Array.isArray(comboItems)) {
+                  for (const ci of comboItems) {
+                    const qtyToRevert = (Number(ci.quantity) || 1) * (Number(item.quantity) || 1);
+                    stockStmt.run(qtyToRevert, ci.product_id);
+                  }
+                  continue;
+                }
+              } catch {}
+            }
+            if (item.product_id) {
+              stockStmt.run(item.quantity, item.product_id);
+            }
           }
         }
 

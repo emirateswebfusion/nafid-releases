@@ -37,6 +37,10 @@ export interface CartItem {
   originalTaxAmount?: number;
   returnSourceInvoiceId?: string;
   returnSourceInvoiceNumber?: string;
+  isCombo?: boolean;
+  combo_id?: string;
+  combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
+  combo_price?: number;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';

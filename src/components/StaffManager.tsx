@@ -40,6 +40,7 @@ const PERMISSION_GROUPS = [
     color: 'from-emerald-500 to-teal-500',
     pages: [
       { key: 'INVENTORY', label: 'Inventory Manager' },
+      { key: 'COMBO_OFFERS', label: 'Combo Offers' },
       { key: 'SCRAP_MANAGER', label: 'Scrap Metal Manager' },
       { key: 'PURCHASE_BILLS', label: 'Purchase Bills / GST' },
       { key: 'STOCK_REPORT', label: 'Stock Reports' }

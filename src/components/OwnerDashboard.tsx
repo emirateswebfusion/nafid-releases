@@ -269,6 +269,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             action: () => window.dispatchEvent(new CustomEvent('open-staff-manager')),
         },
         {
+            id: 'combo-offers',
+            title: 'Combo Offers',
+            desc: 'Create and manage product bundles and combo offers',
+            icon: Layers,
+            color: 'text-purple-500',
+            bgColor: 'bg-purple-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-combo-manager')),
+        },
+        {
             id: 'history',
             title: 'Sales History',
             desc: 'Review past transactions and reports',
@@ -283,6 +292,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         billing: 'billing',
         cashier: 'cash_settlement',
         inventory: 'inventory',
+        'combo-offers': 'combo_offers',
         grades: 'categories_grades',
         'pricing-tiers': 'pricing_tiers',
         'stock-print': 'stock_report',
