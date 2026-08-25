@@ -1,3 +1,10 @@
+# Vendora v1.5.30 Release Notes
+
+## What's Changed
+- Implemented Combo Offers push and pull synchronization workers in `syncWorker`
+- Fixed and optimized cash drawer local change-tracking comparisons
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.29...v1.5.30
+
 # Vendora v1.5.29 Release Notes
 
 ## What's Changed
