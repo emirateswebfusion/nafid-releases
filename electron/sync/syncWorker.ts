@@ -59,7 +59,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items'];
+  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -80,6 +80,7 @@ const SYNC_PHASES = [
   'Uploading purchase bills...',
   'Uploading cash drawer...',
   'Uploading cash transactions...',
+  'Uploading combo offers...',
   'Updating grades...',
   'Updating pricing tiers...',
   'Updating product pricing...',
@@ -95,6 +96,7 @@ const SYNC_PHASES = [
   'Updating cash drawer...',
   'Uploading returns...',
   'Updating returns...',
+  'Updating combo offers...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -272,6 +274,33 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   }
 }
 
+let fastCashPullInProgress = false;
+const FAST_CASH_PULL_MS = 3000;
+
+setInterval(async () => {
+  if (isSyncActive && !fastCashPullInProgress && !syncInProgress) {
+    const config = getAuthConfig();
+    if (config && !isJwtExpired(config.jwt_token)) {
+      fastCashPullInProgress = true;
+      try {
+        const d1 = await pullCashDrawer(config.jwt_token, config.tenant_id);
+        const d2 = await pullCashTransactions(config.jwt_token, config.tenant_id);
+        const d3 = await pullCashCategories(config.jwt_token, config.tenant_id);
+        const d4 = await pullPaymentSources(config.jwt_token, config.tenant_id);
+        const d5 = await pullPaymentSourceTransactions(config.jwt_token, config.tenant_id);
+        if (d1 || d2 || d3 || d4 || d5) {
+          notifyRenderer();
+          console.log('[SyncWorker] Fast cash pull: renderer notified.');
+        }
+      } catch {
+        // ignore transient fast pull errors
+      } finally {
+        fastCashPullInProgress = false;
+      }
+    }
+  }
+}, FAST_CASH_PULL_MS);
+
 let urgentCashSyncInProgress = false;
 
 export async function triggerUrgentCashSync(): Promise<void> {
@@ -287,12 +316,17 @@ export async function triggerUrgentCashSync(): Promise<void> {
     await syncCashDrawer(jwt_token, tenant_id);
     await syncCashTransactions(jwt_token, tenant_id);
     await syncCashCategories(jwt_token, tenant_id);
-    const drawerUpdated = await pullCashDrawer(jwt_token, tenant_id);
-    const txsUpdated = await pullCashTransactions(jwt_token, tenant_id);
-    if (drawerUpdated || txsUpdated) {
-      notifyRenderer();
-      console.log('[SyncWorker] Express priority cash sync completed: renderer notified.');
-    }
+    await syncPaymentSources(jwt_token, tenant_id);
+    await syncPaymentSourceTransactions(jwt_token, tenant_id);
+
+    await pullCashDrawer(jwt_token, tenant_id);
+    await pullCashTransactions(jwt_token, tenant_id);
+    await pullCashCategories(jwt_token, tenant_id);
+    await pullPaymentSources(jwt_token, tenant_id);
+    await pullPaymentSourceTransactions(jwt_token, tenant_id);
+
+    notifyRenderer();
+    console.log('[SyncWorker] Express priority cash sync completed: renderer notified.');
   } catch (err: any) {
     console.error('[SyncWorker] Express cash sync error:', err.message);
   } finally {
@@ -399,6 +433,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
+        notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
 
         // Pull phase — every table is independent, so fetch them concurrently
         // (bounded by PULL_CONCURRENCY) instead of serially. First login does a
@@ -425,6 +460,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           { run: () => pullReturns(jwt_token, tenant_id) },
           { run: () => pullPaymentSources(jwt_token, tenant_id) },
           { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
+          { run: () => pullComboOffers(jwt_token, tenant_id) },
         ];
 
         pullProgressCtx = { done: 0, total: pullTasks.length };
@@ -2431,12 +2467,12 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     },
   });
 
-  if (hasContentChanged && result.hasChanged && result.count > 0) {
+  if (result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash drawer records from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash drawer failed.');
   }
-  return hasContentChanged && result.hasChanged && result.count > 0;
+  return result.count > 0;
 }
 
 // ── Pull Cash Transactions (Cloud → Edge) ───────────────────────────────────────
@@ -2502,12 +2538,12 @@ async function pullCashTransactions(token: string, tenantId: string): Promise<bo
     },
   });
 
-  if (result.hasChanged && result.count > 0) {
+  if (result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash transactions failed.');
   }
-  return result.hasChanged && result.count > 0;
+  return result.count > 0;
 }
 
 // ── Pull Cash Categories (Cloud → Edge) ─────────────────────────────────────────
@@ -2559,12 +2595,12 @@ async function pullCashCategories(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.hasChanged && result.count > 0) {
+  if (result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash categories from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash categories failed.');
   }
-  return result.hasChanged && result.count > 0;
+  return result.count > 0;
 }
 
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
@@ -2884,12 +2920,12 @@ async function pullPaymentSources(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.hasChanged && result.count > 0) {
+  if (result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment sources from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment sources failed.');
   }
-  return result.hasChanged && result.count > 0;
+  return result.count > 0;
 }
 
 // ── Pull Payment Source Transactions (Cloud → Edge) ─────────────────────────────
@@ -2943,10 +2979,136 @@ async function pullPaymentSourceTransactions(token: string, tenantId: string): P
     },
   });
 
-  if (result.hasChanged && result.count > 0) {
+  if (result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment source transactions from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment source transactions failed.');
+  }
+  return result.count > 0;
+}
+
+// ── Combo Offers Sync (Edge → Cloud) ──────────────────────────────────────────
+async function syncComboOffers(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM combo_offers WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} combo offers to cloud in batches of ${BATCH_SIZE}...`);
+
+  const getItemsStmt = db.prepare(`SELECT product_id, quantity FROM combo_items WHERE combo_id = ?`);
+  const updateStmt = db.prepare(`UPDATE combo_offers SET sync_status = 'SYNCED' WHERE combo_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const combos = batch.map((c: any) => {
+      const items = getItemsStmt.all(c.combo_id) as any[];
+      return {
+        ...c,
+        is_active: !!c.is_active,
+        is_deleted: !!c.is_deleted,
+        items: items.map(item => ({
+          product_id: item.product_id,
+          quantity: Number(item.quantity) || 1,
+        })),
+      };
+    });
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/combo_offers`,
+      token,
+      combos,
+      'combo_offers',
+      `Combo offers batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
+// ── Pull Combo Offers (Cloud → Edge) ─────────────────────────────────────────
+async function pullComboOffers(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsertCombo = db.prepare(`
+    INSERT INTO combo_offers (
+      combo_id, tenant_id, name, sku_barcode, combo_price,
+      is_active, is_deleted, description, sync_status, created_at, updated_at
+    ) VALUES (
+      @combo_id, @tenant_id, @name, @sku_barcode, @combo_price,
+      @is_active, @is_deleted, @description, 'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(combo_id) DO UPDATE SET
+      name = excluded.name,
+      sku_barcode = excluded.sku_barcode,
+      combo_price = excluded.combo_price,
+      is_active = excluded.is_active,
+      is_deleted = excluded.is_deleted,
+      description = excluded.description,
+      created_at = COALESCE(combo_offers.created_at, excluded.created_at),
+      updated_at = excluded.updated_at,
+      sync_status = 'SYNCED'
+    WHERE combo_offers.sync_status != 'PENDING'
+  `);
+
+  const deleteItems = db.prepare(`DELETE FROM combo_items WHERE combo_id = ?`);
+  const insertItem = db.prepare(`
+    INSERT INTO combo_items (combo_item_id, combo_id, tenant_id, product_id, quantity, created_at)
+    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'combo_offers',
+    urlPath: '/api/sync/combo_offers',
+    label: 'combo offers',
+    onProgress: (fetched) => notifyPullProgress('combo offers', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((combos: any[]) => {
+        for (const c of combos) {
+          try {
+            const cid = c.combo_id;
+            upsertCombo.run({
+              combo_id: cid,
+              tenant_id: tenantId,
+              name: c.name || '',
+              sku_barcode: c.sku_barcode ? String(c.sku_barcode).trim() : null,
+              combo_price: Number(c.combo_price) || 0,
+              is_active: parseIsDeleted(c.is_active) ? 1 : (c.is_active === false || c.is_active === 0 ? 0 : 1),
+              is_deleted: parseIsDeleted(c.is_deleted),
+              description: c.description || null,
+              created_at: toSqliteDate(c.created_at),
+              updated_at: toSqliteDate(c.updated_at),
+            });
+
+            if (Array.isArray(c.items)) {
+              deleteItems.run(cid);
+              for (const item of c.items) {
+                insertItem.run(
+                  item.combo_item_id || crypto.randomUUID(),
+                  cid,
+                  tenantId,
+                  item.product_id,
+                  Number(item.quantity) || 1
+                );
+              }
+            }
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling combo offer row:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'combo_offers', 'combo_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} combo offers from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull combo offers failed.');
   }
   return result.hasChanged && result.count > 0;
 }
