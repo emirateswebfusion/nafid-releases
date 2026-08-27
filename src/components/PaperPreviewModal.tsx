@@ -28,7 +28,7 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
     shopState: bs.showShopState ? 'KL' : undefined,
     shopAddress: bs.showShopAddress ? '123, Main Street, Kochi, Kerala - 682001' : undefined,
     shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
-    upiId: 'vendora@upi',
+    upiId: 'nafid@upi',
     showUpiQr: false,
     showProductOffers,
     invoiceNumber: 'INV-001',
@@ -58,12 +58,12 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
 function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSettings): InvoiceData {
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
-    shopName: bs.showShopName ? 'Vendora Mart' : '',
+    shopName: bs.showShopName ? 'Nafid Mart' : '',
     shopGstin: bs.showShopGstin ? '32AAAAA1111A1Z1' : undefined,
     shopState: bs.showShopState ? 'KL' : undefined,
     shopAddress: bs.showShopAddress ? '123, Main Street, Kochi, Kerala - 682001' : undefined,
     shopPhone: bs.showPhone ? '+91 98765 43210' : undefined,
-    upiId: 'vendora@upi',
+    upiId: 'nafid@upi',
     invoiceNumber: 'INV-001',
     date: new Date().toLocaleDateString('en-IN'),
     billerName: 'Admin',

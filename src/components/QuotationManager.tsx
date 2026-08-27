@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useCartStore } from '../store/cartStore';
+import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 
@@ -36,6 +37,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'CONVERTED'>('ALL');
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([]);
   const [showDetail, setShowDetail] = useState(false);
@@ -51,15 +53,31 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     try {
       if (window.electronAPI) {
         const qs = await window.electronAPI.dbGetQuotations({ tenant_id: tenantId || '' });
-        if (Array.isArray(qs)) setQuotations(qs);
+        if (Array.isArray(qs)) {
+          setQuotations(qs);
+          localStorage.setItem('nafid_quotations_cache', JSON.stringify(qs));
+        }
       }
     } catch (err) {
       console.error('[QuotationManager] Failed to load quotations:', err);
+      const cached = localStorage.getItem('nafid_quotations_cache');
+      if (cached) {
+        try { setQuotations(JSON.parse(cached)); } catch (e) {}
+      }
     }
     setLoading(false);
   };
 
   const formatCurrency = (amount: number) => `\u20B9${amount.toFixed(2)}`;
+
+  const handleCreateNewQuotation = () => {
+    useCartStore.getState().setRole('BILLER');
+    useCartStore.getState().setReturnMode(false);
+    useCartStore.getState().setQuotationMode(true);
+    useCartStore.getState().clearCart();
+    window.dispatchEvent(new CustomEvent('open-edit-bill'));
+    onClose();
+  };
 
   const viewQuotation = async (q: Quotation) => {
     setSelectedQuotation(q);
@@ -110,7 +128,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const handleEditQuotation = async (q: Quotation) => {
-    if (!confirm(`Edit ${q.quotation_number}? This will open it in billing.`)) return;
+    if (!confirm(`Edit ${q.quotation_number}? This will open it in billing mode.`)) return;
     if (window.electronAPI) {
       const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
       if (Array.isArray(its)) {
@@ -122,7 +140,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const handleDeleteQuotation = async (q: Quotation) => {
-    if (!confirm(`Delete ${q.quotation_number}? This cannot be undone.`)) return;
+    if (!confirm(`Delete ${q.quotation_number}? This action cannot be undone.`)) return;
     if (window.electronAPI) {
       const res = await window.electronAPI.dbDeleteQuotation(q.quotation_id);
       if (res.success) {
@@ -137,7 +155,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const handleConvertToInvoice = async (q: Quotation) => {
-    if (!confirm(`Convert ${q.quotation_number} to invoice? This will copy items to billing.`)) return;
+    if (!confirm(`Convert ${q.quotation_number} to invoice? This will load items directly into POS checkout.`)) return;
     if (window.electronAPI) {
       const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
       if (Array.isArray(its)) {
@@ -153,11 +171,22 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     return `${d.toLocaleDateString('en-IN', { weekday: 'long' })} — ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`;
   };
 
+  const filteredQuotations = useMemo(() => {
+    return quotations.filter(q => {
+      const matchesSearch = !search || 
+        q.customer_name?.toLowerCase().includes(search.toLowerCase()) || 
+        q.quotation_number?.toLowerCase().includes(search.toLowerCase());
+      const matchesStatus = statusFilter === 'ALL' || 
+        (statusFilter === 'ACTIVE' && q.status !== 'CONVERTED') || 
+        (statusFilter === 'CONVERTED' && q.status === 'CONVERTED');
+      return matchesSearch && matchesStatus;
+    });
+  }, [quotations, search, statusFilter]);
+
   return (
-    <div className="fixed inset-0 z-40 flex flex-col bg-background">
-      {/* ═══════════════════════════════════════════════════
-          HEADER
-      ═══════════════════════════════════════════════════ */}
+    <div className="fixed inset-0 z-40 flex flex-col bg-background font-sans">
+      
+      {/* Header */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center gap-3 px-5 py-3">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
@@ -166,16 +195,16 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
-                {showDetail ? 'Quotation Detail' : 'Quotations'}
+                {showDetail ? 'Quotation Detail' : 'Quotations Directory'}
               </h1>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
             </div>
             {!showDetail && (
-              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{quotations.length} quotations</p>
+              <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{quotations.length} total quotations</p>
             )}
             {showDetail && (
               <span className="text-[11px] text-muted-foreground font-medium bg-muted px-1.5 py-0.5 rounded-md inline-flex items-center gap-1 mt-0.5">
-                {authRole === 'OWNER' ? 'Owner' : (userName || 'Staff')}
+                {authRole === 'OWNER' ? 'Owner Mode' : (userName || 'Staff')}
               </span>
             )}
           </div>
@@ -191,21 +220,48 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         </div>
       </header>
 
-      {/* ── Action Bar (list view) ── */}
+      {/* Action Bar (list view) */}
       {!showDetail && (
-        <div className="flex justify-between items-center gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
-          <div className="flex-1 max-w-lg">
-            <div className="relative">
+        <div className="flex flex-wrap items-center justify-between gap-4 px-6 py-3 border-b border-border bg-card shrink-0 shadow-sm">
+          <div className="flex items-center gap-3 flex-1 max-w-xl">
+            <div className="relative flex-1">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search quotations..."
+                placeholder="Search by customer name or QTN number..."
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2.5 pl-10 pr-4 text-sm font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
+                className="w-full bg-background border border-border focus:border-primary focus:ring-2 focus:ring-primary/10 rounded-xl py-2 pl-10 pr-4 text-xs font-medium text-foreground transition-all shadow-sm placeholder:text-muted-foreground/50"
               />
             </div>
+            <div className="flex items-center gap-1 p-1 bg-muted rounded-xl border border-border shrink-0 text-xs">
+              <button
+                onClick={() => setStatusFilter('ALL')}
+                className={clsx("px-3 py-1 font-bold rounded-lg transition-all", statusFilter === 'ALL' ? "bg-background text-primary shadow-sm" : "text-muted-foreground")}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setStatusFilter('ACTIVE')}
+                className={clsx("px-3 py-1 font-bold rounded-lg transition-all", statusFilter === 'ACTIVE' ? "bg-background text-emerald-600 dark:text-emerald-400 shadow-sm" : "text-muted-foreground")}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => setStatusFilter('CONVERTED')}
+                className={clsx("px-3 py-1 font-bold rounded-lg transition-all", statusFilter === 'CONVERTED' ? "bg-background text-blue-600 dark:text-blue-400 shadow-sm" : "text-muted-foreground")}
+              >
+                Billed
+              </button>
+            </div>
           </div>
+
+          <button
+            onClick={handleCreateNewQuotation}
+            className="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl shadow-sm transition-all active:scale-95 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" /> Create New Quotation
+          </button>
         </div>
       )}
 
@@ -220,15 +276,15 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           </div>
         )}
 
-        {/* ── QUOTATION LIST ── */}
+        {/* QUOTATION LIST */}
         {!showDetail && (
           <div className="flex flex-col flex-1 min-h-0 bg-background">
-            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40">
+            <div className="grid grid-cols-12 gap-2 px-6 py-2.5 text-xs font-black text-muted-foreground uppercase tracking-widest border-b border-border shrink-0 bg-muted/40 select-none">
               <div className="col-span-2">QTN #</div>
-              <div className="col-span-3">Customer</div>
+              <div className="col-span-3">Customer Name</div>
               <div className="col-span-2 text-right">Amount</div>
               <div className="col-span-2 text-center">Status</div>
-              <div className="col-span-2 text-right">Date</div>
+              <div className="col-span-2 text-right">Created Date</div>
               <div className="col-span-1 text-center">Actions</div>
             </div>
 
@@ -237,38 +293,36 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                 <div className="flex items-center justify-center py-16">
                   <RefreshCw className="w-5 h-5 animate-spin text-muted-foreground" />
                 </div>
-              ) : quotations.filter(q => !search || q.customer_name?.toLowerCase().includes(search.toLowerCase()) || q.quotation_number?.toLowerCase().includes(search.toLowerCase())).length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16">
-                  <FileText className="w-12 h-12 mb-3" />
-                  <p className="font-medium text-foreground">No quotations found</p>
-                  <p className="text-sm mt-1">Click "New Quotation" to create one</p>
+              ) : filteredQuotations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full text-muted-foreground py-16 select-none">
+                  <FileText className="w-12 h-12 mb-3 opacity-30" />
+                  <p className="font-extrabold text-foreground text-base">No quotations found</p>
+                  <p className="text-xs text-muted-foreground mt-1">Click "+ Create New Quotation" to issue a quote.</p>
                 </div>
               ) : Object.entries(
-                quotations
-                  .filter(q => !search || q.customer_name?.toLowerCase().includes(search.toLowerCase()) || q.quotation_number?.toLowerCase().includes(search.toLowerCase()))
-                  .reduce<Record<string, Quotation[]>>((acc, q) => {
-                    const label = formatDateLabel(q.created_at);
-                    if (!acc[label]) acc[label] = [];
-                    acc[label].push(q);
-                    return acc;
-                  }, {})
+                filteredQuotations.reduce<Record<string, Quotation[]>>((acc, q) => {
+                  const label = formatDateLabel(q.created_at);
+                  if (!acc[label]) acc[label] = [];
+                  acc[label].push(q);
+                  return acc;
+                }, {})
               ).map(([date, qs]) => (
                 <div key={date}>
                   <div className="sticky top-0 z-10 bg-muted px-6 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border">
                     {date}
                   </div>
                   {qs.map(q => (
-                    <div key={q.quotation_id} className="grid grid-cols-12 gap-2 px-4 py-3 items-center bg-card border-b border-border hover:border-primary/30 hover:shadow-sm transition-all duration-150 group cursor-pointer" onClick={() => viewQuotation(q)}>
+                    <div key={q.quotation_id} className="grid grid-cols-12 gap-2 px-6 py-3.5 items-center bg-card border-b border-border hover:border-primary/30 hover:shadow-sm transition-all duration-150 group cursor-pointer" onClick={() => viewQuotation(q)}>
                       <div className="col-span-2 font-mono font-bold text-primary">{q.quotation_number}</div>
-                      <div className="col-span-3 font-medium">{q.customer_name || '-'}</div>
-                      <div className="col-span-2 text-right font-bold">{formatCurrency(q.grand_total)}</div>
+                      <div className="col-span-3 font-semibold text-foreground truncate">{q.customer_name || 'Walk-in Customer'}</div>
+                      <div className="col-span-2 text-right font-bold text-foreground">{formatCurrency(q.grand_total)}</div>
                       <div className="col-span-2 text-center">
                         <span className={clsx(
-                          'text-xs font-bold px-2 py-0.5 rounded-full',
-                          q.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-500' : q.status === 'CONVERTED' ? 'bg-blue-500/10 text-blue-500' : 'bg-amber-500/10 text-amber-500'
+                          'text-xs font-bold px-2.5 py-0.5 rounded-full border',
+                          q.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : q.status === 'CONVERTED' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
                         )}>{q.status === 'CONVERTED' ? 'BILLED' : q.status}</span>
                       </div>
-                      <div className="col-span-2 text-right text-muted-foreground text-xs">{new Date(q.created_at).toLocaleDateString('en-IN')}</div>
+                      <div className="col-span-2 text-right text-muted-foreground text-xs font-medium">{new Date(q.created_at).toLocaleDateString('en-IN')}</div>
                       <div className="col-span-1 text-center" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           {q.status === 'ACTIVE' && (
@@ -283,7 +337,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                           <button
                             onClick={() => handleDeleteQuotation(q)}
                             className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-all cursor-pointer"
-                            title="Delete"
+                            title="Delete Quotation"
                           >
                             <Trash className="w-3.5 h-3.5" />
                           </button>
@@ -297,38 +351,38 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           </div>
         )}
 
-        {/* ── QUOTATION DETAIL ── */}
+        {/* QUOTATION DETAIL */}
         {showDetail && selectedQuotation && (
           <div className="max-w-4xl mx-auto p-6">
             <div ref={printRef} className="space-y-6 bg-card border border-border rounded-2xl p-8 shadow-sm">
               <div className="text-center border-b-2 border-foreground pb-4">
-                <h1 className="text-3xl font-black">{shopName || 'Shop'}</h1>
-                <p className="text-sm text-muted-foreground mt-1">QUOTATION</p>
+                <h1 className="text-3xl font-black">{shopName || 'NAFID Store'}</h1>
+                <p className="text-sm text-muted-foreground mt-1 uppercase font-bold tracking-widest">OFFICIAL QUOTATION</p>
               </div>
 
               <div className="flex justify-between">
                 <div>
-                  <p className="text-sm text-muted-foreground">Quotation #</p>
-                  <p className="font-bold text-lg">{selectedQuotation.quotation_number}</p>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase">Quotation Number</p>
+                  <p className="font-mono font-bold text-lg text-primary">{selectedQuotation.quotation_number}</p>
                   <p className="text-xs text-muted-foreground mt-1">Date: {new Date(selectedQuotation.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm text-muted-foreground">Customer Details</p>
-                  <p className="font-bold">{selectedQuotation.customer_name || 'N/A'}</p>
+                  <p className="text-xs text-muted-foreground font-semibold uppercase">Customer Details</p>
+                  <p className="font-bold text-foreground">{selectedQuotation.customer_name || 'N/A'}</p>
                   <p className="text-xs text-muted-foreground">{selectedQuotation.customer_phone || ''}</p>
                   <p className="text-xs text-muted-foreground">{selectedQuotation.customer_address || ''}</p>
                 </div>
               </div>
 
-              <table className="w-full border-collapse">
+              <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-muted">
                     <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border">#</th>
-                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border">Item</th>
+                    <th className="p-3 text-left text-xs font-bold uppercase text-muted-foreground border border-border">Item Description</th>
                     <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border">Qty</th>
                     <th className="p-3 text-center text-xs font-bold uppercase text-muted-foreground border border-border">Weight</th>
-                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Rate</th>
-                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Amount</th>
+                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Rate (₹)</th>
+                    <th className="p-3 text-right text-xs font-bold uppercase text-muted-foreground border border-border">Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -349,7 +403,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                     <td className="p-3 border border-border text-right">{formatCurrency(selectedQuotation.subtotal)}</td>
                   </tr>
                   <tr>
-                    <td colSpan={5} className="p-3 border border-border text-right text-muted-foreground">GST</td>
+                    <td colSpan={5} className="p-3 border border-border text-right text-muted-foreground">GST Tax</td>
                     <td className="p-3 border border-border text-right">{formatCurrency(selectedQuotation.tax_total)}</td>
                   </tr>
                   <tr className="font-black text-lg">
@@ -367,7 +421,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               )}
 
               <p className="text-xs text-muted-foreground text-center pt-4 border-t border-border">
-                Generated by Vendora POS — {new Date().toLocaleString('en-IN')}
+                Generated by Nafid — {new Date().toLocaleString('en-IN')}
               </p>
             </div>
 
@@ -376,15 +430,15 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                 <Printer className="w-4 h-4" /> Print
               </button>
               <button onClick={handlePrint} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
-                <FileText className="w-4 h-4" /> PDF
+                <FileText className="w-4 h-4" /> PDF Export
               </button>
               {selectedQuotation.status === 'ACTIVE' && (
                 <>
                   <button onClick={() => handleEditQuotation(selectedQuotation)} className="px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
-                    <Pencil className="w-4 h-4" /> Edit & Bill
+                    <Pencil className="w-4 h-4" /> Edit Quote
                   </button>
                   <button onClick={() => handleConvertToInvoice(selectedQuotation)} className="px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
-                    <CheckCircle2 className="w-4 h-4" /> Convert to Invoice
+                    <CheckCircle2 className="w-4 h-4" /> Convert to Sales Invoice
                   </button>
                 </>
               )}
@@ -395,4 +449,3 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     </div>
   );
 }
-

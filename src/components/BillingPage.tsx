@@ -847,6 +847,7 @@ export function BillingPage() {
     const handleEditScrapInvoiceEvent = (e: any) => {
       const invNum = e.detail?.invoiceNumber;
       if (invNum) {
+        useCartStore.getState().setIsScrapMode(true);
         updateActiveTab({ title: invNum, reservedScrapInvoiceNumber: invNum });
         loadScrapInvoiceForEdit(invNum);
       }

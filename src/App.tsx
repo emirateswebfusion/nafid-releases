@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { 
   ShoppingCart, Banknote, Package, TrendingUp, UserCheck, Users,
-  Trash2, FileText, ShieldCheck, Receipt, BarChart3, Settings, LogOut, Store, Tags, Undo2, Boxes, BadgePercent, Handshake, Wallet
+  Trash2, FileText, ShieldCheck, Receipt, BarChart3, Settings, LogOut, Store, Tags, Undo2, Boxes, BadgePercent, Handshake, Wallet, Landmark
 } from 'lucide-react';
 import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
@@ -10,6 +10,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing', icon: ShoppingCart },
   CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
   INVENTORY: { label: 'Inventory', icon: Package },
+  FINANCIAL_REPORT: { label: 'Financial Report', icon: Landmark },
   COMBO_OFFERS: { label: 'Combo Offers', icon: Boxes },
   GRADES: { label: 'Categories & Grades', icon: Tags },
   SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
@@ -51,12 +52,14 @@ import { WarrantyManager } from './components/WarrantyManager';
 import { ReturnManager } from './components/ReturnManager';
 import { PrintA4View } from './components/PrintA4View';
 import { StockReport } from './components/StockReport';
+import { FinancialReport } from './components/FinancialReport';
 import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 import { loadFeatureFlags, type FeatureKey, type FeatureFlags } from './featureFlags';
 
 function App() {
+  const [showFinancialReport, setShowFinancialReport] = useState(false);
   const [printBarcodeData, setPrintBarcodeData] = useState<string | null>(null);
   const [printBarcodePrice, setPrintBarcodePrice] = useState<string | null>(null);
   const [printBarcodeSp, setPrintBarcodeSp] = useState<string | null>(null);
@@ -380,6 +383,7 @@ function App() {
       useCartStore.getState().setRole('BILLER');
       useCartStore.getState().setReturnMode(false);
       useCartStore.getState().setQuotationMode(false);
+      useCartStore.getState().setIsScrapMode(true);
       setShowSalesHistory(false);
       setShowInventoryManager(false);
       setShowStockReport(false);
@@ -419,8 +423,10 @@ function App() {
     };
 
     const handleOpenComboManager = () => setShowComboManager(true);
+    const handleOpenFinancialReport = () => setShowFinancialReport(true);
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-combo-manager', handleOpenComboManager);
+    window.addEventListener('open-financial-report', handleOpenFinancialReport);
     window.addEventListener('open-stock-report', handleOpenStockReport);
     window.addEventListener('open-sales-history', handleOpenHistory);
     window.addEventListener('open-staff-manager', handleOpenStaff);
@@ -502,7 +508,7 @@ function App() {
       <div className="flex h-screen w-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <p className="text-muted-foreground text-sm">Starting Vendora...</p>
+          <p className="text-muted-foreground text-sm">Starting Nafid...</p>
         </div>
       </div>
     );
@@ -517,7 +523,7 @@ function App() {
   }
 
   if (restrictedPage) {
-    const allowedPages = restrictedPage.split(',').filter(Boolean);
+    const allowedPages = restrictedPage.split(',').filter(p => Boolean(p) && !p.startsWith('OPT_'));
     const activePage = restrictedActivePage || allowedPages[0] || '';
 
     const renderRestrictedPage = () => {
@@ -565,7 +571,7 @@ function App() {
               <Store className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-sm tracking-wide">{shopName || 'Vendora'}</h2>
+              <h2 className="font-bold text-sm tracking-wide">{shopName || 'Nafid'}</h2>
               <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Staff Access</p>
             </div>
           </div>
@@ -660,6 +666,8 @@ function App() {
         <InventoryManager onClose={() => setShowInventoryManager(false)} />
       ) : showStockReport ? (
         <StockReport onClose={() => setShowStockReport(false)} />
+      ) : showFinancialReport ? (
+        <FinancialReport onClose={() => setShowFinancialReport(false)} />
       ) : currentUserRole === 'OWNER' ? (
         <OwnerDashboard
           isSyncing={isSyncing}

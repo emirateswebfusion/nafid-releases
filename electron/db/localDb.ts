@@ -1403,8 +1403,8 @@ export function upsertCustomerRecord(
 ): string | null {
   if (!db || !tenantId) return null;
   const name = (rawName || '').trim();
-  const phone = (rawPhone || '').trim();
-  const address = (rawAddress || '').trim();
+  const phone = (rawPhone || '').trim() || null;
+  const address = (rawAddress || '').trim() || null;
 
   if (!name && !phone) return null;
 
@@ -1417,19 +1417,19 @@ export function upsertCustomerRecord(
       existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').get(tenantId, name);
     }
 
-    const displayName = name || phone;
+    const displayName = name || phone!;
 
     if (existing) {
       db.prepare(`
         UPDATE customers
         SET name = ?,
-            phone = CASE WHEN ? != '' THEN ? ELSE phone END,
-            address = CASE WHEN ? != '' THEN ? ELSE address END,
+            phone = COALESCE(?, phone),
+            address = COALESCE(?, address),
             last_purchase_date = CURRENT_TIMESTAMP,
-            sync_status = 'PENDING',
+            sync_status = CASE WHEN sync_status = 'SYNCED' THEN 'PENDING' ELSE sync_status END,
             updated_at = CURRENT_TIMESTAMP
         WHERE customer_id = ?
-      `).run(displayName, phone, phone, address, address, existing.customer_id);
+      `).run(displayName, phone, address, existing.customer_id);
       return existing.customer_id as string;
     } else {
       const customer_id = crypto.randomUUID();
@@ -1448,6 +1448,10 @@ export function upsertCustomerRecord(
 export function backfillCustomersFromInvoices(db: Database.Database) {
   try {
     console.log('[DB Migration] Running customer backfill from past transactions...');
+
+    // Clean up legacy empty strings in phone and address to NULL so UNIQUE(tenant_id, phone) constraint is respected
+    db.exec(`UPDATE customers SET phone = NULL WHERE phone IS NOT NULL AND TRIM(phone) = ''`);
+    db.exec(`UPDATE customers SET address = NULL WHERE address IS NOT NULL AND TRIM(address) = ''`);
 
     const invoiceCustomers = db.prepare(`
       SELECT tenant_id, customer_name, customer_phone, customer_address

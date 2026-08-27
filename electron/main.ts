@@ -99,7 +99,7 @@ import { initSyncWorker, setSyncActive } from './sync/syncWorker.js';
 // We don't need the fileURLToPath logic.
 
 let mainWindow: BrowserWindow | null = null;
-const PROTOCOL = 'vendora';
+const PROTOCOL = 'nafid';
 
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -146,7 +146,7 @@ function handleDeepLink(url: string) {
 
 function setupCSP() {
   const isDev = !app.isPackaged;
-  const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+  const apiUrl = process.env.NAFID_CLOUD_API || process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
   const apiOrigin = (() => {
     try {
       return new URL(apiUrl).origin;
@@ -213,7 +213,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const dbPath = path.join(app.getPath('userData'), 'vendora_v2.db');
+  const dbPath = path.join(app.getPath('userData'), 'nafid_v2.db');
   console.log(`[Main] App Data Path: ${app.getPath('userData')}`);
   console.log(`[Main] Database Path: ${dbPath}`);
 

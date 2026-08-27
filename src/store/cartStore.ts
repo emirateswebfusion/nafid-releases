@@ -242,7 +242,7 @@ export const useCartStore = create<CartState>()(
       clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
-      name: 'vendora-cart-storage',
+      name: 'nafid-cart-storage',
     }
   )
 );

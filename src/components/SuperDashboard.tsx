@@ -1,4 +1,4 @@
-﻿import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { fetchApi } from '../lib/api';
 import { useThemeStore } from '../store/themeStore';
@@ -495,7 +495,7 @@ export default function SuperDashboard() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-foreground truncate">Vendora Console</span>
+                <span className="text-sm font-bold text-foreground truncate">Nafid Console</span>
                 <span className="text-[10px] font-mono font-bold uppercase bg-amber-500/10 text-amber-600 dark:text-amber-500 border border-amber-500/20 px-1.5 py-0.5 rounded shrink-0">Super Admin</span>
               </div>
               <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">Registry Database & Schema Manager</p>

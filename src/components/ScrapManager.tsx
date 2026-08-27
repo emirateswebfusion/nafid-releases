@@ -561,6 +561,9 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   const handleEditInvoiceInBilling = (invoiceNumber: string) => {
     useCartStore.getState().setPendingScrapInvoiceToEdit(invoiceNumber);
     useCartStore.getState().setRole('BILLER');
+    useCartStore.getState().setReturnMode(false);
+    useCartStore.getState().setQuotationMode(false);
+    useCartStore.getState().setIsScrapMode(true);
     window.dispatchEvent(new CustomEvent('edit-scrap-invoice', { detail: { invoiceNumber } }));
     onClose();
   };

@@ -18,9 +18,9 @@ if (repoUrl) {
  * @see https://www.electron.build/configuration/configuration
  */
 module.exports = {
-  appId: 'com.vendora.pos',
-  productName: 'Vendora',
-  copyright: 'Copyright © 2026 Vendora',
+  appId: 'com.nafid',
+  productName: 'Nafid',
+  copyright: 'Copyright © 2026 Emirates WebFusion',
   npmRebuild: false,
   directories: {
     output: 'dist/release',

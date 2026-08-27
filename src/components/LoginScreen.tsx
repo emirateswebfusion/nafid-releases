@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { Loader2, Eye, EyeOff, ShoppingBag, Gem, Wrench, Mail, Lock, StoreIcon, ChevronLeft } from 'lucide-react';
 import clsx from 'clsx';
@@ -112,7 +112,7 @@ export function LoginScreen() {
             <div className="w-11 h-11 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/25">
               <StoreIcon className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-3xl font-black text-foreground tracking-tight">Vendora</span>
+            <span className="text-3xl font-black text-foreground tracking-tight">NAFID</span>
           </div>
             <p className="text-muted-foreground text-sm ml-1">The Smarter Way to Sell</p>
         </div>
@@ -143,7 +143,7 @@ export function LoginScreen() {
           </div>
         </div>
 
-        <p className="relative z-10 text-muted-foreground text-xs">&copy; {new Date().getFullYear()} Vendora POS. All rights reserved.</p>
+        <p className="relative z-10 text-muted-foreground text-xs">&copy; {new Date().getFullYear()} Emirates WebFusion (NAFID). All rights reserved.</p>
       </div>
 
       {/* ── Right Auth Panel ────────────────────────────────────────────── */}

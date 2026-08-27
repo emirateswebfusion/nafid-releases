@@ -244,6 +244,29 @@ export function initSyncWorker() {
       }
     }
   }, FAST_INVOICE_PULL_MS);
+
+  // 3. Fast cash pull (every 3s) for active cash drawer and transaction updates
+  setInterval(async () => {
+    if (isSyncActive && !fastCashPullInProgress && !syncInProgress) {
+      const config = getAuthConfig();
+      if (config && !isJwtExpired(config.jwt_token)) {
+        fastCashPullInProgress = true;
+        try {
+          const d1 = await pullCashDrawer(config.jwt_token, config.tenant_id);
+          const d2 = await pullCashTransactions(config.jwt_token, config.tenant_id);
+          const d3 = await pullPaymentSourceTransactions(config.jwt_token, config.tenant_id);
+          if (d1 || d2 || d3) {
+            notifyRenderer();
+            console.log('[SyncWorker] Fast cash pull: renderer notified.');
+          }
+        } catch {
+          // ignore transient fast pull errors
+        } finally {
+          fastCashPullInProgress = false;
+        }
+      }
+    }
+  }, FAST_CASH_PULL_MS);
 }
 
 let urgentInvoiceSyncInProgress = false;
@@ -277,29 +300,7 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
 let fastCashPullInProgress = false;
 const FAST_CASH_PULL_MS = 3000;
 
-setInterval(async () => {
-  if (isSyncActive && !fastCashPullInProgress && !syncInProgress) {
-    const config = getAuthConfig();
-    if (config && !isJwtExpired(config.jwt_token)) {
-      fastCashPullInProgress = true;
-      try {
-        const d1 = await pullCashDrawer(config.jwt_token, config.tenant_id);
-        const d2 = await pullCashTransactions(config.jwt_token, config.tenant_id);
-        const d3 = await pullCashCategories(config.jwt_token, config.tenant_id);
-        const d4 = await pullPaymentSources(config.jwt_token, config.tenant_id);
-        const d5 = await pullPaymentSourceTransactions(config.jwt_token, config.tenant_id);
-        if (d1 || d2 || d3 || d4 || d5) {
-          notifyRenderer();
-          console.log('[SyncWorker] Fast cash pull: renderer notified.');
-        }
-      } catch {
-        // ignore transient fast pull errors
-      } finally {
-        fastCashPullInProgress = false;
-      }
-    }
-  }
-}, FAST_CASH_PULL_MS);
+
 
 let urgentCashSyncInProgress = false;
 
@@ -2467,12 +2468,12 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash drawer records from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash drawer failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Cash Transactions (Cloud → Edge) ───────────────────────────────────────
@@ -2538,12 +2539,12 @@ async function pullCashTransactions(token: string, tenantId: string): Promise<bo
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash transactions failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Cash Categories (Cloud → Edge) ─────────────────────────────────────────
@@ -2595,12 +2596,12 @@ async function pullCashCategories(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash categories from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash categories failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 async function pullCustomers(token: string, tenantId: string): Promise<boolean> {
@@ -2920,12 +2921,12 @@ async function pullPaymentSources(token: string, tenantId: string): Promise<bool
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment sources from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment sources failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Pull Payment Source Transactions (Cloud → Edge) ─────────────────────────────
@@ -2979,12 +2980,12 @@ async function pullPaymentSourceTransactions(token: string, tenantId: string): P
     },
   });
 
-  if (result.count > 0) {
+  if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} payment source transactions from cloud.`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull payment source transactions failed.');
   }
-  return result.count > 0;
+  return result.hasChanged && result.count > 0;
 }
 
 // ── Combo Offers Sync (Edge → Cloud) ──────────────────────────────────────────

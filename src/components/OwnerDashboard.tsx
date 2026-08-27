@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight } from 'lucide-react';
+import { ShoppingCart, Banknote, Package, Tags, BadgePercent, BarChart3, FileText, Receipt, ShieldCheck, Undo2, Trash2, Handshake, Wallet, UserCheck, Users, Boxes, TrendingUp, Settings, LogOut, Sun, Moon, ArrowRight, Landmark } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -177,6 +177,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-violet-500',
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-pricing-tiers')),
+        },
+        {
+            id: 'financial-report',
+            title: 'Financial Report',
+            desc: 'View P&L statement, revenue breakdown, GST liability & profit margins',
+            icon: Landmark,
+            color: 'text-emerald-500',
+            bgColor: 'bg-emerald-500/10',
+            action: () => window.dispatchEvent(new CustomEvent('open-financial-report')),
         },
         {
             id: 'stock-print',
