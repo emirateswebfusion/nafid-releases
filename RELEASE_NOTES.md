@@ -1,3 +1,12 @@
+# Vendora v1.5.31 Release Notes
+
+## What's Changed
+- Added new `FinancialReport` module to visualize business key performance indicators, sales reports, and charts
+- Enhanced and refactored staff creation, roles, and granular authorization rules in `StaffManager`
+- Implemented quotation manager template revisions and versions tracking in `QuotationManager`
+- Updated brand visual identities, application logs, and synchronization mechanisms
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.30...v1.5.31
+
 # Vendora v1.5.30 Release Notes
 
 ## What's Changed
