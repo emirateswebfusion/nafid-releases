@@ -736,7 +736,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                     options={[
                       { value: '', label: 'Default (MRP)' },
                       ...pricingTiers
-                        .filter(t => (t.is_active === 1 || t.is_active === true || Boolean(t.is_active)) && !t.is_deleted)
+                        .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
                         .map(t => ({ value: t.pricing_tier_id, label: t.name })),
                     ]}
                     triggerClassName="rounded-xl h-[46px] w-full"

@@ -288,10 +288,12 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       finalSellingPrice = Math.max(finalSellingPrice, 0);
       const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
       const unitWeightGrams = Number(da?.weight_grams) || 0;
-      const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;
-      const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : Number(p.current_stock);
-      const isLowStock = Number(p.current_stock) <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
-      const isOutOfStock = Number(p.current_stock) <= 0;
+      const cs = Number(p.current_stock);
+      const valStock = Math.max(0, cs);
+      const totalWeight = p.billing_type === 'WEIGHT' ? valStock : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * valStock : 0;
+      const totalPcs = p.billing_type === 'WEIGHT' ? (Number(da?.pcs) || 0) : valStock;
+      const isLowStock = cs <= Number(p.reorder_level) && Number(p.reorder_level) > 0;
+      const isOutOfStock = cs <= 0;
       const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
       const bq = billQtyMap.get(p.product_id);
 
@@ -314,11 +316,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         gstPaperStock 
       };
 
-      const cs = Number(p.current_stock);
-      tStock += cs;
-      tPurchase += Number(p.purchase_price) * cs;
-      tMrp += rate * cs;
-      tSelling += finalSellingPrice * cs;
+      tStock += valStock;
+      tPurchase += Number(p.purchase_price) * valStock;
+      tMrp += rate * valStock;
+      tSelling += finalSellingPrice * valStock;
       if (isOutOfStock) tOutOfStock++;
 
       const cat = p.category || 'Uncategorized';
@@ -327,10 +328,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         catAcc[cat] = { stock: 0, purchase: 0, mrp: 0, selling: 0, count: 0 };
       }
       groups[cat].push(ep);
-      catAcc[cat].stock += cs;
-      catAcc[cat].purchase += Number(p.purchase_price) * cs;
-      catAcc[cat].mrp += rate * cs;
-      catAcc[cat].selling += finalSellingPrice * cs;
+      catAcc[cat].stock += valStock;
+      catAcc[cat].purchase += Number(p.purchase_price) * valStock;
+      catAcc[cat].mrp += rate * valStock;
+      catAcc[cat].selling += finalSellingPrice * valStock;
       catAcc[cat].count++;
 
       if (isLowStock) lowAcc.push(ep);
@@ -415,10 +416,10 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
       return acc;
     }, {});
 
-    const totalStockVal = filteredProducts.reduce((sum, p) => sum + Number(p.current_stock), 0);
+    const totalStockVal = filteredProducts.reduce((sum, p) => sum + Math.max(0, Number(p.current_stock)), 0);
     const totalValueVal = filteredProducts.reduce((sum, p) => {
       const rate = getMrp(p);
-      return sum + (rate * Number(p.current_stock));
+      return sum + (rate * Math.max(0, Number(p.current_stock)));
     }, 0);
     const totalProductsVal = filteredProducts.length;
     const outOfStockVal = filteredProducts.filter(p => Number(p.current_stock) <= 0).length;
@@ -435,7 +436,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         const gr = p.grade_id ? gradeMap.get(p.grade_id) : null;
         const grRate = gr ? Number(gr.rate) : null;
         const rate = grRate !== null && p.pricing_mode === 'GRADE_RATE' ? Number(p.base_price) + grRate : Number(p.base_price);
-        const value = rate * Number(p.current_stock);
+        const value = rate * Math.max(0, Number(p.current_stock));
         const da = (() => { try { return JSON.parse(p.domain_attributes || '{}'); } catch { return {}; } })();
         const unitWeightGrams = Number(da?.weight_grams) || 0;
         const totalWeight = p.billing_type === 'WEIGHT' ? Number(p.current_stock) : unitWeightGrams > 0 ? (unitWeightGrams / 1000) * Number(p.current_stock) : 0;

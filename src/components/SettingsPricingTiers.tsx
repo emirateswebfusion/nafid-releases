@@ -15,6 +15,7 @@ interface PricingTier {
   name: string;
   is_active: number | boolean;
   sort_order: number;
+  is_deleted?: number | boolean;
 }
 
 interface Product {
@@ -229,7 +230,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
     }
   };
 
-  const activeTiers = useMemo(() => tiers.filter(t => t.is_active), [tiers]);
+  const activeTiers = useMemo(() => tiers.filter(t => (t.is_active === 1 || t.is_active === true) && !t.is_deleted), [tiers]);
 
   const handleAddTier = async () => {
     if (!newName.trim()) return;

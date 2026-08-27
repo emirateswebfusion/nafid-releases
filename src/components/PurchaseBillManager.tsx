@@ -1618,6 +1618,9 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
   const [newProductSavingGrade, setNewProductSavingGrade] = useState(false);
   const [newProductGradeForm, setNewProductGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
+  const activePricingTiers = useMemo(() => {
+    return pricingTiers.filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
+  }, [pricingTiers]);
   const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
   const [productFormView, setProductFormView] = useState<'grid' | 'list'>(() => {
     return (localStorage.getItem('productFormView') as 'grid' | 'list') || 'grid';
@@ -2948,7 +2951,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                           />
                         </div>
                       </div>
-                      {pricingTiers.length > 0 && (
+                      {activePricingTiers.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-border/60">
                           <div className="flex items-center gap-2 mb-3">
                             <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-500">
@@ -2958,7 +2961,7 @@ const PurchaseBillFormSection = forwardRef<PurchaseBillFormHandle, {
                             <span className="text-[10px] text-muted-foreground font-normal normal-case">(blank = use MRP)</span>
                           </div>
                           <div className="flex gap-4 flex-wrap">
-                            {pricingTiers.map(tier => (
+                            {activePricingTiers.map(tier => (
                               <div key={tier.pricing_tier_id} className="flex-1 min-w-[140px]">
                                 <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5 truncate">
                                   {tier.name}

@@ -667,7 +667,7 @@ export function BillingPage() {
     });
     window.electronAPI.dbGetPricingTiers(tenantId || 'global')
       .then((res: any) => {
-        if (Array.isArray(res)) setPricingTiers(res.filter((t: any) => t.is_active === 1 && !t.is_deleted));
+        if (Array.isArray(res)) setPricingTiers(res.filter((t: any) => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted));
       })
       .catch(console.error);
     window.electronAPI.dbGetProductPricing(tenantId || 'global')
@@ -1435,6 +1435,7 @@ export function BillingPage() {
 
   const getTierPriceForProduct = (product: any): number | undefined => {
     if (!selectedTierId || !product) return undefined;
+    if (!pricingTiers.some(t => t.pricing_tier_id === selectedTierId)) return undefined;
     const m = productPricingMap[product.product_id];
     if (!m) return undefined;
     const v = m[selectedTierId];
@@ -1447,7 +1448,11 @@ export function BillingPage() {
       (name && p.name?.toLowerCase() === name.toLowerCase()) ||
       (phone && p.phone && String(p.phone) === phone)
     );
-    if (match?.pricing_tier_id) setSelectedTierId(match.pricing_tier_id);
+    if (match?.pricing_tier_id && pricingTiers.some(t => t.pricing_tier_id === match.pricing_tier_id)) {
+      setSelectedTierId(match.pricing_tier_id);
+    } else if (match) {
+      setSelectedTierId('');
+    }
   };
 
   const handleSelectProduct = (product: any) => {

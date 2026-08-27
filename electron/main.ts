@@ -987,10 +987,11 @@ ipcMain.handle('db:addPricingTier', safeHandler((event, t) => {
   try {
     const db = getDb();
     const nextSort = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_sort FROM pricing_tiers WHERE tenant_id = ?').get(t.tenant_id) as any;
+    const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
     db.prepare(`
       INSERT INTO pricing_tiers (pricing_tier_id, tenant_id, name, is_active, sort_order, is_deleted, sync_status)
       VALUES (?, ?, ?, ?, ?, 0, 'PENDING')
-    `).run(t.pricing_tier_id, t.tenant_id, t.name, t.is_active === false ? 0 : 1, t.sort_order ?? (nextSort?.next_sort || 0));
+    `).run(t.pricing_tier_id, t.tenant_id, t.name, isActive, t.sort_order ?? (nextSort?.next_sort || 0));
     return { success: true };
   } catch (error: any) {
     console.error('[db:addPricingTier]', error);
@@ -1001,11 +1002,12 @@ ipcMain.handle('db:addPricingTier', safeHandler((event, t) => {
 ipcMain.handle('db:updatePricingTier', safeHandler((event, t) => {
   try {
     const db = getDb();
+    const isActive = (t.is_active === false || t.is_active === 0 || t.is_active === '0') ? 0 : 1;
     db.prepare(`
       UPDATE pricing_tiers
       SET name = ?, is_active = ?, sort_order = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE pricing_tier_id = ?
-    `).run(t.name, t.is_active === false ? 0 : 1, t.sort_order ?? 0, t.pricing_tier_id);
+    `).run(t.name, isActive, t.sort_order ?? 0, t.pricing_tier_id);
     return { success: true };
   } catch (error: any) {
     console.error('[db:updatePricingTier]', error);

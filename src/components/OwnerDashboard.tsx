@@ -395,37 +395,39 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             </header>
 
             {/* Grid Content */}
-            <div className="flex-1 min-h-0 p-8 grid grid-cols-3 gap-4 relative z-0 items-stretch overflow-y-auto">
-                {visibleCards.map((card) => (
-                    <Card
-                        key={card.id}
-                        onClick={card.action}
-                        className="cursor-pointer group flex flex-col text-left hover:border-primary/50 hover:bg-muted/30 transition-all duration-300"
-                    >
-                        <CardHeader className="flex-row items-center justify-between pb-2">
-                            <div className={clsx(
-                                "p-3 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105",
-                                card.bgColor, card.color
-                            )}>
-                                <card.icon className="w-6 h-6" />
-                            </div>
-                            {card.shortcut && (
-                                <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
-                                    {card.shortcut}
-                                </span>
-                            )}
-                        </CardHeader>
-                        <CardContent className="flex-1 flex flex-col pt-4">
-                            <CardTitle className="text-xl mb-2 group-hover:text-primary transition-colors">{card.title}</CardTitle>
-                            <CardDescription className="text-sm leading-relaxed mb-6">{card.desc}</CardDescription>
-                            
-                            <div className="mt-auto flex items-center gap-2 text-xs font-bold text-muted-foreground group-hover:text-primary transition-colors">
-                                <span>Open</span>
-                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                            </div>
-                        </CardContent>
-                    </Card>
-                ))}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-8 pb-20 md:pb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-stretch">
+                    {visibleCards.map((card) => (
+                        <Card
+                            key={card.id}
+                            onClick={card.action}
+                            className="cursor-pointer group flex flex-col text-left hover:border-primary/50 hover:bg-muted/30 transition-all duration-300"
+                        >
+                            <CardHeader className="flex-row items-center justify-between pb-2">
+                                <div className={clsx(
+                                    "p-3 rounded-xl shadow-sm transition-transform duration-300 group-hover:scale-105",
+                                    card.bgColor, card.color
+                                )}>
+                                    <card.icon className="w-6 h-6" />
+                                </div>
+                                {card.shortcut && (
+                                    <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2.5 py-1 rounded-full border border-border">
+                                        {card.shortcut}
+                                    </span>
+                                )}
+                            </CardHeader>
+                            <CardContent className="flex-1 flex flex-col pt-4">
+                                <CardTitle className="text-xl mb-2 group-hover:text-primary transition-colors">{card.title}</CardTitle>
+                                <CardDescription className="text-sm leading-relaxed mb-6">{card.desc}</CardDescription>
+                                
+                                <div className="mt-auto flex items-center gap-2 text-xs font-bold text-muted-foreground group-hover:text-primary transition-colors">
+                                    <span>Open</span>
+                                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
             </div>
 
             {/* Footer — sync progress bar when syncing, last sync status when idle */}
