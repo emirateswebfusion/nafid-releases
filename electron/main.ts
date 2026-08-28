@@ -189,9 +189,12 @@ function setupCSP() {
 }
 
 function createWindow() {
-  const iconPath = app.isPackaged
-    ? path.join(__dirname, '../dist/logo.png')
-    : path.join(__dirname, '../build/icon.png');
+  const winIcoPath = path.join(__dirname, '../build/icon.ico');
+  const iconPath = process.platform === 'win32' && fs.existsSync(winIcoPath)
+    ? winIcoPath
+    : (app.isPackaged
+        ? path.join(__dirname, '../dist/logo.png')
+        : path.join(__dirname, '../build/icon.png'));
 
   mainWindow = new BrowserWindow({
     width: 1280,
