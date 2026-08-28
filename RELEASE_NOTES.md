@@ -1,3 +1,10 @@
+# Vendora v1.5.32 Release Notes
+
+## What's Changed
+- Implemented background data sync worker and added comprehensive management UI components
+- Enhanced local database synchronization and updated staff manager, inventory, and stock report components
+- **Full Changelog**: https://github.com/emirateswebfusion/vendora-pos/compare/v1.5.31...v1.5.32
+
 # Vendora v1.5.31 Release Notes
 
 ## What's Changed

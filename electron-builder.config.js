@@ -1,4 +1,7 @@
 require('dotenv').config();
+if (!process.env.GH_TOKEN) {
+  require('dotenv').config({ path: '.env.production' });
+}
 
 const repoUrl = process.env.GITHUB_REPO_URL || '';
 let repository = {};
