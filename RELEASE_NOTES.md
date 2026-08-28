@@ -1,3 +1,9 @@
+# Vendora v1.5.34 Release Notes
+
+## What's Changed
+- Initialized Electron main process improvements and added updated application icons
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.33...v1.5.34
+
 # Vendora v1.5.33 Release Notes
 
 ## What's Changed
