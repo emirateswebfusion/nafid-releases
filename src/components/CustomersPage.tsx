@@ -147,7 +147,7 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
     <div className="fixed inset-0 z-40 flex flex-col bg-background select-none overflow-hidden">
       {/* Top Header */}
       <header className="shrink-0 border-b border-border/80 bg-card/90 backdrop-blur-md shadow-xs z-30">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3.5 gap-4">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             {view === 'detail' ? (
               <button

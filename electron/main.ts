@@ -2372,6 +2372,8 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {
       query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
+    } else if (invoice_type === 'GST') {
+      query += " AND i.invoice_type = 'GST'";
     }
 
     if (filterDate) {
@@ -2446,6 +2448,8 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
       query += " AND i.invoice_type = 'GST' AND (i.customer_gstin IS NULL OR i.customer_gstin = '')";
     } else if (invoice_type === 'BILL_OF_SUPPLY') {
       query += " AND i.invoice_type = 'BILL_OF_SUPPLY'";
+    } else if (invoice_type === 'GST') {
+      query += " AND i.invoice_type = 'GST'";
     }
 
     if (filterDate) {

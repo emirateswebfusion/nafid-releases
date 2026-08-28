@@ -426,14 +426,21 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const loadInvoices = async (reset = false) => {
     setIsFetching(true);
     if (window.electronAPI) {
-      const { userId, role, tenantId } = useAuthStore.getState();
+      const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
       const currentOffset = reset ? 0 : offset;
       
+      const isBiller = role === 'BILLER';
+      const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
+      const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
+      const effectiveInvoiceType = hasGstInvoicesOnly
+        ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
+        : (invoiceTypeFilter || undefined);
+
       try {
         const filters = {
           user_id: userId, tenant_id: tenantId, role,
           search, payment_method: paymentFilter || undefined,
-          invoice_type: invoiceTypeFilter || undefined,
+          invoice_type: effectiveInvoiceType,
           filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
         };
 
@@ -852,13 +859,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setIsExporting(true);
     setExportStatusMsg('Fetching all matching records…');
     try {
-      const { userId, role, tenantId } = useAuthStore.getState();
+      const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
+      const isBiller = role === 'BILLER';
+      const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
+      const hasGstInvoicesOnly = isBiller && permissions.includes('OPT_VIEW_GST_INVOICES_ONLY');
+      const effectiveInvoiceType = hasGstInvoicesOnly
+        ? (invoiceTypeFilter && invoiceTypeFilter !== 'BILL_OF_SUPPLY' ? invoiceTypeFilter : 'GST')
+        : (invoiceTypeFilter || undefined);
+
       const data = await window.electronAPI.dbGetInvoices({
         user_id: userId, tenant_id: tenantId, role,
         limit: 99999, offset: 0,
         search: search || undefined,
         payment_method: paymentFilter || undefined,
-        invoice_type: invoiceTypeFilter || undefined,
+        invoice_type: effectiveInvoiceType,
         filterDate: filterDate || undefined,
         filterDateEnd: filterDateEnd || undefined,
       });

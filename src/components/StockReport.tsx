@@ -227,6 +227,16 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
 
   const filteredProducts = useMemo(() =>
     products.filter(p => {
+      // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
+      const { role, restrictedPage } = useAuthStore.getState();
+      if (role === 'BILLER') {
+        const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
+        const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
+        if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
+          return false;
+        }
+      }
+
       // Per-tab GST applicability filter
       if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
       if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
@@ -534,7 +544,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
     return (
       <div className="fixed inset-0 z-40 flex flex-col bg-background">
         <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-          <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+          <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
             <div className="flex items-center gap-3 min-w-0">
               <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
                 <BarChart3 className="w-4 h-4" />
@@ -669,7 +679,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           HEADER
       ══════════════════════════════════════════ */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
               <BarChart3 className="w-4 h-4" />

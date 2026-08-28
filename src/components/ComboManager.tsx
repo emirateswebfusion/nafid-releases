@@ -350,7 +350,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
           HEADER TOOLBAR
       ═══════════════════════════════════════════════════ */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-xs">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3.5">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="p-2.5 rounded-2xl bg-gradient-to-br from-purple-500/20 to-indigo-500/20 text-purple-600 dark:text-purple-400 border border-purple-500/30 shadow-inner shrink-0">
               <Boxes className="w-5 h-5" />

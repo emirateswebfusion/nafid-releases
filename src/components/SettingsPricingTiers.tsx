@@ -404,7 +404,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
 
       {/* ── HEADER ── */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3">
+        <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
               <BadgePercent className="w-4 h-4" />

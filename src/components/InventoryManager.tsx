@@ -1261,6 +1261,17 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       // Service charge belongs on the billing page only — never in inventory
       // (flag OR literal name match — legacy/unflagged duplicates exist in old databases)
       if (Number(p.is_service_item) === 1 || String(p.name || '').trim().toLowerCase() === 'service charge') return false;
+
+      // Staff Operational Option Check: If biller does NOT have OPT_VIEW_GST permission, restrict viewing to GST products ONLY
+      const { role, restrictedPage } = useAuthStore.getState();
+      if (role === 'BILLER') {
+        const permissions = restrictedPage ? restrictedPage.split(',').filter(Boolean) : [];
+        const hasOptViewGst = permissions.includes('OPT_VIEW_GST');
+        if (!hasOptViewGst && Number(p.is_gst_applicable) !== 1) {
+          return false;
+        }
+      }
+
       // GST/Estimate membership follows the manual GST Product toggle only.
       if (viewMode === 'estimate' && Number(p.is_gst_applicable) === 1) return false;
       if (viewMode === 'gst' && Number(p.is_gst_applicable) !== 1) return false;
@@ -1304,7 +1315,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           HEADER
       ═══════════════════════════════════════════════════ */}
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
           <div className="flex items-center gap-3 min-w-0">
             <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
               {view === 'list' ? <Package className="w-4 h-4" /> : view === 'add' ? <PackagePlus className="w-4 h-4" /> : <Pencil className="w-4 h-4" />}

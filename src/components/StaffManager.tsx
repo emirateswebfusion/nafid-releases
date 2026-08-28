@@ -4,7 +4,7 @@ import {
   Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
   Search, SlidersHorizontal, User, CheckCircle2, Check,
   AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, DollarSign,
-  Percent, Trash2, Tag, ShieldAlert
+  Percent, Trash2, Tag, ShieldAlert, FileText
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
@@ -24,7 +24,8 @@ const CLOUD_API = import.meta.env.VITE_CLOUD_API || 'http://localhost:3001';
 const STAFF_CACHE_KEY = 'nafid_staff_cache';
 
 const OPERATIONAL_CONTROLS = [
-  { key: 'OPT_VIEW_GST', label: 'View & Sell GST Products', desc: 'Allow staff to view and process GST items (disabling restricts to Non-GST items)', icon: Tag },
+  { key: 'OPT_VIEW_GST', label: 'View GST & Estimate Products', desc: 'Allow staff to view both GST & Estimate products in inventory/stock list (disabling restricts viewing to GST products only; does not affect billing)', icon: Tag },
+  { key: 'OPT_VIEW_GST_INVOICES_ONLY', label: 'View GST Invoices Only', desc: 'Restrict staff to viewing GST invoices only in Sales History (disabling allows viewing all invoices including Estimate/Bill of Supply)', icon: FileText },
   { key: 'OPT_VIEW_COST', label: 'View Purchase Prices & Margins', desc: 'Allow staff to view purchase cost & profit margins in inventory', icon: Eye },
   { key: 'OPT_APPLY_DISCOUNT', label: 'Apply Manual Discounts', desc: 'Allow staff to apply line-item or bill-level discounts on checkout', icon: Percent },
   { key: 'OPT_DELETE_INVOICE', label: 'Delete & Void Invoices', desc: 'Allow staff to delete completed invoices & transaction records', icon: Trash2 },
@@ -33,35 +34,48 @@ const OPERATIONAL_CONTROLS = [
 
 const PERMISSION_GROUPS = [
   {
-    title: 'Sales & Billing',
-    desc: 'Front-facing customer and checkout operations',
+    title: 'Sales & Billing Operations',
+    desc: 'Front-facing checkout, sales receipts, customer directory & warranty tracking',
     color: 'from-blue-500 to-indigo-500',
     pages: [
       { key: 'BILLING', label: 'Billing / POS Checkout' },
+      { key: 'SALES_HISTORY', label: 'Sales History & Invoices' },
       { key: 'CASHIER_SETTLEMENT', label: 'Cashier Settlement' },
       { key: 'QUOTATIONS', label: 'Quotations Management' },
+      { key: 'RETURNS', label: 'Returns Tracking' },
       { key: 'WARRANTIES', label: 'Warranties Tracking' },
       { key: 'CUSTOMERS', label: 'Customers Directory' }
     ]
   },
   {
-    title: 'Financials & Reports',
-    desc: 'Revenue, profit margins, tax & inventory reports',
+    title: 'Inventory & Purchasing',
+    desc: 'Stock management, purchase bills, suppliers & combo offers',
     color: 'from-emerald-500 to-teal-500',
     pages: [
-      { key: 'FINANCIAL_REPORT', label: 'Financial & Profit Reports' },
       { key: 'INVENTORY', label: 'Inventory Manager' },
-      { key: 'COMBO_OFFERS', label: 'Combo Offers' },
-      { key: 'SCRAP_MANAGER', label: 'Scrap Metal Manager' },
+      { key: 'STOCK_REPORT', label: 'Stock Reports' },
       { key: 'PURCHASE_BILLS', label: 'Purchase Bills / GST' },
-      { key: 'STOCK_REPORT', label: 'Stock Reports' }
+      { key: 'PARTIES', label: 'Suppliers & Parties Directory' },
+      { key: 'COMBO_OFFERS', label: 'Combo Offers' },
+      { key: 'SCRAP_MANAGER', label: 'Scrap Metal Manager' }
     ]
   },
   {
-    title: 'System Configuration',
-    desc: 'Application configuration and store preferences',
+    title: 'Financials & Business Intelligence',
+    desc: 'Revenue, profit margins, tax reports & business analytics',
+    color: 'from-amber-500 to-orange-500',
+    pages: [
+      { key: 'FINANCIAL_REPORT', label: 'Financial & Profit Reports' }
+    ]
+  },
+  {
+    title: 'Store Setup & Configuration',
+    desc: 'Pricing tiers, categories, payment methods & system preferences',
     color: 'from-purple-500 to-pink-500',
     pages: [
+      { key: 'GRADES', label: 'Categories & Metal Grades' },
+      { key: 'PRICING_TIERS', label: 'Pricing Tiers & Custom Rates' },
+      { key: 'PAYMENT_METHODS', label: 'Payment Methods' },
       { key: 'SETTINGS', label: 'System Settings' }
     ]
   }
@@ -354,7 +368,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       
       {/* Header */}
       <header className="shrink-0 border-b border-border bg-card shadow-sm z-30">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-4 gap-4 select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
             <Users className="w-5 h-5" />

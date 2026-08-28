@@ -397,7 +397,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
 
       {/* Main Header */}
       <header className="shrink-0 z-20 border-b border-border/80 bg-card/80 backdrop-blur-md shadow-sm">
-        <div className="max-w-7xl mx-auto w-full px-6 py-4 flex items-center justify-between select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-primary via-indigo-600 to-violet-700 flex items-center justify-center shadow-lg shadow-primary/25 ring-2 ring-primary/20 shrink-0">
               <Wallet className="w-6 h-6 text-white" />

@@ -59,7 +59,7 @@ export function setSyncActive(active: boolean) {
 }
 
 function getTotalPendingRecords(db: any, tenantId: string): number {
-  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers'];
+  const tables = ['products', 'invoices', 'product_grades', 'pricing_tiers', 'product_pricing', 'parties', 'party_ledger', 'scrap_categories', 'scrap_transactions', 'purchase_bills', 'purchase_bill_items', 'cash_drawer', 'cash_transactions', 'cashier_audit_log', 'cash_categories', 'returns', 'return_items', 'combo_offers', 'quotations', 'quotation_items'];
   const unionQueries = tables.map(t => `SELECT COUNT(*) as cnt FROM ${t} WHERE sync_status = 'PENDING' AND tenant_id = ?`).join(' UNION ALL ');
   const rows = db.prepare(unionQueries).all(...tables.map(() => tenantId)) as { cnt: number }[];
   return rows.reduce((sum, r) => sum + r.cnt, 0);
@@ -81,6 +81,7 @@ const SYNC_PHASES = [
   'Uploading cash drawer...',
   'Uploading cash transactions...',
   'Uploading combo offers...',
+  'Uploading quotations...',
   'Updating grades...',
   'Updating pricing tiers...',
   'Updating product pricing...',
@@ -97,6 +98,7 @@ const SYNC_PHASES = [
   'Uploading returns...',
   'Updating returns...',
   'Updating combo offers...',
+  'Updating quotations...',
 ];
 
 function getWebContents(sender?: WebContents): WebContents | null {
@@ -435,6 +437,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
         notifyProgress(12.3, sender, undefined, totalRecords); await syncPaymentSourceTransactions(jwt_token, tenant_id);
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
+        notifyProgress(12.5, sender, undefined, totalRecords); await syncQuotations(jwt_token, tenant_id);
 
         // Pull phase — every table is independent, so fetch them concurrently
         // (bounded by PULL_CONCURRENCY) instead of serially. First login does a
@@ -462,6 +465,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           { run: () => pullPaymentSources(jwt_token, tenant_id) },
           { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
           { run: () => pullComboOffers(jwt_token, tenant_id) },
+          { run: () => pullQuotations(jwt_token, tenant_id) },
         ];
 
         pullProgressCtx = { done: 0, total: pullTasks.length };
@@ -3113,3 +3117,166 @@ async function pullComboOffers(token: string, tenantId: string): Promise<boolean
   }
   return result.hasChanged && result.count > 0;
 }
+
+// ── Quotations Sync (Edge → Cloud) ───────────────────────────────────────────────
+async function syncQuotations(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} quotations to cloud in batches of ${BATCH_SIZE}...`);
+
+  const getItems = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE quotations SET sync_status = 'SYNCED' WHERE quotation_id = ? AND tenant_id = ?`);
+  const updateItemsStmt = db.prepare(`UPDATE quotation_items SET sync_status = 'SYNCED' WHERE quotation_id = ? AND tenant_id = ?`);
+
+  let totalSynced = 0;
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const quotationsWithItems = batch.map((q: any) => ({
+      ...q,
+      subtotal: Number(q.subtotal) || 0,
+      tax_total: Number(q.tax_total) || 0,
+      grand_total: Number(q.grand_total) || 0,
+      converted_to_invoice: parseIsDeleted(q.converted_to_invoice),
+      items: (getItems.all(q.quotation_id, tenantId) as any[]).map((item: any) => ({
+        ...item,
+        quantity: Number(item.quantity) || 0,
+        weight: item.weight != null ? Number(item.weight) : null,
+        rate: Number(item.rate) || 0,
+        amount: Number(item.amount) || 0,
+      })),
+    }));
+
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/quotations`,
+      token,
+      quotationsWithItems,
+      'quotations',
+      `Quotations batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      totalSynced += synced.length;
+      const tx = db.transaction((ids: string[]) => {
+        for (const id of ids) {
+          updateStmt.run(id, tenantId);
+          updateItemsStmt.run(id, tenantId);
+        }
+      });
+      tx(synced);
+    }
+  }
+  console.log(`[SyncWorker] Pushed ${totalSynced} quotations to cloud.`);
+}
+
+// ── Pull Quotations (Cloud → Edge) ─────────────────────────────────────────────
+async function pullQuotations(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+  let hasContentChanged = false;
+
+  const upsertQtn = db.prepare(`
+    INSERT INTO quotations (
+      quotation_id, tenant_id, quotation_number, customer_name, customer_phone, customer_address,
+      terms_conditions, subtotal, tax_total, grand_total, status, converted_to_invoice, invoice_id,
+      sync_status, created_at, updated_at
+    ) VALUES (
+      @quotation_id, @tenant_id, @quotation_number, @customer_name, @customer_phone, @customer_address,
+      @terms_conditions, @subtotal, @tax_total, @grand_total, @status, @converted_to_invoice, @invoice_id,
+      'SYNCED', @created_at, @updated_at
+    )
+    ON CONFLICT(quotation_id) DO UPDATE SET
+      customer_name = EXCLUDED.customer_name,
+      customer_phone = EXCLUDED.customer_phone,
+      customer_address = EXCLUDED.customer_address,
+      terms_conditions = EXCLUDED.terms_conditions,
+      subtotal = EXCLUDED.subtotal,
+      tax_total = EXCLUDED.tax_total,
+      grand_total = EXCLUDED.grand_total,
+      status = EXCLUDED.status,
+      converted_to_invoice = EXCLUDED.converted_to_invoice,
+      invoice_id = EXCLUDED.invoice_id,
+      updated_at = EXCLUDED.updated_at,
+      sync_status = 'SYNCED'
+    WHERE quotations.sync_status != 'PENDING'
+  `);
+
+  const upsertItem = db.prepare(`
+    INSERT INTO quotation_items (
+      item_id, quotation_id, tenant_id, product_id, name, quantity, weight, rate, amount, sync_status, created_at
+    ) VALUES (
+      @item_id, @quotation_id, @tenant_id, @product_id, @name, @quantity, @weight, @rate, @amount, 'SYNCED', @created_at
+    )
+    ON CONFLICT(item_id) DO UPDATE SET
+      name = EXCLUDED.name,
+      quantity = EXCLUDED.quantity,
+      weight = EXCLUDED.weight,
+      rate = EXCLUDED.rate,
+      amount = EXCLUDED.amount,
+      sync_status = 'SYNCED'
+  `);
+
+  const deleteItems = db.prepare('DELETE FROM quotation_items WHERE quotation_id = ? AND tenant_id = ?');
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'quotations',
+    urlPath: '/api/sync/quotations',
+    label: 'quotations',
+    onProgress: (fetched) => notifyPullProgress('quotations', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((quotations: any[]) => {
+        for (const q of quotations) {
+          try {
+            upsertQtn.run({
+              quotation_id: q.quotation_id,
+              tenant_id: tenantId,
+              quotation_number: q.quotation_number,
+              customer_name: q.customer_name || null,
+              customer_phone: q.customer_phone || null,
+              customer_address: q.customer_address || null,
+              terms_conditions: q.terms_conditions || null,
+              subtotal: Number(q.subtotal) || 0,
+              tax_total: Number(q.tax_total) || 0,
+              grand_total: Number(q.grand_total) || 0,
+              status: q.status || 'ACTIVE',
+              converted_to_invoice: parseIsDeleted(q.converted_to_invoice),
+              invoice_id: q.invoice_id || null,
+              created_at: toSqliteDate(q.created_at),
+              updated_at: toSqliteDate(q.updated_at),
+            });
+
+            if (Array.isArray(q.items)) {
+              deleteItems.run(q.quotation_id, tenantId);
+              for (const item of q.items) {
+                upsertItem.run({
+                  item_id: item.item_id,
+                  quotation_id: q.quotation_id,
+                  tenant_id: tenantId,
+                  product_id: item.product_id || null,
+                  name: item.name,
+                  quantity: Number(item.quantity) || 1,
+                  weight: item.weight != null ? Number(item.weight) : null,
+                  rate: Number(item.rate) || 0,
+                  amount: Number(item.amount) || 0,
+                  created_at: toSqliteDate(item.created_at),
+                });
+              }
+            }
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling quotation:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'quotations', 'quotation_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} quotations from cloud.`);
+    hasContentChanged = true;
+  }
+  return hasContentChanged;
+}
+

@@ -319,7 +319,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
       {/* Sticky Page Header */}
       <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-3 select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
           <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
             <Tags className="w-4 h-4" />
           </div>

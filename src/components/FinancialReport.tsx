@@ -13,6 +13,7 @@ import clsx from 'clsx';
 
 interface FinancialReportProps {
   onClose: () => void;
+  isRestricted?: boolean;
 }
 
 interface FinancialData {
@@ -43,7 +44,7 @@ interface FinancialData {
   }>;
 }
 
-export function FinancialReport({ onClose }: FinancialReportProps) {
+export function FinancialReport({ onClose, isRestricted: _isRestricted }: FinancialReportProps) {
   const { tenantId, shopName } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [dateRange, setDateRange] = useState<'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom'>('month');
@@ -266,7 +267,7 @@ export function FinancialReport({ onClose }: FinancialReportProps) {
       
       {/* Top Header Bar */}
       <header className="shrink-0 border-b border-border bg-card shadow-sm z-30">
-        <div className="max-w-7xl mx-auto w-full px-6 flex items-center justify-between py-4 gap-4 select-none">
+        <div className="flex items-center justify-between gap-4 px-5 py-3 select-none">
           <div className="flex items-center gap-3.5 min-w-0">
             <div className="p-2.5 rounded-xl bg-primary/10 text-primary shadow-inner">
               <Landmark className="w-5 h-5" />

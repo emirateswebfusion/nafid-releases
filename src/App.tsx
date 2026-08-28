@@ -7,20 +7,23 @@ import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
 
 const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
-  BILLING: { label: 'Billing', icon: ShoppingCart },
-  CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
-  INVENTORY: { label: 'Inventory', icon: Package },
-  FINANCIAL_REPORT: { label: 'Financial Report', icon: Landmark },
-  COMBO_OFFERS: { label: 'Combo Offers', icon: Boxes },
-  GRADES: { label: 'Categories & Grades', icon: Tags },
+  BILLING: { label: 'Billing / POS', icon: ShoppingCart },
   SALES_HISTORY: { label: 'Sales History', icon: TrendingUp },
-  CUSTOMERS: { label: 'Customers', icon: UserCheck },
-  SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
+  CASHIER_SETTLEMENT: { label: 'Cashier Settlement', icon: Banknote },
   QUOTATIONS: { label: 'Quotations', icon: FileText },
-  WARRANTIES: { label: 'Warranties', icon: ShieldCheck },
   RETURNS: { label: 'Returns', icon: Undo2 },
-  PURCHASE_BILLS: { label: 'Purchase Bills', icon: Receipt },
+  WARRANTIES: { label: 'Warranties', icon: ShieldCheck },
+  CUSTOMERS: { label: 'Customers', icon: UserCheck },
+  PARTIES: { label: 'Suppliers & Parties', icon: Handshake },
+  INVENTORY: { label: 'Inventory', icon: Package },
   STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
+  PURCHASE_BILLS: { label: 'Purchase Bills', icon: Receipt },
+  COMBO_OFFERS: { label: 'Combo Offers', icon: Boxes },
+  SCRAP_MANAGER: { label: 'Scrap Manager', icon: Trash2 },
+  FINANCIAL_REPORT: { label: 'Financial Report', icon: Landmark },
+  GRADES: { label: 'Categories & Grades', icon: Tags },
+  PRICING_TIERS: { label: 'Pricing Tiers', icon: BadgePercent },
+  PAYMENT_METHODS: { label: 'Payment Methods', icon: Wallet },
   SETTINGS: { label: 'Settings', icon: Settings },
 };
 import { BillingPage } from './components/BillingPage';
@@ -530,30 +533,38 @@ function App() {
       switch (activePage) {
         case 'BILLING':
           return <BillingPage />;
-        case 'CASHIER_SETTLEMENT':
-          return <CashierSettlement onClose={() => {}} isRestricted={true} />;
-        case 'INVENTORY':
-          return <InventoryManager onClose={() => {}} isRestricted={true} />;
-        case 'COMBO_OFFERS':
-          return <ComboManager onClose={() => {}} />;
         case 'SALES_HISTORY':
           return <SalesHistory onClose={() => {}} isRestricted={true} />;
-        case 'CUSTOMERS':
-          return <CustomersPage onClose={() => {}} isRestricted={true} />;
-        case 'SCRAP_MANAGER':
-          return <ScrapManager onClose={() => {}} isRestricted={true} />;
+        case 'CASHIER_SETTLEMENT':
+          return <CashierSettlement onClose={() => {}} isRestricted={true} />;
         case 'QUOTATIONS':
           return <QuotationManager onClose={() => {}} isRestricted={true} />;
         case 'RETURNS':
           return <ReturnManager onClose={() => {}} isRestricted={true} />;
         case 'WARRANTIES':
           return <WarrantyManager onClose={() => {}} isRestricted={true} />;
-        case 'PURCHASE_BILLS':
-          return <PurchaseBillManager onClose={() => {}} isRestricted={true} />;
+        case 'CUSTOMERS':
+          return <CustomersPage onClose={() => {}} isRestricted={true} />;
+        case 'PARTIES':
+          return <PartyManager onClose={() => {}} />;
+        case 'INVENTORY':
+          return <InventoryManager onClose={() => {}} isRestricted={true} />;
         case 'STOCK_REPORT':
           return <StockReport onClose={() => {}} isRestricted={true} />;
+        case 'PURCHASE_BILLS':
+          return <PurchaseBillManager onClose={() => {}} isRestricted={true} />;
+        case 'COMBO_OFFERS':
+          return <ComboManager onClose={() => {}} />;
+        case 'SCRAP_MANAGER':
+          return <ScrapManager onClose={() => {}} isRestricted={true} />;
+        case 'FINANCIAL_REPORT':
+          return <FinancialReport onClose={() => {}} isRestricted={true} />;
         case 'GRADES':
           return <SettingsGrades onClose={() => {}} isRestricted={true} />;
+        case 'PRICING_TIERS':
+          return <SettingsPricingTiers onClose={() => {}} />;
+        case 'PAYMENT_METHODS':
+          return <PaymentMethods onClose={() => {}} />;
         case 'SETTINGS':
           return <SettingsManager onClose={() => {}} isRestricted={true} />;
         default:
