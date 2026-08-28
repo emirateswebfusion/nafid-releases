@@ -1,3 +1,10 @@
+# Vendora v1.5.33 Release Notes
+
+## What's Changed
+- Implemented background sync worker for multi-table data synchronization and priority invoice/cash updates
+- Enhanced POS operations across `BillingPage`, `QuotationManager`, and Electron main process IPC bridges
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.32...v1.5.33
+
 # Vendora v1.5.32 Release Notes
 
 ## What's Changed
