@@ -4380,7 +4380,7 @@ ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: s
   try {
     const db = getDb();
     const tid = tenant_id || 'global';
-    let query = "SELECT * FROM quotations WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)";
+    let query = "SELECT * FROM quotations WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL) AND (status IS NULL OR status != 'DELETED')";
     const params: any[] = [tid];
     if (search) {
       query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR quotation_number LIKE ?)';
@@ -4408,8 +4408,8 @@ ipcMain.handle('db:deleteQuotation', (event, quotationId: string) => {
   try {
     const db = getDb();
     db.transaction(() => {
+      db.prepare("UPDATE quotations SET status = 'DELETED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE quotation_id = ?").run(quotationId);
       db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(quotationId);
-      db.prepare('DELETE FROM quotations WHERE quotation_id = ?').run(quotationId);
     })();
     return { success: true };
   } catch (error: any) {

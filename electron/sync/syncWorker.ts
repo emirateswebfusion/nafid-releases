@@ -3228,6 +3228,11 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
       const tx = db.transaction((quotations: any[]) => {
         for (const q of quotations) {
           try {
+            if (q.status === 'DELETED' || q.is_deleted) {
+              db.prepare("UPDATE quotations SET status = 'DELETED', sync_status = 'SYNCED' WHERE quotation_id = ?").run(q.quotation_id);
+              deleteItems.run(q.quotation_id, tenantId);
+              continue;
+            }
             upsertQtn.run({
               quotation_id: q.quotation_id,
               tenant_id: tenantId,
