@@ -317,10 +317,12 @@ export function BillingPage() {
   const editingQuotationId = useCartStore(s => s.editingQuotationId);
   const editingQuotationNumber = useCartStore(s => s.editingQuotationNumber);
   const setEditingQuotation = useCartStore(s => s.setEditingQuotation);
+  const isQuotationActive = isQuotationMode || Boolean(editingQuotationId);
 
   // Scrap mode (moved before displayGrandTotal which depends on it)
   const isScrapMode = useCartStore(s => s.isScrapMode);
   const setIsScrapMode = useCartStore(s => s.setIsScrapMode);
+  const isScrapActive = isScrapMode || Boolean(editingInvoiceNumber && (editingInvoiceNumber.includes('SCR') || editingInvoiceNumber.includes('Scrap')));
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
@@ -718,7 +720,6 @@ export function BillingPage() {
   const [scrapInvoiceViewLoading, _setScrapInvoiceViewLoading] = useState(false);
 
   // Quotation state
-  const [quotationAddress, setQuotationAddress] = useState('');
   const [quotationTerms, setQuotationTerms] = useState('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
   const [quotationSaving, setQuotationSaving] = useState(false);
   const [quotationSuccess, setQuotationSuccess] = useState<string | null>(null);
@@ -820,6 +821,7 @@ export function BillingPage() {
         unit: tx.unit || 'Kgs',
       });
     });
+    syncActiveSnapshot();
   }, [tenantId, clearCart, addItem, updateActiveTab, setReturnMode, setQuotationMode, clearScrapDeduction, setDiscount]);
 
   useEffect(() => {
@@ -1209,6 +1211,9 @@ export function BillingPage() {
           let offer_price = item.offer_price ?? null;
           let discount_flat = item.discount_flat ?? null;
           let discount_percent = item.discount_percent ?? null;
+          let catalog_discount_percent: number | null = null;
+          let catalog_discount_flat: number | null = null;
+          let catalog_offer_price: number | null = null;
 
           if (p) {
             sku_barcode = p.sku_barcode || null;
@@ -1233,31 +1238,38 @@ export function BillingPage() {
               } catch {}
             }
 
+            // Catalog pricing metadata
+            catalog_offer_price = p.offer_price != null ? Number(p.offer_price) : (p.catalog_offer_price != null ? Number(p.catalog_offer_price) : null);
+            catalog_discount_flat = p.discount_flat != null ? Number(p.discount_flat) : (p.catalog_discount_flat != null ? Number(p.catalog_discount_flat) : null);
+            catalog_discount_percent = p.discount_percent != null ? Number(p.discount_percent) : (p.catalog_discount_percent != null ? Number(p.catalog_discount_percent) : null);
+
             const mrp = Number(p.base_price) || 0;
             const soldPrice = Number(item.unit_price) || 0;
             base_price = Math.max(mrp, soldPrice);
 
-            if (pricing_mode === 'GRADE_RATE' && grade_rate) {
-              const rawRate = Number(grade_rate) || 0;
-              if (soldPrice < rawRate) {
-                const currentOffer = p.offer_price ? Number(p.offer_price) : null;
-                if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
-                  offer_price = currentOffer;
-                } else {
-                  discount_flat = Number((rawRate - soldPrice).toFixed(2));
-                }
-              }
+            const rawRate = pricing_mode === 'GRADE_RATE' && grade_rate ? Number(grade_rate) : mrp;
+
+            // Compute standard catalog effective price
+            const catalogEffectivePrice = catalog_offer_price != null ? catalog_offer_price
+              : catalog_discount_flat != null ? Math.max(0, rawRate - catalog_discount_flat)
+              : catalog_discount_percent != null ? Math.max(0, rawRate * (1 - catalog_discount_percent / 100))
+              : rawRate;
+
+            if (Math.abs(soldPrice - catalogEffectivePrice) < 0.01) {
+              // Sold at standard catalog price / offer! No ad-hoc discount was given on this bill.
+              offer_price = null;
+              discount_flat = null;
+              discount_percent = null;
+            } else if (soldPrice < catalogEffectivePrice) {
+              // Cashier gave an additional ad-hoc discount below catalog price!
+              discount_flat = Number((catalogEffectivePrice - soldPrice).toFixed(2));
+              discount_percent = catalogEffectivePrice > 0 ? Number(((catalogEffectivePrice - soldPrice) / catalogEffectivePrice * 100).toFixed(2)) : null;
+              offer_price = null;
             } else {
-              if (soldPrice < mrp) {
-                const currentOffer = p.offer_price ? Number(p.offer_price) : null;
-                if (currentOffer !== null && Math.abs(currentOffer - soldPrice) < 0.01) {
-                  offer_price = currentOffer;
-                } else {
-                  discount_flat = Number((mrp - soldPrice).toFixed(2));
-                }
-              } else if (soldPrice > mrp) {
-                offer_price = soldPrice;
-              }
+              // Sold at custom price higher than catalog
+              offer_price = soldPrice;
+              discount_flat = null;
+              discount_percent = null;
             }
           } else {
             base_price = Number(item.base_price || item.unit_price) || 0;
@@ -1283,6 +1295,9 @@ export function BillingPage() {
             discount_percent,
             discount_flat,
             offer_price,
+            catalog_discount_percent,
+            catalog_discount_flat,
+            catalog_offer_price,
             sku_barcode,
             brand_manufacturer,
             uom,
@@ -1330,6 +1345,13 @@ export function BillingPage() {
 
         // Sync tab snapshot so items persist across tab switches
         syncActiveSnapshot();
+        setTimeout(() => {
+          window.focus();
+          if (searchRef.current) {
+            searchRef.current.focus();
+            searchRef.current.select();
+          }
+        }, 100);
       } catch (e) {
         console.error('Failed to load edit bill data', e);
       } finally {
@@ -1430,6 +1452,9 @@ export function BillingPage() {
         setHardwareError('Failed to load invoice for return');
       }
     };
+
+    handler();
+
     window.addEventListener('open-return-mode', handler);
     return () => window.removeEventListener('open-return-mode', handler);
   }, []);
@@ -1852,41 +1877,114 @@ export function BillingPage() {
 
   // Listen for open-quotation-edit event
   useEffect(() => {
-    const handler = () => {
+    const handler = async () => {
       const raw = localStorage.getItem('editQuotationData');
       if (!raw) return;
       localStorage.removeItem('editQuotationData');
       try {
-        const { quotation, items: qItems } = JSON.parse(raw);
-        if (!qItems?.length) return;
+        const { quotation, items: qItems, convertToInvoice } = JSON.parse(raw);
         clearCart();
-        setQuotationMode(true);
+        if (convertToInvoice) {
+          setQuotationMode(false);
+          setEditingQuotation(null, null);
+        } else {
+          setQuotationMode(true);
+          setEditingQuotation(quotation.quotation_id, quotation.quotation_number);
+          if (quotation.quotation_number) updateActiveTab({ title: quotation.quotation_number });
+        }
         if (quotation.customer_name) updateActiveTab({ customerName: quotation.customer_name });
         if (quotation.customer_phone) updateActiveTab({ customerPhone: quotation.customer_phone });
-        if (quotation.customer_address) setQuotationAddress(quotation.customer_address);
+        if (quotation.customer_address) updateActiveTab({ customerAddress: quotation.customer_address });
         if (quotation.terms_conditions) setQuotationTerms(quotation.terms_conditions);
-        setEditingQuotation(quotation.quotation_id, quotation.quotation_number);
-        qItems.forEach((item: any) => {
-          const productId = item.product_id || item.item_id || `qtn-${Date.now()}-${Math.random()}`;
-          addItem({
-            product_id: productId,
-            name: item.name || 'Product',
-            base_price: Number(item.rate) || 0,
-            purchase_price: Number(item.rate) || 0,
-            tax_rate_percent: 0,
-            billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : undefined,
+        
+        if (Array.isArray(qItems)) {
+          const productIds = qItems.map((i: any) => i.product_id).filter(Boolean);
+          let productsMap: Record<string, any> = {};
+          if (productIds.length > 0 && window.electronAPI?.dbGetProductsByIds) {
+            try {
+              const prods = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId || 'global', product_ids: productIds });
+              if (Array.isArray(prods)) {
+                prods.forEach((p: any) => { productsMap[p.product_id] = p; });
+              }
+            } catch (e) {
+              console.error('Failed to fetch product details for quotation items:', e);
+            }
+          }
+
+          qItems.forEach((item: any) => {
+            const productId = item.product_id || item.item_id || `qtn-${Date.now()}-${Math.random()}`;
+            const qty = item.weight && Number(item.weight) > 0 ? Number(item.weight) : (Number(item.quantity) || 1);
+            const dbProduct = productsMap[productId] || {};
+            const barcode = item.sku_barcode || item.barcode || dbProduct.sku_barcode || dbProduct.barcode || null;
+            const brand = item.brand_manufacturer || dbProduct.brand_manufacturer || null;
+            const uomVal = item.uom || dbProduct.uom || null;
+
+            addItem({
+              product_id: productId,
+              name: item.name || dbProduct.name || 'Product',
+              base_price: Number(item.rate) || 0,
+              purchase_price: Number(item.rate) || 0,
+              tax_rate_percent: 0,
+              billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : (dbProduct.billing_type || undefined),
+              quantity: qty,
+              sku_barcode: barcode,
+              brand_manufacturer: brand,
+              uom: uomVal,
+            });
           });
-          const qty = item.weight && Number(item.weight) > 0 ? Number(item.weight) : (Number(item.quantity) || 1);
-          if (qty > 0) updateQuantity(productId, qty);
-        });
+        }
         syncActiveSnapshot();
+        setTimeout(() => {
+          window.focus();
+          if (searchRef.current) {
+            searchRef.current.focus();
+            searchRef.current.select();
+          }
+        }, 100);
       } catch (e) {
         console.error('Failed to load quotation edit data', e);
       }
     };
+
+    handler();
+
     window.addEventListener('open-quotation-edit', handler);
     return () => window.removeEventListener('open-quotation-edit', handler);
   }, []);
+
+  // Listen for open-new-quotation event
+  useEffect(() => {
+    const handler = async () => {
+      clearCart();
+      setReturnMode(false);
+      setIsScrapMode(false);
+      setEditingQuotation(null, null);
+      useCartStore.getState().setEditingInvoice(null, null, null);
+      setQuotationMode(true);
+      
+      updateActiveTab({
+        customerName: '',
+        customerPhone: '',
+        customerGstin: '',
+        customerAddress: '',
+        paymentMethod: 'PENDING',
+        receivedAmount: 0,
+        reservedQuotationNumber: '',
+      });
+      await reserveQuotationNumberForTab(true);
+      syncActiveSnapshot();
+      setTimeout(() => {
+        window.focus();
+        if (searchRef.current) {
+          searchRef.current.focus();
+          searchRef.current.select();
+        }
+      }, 100);
+    };
+
+    window.addEventListener('open-new-quotation', handler);
+    return () => window.removeEventListener('open-new-quotation', handler);
+  }, [reserveQuotationNumberForTab]);
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {
@@ -2183,7 +2281,7 @@ export function BillingPage() {
           tenant_id: tid,
           customer_name: customerName,
           customer_phone: customerPhone,
-          customer_address: quotationAddress,
+          customer_address: customerAddress || null,
           terms_conditions: quotationTerms,
           subtotal: qSubtotal,
           tax_total: qTaxTotal,
@@ -2198,7 +2296,7 @@ export function BillingPage() {
           quotation_number: quotationNumber,
           customer_name: customerName,
           customer_phone: customerPhone,
-          customer_address: quotationAddress,
+          customer_address: customerAddress || null,
           terms_conditions: quotationTerms,
           subtotal: qSubtotal,
           tax_total: qTaxTotal,
@@ -2246,7 +2344,7 @@ export function BillingPage() {
                 <div style="text-align: right;">
                   <p><strong>Customer:</strong> ${customerName || 'N/A'}</p>
                   <p><strong>Phone:</strong> ${customerPhone || ''}</p>
-                  <p><strong>Address:</strong> ${quotationAddress || ''}</p>
+                  <p><strong>Address:</strong> ${customerAddress || ''}</p>
                 </div>
               </div>
               <table>
@@ -2313,12 +2411,25 @@ export function BillingPage() {
       }
 
       setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}`);
-      if (!editingQuotationId) {
-        clearCart();
-        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0 });
-        syncActiveSnapshot();
-        setQuotationAddress('');
-        setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+      clearCart();
+      setEditingQuotation(null, null);
+      setQuotationMode(false);
+      updateActiveTab({ 
+        customerName: '', 
+        customerPhone: '', 
+        customerGstin: '', 
+        customerAddress: '', 
+        paymentMethod: 'PENDING', 
+        receivedAmount: 0,
+        reservedQuotationNumber: '',
+      });
+      syncActiveSnapshot();
+      setQuotationTerms('1. Prices are subject to change without prior notice.\n2. This quotation is valid for 15 days.\n3. GST extra as applicable.');
+      reserveInvoiceNumberForTab();
+      const tab = getActiveTab();
+      if (tab?.reservedInvoiceNumber) {
+        const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
+        updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
       }
     } catch (e) {
       setHardwareError('Failed to save quotation');
@@ -3667,13 +3778,13 @@ notes: '',
               }}
               className={clsx(
                 "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-                isScrapMode
+                isScrapActive
                   ? "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30 shadow-sm"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
               )}
               title="Scrap Mode (F5)"
             >
-              <Recycle className={clsx("w-4 h-4", isScrapMode && "text-orange-500")} />
+              <Recycle className={clsx("w-4 h-4", isScrapActive && "text-orange-500")} />
               <span>Scrap</span>
               <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F5</span>
             </button>
@@ -3691,13 +3802,13 @@ notes: '',
               }}
             className={clsx(
               "relative flex items-center gap-1.5 px-3 py-2 text-sm font-bold rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border",
-              isQuotationMode
+              isQuotationActive
                 ? "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30 shadow-sm"
                 : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
             )}
             title="Quotation Mode (F6)"
           >
-            <FileText className={clsx("w-4 h-4", isQuotationMode && "text-blue-500")} />
+            <FileText className={clsx("w-4 h-4", isQuotationActive && "text-blue-500")} />
             <span>Quotation</span>
             <span className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center min-w-[20px] h-4.5 px-1.5 text-[9px] font-black rounded-full leading-none shadow-sm border-2 border-background bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900">F6</span>
           </button>
@@ -3774,9 +3885,9 @@ notes: '',
                 <div className="relative flex-1">
                   <Search className={clsx(
                     "absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-300",
-                    isScrapMode ? "text-orange-500" :
+                    isScrapActive ? "text-orange-500" :
                     isReturnMode ? "text-rose-500" :
-                    isQuotationMode ? "text-blue-500" :
+                    isQuotationActive ? "text-blue-500" :
                     isPastBillMode ? "text-teal-500" :
                     "text-muted-foreground"
                   )} />
@@ -3784,7 +3895,7 @@ notes: '',
                     ref={searchRef}
                     type="text"
                     autoFocus
-                    placeholder={isScrapMode ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationMode ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
+                    placeholder={isScrapActive ? "Search scrap categories... (Scrap Mode)" : isReturnMode ? "Search invoices for return... (Return Mode)" : isQuotationActive ? "Search products... (Quotation Mode)" : isPastBillMode ? "Search past bills by invoice number..." : invoiceType === 'GST' ? "Search GST products or scan barcode... (Press F2)" : "Search products or scan barcode... (Press F2)"}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     onKeyDown={handleSearchKey}
@@ -3792,38 +3903,38 @@ notes: '',
                     style={{
                       borderWidth: '1px',
                       borderStyle: 'solid',
-                      borderColor: isScrapMode
+                      borderColor: isScrapActive
                         ? 'rgb(249,115,22)'
                         : isReturnMode
                         ? 'rgb(244,63,94)'
-                        : isQuotationMode
+                        : isQuotationActive
                         ? 'rgb(59,130,246)'
                         : isPastBillMode
                         ? 'rgb(20,184,166)'
                         : 'hsl(var(--border))',
-                      boxShadow: isScrapMode
+                      boxShadow: isScrapActive
                         ? '0 0 0 3px rgba(249,115,22,0.15)'
                         : isReturnMode
                         ? '0 0 0 3px rgba(244,63,94,0.15)'
-                        : isQuotationMode
+                        : isQuotationActive
                         ? '0 0 0 3px rgba(59,130,246,0.15)'
                         : isPastBillMode
                         ? '0 0 0 3px rgba(20,184,166,0.15)'
                         : undefined,
-                      '--search-focus-color': isScrapMode
+                      '--search-focus-color': isScrapActive
                         ? 'rgb(249,115,22)'
                         : isReturnMode
                         ? 'rgb(244,63,94)'
-                        : isQuotationMode
+                        : isQuotationActive
                         ? 'rgb(59,130,246)'
                         : isPastBillMode
                         ? 'rgb(20,184,166)'
                         : undefined,
-                      '--search-focus-shadow': isScrapMode
+                      '--search-focus-shadow': isScrapActive
                         ? 'rgba(249,115,22,0.2)'
                         : isReturnMode
                         ? 'rgba(244,63,94,0.2)'
-                        : isQuotationMode
+                        : isQuotationActive
                         ? 'rgba(59,130,246,0.2)'
                         : isPastBillMode
                         ? 'rgba(20,184,166,0.2)'
@@ -4519,8 +4630,8 @@ notes: '',
                   );
 
                   const hasAdHocBonus = !!(
-                    (localDiscPcts[item.product_id] && localDiscPcts[item.product_id] > 0) ||
-                    (localDiscFlats[item.product_id] && localDiscFlats[item.product_id] > 0) ||
+                    (localDiscPcts[item.product_id] !== undefined && localDiscPcts[item.product_id] !== null && localDiscPcts[item.product_id] !== (item.catalog_discount_percent ?? 0)) ||
+                    (localDiscFlats[item.product_id] !== undefined && localDiscFlats[item.product_id] !== null && localDiscFlats[item.product_id] !== (item.catalog_discount_flat ?? 0)) ||
                     (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
                     (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
                     (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
@@ -4721,8 +4832,8 @@ notes: '',
                 );
 
                 const hasAdHocDiscount = !!(
-                  (localDiscPcts[item.product_id] && localDiscPcts[item.product_id] > 0) ||
-                  (localDiscFlats[item.product_id] && localDiscFlats[item.product_id] > 0) ||
+                  (localDiscPcts[item.product_id] !== undefined && localDiscPcts[item.product_id] !== null && localDiscPcts[item.product_id] !== (item.catalog_discount_percent ?? 0)) ||
+                  (localDiscFlats[item.product_id] !== undefined && localDiscFlats[item.product_id] !== null && localDiscFlats[item.product_id] !== (item.catalog_discount_flat ?? 0)) ||
                   (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
                   (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
                   (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
@@ -5381,16 +5492,6 @@ notes: '',
                   </span>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1">Customer Address</label>
-                  <input
-                    type="text"
-                    value={quotationAddress}
-                    onChange={e => setQuotationAddress(e.target.value)}
-                    placeholder="Customer address for quotation"
-                    className="w-full bg-background border border-border rounded-lg p-2 text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
-                <div>
                   <label className="block text-xs font-semibold text-muted-foreground mb-1">Terms & Conditions</label>
                   <textarea
                     value={quotationTerms}
@@ -5983,19 +6084,19 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
 
             {/* Action buttons */}
             <div className="flex gap-2.5 px-4 py-3">
-              {isQuotationMode && !editingQuotationId ? (
-                /* ── Quotation Create Mode ── */
+              {isQuotationActive ? (
+                /* ── Quotation Mode (Create or Edit) ── */
                 <>
                   <button
                     onClick={() => handleSaveQuotation(false)}
                     disabled={quotationSaving || items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
+                    className="w-[25%] py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
                   >
                     <Save className="w-3.5 h-3.5 shrink-0" />
                     <span>Save</span>
                   </button>
                   <button
-                    onClick={() => handleSaveQuotation()}
+                    onClick={() => handleSaveQuotation(true)}
                     disabled={quotationSaving || items.length === 0}
                     className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-blue-500 text-white font-black text-sm shadow-md hover:bg-blue-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
                   >
@@ -6007,53 +6108,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     ) : (
                       <>
                         <FileText className="w-4.5 h-4.5" />
-                        <span>SAVE &amp; PRINT</span>
-                      </>
-                    )}
-                  </button>
-                </>
-              ) : editingQuotationId ? (
-                /* ── Quotation Edit Mode ── */
-                <>
-                  <button
-                    onClick={() => handleSaveQuotation(false)}
-                    disabled={quotationSaving || items.length === 0}
-                    className="w-[20%] py-3 rounded-xl border-2 border-blue-400/60 text-blue-600 dark:text-blue-400 font-black text-sm flex items-center justify-center gap-1.5 hover:bg-blue-500/10 hover:border-blue-400 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5 shrink-0" />
-                    <span>Save</span>
-                  </button>
-                  <button
-                    onClick={() => handleSaveQuotation(true)}
-                    disabled={quotationSaving || items.length === 0}
-                    className="w-[35%] py-3 flex items-center justify-center gap-2 rounded-xl border-2 border-blue-500 text-blue-500 font-black text-sm hover:bg-blue-500/10 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-sm"
-                  >
-                    {quotationSaving ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
-                        <span>SAVING...</span>
-                      </>
-                    ) : (
-                      <>
-                        <FileText className="w-4.5 h-4.5" />
-                        <span>SAVE &amp; PRINT</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => handleCheckout()}
-                    disabled={isCheckingOut || items.length === 0}
-                    className="flex-1 py-3 flex items-center justify-center gap-2 rounded-xl bg-emerald-500 text-white font-black text-sm shadow-md hover:bg-emerald-600 transition-all duration-200 active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed tracking-wide cursor-pointer"
-                  >
-                    {isCheckingOut ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        <span>FINALIZING...</span>
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-4.5 h-4.5" />
-                        <span>PRINT &amp; BILL (F12)</span>
+                        <span>{editingQuotationId ? 'UPDATE & PRINT (F12)' : 'SAVE & PRINT (F12)'}</span>
                       </>
                     )}
                   </button>

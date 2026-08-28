@@ -189,6 +189,10 @@ function setupCSP() {
 }
 
 function createWindow() {
+  const iconPath = app.isPackaged
+    ? path.join(__dirname, '../dist/logo.png')
+    : path.join(__dirname, '../build/icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -199,7 +203,7 @@ function createWindow() {
       sandbox: true,
     },
     autoHideMenuBar: true,
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
   });
 
   if (!app.isPackaged) {
@@ -4375,9 +4379,9 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
 ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: string; search?: string }) => {
   try {
     const db = getDb();
-    if (!tenant_id) return [];
-    let query = 'SELECT * FROM quotations WHERE tenant_id = ?';
-    const params: any[] = [tenant_id];
+    const tid = tenant_id || 'global';
+    let query = "SELECT * FROM quotations WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)";
+    const params: any[] = [tid];
     if (search) {
       query += ' AND (customer_name LIKE ? OR customer_phone LIKE ? OR quotation_number LIKE ?)';
       params.push(`%${search}%`, `%${search}%`, `%${search}%`);

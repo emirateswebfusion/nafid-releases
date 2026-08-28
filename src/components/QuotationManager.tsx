@@ -43,6 +43,21 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   const [showDetail, setShowDetail] = useState(false);
   
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    confirmText: string;
+    variant: 'blue' | 'red' | 'emerald';
+    onConfirm: () => void;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    variant: 'blue',
+    onConfirm: () => {},
+  });
 
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -52,7 +67,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     setLoading(true);
     try {
       if (window.electronAPI) {
-        const qs = await window.electronAPI.dbGetQuotations({ tenant_id: tenantId || '' });
+        const tid = tenantId || 'global';
+        const qs = await window.electronAPI.dbGetQuotations({ tenant_id: tid });
         if (Array.isArray(qs)) {
           setQuotations(qs);
           localStorage.setItem('nafid_quotations_cache', JSON.stringify(qs));
@@ -73,9 +89,12 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   const handleCreateNewQuotation = () => {
     useCartStore.getState().setRole('BILLER');
     useCartStore.getState().setReturnMode(false);
+    useCartStore.getState().setIsScrapMode(false);
+    useCartStore.getState().setEditingQuotation(null, null);
+    useCartStore.getState().setEditingInvoice(null, null, null);
     useCartStore.getState().setQuotationMode(true);
     useCartStore.getState().clearCart();
-    window.dispatchEvent(new CustomEvent('open-edit-bill'));
+    window.dispatchEvent(new CustomEvent('open-new-quotation'));
     onClose();
   };
 
@@ -127,43 +146,75 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     }
   };
 
-  const handleEditQuotation = async (q: Quotation) => {
-    if (!confirm(`Edit ${q.quotation_number}? This will open it in billing mode.`)) return;
-    if (window.electronAPI) {
-      const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
-      if (Array.isArray(its)) {
-        localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its }));
-        window.dispatchEvent(new CustomEvent('open-quotation-edit'));
-        onClose();
-      }
-    }
+  const handleEditQuotation = (q: Quotation) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: `Edit ${q.quotation_number}`,
+      message: `Are you sure you want to edit ${q.quotation_number}? This will open all quotation items in billing mode.`,
+      confirmText: 'Edit Quotation',
+      variant: 'blue',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        if (window.electronAPI) {
+          const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
+          if (Array.isArray(its)) {
+            localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its }));
+            window.dispatchEvent(new CustomEvent('open-quotation-edit'));
+            onClose();
+          }
+        }
+      },
+    });
   };
 
-  const handleDeleteQuotation = async (q: Quotation) => {
-    if (!confirm(`Delete ${q.quotation_number}? This action cannot be undone.`)) return;
-    if (window.electronAPI) {
-      const res = await window.electronAPI.dbDeleteQuotation(q.quotation_id);
-      if (res.success) {
-        setStatusMessage({ text: `Quotation ${q.quotation_number} deleted`, type: 'success' });
-        loadQuotations();
-        if (showDetail) setShowDetail(false);
-      } else {
-        setStatusMessage({ text: res.error || 'Delete failed', type: 'error' });
-      }
-    }
-    setTimeout(() => setStatusMessage(null), 3000);
+  const handleDeleteQuotation = (q: Quotation) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: `Delete ${q.quotation_number}`,
+      message: `Are you sure you want to delete ${q.quotation_number}? This action cannot be undone.`,
+      confirmText: 'Delete Quotation',
+      variant: 'red',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        if (window.electronAPI) {
+          const res = await window.electronAPI.dbDeleteQuotation(q.quotation_id);
+          if (res.success) {
+            setStatusMessage({ text: `Quotation ${q.quotation_number} deleted`, type: 'success' });
+            setQuotations(prev => {
+              const updated = prev.filter(item => item.quotation_id !== q.quotation_id);
+              localStorage.setItem('nafid_quotations_cache', JSON.stringify(updated));
+              return updated;
+            });
+            await loadQuotations();
+            if (showDetail) setShowDetail(false);
+          } else {
+            setStatusMessage({ text: res.error || 'Delete failed', type: 'error' });
+          }
+        }
+        setTimeout(() => setStatusMessage(null), 3000);
+      },
+    });
   };
 
-  const handleConvertToInvoice = async (q: Quotation) => {
-    if (!confirm(`Convert ${q.quotation_number} to invoice? This will load items directly into POS checkout.`)) return;
-    if (window.electronAPI) {
-      const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
-      if (Array.isArray(its)) {
-        localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its }));
-        window.dispatchEvent(new CustomEvent('open-quotation-edit'));
-        onClose();
-      }
-    }
+  const handleConvertToInvoice = (q: Quotation) => {
+    setConfirmDialog({
+      isOpen: true,
+      title: `Convert ${q.quotation_number}`,
+      message: `Convert ${q.quotation_number} to invoice? This will load items directly into POS checkout.`,
+      confirmText: 'Convert to Invoice',
+      variant: 'emerald',
+      onConfirm: async () => {
+        setConfirmDialog(prev => ({ ...prev, isOpen: false }));
+        if (window.electronAPI) {
+          const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
+          if (Array.isArray(its)) {
+            localStorage.setItem('editQuotationData', JSON.stringify({ quotation: q, items: its, convertToInvoice: true }));
+            window.dispatchEvent(new CustomEvent('open-quotation-edit'));
+            onClose();
+          }
+        }
+      },
+    });
   };
 
   const formatDateLabel = (dateStr: string) => {
@@ -266,15 +317,6 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       )}
 
       <div className="flex-1 overflow-y-auto min-h-0 bg-background">
-        {statusMessage && (
-          <div className={clsx(
-            "mx-6 mt-4 px-4 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
-            statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-          )}>
-            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-            <span className="flex-1">{statusMessage.text}</span>
-          </div>
-        )}
 
         {/* QUOTATION LIST */}
         {!showDetail && (
@@ -446,6 +488,80 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           </div>
         )}
       </div>
+
+      {/* Custom Confirmation Modal */}
+      {confirmDialog.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-card border border-border rounded-2xl shadow-2xl overflow-hidden p-6 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="text-base font-bold text-foreground flex items-center gap-2">
+                <AlertCircle className={clsx(
+                  "w-5 h-5",
+                  confirmDialog.variant === 'red' ? "text-red-500" :
+                  confirmDialog.variant === 'emerald' ? "text-emerald-500" :
+                  "text-blue-500"
+                )} />
+                <span>{confirmDialog.title}</span>
+              </h3>
+              <button
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {confirmDialog.message}
+            </p>
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer border border-border"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDialog.onConfirm}
+                className={clsx(
+                  "px-4 py-2 text-white font-bold text-xs rounded-xl transition-all active:scale-95 shadow-sm cursor-pointer border-0",
+                  confirmDialog.variant === 'red' ? "bg-red-500 hover:bg-red-600" :
+                  confirmDialog.variant === 'emerald' ? "bg-emerald-500 hover:bg-emerald-600" :
+                  "bg-blue-500 hover:bg-blue-600"
+                )}
+              >
+                {confirmDialog.confirmText}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast Notification */}
+      {statusMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300 pointer-events-auto">
+          <div className={clsx(
+            "flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-md text-xs font-bold transition-all",
+            statusMessage.type === 'success'
+              ? "bg-emerald-500/95 dark:bg-emerald-600/95 text-white border-emerald-400/40 shadow-emerald-500/20"
+              : "bg-destructive/95 text-white border-destructive/40 shadow-destructive/20"
+          )}>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
+            ) : (
+              <AlertCircle className="w-4 h-4 shrink-0 text-white" />
+            )}
+            <span>{statusMessage.text}</span>
+            <button
+              onClick={() => setStatusMessage(null)}
+              className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5 text-white" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
