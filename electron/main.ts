@@ -1665,7 +1665,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         item.unit_price,
         item.tax_amount,
         item.total,
-        item.pieces_sold || item.pieces_override || null,
+        item.pieces_sold ?? item.pieces_override ?? null,
         item.isServiceItem ? 1 : 0,
         comboId,
         comboDetailsJson
@@ -1812,7 +1812,7 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
         item.unit_price,
         item.tax_amount,
         item.total,
-        item.pieces_sold || item.pieces_override || null,
+        item.pieces_sold ?? item.pieces_override ?? null,
         item.isServiceItem ? 1 : 0,
         comboId,
         comboDetailsJson
@@ -2610,7 +2610,7 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         item.unit_price ?? 0,
         item.tax_amount ?? 0,
         item.total ?? 0,
-        (item as any).pieces_sold || (item as any).pieces_override || null,
+        (item as any).pieces_sold ?? (item as any).pieces_override ?? null,
         (item as any).isServiceItem ? 1 : 0
       );
     }

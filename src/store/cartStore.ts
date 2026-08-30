@@ -164,6 +164,7 @@ export const useCartStore = create<CartState>()(
                 catalog_discount_flat: catalogDiscFlat,
                 catalog_offer_price: catalogOfferPrice,
                 quantity: newItem.quantity ?? 1,
+                pieces_override: newItem.pieces_override ?? 1,
               },
             ],
           };

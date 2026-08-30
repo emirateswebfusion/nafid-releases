@@ -1342,10 +1342,10 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const upsertItem = db.prepare(`
     INSERT INTO invoice_items (
       item_id, invoice_id, tenant_id, product_id,
-      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock
+      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock, pieces_sold
     ) VALUES (
       @item_id, @invoice_id, @tenant_id, @product_id,
-      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock
+      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock, @pieces_sold
     )
     ON CONFLICT(item_id) DO UPDATE SET
       name = excluded.name,
@@ -1353,7 +1353,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       unit_price = excluded.unit_price,
       tax_amount = excluded.tax_amount,
       total = excluded.total,
-      qty_from_paper_stock = excluded.qty_from_paper_stock
+      qty_from_paper_stock = excluded.qty_from_paper_stock,
+      pieces_sold = COALESCE(excluded.pieces_sold, invoice_items.pieces_sold)
   `);
 
   // Items are replaced per invoice (not just upserted) so items removed from an
@@ -1463,10 +1464,22 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
           }
 
           if (success && Array.isArray(currentInv.items)) {
+            // Save existing pieces_sold from local DB BEFORE deleting — server doesn't store
+            // this field so we must preserve the locally-typed values ourselves.
+            const existingPiecesSold: Record<string, number | null> = {};
+            const existingRows = db.prepare('SELECT item_id, pieces_sold FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?').all(currentInv.invoice_id, currentInv.tenant_id) as any[];
+            for (const row of existingRows) {
+              existingPiecesSold[row.item_id] = row.pieces_sold != null ? Number(row.pieces_sold) : null;
+            }
+
             // Replace items per invoice so lines removed from an edited bill are deleted
             // locally too — otherwise they resurrect and reappear on reprints.
             deleteItems.run(currentInv.invoice_id, currentInv.tenant_id);
             for (const item of currentInv.items) {
+              // Prefer: server-returned pieces_sold → previously saved local value → null
+              const preservedPcs = item.pieces_sold != null
+                ? Number(item.pieces_sold)
+                : (existingPiecesSold[item.item_id] ?? null);
               upsertItem.run({
                 item_id: item.item_id,
                 invoice_id: currentInv.invoice_id,
@@ -1478,6 +1491,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 tax_amount: item.tax_amount,
                 total: item.total,
                 qty_from_paper_stock: item.qty_from_paper_stock ?? 0,
+                pieces_sold: preservedPcs,
               });
             }
           }

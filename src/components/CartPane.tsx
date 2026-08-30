@@ -265,7 +265,7 @@ export function CartPane() {
               const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
               const ppk = item.pieces_per_kg || 1;
               const weightKg = Number(item.quantity) || 0;
-              const pieces = item.pieces_override ?? Math.round(weightKg * ppk);
+              const pieces = item.pieces_override ?? 1;
               const itemTotal = effectiveRate * weightKg;
 
               const handlePcsChange = (pcsVal: number) => {

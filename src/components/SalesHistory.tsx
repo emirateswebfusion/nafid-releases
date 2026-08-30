@@ -716,7 +716,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
             discountLabel: item.discountLabel,
             brand: item.brand_manufacturer || undefined,
             billing_type: item.billing_type,
-            pieces_override: item.pieces_override,
+            pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
+            pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
             pieces_per_kg: item.pieces_per_kg,
             unit: item.unit,
             isCombo: isComboItem,
@@ -1791,7 +1792,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                         {(() => {
                           const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
                           const isWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.unit || '').toLowerCase());
-                          const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg ? Math.round(Number(item.quantity) * item.pieces_per_kg) : undefined);
+                          const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg && Number(item.quantity) > 0 ? Math.max(1, Math.round(Number(item.quantity) * item.pieces_per_kg)) : undefined);
                           if (isWeight) {
                             return (
                               <div className="col-span-2 text-center font-bold text-foreground/70">

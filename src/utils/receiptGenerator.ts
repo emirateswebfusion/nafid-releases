@@ -72,15 +72,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
   let rateVal = item.unit_price;
 
   if (isWeightHidden) {
-    let pcs = item.pieces_override;
-    if (pcs == null || pcs <= 0) {
-      if (item.pieces_per_kg && item.pieces_per_kg > 0) {
-        pcs = Math.round(Number(item.quantity) * item.pieces_per_kg);
-      } else {
-        const numQty = Number(item.quantity);
-        pcs = Number.isInteger(numQty) && numQty > 0 ? numQty : Math.max(1, Math.round(numQty));
-      }
-    }
+    let pcs = item.pieces_override ?? 1;
     if (pcs > 0) {
       rateVal = item.total / pcs;
     }

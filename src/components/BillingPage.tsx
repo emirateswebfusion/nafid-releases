@@ -59,9 +59,8 @@ function formatCurrency(amount: number): string {
   return `\u20B9${amount.toFixed(2)}`;
 }
 
-// Scanner-burst detection shared by qty-like inputs. Returns true when the keystroke
-// is part of a barcode-scan burst (printable keys <= 50ms apart) and the leaked first
-// digit has been reverted to the trusted pre-burst value.
+const scannerBurstTracker: Record<string, { count: number; lastTime: number; snapshot: number | string }> = {};
+
 function detectScannerBurst(
   keyTimes: Record<string, number>,
   snapshots: Record<string, number | string>,
@@ -70,14 +69,18 @@ function detectScannerBurst(
   restore: (v: number | string) => void,
 ): boolean {
   const now = Date.now();
-  const prev = keyTimes[productId];
-  keyTimes[productId] = now;
-  if (prev && now - prev <= 50) {
-    const snapshot = snapshots[productId];
-    if (snapshot !== undefined) restore(snapshot);
-    return true;
+  const tracker = scannerBurstTracker[productId] || { count: 0, lastTime: 0, snapshot: currentValue };
+  if (tracker.lastTime && now - tracker.lastTime <= 35) {
+    tracker.count += 1;
+    tracker.lastTime = now;
+    scannerBurstTracker[productId] = tracker;
+    if (tracker.count >= 4) {
+      if (tracker.snapshot !== undefined) restore(tracker.snapshot);
+      return true;
+    }
+  } else {
+    scannerBurstTracker[productId] = { count: 1, lastTime: now, snapshot: currentValue };
   }
-  snapshots[productId] = currentValue;
   return false;
 }
 
@@ -189,10 +192,9 @@ export function BillingPage() {
       items.forEach(item => {
         const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
         if (isPiecesWeight) {
-          const kg = Number(item.quantity) || 0;
-          const ppk = item.pieces_per_kg || 1;
-          const pcs = item.pieces_override ?? Math.round(kg * ppk);
-          if (!(item.product_id in prev) || (item.pieces_override !== undefined && Number(prev[item.product_id]) !== item.pieces_override)) {
+          // Only initialise for brand-new items — NEVER overwrite a value the user has already typed.
+          if (!(item.product_id in prev)) {
+            const pcs = item.pieces_override ?? 1;
             next[item.product_id] = String(pcs);
             changed = true;
           }
@@ -604,9 +606,7 @@ export function BillingPage() {
   }, 0);
   const totalPcs = items.reduce((sum, item) => {
     if (item.billing_type === 'WEIGHT' || ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'].includes((item.uom || '').toLowerCase())) {
-      const ppk = item.pieces_per_kg || 1;
-      const weightKg = Number(item.quantity) || 0;
-      const pieces = item.pieces_override ?? Math.round(weightKg * ppk);
+      const pieces = item.pieces_override ?? 1;
       return sum + pieces;
     }
     return sum + (Number(item.quantity) || 0);
@@ -1321,9 +1321,15 @@ export function BillingPage() {
           : (Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : 0);
         const effDiscType = invoice.discount_type || 'FIXED';
 
-        // Clear previous local string cache so edit bill values take effect
-        setLocalPcsStr({});
-        setLocalKgStr({});
+        // Populate local string cache with loaded bill values so edit bill values display instantly
+        const loadedPcsMap: Record<string, string> = {};
+        const loadedKgMap: Record<string, string> = {};
+        enrichedItems.forEach(i => {
+          if (i.pieces_override !== undefined) loadedPcsMap[i.product_id] = String(i.pieces_override);
+          if (i.quantity !== undefined) loadedKgMap[i.product_id] = String(i.quantity);
+        });
+        setLocalPcsStr(loadedPcsMap);
+        setLocalKgStr(loadedKgMap);
 
         // Clear previous state and set all loaded invoice data in ONE single atomic Zustand update!
         useCartStore.setState({
@@ -2801,6 +2807,29 @@ notes: '',
     }
 
     // ── Normal Mode Checkout ──
+    // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
+    const pcsSnapshot: Record<string, number> = {};
+    items.forEach(item => {
+      const domInput = qtyRefs.current[item.product_id];
+      if (domInput) {
+        const domVal = domInput.value.replace(/[^\d]/g, '');
+        const parsed = parseInt(domVal, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          pcsSnapshot[item.product_id] = parsed;
+          return;
+        }
+      }
+      const strVal = localPcsStr[item.product_id];
+      if (strVal !== undefined && strVal !== '') {
+        const parsed = parseInt(strVal, 10);
+        if (!isNaN(parsed) && parsed >= 0) {
+          pcsSnapshot[item.product_id] = parsed;
+          return;
+        }
+      }
+      pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
+    });
+
     if (paymentMethod === 'CREDIT') {
       if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
         setHardwareError('Please enter Customer Name and Phone Number for Credit');
@@ -2874,7 +2903,7 @@ notes: '',
         : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
           ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
           : 0);
-      const pieces_sold = item.pieces_override ?? (item.pieces_per_kg ? Math.round(qty * item.pieces_per_kg) : undefined);
+      const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
       return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: itemTax, total, pieces_sold };
     });
 
@@ -4836,7 +4865,7 @@ notes: '',
                 const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
                 const _ppk = item.pieces_per_kg || 1;
                 const weightKg = Number(item.quantity) || 0;
-                const pieces = isPiecesWeight ? (item.pieces_override ?? Math.round(weightKg * _ppk)) : 0;
+                const pieces = isPiecesWeight ? (item.pieces_override ?? 1) : 0;
                 const qty = weightKg;
 
                 // Explicit discount flag — avoids floating-point comparison bugs
@@ -4871,15 +4900,14 @@ notes: '',
                 // Commit Pcs value to store independently without altering Kg
                 const commitPcs = (pcsStr: string, isFinal = false) => {
                   const pcsVal = parseInt(pcsStr, 10);
-                  if (!isNaN(pcsVal) && pcsVal > 0) {
+                  if (!isNaN(pcsVal) && pcsVal >= 0) {
                     updatePiecesOverride(item.product_id, pcsVal);
+                    setLocalPcsStr(p => ({ ...p, [item.product_id]: String(pcsVal) }));
                   } else if (pcsStr === '' && isFinal) {
-                    updatePiecesOverride(item.product_id, undefined);
-                    const autoPcs = Math.round(weightKg * _ppk) || 1;
-                    setLocalPcsStr(p => ({ ...p, [item.product_id]: String(autoPcs) }));
+                    updatePiecesOverride(item.product_id, 1);
+                    setLocalPcsStr(p => ({ ...p, [item.product_id]: '1' }));
                   } else if (isFinal) {
-                    // Restore display on blur/final if empty or invalid
-                    const fallback = (item.pieces_override ?? Math.round(weightKg * _ppk)) || 1;
+                    const fallback = item.pieces_override ?? 1;
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(fallback) }));
                   }
                 };

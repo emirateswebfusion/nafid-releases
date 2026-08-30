@@ -1386,8 +1386,26 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         }
       }
     }
+
+    const itemCols = d.prepare(`PRAGMA table_info(invoice_items)`).all().map((c: any) => c.name);
+    const itemColsToEnsure: Record<string, string> = {
+      pieces_sold: 'INTEGER',
+      is_service_item: 'INTEGER DEFAULT 0',
+      combo_id: 'TEXT',
+      combo_details: 'TEXT',
+    };
+    for (const [colName, colType] of Object.entries(itemColsToEnsure)) {
+      if (!itemCols.includes(colName)) {
+        console.log(`[DB Migration] Auto-ensuring missing column ${colName} (${colType}) in invoice_items...`);
+        try {
+          d.exec(`ALTER TABLE invoice_items ADD COLUMN ${colName} ${colType}`);
+        } catch (colErr: any) {
+          console.warn(`[DB Migration] Failed to auto-add column ${colName} to invoice_items:`, colErr.message);
+        }
+      }
+    }
   } catch (e: any) {
-    console.warn('[DB Migration] Auto-ensure invoice columns error:', e.message);
+    console.warn('[DB Migration] Auto-ensure columns error:', e.message);
   }
 }
 
