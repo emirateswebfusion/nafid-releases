@@ -8,7 +8,7 @@ import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
 export function CartPane() {
-  const { items, lastAddedProductId, updateQuantity, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
+  const { items, lastAddedProductId, updateQuantity, updatePiecesOverride, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const qtyInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   const searchContainerRef = useRef<HTMLDivElement>(null);
@@ -269,8 +269,7 @@ export function CartPane() {
               const itemTotal = effectiveRate * weightKg;
 
               const handlePcsChange = (pcsVal: number) => {
-                const newKg = pcsVal / ppk;
-                updateQuantity(item.product_id, +newKg.toFixed(3));
+                updatePiecesOverride(item.product_id, pcsVal);
               };
 
               const isLastAdded = item.product_id === lastAddedProductId;

@@ -182,15 +182,20 @@ export function BillingPage() {
     });
     // Pcs/Kg local strings: initialise for new items, clean up removed items.
     // Do NOT overwrite if the user is mid-edit (key already present).
+    const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
     setLocalPcsStr(prev => {
       const next = { ...prev };
       let changed = false;
       items.forEach(item => {
-        if (item.billing_type === 'WEIGHT' && item.pieces_per_kg && !(item.product_id in prev)) {
+        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+        if (isPiecesWeight) {
           const kg = Number(item.quantity) || 0;
-          const pcs = item.pieces_override ?? Math.round(kg * item.pieces_per_kg);
-          next[item.product_id] = String(pcs);
-          changed = true;
+          const ppk = item.pieces_per_kg || 1;
+          const pcs = item.pieces_override ?? Math.round(kg * ppk);
+          if (!(item.product_id in prev) || (item.pieces_override !== undefined && Number(prev[item.product_id]) !== item.pieces_override)) {
+            next[item.product_id] = String(pcs);
+            changed = true;
+          }
         }
       });
       Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
@@ -200,9 +205,14 @@ export function BillingPage() {
       const next = { ...prev };
       let changed = false;
       items.forEach(item => {
-        if (item.billing_type === 'WEIGHT' && item.pieces_per_kg && !(item.product_id in prev)) {
-          next[item.product_id] = String(item.quantity ?? '');
-          changed = true;
+        const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
+        if (isPiecesWeight) {
+          const numKg = Number(item.quantity);
+          const curNum = parseFloat(prev[item.product_id] || '');
+          if (!(item.product_id in prev) || (item.quantity !== undefined && (isNaN(curNum) || curNum !== numKg))) {
+            next[item.product_id] = String(item.quantity ?? '');
+            changed = true;
+          }
         }
       });
       Object.keys(next).forEach(id => { if (!ids.has(id)) { delete next[id]; changed = true; } });
@@ -1288,6 +1298,7 @@ export function BillingPage() {
             tax_rate_percent,
             billing_type,
             quantity: qty,
+            pieces_override: item.pieces_sold != null ? Number(item.pieces_sold) : (item.pieces_override != null ? Number(item.pieces_override) : undefined),
             pieces_per_kg,
             pricing_mode,
             grade_id,
@@ -1309,6 +1320,10 @@ export function BillingPage() {
           ? Number(invoice.discount_value) 
           : (Number(invoice.discount_total) > 0 ? Number(invoice.discount_total) : 0);
         const effDiscType = invoice.discount_type || 'FIXED';
+
+        // Clear previous local string cache so edit bill values take effect
+        setLocalPcsStr({});
+        setLocalKgStr({});
 
         // Clear previous state and set all loaded invoice data in ONE single atomic Zustand update!
         useCartStore.setState({
@@ -4853,17 +4868,11 @@ notes: '',
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
 
-                // Commit / live-calculate Pcs value to store and update Kg display
+                // Commit Pcs value to store independently without altering Kg
                 const commitPcs = (pcsStr: string, isFinal = false) => {
                   const pcsVal = parseInt(pcsStr, 10);
                   if (!isNaN(pcsVal) && pcsVal > 0) {
                     updatePiecesOverride(item.product_id, pcsVal);
-                    if (_ppk > 0) {
-                      const newKg = pcsVal / _ppk;
-                      const kgStr = newKg.toFixed(3);
-                      updateQuantity(item.product_id, +kgStr);
-                      setLocalKgStr(p => ({ ...p, [item.product_id]: kgStr }));
-                    }
                   } else if (pcsStr === '' && isFinal) {
                     updatePiecesOverride(item.product_id, undefined);
                     const autoPcs = Math.round(weightKg * _ppk) || 1;
@@ -4874,17 +4883,12 @@ notes: '',
                     setLocalPcsStr(p => ({ ...p, [item.product_id]: String(fallback) }));
                   }
                 };
-                // Commit / live-calculate Kg value to store independently
+                // Commit Kg value to store independently
                 const commitKg = (kgStr: string, isFinal = false) => {
                   const cleaned = sanitizeQtyText(kgStr);
                   const kgVal = parseFloat(cleaned);
                   if (!isNaN(kgVal) && kgVal > 0) {
                     updateQuantity(item.product_id, +kgVal.toFixed(3));
-                    // If pieces_override is not set, update Pcs display from Kg; otherwise keep Pcs set separately
-                    if (item.pieces_override === undefined) {
-                      const autoPcs = Math.round(kgVal * _ppk);
-                      setLocalPcsStr(p => ({ ...p, [item.product_id]: String(autoPcs) }));
-                    }
                   } else if (isFinal) {
                     // Restore display on blur/final if empty or invalid
                     setLocalKgStr(p => ({ ...p, [item.product_id]: String(item.quantity ?? '') }));

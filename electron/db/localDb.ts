@@ -129,6 +129,7 @@ export function initDb() {
         unit_price REAL NOT NULL,
         tax_amount REAL NOT NULL DEFAULT 0,
         total REAL NOT NULL,
+        pieces_sold INTEGER,
         is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1229,8 +1230,12 @@ export function initDb() {
       console.log('[DB Migration] Adding qty_from_paper_stock to invoice_items...');
       db.exec("ALTER TABLE invoice_items ADD COLUMN qty_from_paper_stock REAL DEFAULT 0");
     }
+    if (!iiCols.includes('pieces_sold')) {
+      console.log('[DB Migration] Adding pieces_sold to invoice_items...');
+      db.exec("ALTER TABLE invoice_items ADD COLUMN pieces_sold INTEGER");
+    }
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add qty_from_paper_stock to invoice_items:', e.message);
+    console.warn('[DB Migration] Failed to add columns to invoice_items:', e.message);
   }
 
   // Migration: allow temp (billing-only) items — invoice_items & return_items must not

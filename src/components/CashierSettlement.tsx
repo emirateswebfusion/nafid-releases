@@ -2699,7 +2699,30 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                             )}
                           </div>
                         </div>
-                        <div className="col-span-2 text-center font-bold text-foreground/70">{item.quantity}</div>
+                        {(() => {
+                          const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
+                          const isWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.unit || '').toLowerCase());
+                          const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg ? Math.round(Number(item.quantity) * item.pieces_per_kg) : undefined);
+                          if (isWeight) {
+                            return (
+                              <div className="col-span-2 text-center font-bold text-foreground/70">
+                                {pcs ? (
+                                  <div className="flex flex-col items-center leading-tight">
+                                    <span className="text-xs text-foreground font-black">{pcs} Pcs</span>
+                                    <span className="text-[10px] text-muted-foreground font-semibold">{item.quantity} {item.unit || 'Kg'}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-xs text-foreground font-bold">{item.quantity} {item.unit || 'Kg'}</span>
+                                )}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="col-span-2 text-center font-bold text-foreground/70">
+                              <span className="text-xs text-foreground font-bold">{item.quantity} Pcs</span>
+                            </div>
+                          );
+                        })()}
                         <div className="col-span-2 text-right text-muted-foreground font-semibold">{formatCurrency(Number(item.unit_price))}</div>
                         <div className="col-span-3 text-right font-black text-foreground">{formatCurrency(Number(item.total))}</div>
                       </div>
