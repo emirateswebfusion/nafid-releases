@@ -65,7 +65,10 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
   isWeightHidden: boolean;
 } {
   const showWeightDetails = bs?.showWeightDetails !== false;
-  const isWeightProduct = item.billing_type === 'WEIGHT' || item.unit === 'KG' || item.unit === 'Kg' || item.unit === 'kg' || item.unit === 'KGS' || item.unit === 'Kgs';
+  const isWeightProduct = item.billing_type === 'WEIGHT' || 
+                          item.unit === 'KG' || item.unit === 'Kg' || item.unit === 'kg' || item.unit === 'KGS' || item.unit === 'Kgs' ||
+                          (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold)) ||
+                          (item.pieces_override != null && item.pieces_override > 0 && Number(item.quantity) !== Number(item.pieces_override));
   const isWeightHidden = !showWeightDetails && isWeightProduct;
 
   let qtyStr: string;

@@ -1207,16 +1207,23 @@ export function BillingPage() {
         const enrichedItems: CartItem[] = invoiceItems.map((item: any) => {
           const productId = item.product_id || item.item_id || `edit-${Date.now()}-${Math.random()}`;
           const p = productMap[item.product_id];
+          const isPcsWeight = item.billing_type === 'WEIGHT' ||
+                              (p && (p.billing_type === 'WEIGHT' || ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'].includes((p.uom || '').toLowerCase()))) ||
+                              ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'].includes((item.uom || item.unit || '').toLowerCase()) ||
+                              (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold)) ||
+                              (item.pieces_override != null && item.pieces_override > 0 && Number(item.quantity) !== Number(item.pieces_override));
+
           let sku_barcode = item.sku_barcode || null;
           let brand_manufacturer = item.brand_manufacturer || null;
           let tax_rate_percent = Number(item.tax_rate_percent) || 0;
-          let billing_type = item.billing_type || 'PIECES';
+          let billing_type = isPcsWeight ? 'WEIGHT' : (item.billing_type || 'PIECE');
           let pricing_mode = item.pricing_mode || 'FIXED';
           let purchase_price = Number(item.purchase_price) || 0;
           let grade_id = item.grade_id || null;
           let grade_rate = item.grade_rate || null;
-          let uom = item.uom || 'PCS';
-          let pieces_per_kg: number | undefined = undefined;
+          let uom = item.uom || item.unit || (isPcsWeight ? 'Kgs' : 'PCS');
+          const pcsValForPpk = item.pieces_sold != null ? Number(item.pieces_sold) : (item.pieces_override != null ? Number(item.pieces_override) : undefined);
+          let pieces_per_kg: number | undefined = (pcsValForPpk !== undefined && Number(item.quantity) > 0) ? (pcsValForPpk / Number(item.quantity)) : undefined;
           let base_price = Number(item.base_price) || 0;
           let offer_price = item.offer_price ?? null;
           let discount_flat = item.discount_flat ?? null;
@@ -1229,12 +1236,12 @@ export function BillingPage() {
             sku_barcode = p.sku_barcode || null;
             brand_manufacturer = p.brand_manufacturer || null;
             tax_rate_percent = p.gst_percent || 0;
-            billing_type = p.billing_type || 'PIECES';
+            billing_type = isPcsWeight ? 'WEIGHT' : (p.billing_type || 'PIECE');
             pricing_mode = p.pricing_mode || 'FIXED';
             purchase_price = p.purchase_price || 0;
             grade_id = p.grade_id || null;
             grade_rate = p.grade_rate || null;
-            uom = p.uom || 'PCS';
+            uom = p.uom || (isPcsWeight ? 'Kgs' : 'PCS');
 
             if (p.billing_type === 'WEIGHT' && p.domain_attributes) {
               try {
@@ -2904,7 +2911,18 @@ notes: '',
           ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
           : 0);
       const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
-      return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: qty, unit_price: unitPrice, tax_amount: itemTax, total, pieces_sold };
+      return {
+        item_id: item.item_id || uuidv4(),
+        product_id: item.product_id,
+        name: item.name,
+        quantity: qty,
+        unit_price: unitPrice,
+        tax_amount: itemTax,
+        total,
+        pieces_sold,
+        billing_type: item.billing_type,
+        uom: item.uom || item.unit
+      };
     });
 
     // Build receipt display items
@@ -3406,6 +3424,9 @@ notes: '',
         tax_amount: taxAmount,
         total: itemTotal,
         isServiceItem: item.isServiceItem ? true : false,
+        pieces_sold: item.pieces_override ?? 1,
+        billing_type: item.billing_type,
+        uom: item.uom || item.unit
       };
     });
 

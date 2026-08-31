@@ -130,6 +130,8 @@ export function initDb() {
         tax_amount REAL NOT NULL DEFAULT 0,
         total REAL NOT NULL,
         pieces_sold INTEGER,
+        billing_type TEXT,
+        uom TEXT,
         is_service_item INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1233,6 +1235,14 @@ export function initDb() {
     if (!iiCols.includes('pieces_sold')) {
       console.log('[DB Migration] Adding pieces_sold to invoice_items...');
       db.exec("ALTER TABLE invoice_items ADD COLUMN pieces_sold INTEGER");
+    }
+    if (!iiCols.includes('billing_type')) {
+      console.log('[DB Migration] Adding billing_type to invoice_items...');
+      db.exec("ALTER TABLE invoice_items ADD COLUMN billing_type TEXT");
+    }
+    if (!iiCols.includes('uom')) {
+      console.log('[DB Migration] Adding uom to invoice_items...');
+      db.exec("ALTER TABLE invoice_items ADD COLUMN uom TEXT");
     }
   } catch (e: any) {
     console.warn('[DB Migration] Failed to add columns to invoice_items:', e.message);

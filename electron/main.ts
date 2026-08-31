@@ -1643,8 +1643,8 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
     // 2. Insert items and update stock
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details, billing_type, uom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
     const getDaStmt = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
@@ -1668,7 +1668,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         item.pieces_sold ?? item.pieces_override ?? null,
         item.isServiceItem ? 1 : 0,
         comboId,
-        comboDetailsJson
+        comboDetailsJson,
+        item.billing_type || null,
+        item.uom || item.unit || null
       );
       if (!item.isServiceItem) {
         if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
@@ -1792,8 +1794,8 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
 
     // 2. Insert items and DEDUCT stock (reserve the inventory for this hold)
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details, billing_type, uom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)');
 
@@ -1815,7 +1817,9 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
         item.pieces_sold ?? item.pieces_override ?? null,
         item.isServiceItem ? 1 : 0,
         comboId,
-        comboDetailsJson
+        comboDetailsJson,
+        item.billing_type || null,
+        item.uom || item.unit || null
       );
       if (!item.isServiceItem) {
         if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
@@ -2596,8 +2600,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
     // 4. Insert new items
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, billing_type, uom)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of (items || [])) {
       itemStmt.run(
@@ -2611,7 +2615,9 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         item.tax_amount ?? 0,
         item.total ?? 0,
         (item as any).pieces_sold ?? (item as any).pieces_override ?? null,
-        (item as any).isServiceItem ? 1 : 0
+        (item as any).isServiceItem ? 1 : 0,
+        (item as any).billing_type || null,
+        (item as any).uom || (item as any).unit || null
       );
     }
 

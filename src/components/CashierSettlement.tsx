@@ -267,11 +267,21 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           }
         }
       }
+      let pcsPerKg: number | undefined;
+      if (p?.domain_attributes) {
+        try {
+          const attrs = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+          if (attrs?.pcs_per_kg) pcsPerKg = Number(attrs.pcs_per_kg);
+        } catch {}
+      }
       return {
         ...item,
         originalRate,
         discountLabel,
         brand_manufacturer: p?.brand_manufacturer || item.brand_manufacturer || undefined,
+        billing_type: p?.billing_type || item.billing_type || undefined,
+        pieces_per_kg: pcsPerKg,
+        unit: p?.uom || item.uom || item.unit || undefined,
         isCombo: isComboItem,
         combo_items: comboItemsParsed,
       };
@@ -2701,7 +2711,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         </div>
                         {(() => {
                           const weightUoms = ['kgs', 'grams', 'mtrs', 'ltrs', 'kg', 'gram', 'mtr', 'ltr'];
-                          const isWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.unit || '').toLowerCase());
+                          const isWeight = item.billing_type === 'WEIGHT' || 
+                                           weightUoms.includes((item.unit || '').toLowerCase()) ||
+                                           (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold));
                           const pcs = item.pieces_sold ?? item.pieces_override ?? (item.pieces_per_kg && Number(item.quantity) > 0 ? Math.max(1, Math.round(Number(item.quantity) * item.pieces_per_kg)) : undefined);
                           if (isWeight) {
                             return (
