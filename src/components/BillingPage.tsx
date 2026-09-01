@@ -3036,8 +3036,8 @@ notes: '',
 
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
-      const isB2B = invoiceType === 'GST' && (customerGstin || '').trim() !== '';
-      const useA4 = isB2B || printFmt?.format === 'a4';
+      const isHalfA4 = printFmt?.format === 'half-a4';
+      const useA4 = isB2B || printFmt?.format === 'a4' || isHalfA4;
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
       const state = useCartStore.getState();
@@ -3216,7 +3216,8 @@ notes: '',
       if (!saveOnly) {
         try {
           if (useA4) {
-            const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+            const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt?.style || 'standard');
+            const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
             const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
             if (!printResult.success && printResult.useDefaultDialog) {
               const pw = window.open('', '_blank');

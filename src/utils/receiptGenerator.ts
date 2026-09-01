@@ -203,7 +203,7 @@ export interface ReceiptData {
  * @param style The receipt layout style.
  * @returns The formatted plain text string.
  */
-function numberToIndianWords(amount: number): string {
+export function numberToIndianWords(amount: number): string {
   if (amount === 0) return 'Zero';
   const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
     'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];

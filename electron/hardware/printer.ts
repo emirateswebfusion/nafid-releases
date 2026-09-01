@@ -108,7 +108,8 @@ export function initPrinter() {
 
       if (config.deviceName) {
         currentA4Html = htmlContent;
-        await printA4USB(config.deviceName);
+        const isA5 = htmlContent.includes('A5 landscape') || htmlContent.includes('size: A5');
+        await printA4USB(config.deviceName, isA5 ? 'A5' : 'A4');
       } else {
         // No specific A4 printer configured — use default print dialog via popup
         return { success: false, useDefaultDialog: true };
@@ -415,7 +416,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
   });
 }
 
-function printA4USB(deviceName: string): Promise<void> {
+function printA4USB(deviceName: string, pageSize: string = 'A4'): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
@@ -447,7 +448,7 @@ function printA4USB(deviceName: string): Promise<void> {
         silent: true,
         deviceName: deviceName,
         margins: { marginType: 'default' },
-        pageSize: 'A4'
+        pageSize: pageSize as any
       }, (success, failureReason) => {
         clearTimeout(timer);
         setTimeout(() => {

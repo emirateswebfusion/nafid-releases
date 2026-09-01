@@ -165,7 +165,7 @@ function parseReceiptToRows(input: string): ReceiptRow[] {
 interface PaperPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
-  format: 'thermal' | 'a4';
+  format: 'thermal' | 'a4' | 'half-a4';
   thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
   a4Style: 'standard' | 'modern' | 'classic';
   paperWidth: number;
@@ -185,6 +185,9 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
     if (format === 'thermal') {
       const data = createSampleReceiptData(showProductOffers, billSettings);
       return generateReceiptText(data, paperWidth, undefined, style);
+    } else if (format === 'half-a4') {
+      const data = createSampleInvoiceData(showProductOffers, billSettings);
+      return generateInvoiceHtml(data, 'half-a4');
     } else {
       const data = createSampleInvoiceData(showProductOffers, billSettings);
       return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
@@ -474,24 +477,28 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
             </div>
           ) : (
             <div
-              className="bg-white shadow-2xl overflow-hidden"
+              className="bg-white shadow-2xl overflow-hidden rounded-md border border-gray-300"
               style={{
-                width: '820px',
-                minHeight: '1100px',
+                width: format === 'half-a4' ? '740px' : '820px',
+                minHeight: format === 'half-a4' ? '520px' : '1100px',
               }}
             >
-              <div className="bg-gray-100 px-4 py-1 flex items-center gap-2 border-b border-gray-200">
-                <div className="w-2 h-2 rounded-full bg-red-400" />
-                <div className="w-2 h-2 rounded-full bg-yellow-400" />
-                <div className="w-2 h-2 rounded-full bg-green-400" />
-                <span className="text-[10px] text-gray-400 ml-2 font-mono">a4-invoice</span>
+              <div className="bg-gray-100 px-4 py-1.5 flex items-center justify-between border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-2.5 h-2.5 rounded-full bg-red-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
+                  <span className="text-[11px] text-gray-600 font-mono font-bold ml-2 uppercase">
+                    {format === 'half-a4' ? '📄 A5 LANDSCAPE (210mm × 148.5mm)' : '📑 FULL A4 INVOICE (210mm × 297mm)'}
+                  </span>
+                </div>
               </div>
               <iframe
                 srcDoc={content}
-                title="A4 Invoice Preview"
+                title={format === 'half-a4' ? "A5 Preview" : "A4 Invoice Preview"}
                 className="w-full border-0"
                 style={{
-                  height: '1100px',
+                  height: format === 'half-a4' ? '520px' : '1100px',
                   background: '#fff',
                 }}
                 sandbox="allow-same-origin"

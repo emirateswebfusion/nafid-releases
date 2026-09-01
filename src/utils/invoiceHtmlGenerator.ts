@@ -1,4 +1,4 @@
-import { type BillSettings, formatPrintItem } from './receiptGenerator';
+import { type BillSettings, formatPrintItem, numberToIndianWords } from './receiptGenerator';
 
 export interface InvoiceItemDisplay {
   name: string;
@@ -61,7 +61,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
-    case 'ESTIMATE': return 'BILL OF SUPPLY';
+    case 'ESTIMATE': return 'ORG. ESTIMATE';
     default: return 'INVOICE';
   }
 }
@@ -75,14 +75,230 @@ function formatItemNameForBill(name: string, isCombo?: boolean): string {
   return formatted;
 }
 
-export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' = 'standard'): string {
+export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' | 'half-a4' = 'standard'): string {
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
   const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B);
 
+  if (style === 'half-a4') return generateHalfA4Html(data, title);
   if (style === 'modern') return generateModernHtml(data, title);
   if (style === 'classic') return generateClassicHtml(data, title);
   return generateStandardHtml(data, title);
+}
+
+export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
+  const title = titleStr || (data.billSettings?.estimateMode ? 'ORG. ESTIMATE' : 'ESTIMATE / BILL');
+  const netPayable = data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0));
+
+  const itemsHtml = data.items.map((item, idx) => {
+    const fmt = formatPrintItem(item, data.billSettings);
+    const displayName = formatItemNameForBill(item.name, item.isCombo);
+    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#555;">(${item.brand})</span>` : '';
+    return `
+    <tr>
+      <td style="text-align:center; padding: 4px 6px;">${idx + 1}</td>
+      <td style="padding: 4px 6px;">${displayName}${brandHtml}</td>
+      <td style="text-align:right; padding: 4px 6px;">${fmt.displayRate}</td>
+      <td style="text-align:center; padding: 4px 6px;">${fmt.displayQty}</td>
+      <td style="text-align:right; padding: 4px 6px; font-weight: 600;">${fmt.displayTotal}</td>
+    </tr>
+    `;
+  }).join('');
+
+  const amountWords = numberToIndianWords(Math.max(0, netPayable));
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title} - ${data.shopName || 'Estimate'}</title>
+  <style>
+    @page {
+      size: A5 landscape;
+      margin: 6mm 8mm;
+    }
+    @media print {
+      html, body {
+        width: 210mm;
+        height: 148mm;
+        margin: 0;
+        padding: 0;
+      }
+    }
+    body {
+      font-family: Arial, sans-serif;
+      font-size: 11px;
+      color: #000;
+      margin: 0;
+      padding: 4mm;
+      box-sizing: border-box;
+      background: #fff;
+    }
+    .bill-card {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 8px;
+    }
+    .header-table td {
+      vertical-align: top;
+      font-size: 11px;
+      line-height: 1.4;
+    }
+    .shop-title {
+      font-size: 15px;
+      font-weight: bold;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .doc-title {
+      font-size: 14px;
+      font-weight: 900;
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 4px;
+      margin-bottom: 10px;
+    }
+    .items-table th, .items-table td {
+      border: 1px solid #333;
+      padding: 4px 6px;
+      font-size: 11px;
+    }
+    .items-table th {
+      background-color: #f2f2f2;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+    .summary-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-top: auto;
+      padding-top: 6px;
+      border-top: 1px solid #333;
+    }
+    .left-summary {
+      width: 62%;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .right-summary {
+      width: 35%;
+      font-size: 11px;
+      line-height: 1.6;
+      text-align: right;
+    }
+    .words-text {
+      font-style: italic;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .ledger-table {
+      border-collapse: collapse;
+      margin-top: 4px;
+    }
+    .ledger-table td {
+      padding: 1px 4px;
+      font-size: 11px;
+    }
+    .double-underline {
+      border-bottom: 3px double #000;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="bill-card">
+    <div>
+      <table class="header-table">
+        <tr>
+          <td style="width: 32%;">
+            <strong>No. :</strong> ${data.invoiceNumber}<br>
+            <strong>Date :</strong> ${data.date}
+          </td>
+          <td style="width: 36%; text-align: center;">
+            <div class="doc-title">${title}</div>
+            ${data.shopName ? `<div class="shop-title">${data.shopName}</div>` : ''}
+            ${data.shopPhone ? `<div style="font-size:10px;">Ph: ${data.shopPhone}</div>` : ''}
+          </td>
+          <td style="width: 32%; text-align: right;">
+            <strong>To:</strong> ${data.customerName || 'Cash'}<br>
+            ${data.customerAddress ? `${data.customerAddress}<br>` : ''}
+            ${data.customerPhone ? `Ph: ${data.customerPhone}` : ''}
+          </td>
+        </tr>
+      </table>
+
+      <table class="items-table">
+        <thead>
+          <tr>
+            <th style="width: 35px; text-align: center;">S No</th>
+            <th>Description</th>
+            <th style="width: 75px; text-align: right;">Rate</th>
+            <th style="width: 50px; text-align: center;">Qty</th>
+            <th style="width: 85px; text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="summary-container">
+      <div class="left-summary">
+        <div class="words-text">Rupees ${amountWords} Only</div>
+        ${data.receivedAmount != null || data.balanceAmount != null ? `
+        <table class="ledger-table">
+          <tr>
+            <td style="padding-right: 8px;">Sales</td>
+            <td>:</td>
+            <td style="text-align: right; padding-left: 8px;">${data.grandTotal.toFixed(2)}</td>
+          </tr>
+          ${data.receivedAmount != null ? `
+          <tr>
+            <td style="padding-right: 8px;">Cash Received</td>
+            <td>:</td>
+            <td style="text-align: right; padding-left: 8px;">${data.receivedAmount.toFixed(2)}</td>
+          </tr>` : ''}
+          ${data.balanceAmount != null ? `
+          <tr>
+            <td style="padding-right: 8px;">Balance</td>
+            <td>:</td>
+            <td class="double-underline" style="text-align: right; padding-left: 8px;">${data.balanceAmount.toFixed(2)}</td>
+          </tr>` : ''}
+        </table>
+        ` : ''}
+      </div>
+
+      <div class="right-summary">
+        <table style="width: 100%;">
+          ${data.discount > 0 ? `
+          <tr>
+            <td style="text-align: right; padding-right: 6px;">Discount :</td>
+            <td style="text-align: right; width: 80px;">${data.discount.toFixed(2)}</td>
+          </tr>` : ''}
+          <tr>
+            <td style="text-align: right; padding-right: 6px; font-weight: bold; font-size: 12px;">Net Amount :</td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px; width: 80px;">${netPayable.toFixed(2)}</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function generateStandardHtml(data: InvoiceData, title: string): string {

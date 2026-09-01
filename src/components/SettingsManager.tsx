@@ -3,7 +3,7 @@ import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
-  Smartphone, X, RotateCcw, Maximize2,
+  Smartphone, X, RotateCcw, Maximize2, Eye,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power
 } from 'lucide-react';
@@ -201,13 +201,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [receiptFont, setReceiptFont] = useState('courier');
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [scrapBillSettings, setScrapBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
-  const [printFormat, setPrintFormat] = useState<'thermal' | 'a4'>('thermal');
+  const [printFormat, setPrintFormat] = useState<'thermal' | 'a4' | 'half-a4'>('thermal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [labelShowShopName, setLabelShowShopName] = useState(true);
   const [printWidth, setPrintWidth] = useState<number>(58);
   const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed'>('standard');
   const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
-  const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | null>(null);
+  const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | 'half-a4' | null>(null);
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
@@ -375,6 +375,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       if (printFmt.format === 'a4') {
         setPrintFormat('a4');
         if (printFmt.style) setA4Style(printFmt.style);
+      } else if (printFmt.format === 'half-a4') {
+        setPrintFormat('half-a4');
       } else {
         setPrintFormat('thermal');
         setPrintWidth(Number(printFmt.width) || 58);
@@ -1000,7 +1002,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               {[
                 { id: 'receipt', label: 'Receipt Printer', icon: Printer },
                 { id: 'barcode', label: 'Barcode Printer', icon: Printer },
-                { id: 'a4', label: 'A4 Printer', icon: FileText },
+                { id: 'a4', label: 'A4 & A5 Printer', icon: FileText },
                 { id: 'scale', label: 'Weighing Scale', icon: Scale },
               ].map((tab) => {
                 const Icon = tab.icon;
@@ -1129,12 +1131,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <div className="space-y-5">
                   <div className="flex items-center gap-3 pb-4 border-b border-border">
                     <FileText className="w-4.5 h-4.5 text-primary" />
-                    <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 Printer Settings</span>
+                    <span className="text-xs font-black uppercase tracking-widest text-foreground">A4 &amp; A5 Printer Settings</span>
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Select A4 Printer</label>
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Select A4 / A5 Printer Device</label>
                     <Select value={a4Printer.deviceName} placeholder="-- Use default system printer --" onChange={v => setA4Printer({ ...a4Printer, deviceName: v })} options={osPrinters.map(p => ({value:p.name,label:p.name}))} />
-                    <p className="text-[10px] text-muted-foreground/75 mt-2">Choose a printer for A4 documents (quotations, invoices, reports). Leave as default to use system printer dialog.</p>
+                    <p className="text-[10px] text-muted-foreground/75 mt-2">Choose the printer to use for A5 estimates &amp; full A4 invoices. Leave as default to use system printer dialog.</p>
                   </div>
                 </div>
               )}
@@ -1276,26 +1278,26 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <span className="text-xs font-black text-primary uppercase tracking-widest">Receipt &amp; Invoice Format</span>
               </div>
               <div className="space-y-6">
-                {/* Format Toggle: Thermal vs A4 */}
+                {/* Format Toggle: Thermal vs Half A4 vs A4 */}
                 <div>
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Paper Format</label>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <button
                       type="button"
                       onClick={() => setPrintFormat('thermal')}
                       className={clsx(
-                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left h-full",
                         printFormat === 'thermal'
                           ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
                           : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
                       )}
                     >
-                      <div className={clsx("p-2.5 rounded-xl", printFormat === 'thermal' ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
-                        <Receipt className="w-5 h-5 shrink-0" />
+                      <div className={clsx("p-2.5 rounded-xl shrink-0", printFormat === 'thermal' ? "bg-blue-500/20 text-blue-600 dark:text-blue-400" : "bg-muted text-muted-foreground")}>
+                        <Receipt className="w-5 h-5" />
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-foreground">Thermal Receipt</p>
-                        <p className="text-xs text-muted-foreground/75 mt-0.5">58mm / 80mm roll paper</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">Thermal Receipt</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">58mm / 80mm roll paper</p>
                       </div>
                       {printFormat === 'thermal' && (
                         <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
@@ -1303,22 +1305,57 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         </div>
                       )}
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPrintFormat('half-a4')}
+                      className={clsx(
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left h-full",
+                        printFormat === 'half-a4'
+                          ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                          : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                      )}
+                    >
+                      <div className={clsx("p-2.5 rounded-xl shrink-0", printFormat === 'half-a4' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">A5 Paper</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Estimate &amp; bill format</p>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setPreviewFormat('half-a4'); }}
+                          className="p-1 text-muted-foreground hover:text-primary rounded-lg hover:bg-primary/10 transition-colors"
+                          title="Preview A5 Format"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        {printFormat === 'half-a4' && (
+                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </button>
+
                     <button
                       type="button"
                       onClick={() => setPrintFormat('a4')}
                       className={clsx(
-                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left h-full",
                         printFormat === 'a4'
                           ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
                           : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
                       )}
                     >
-                      <div className={clsx("p-2.5 rounded-xl", printFormat === 'a4' ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
-                        <FileText className="w-5 h-5 shrink-0" />
+                      <div className={clsx("p-2.5 rounded-xl shrink-0", printFormat === 'a4' ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground")}>
+                        <FileText className="w-5 h-5" />
                       </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-bold text-foreground">A4 Invoice</p>
-                        <p className="text-xs text-muted-foreground/75 mt-0.5">Full-page A4 document</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">A4 Invoice</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Full-page A4 document</p>
                       </div>
                       {printFormat === 'a4' && (
                         <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
@@ -1633,7 +1670,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing thermal receipts.</p>
                     </div>
                   </div>
-                ) : (
+                ) : printFormat === 'half-a4' ? null : (
                   /* A4 Options: Styles */
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div>
