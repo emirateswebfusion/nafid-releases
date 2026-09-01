@@ -35,6 +35,7 @@ export interface BillSettings {
   showWeightDetails?: boolean;
   showPcsForWeightProducts?: boolean;
   showPcsUnit?: boolean;
+  showCreditBalance?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -57,6 +58,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showWeightDetails: true,
   showPcsForWeightProducts: true,
   showPcsUnit: false,
+  showCreditBalance: true,
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
@@ -498,7 +500,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
       text += `${padRight('BALANCE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
       text += LIGHT + '\n';
@@ -638,7 +640,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
       text += `${padRight('Change', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
     }
@@ -794,7 +796,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
       text += `${padRight('CHANGE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
       text += THIN + '\n';
@@ -976,7 +978,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('AMOUNT RECEIVED :', labelW)}  ${padLeft(`₹${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
       text += `${padRight('BALANCE RETURN :', labelW)}  ${padLeft(`₹${data.balanceAmount.toFixed(2)}`, totalW)}\n`;
     }
@@ -1142,7 +1144,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Amount Received:', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
       text += `${padRight('Change Due:', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
       text += LIGHT + '\n';
@@ -1292,7 +1294,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       dotLine('RECEIVED', data.receivedAmount.toFixed(2));
       dotLine('CHANGE', data.balanceAmount.toFixed(2));
       text += DASH + '\n';
@@ -1401,7 +1403,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
       text += `${padRight('CHANGE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
     }
@@ -1547,7 +1549,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.receivedAmount != null && data.balanceAmount != null) {
+    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
       text += `${padRight('Received', labelW)}  ${padLeft(`\u20B9${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
       text += `${padRight('Change', labelW)}  ${padLeft(`\u20B9${data.balanceAmount.toFixed(2)}`, totalW)}\n`;
       text += THIN + '\n';

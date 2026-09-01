@@ -224,18 +224,21 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       <table class="header-table">
         <tr>
           <td style="width: 32%;">
-            <strong>No. :</strong> ${data.invoiceNumber}<br>
+            ${data.billSettings?.showTitle !== false ? `<strong>No. :</strong> ${data.invoiceNumber}<br>` : ''}
             <strong>Date :</strong> ${data.date}
           </td>
           <td style="width: 36%; text-align: center;">
-            <div class="doc-title">${title}</div>
-            ${data.shopName ? `<div class="shop-title">${data.shopName}</div>` : ''}
-            ${data.shopPhone ? `<div style="font-size:10px;">Ph: ${data.shopPhone}</div>` : ''}
+            ${data.billSettings?.showTitle !== false ? `<div class="doc-title">${title}</div>` : ''}
+            ${data.billSettings?.showShopName !== false && data.shopName ? `<div class="shop-title">${data.shopName}</div>` : ''}
+            ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div style="font-size:9.5px; color:#444;">${data.shopAddress}</div>` : ''}
+            ${data.billSettings?.showPhone !== false && data.shopPhone ? `<div style="font-size:10px;">Ph: ${data.shopPhone}</div>` : ''}
+            ${data.billSettings?.showShopGstin !== false && data.shopGstin ? `<div style="font-size:9.5px;">GSTIN: ${data.shopGstin}</div>` : ''}
           </td>
           <td style="width: 32%; text-align: right;">
-            <strong>To:</strong> ${data.customerName || 'Cash'}<br>
+            ${data.billSettings?.showCustomerName !== false ? `<strong>To:</strong> ${data.customerName || 'Cash'}<br>` : ''}
             ${data.customerAddress ? `${data.customerAddress}<br>` : ''}
-            ${data.customerPhone ? `Ph: ${data.customerPhone}` : ''}
+            ${data.customerPhone ? `Ph: ${data.customerPhone}<br>` : ''}
+            ${data.billSettings?.showCustomerGstin !== false && data.customerGstin ? `GSTIN: ${data.customerGstin}` : ''}
           </td>
         </tr>
       </table>
@@ -259,7 +262,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     <div class="summary-container">
       <div class="left-summary">
         <div class="words-text">Rupees ${amountWords} Only</div>
-        ${data.receivedAmount != null || data.balanceAmount != null ? `
+        ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null) ? `
         <table class="ledger-table">
           <tr>
             <td style="padding-right: 8px;">Sales</td>
@@ -296,6 +299,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         </table>
       </div>
     </div>
+    ${data.billSettings?.instructions ? `<div style="margin-top:6px; font-size:9.5px; border-top:1px dashed #666; padding-top:4px;"><strong>Terms &amp; Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
   </div>
 </body>
 </html>`;

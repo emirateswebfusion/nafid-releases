@@ -40,7 +40,7 @@ export const FEATURE_LIST: FeatureDef[] = [
   { key: 'purchase_bills', label: 'Purchase Bills', desc: 'Record and manage GST purchase bills' },
   { key: 'warranties', label: 'Warranty Bills', desc: 'Register and print warranty certificates' },
   { key: 'returns', label: 'Returns', desc: 'Return mode on billing and the returns manager' },
-  { key: 'scrap', label: 'Scrap Management', desc: 'Scrap mode, scrap deduction, and scrap manager' },
+  { key: 'scrap', label: 'Enable Scrap Management', desc: 'Scrap mode, scrap deduction, and scrap manager' },
   { key: 'parties', label: 'Parties / Credit', desc: 'Track credit parties, balances, and payments' },
   { key: 'payments', label: 'Payment Methods', desc: 'Manage bank accounts, cards & UPI ids for receiving payments' },
   { key: 'customers', label: 'Customers', desc: 'Browse customer list, points balances, and purchase history' },

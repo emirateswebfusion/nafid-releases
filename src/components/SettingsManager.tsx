@@ -493,9 +493,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: enableScrap }), name: 'enable_scrap' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(featureFlags.scrap) }), name: 'enable_scrap' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: featureFlags.cash_register }), name: 'show_cash_register' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags, scrap: enableScrap } }), name: 'feature_flags' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags } }), name: 'feature_flags' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode', value: autoPrintBarcode }), name: 'auto_print_barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage', value: gstProfitPercentage }), name: 'gst_profit_percentage' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
@@ -538,9 +538,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setAppTimeFormat(timeFormat);
       useCartStore.setState({ shopState });
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
-      setFeatureFlag('scrap', enableScrap);
+      setEnableScrap(Boolean(featureFlags.scrap));
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap: featureFlags.scrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -924,17 +924,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <span className="text-xs font-black text-purple-600 uppercase tracking-widest">Store Features</span>
               </div>
               <div className="space-y-5">
-                {/* Scrap Toggle */}
-                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <div className="flex-1">
-                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setEnableScrap(!enableScrap)}>Enable Scrap Management</label>
-                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When disabled, all scrap features are hidden globally â€” scrap mode, scrap deduction, and scrap manager.</p>
-                  </div>
-                  <button type="button" onClick={() => setEnableScrap(!enableScrap)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', enableScrap ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', enableScrap ? 'translate-x-5' : 'translate-x-0')} />
-                  </button>
-                </div>
-
                 {/* Cash Register Toggle */}
                 <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <div className="flex-1">
@@ -1323,21 +1312,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         <p className="text-sm font-bold text-foreground truncate">A5 Paper</p>
                         <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Estimate &amp; bill format</p>
                       </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); setPreviewFormat('half-a4'); }}
-                          className="p-1 text-muted-foreground hover:text-primary rounded-lg hover:bg-primary/10 transition-colors"
-                          title="Preview A5 Format"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {printFormat === 'half-a4' && (
-                          <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                          </div>
-                        )}
-                      </div>
+                      {printFormat === 'half-a4' && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                        </div>
+                      )}
                     </button>
 
                     <button
@@ -1419,8 +1398,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                 </div>
 
-                {/* Thermal Options: Width, Style, Cash Drawer, Fonts */}
-                {printFormat === 'thermal' ? (
+                {/* Format Specific Options: Style Selectors */}
+                {printFormat === 'thermal' && (
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Paper Width</span>
@@ -1468,209 +1447,48 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         })}
                       </div>
                     </div>
+                  </div>
+                )}
 
-                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)}>Auto Print Barcode for New Products</label>
-                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">When a new product is created from the Billing page, automatically print its barcode label.</p>
-                      </div>
-                      <button type="button" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoPrintBarcode ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoPrintBarcode ? 'translate-x-5' : 'translate-x-0')} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Receipt</label>
-                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
-                      </div>
-                      <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
-                      </button>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <div className="flex-1">
-                        <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
-                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
-                      </div>
-                      <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                        <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
-                      </button>
-                    </div>
-
-                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                        {[
-                          { key: 'showShopName', label: 'Shop Name' },
-                          { key: 'showShopAddress', label: 'Shop Address' },
-                          { key: 'showPhone', label: 'Phone Number' },
-                          { key: 'showShopGstin', label: 'Shop GSTIN' },
-                          { key: 'showShopState', label: 'Shop State' },
-                          { key: 'showTitle', label: 'Document Title' },
-                          { key: 'showCustomerName', label: 'Customer Name' },
-                          { key: 'showCustomerGstin', label: 'Customer GSTIN' },
-                          { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
-                          { key: 'printFullName', label: 'Full Product Name' },
-                          { key: 'showBrandName', label: 'Product Brand Name' },
-                          { key: 'showWeightDetails', label: 'Weight & Per-Weight Rate (Weight Items)' },
-                          { key: 'showPcsForWeightProducts', label: 'Show Weight Items in PCS (Pieces)' },
-                          { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
-                        ].map(({ key, label }) => {
-                          const forcedOn = key === 'showTitle' && billSettings.estimateMode;
-                          return (
-                            <label key={key} className={`flex items-center gap-3 py-1.5 ${forcedOn ? '' : 'cursor-pointer group text-xs text-foreground font-medium select-none'}`}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (forcedOn) return;
-                                  setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
-                                }}
-                                className={clsx(
-                                  'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                                  (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50',
-                                  forcedOn && 'opacity-50'
-                                )}
-                              >
-                                {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                              </button>
-                              <span>{label}</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-
-                      {billSettings.showBosTaxBreakup && (
-                        <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                          <div className="flex items-center gap-3">
-                            <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.1"
-                              value={billSettings.bosTaxRatePercent}
-                              onChange={e => {
-                                const v = parseFloat(e.target.value) || 0;
-                                setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
-                              }}
-                              className="w-20 px-3 py-1.5 text-xs border border-border/80 rounded-xl bg-background text-foreground text-center font-mono font-bold"
-                            />
-                            <span className="text-[10px] text-muted-foreground/70">Split equally as CGST + SGST</span>
+                {printFormat === 'half-a4' && (
+                  /* A5 Options: Styles */
+                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
+                    <div>
+                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">A5 Estimate &amp; Bill Style</span>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="relative rounded-2xl border-2 border-primary shadow-md ring-2 ring-primary/5 bg-card overflow-hidden transition-all duration-300 hover:shadow-md">
+                          <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
                           </div>
-                          <div className="flex items-center gap-3">
-                            <label className="text-xs text-foreground shrink-0 font-bold">Tax Type</label>
-                            <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner">
+                          <div className="p-3 border-b border-border bg-gradient-to-r from-amber-500/10 to-amber-500/5">
+                            <span className="text-xs font-extrabold text-foreground">Standard A5 Layout</span>
+                          </div>
+                          <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
+                            <div className="relative group flex justify-center">
                               <button
                                 type="button"
-                                onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
-                                className={clsx(
-                                  'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                                  !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
-                                )}
+                                onClick={() => { setPreviewFormat('half-a4'); }}
+                                className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors"
                               >
-                                Exclusive
+                                <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">A5 Estimate Preview</div>
                               </button>
                               <button
                                 type="button"
-                                onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
-                                className={clsx(
-                                  'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                                  billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
-                                )}
+                                onClick={(e) => { e.stopPropagation(); setPreviewFormat('half-a4'); }}
+                                className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"
+                                title="Full Preview"
                               >
-                                Inclusive
+                                <Maximize2 className="w-3.5 h-3.5 text-primary-foreground" />
                               </button>
                             </div>
                           </div>
                         </div>
-                      )}
-
-                      <div className="border-t border-border/40 my-3.5" />
-                      <label className="flex items-center gap-3 cursor-pointer group select-none">
-                        <button
-                          type="button"
-                          onClick={() => setBillSettings(s => ({ ...s, estimateMode: !s.estimateMode, showTitle: !s.estimateMode ? true : s.showTitle }))}
-                          className={clsx(
-                            'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                            billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                          )}
-                        >
-                          {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                        </button>
-                        <div>
-                          <span className="text-xs text-foreground font-bold">Force "BILL OF SUPPLY" title</span>
-                          <p className="text-[10px] text-muted-foreground/75 mt-0.5">Overrides document title to BILL OF SUPPLY.</p>
-                        </div>
-                      </label>
-                    </div>
-
-                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <label className="text-xs font-bold text-foreground mb-3 block">Bill Instructions (T&amp;C)</label>
-                      <textarea
-                        value={billSettings.instructions || ''}
-                        onChange={e => setBillSettings(s => ({ ...s, instructions: e.target.value }))}
-                        placeholder="e.g. 1. Goods once sold will not be taken back.&#10;2. Subject to local jurisdiction.&#10;3. E. &amp; O. E."
-                        rows={4}
-                        className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
-                      />
-                      <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of both thermal receipts and A4 invoices.</p>
-                    </div>
-
-                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
-                      <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                        {[
-                          { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
-                          { key: 'showShopName', label: 'Shop Name' },
-                          { key: 'showShopAddress', label: 'Shop Address' },
-                          { key: 'showPhone', label: 'Phone Number' },
-                          { key: 'showShopGstin', label: 'Shop GSTIN' },
-                          { key: 'showTitle', label: 'Document Title' },
-                          { key: 'showCustomerName', label: 'Customer Name' },
-                        ].map(({ key, label }) => (
-                          <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
-                            <button
-                              type="button"
-                              onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
-                              className={clsx(
-                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                                (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                              )}
-                            >
-                              {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                            </button>
-                            <span>{label}</span>
-                          </label>
-                        ))}
                       </div>
-                    </div>
-
-                    <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Receipt Font</label>
-                      <div className="flex flex-wrap gap-2.5">
-                        {FONT_OPTIONS.map(f => (
-                          <button
-                            type="button"
-                            key={f.id}
-                            onClick={() => setReceiptFont(f.id)}
-                            className={clsx(
-                              'px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer border',
-                              receiptFont === f.id
-                                ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10 border-transparent scale-100 font-extrabold'
-                                : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border/60'
-                            )}
-                            style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
-                          >
-                            {f.name}
-                          </button>
-                        ))}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing thermal receipts.</p>
                     </div>
                   </div>
-                ) : printFormat === 'half-a4' ? null : (
+                )}
+
+                {printFormat === 'a4' && (
                   /* A4 Options: Styles */
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div>
@@ -1706,11 +1524,216 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                 )}
 
-                <div className="p-4 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl flex items-start gap-3">
-                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
-                    Changes apply only to new invoices. Previously generated invoices remain unaffected.
-                  </p>
+                {/* General Bill Settings — ALWAYS VISIBLE for Thermal, A5 & A4 */}
+                <div className="space-y-6 pt-6 border-t border-border/40">
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)}>Auto Print Barcode for New Products</label>
+                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When a new product is created from the Billing page, automatically print its barcode label.</p>
+                    </div>
+                    <button type="button" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoPrintBarcode ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoPrintBarcode ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Bills</label>
+                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
+                    </div>
+                    <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
+                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
+                    </div>
+                    <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
+                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                      {[
+                        { key: 'showShopName', label: 'Shop Name' },
+                        { key: 'showShopAddress', label: 'Shop Address' },
+                        { key: 'showPhone', label: 'Phone Number' },
+                        { key: 'showShopGstin', label: 'Shop GSTIN' },
+                        { key: 'showShopState', label: 'Shop State' },
+                        { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showCustomerName', label: 'Customer Name' },
+                        { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                        { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
+                        { key: 'printFullName', label: 'Full Product Name' },
+                        { key: 'showBrandName', label: 'Product Brand Name' },
+                        { key: 'showWeightDetails', label: 'Weight & Per-Weight Rate (Weight Items)' },
+                        { key: 'showPcsForWeightProducts', label: 'Show Weight Items in PCS (Pieces)' },
+                        { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
+                        { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
+                      ].map(({ key, label }) => {
+                        const forcedOn = key === 'showTitle' && billSettings.estimateMode;
+                        return (
+                          <label key={key} className={`flex items-center gap-3 py-1.5 ${forcedOn ? '' : 'cursor-pointer group text-xs text-foreground font-medium select-none'}`}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (forcedOn) return;
+                                setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
+                              }}
+                              className={clsx(
+                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                                (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50',
+                                forcedOn && 'opacity-50'
+                              )}
+                            >
+                              {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                            </button>
+                            <span>{label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {billSettings.showBosTaxBreakup && (
+                      <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>
+                          <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            step="0.1"
+                            value={billSettings.bosTaxRatePercent}
+                            onChange={e => {
+                              const v = parseFloat(e.target.value) || 0;
+                              setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
+                            }}
+                            className="w-20 px-3 py-1.5 text-xs border border-border/80 rounded-xl bg-background text-foreground text-center font-mono font-bold"
+                          />
+                          <span className="text-[10px] text-muted-foreground/70">Split equally as CGST + SGST</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <label className="text-xs text-foreground shrink-0 font-bold">Tax Type</label>
+                          <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner">
+                            <button
+                              type="button"
+                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
+                              className={clsx(
+                                'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                                !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              Exclusive
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
+                              className={clsx(
+                                'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                                billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                              )}
+                            >
+                              Inclusive
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="border-t border-border/40 my-3.5" />
+                    <label className="flex items-center gap-3 cursor-pointer group select-none">
+                      <button
+                        type="button"
+                        onClick={() => setBillSettings(s => ({ ...s, estimateMode: !s.estimateMode, showTitle: !s.estimateMode ? true : s.showTitle }))}
+                        className={clsx(
+                          'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                          billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                        )}
+                      >
+                        {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                      </button>
+                      <div>
+                        <span className="text-xs text-foreground font-bold">Force "BILL OF SUPPLY" title</span>
+                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">Overrides document title to BILL OF SUPPLY.</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <label className="text-xs font-bold text-foreground mb-3 block">Bill Instructions (T&amp;C)</label>
+                    <textarea
+                      value={billSettings.instructions || ''}
+                      onChange={e => setBillSettings(s => ({ ...s, instructions: e.target.value }))}
+                      placeholder="e.g. 1. Goods once sold will not be taken back.&#10;2. Subject to local jurisdiction.&#10;3. E. &amp; O. E."
+                      rows={4}
+                      className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
+                    />
+                    <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of thermal receipts, A5 estimates, and A4 invoices.</p>
+                  </div>
+
+                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                      {[
+                        { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
+                        { key: 'showShopName', label: 'Shop Name' },
+                        { key: 'showShopAddress', label: 'Shop Address' },
+                        { key: 'showPhone', label: 'Phone Number' },
+                        { key: 'showShopGstin', label: 'Shop GSTIN' },
+                        { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showCustomerName', label: 'Customer Name' },
+                      ].map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
+                          <button
+                            type="button"
+                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
+                            className={clsx(
+                              'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                              (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                            )}
+                          >
+                            {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          </button>
+                          <span>{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Bill / Receipt Font</label>
+                    <div className="flex flex-wrap gap-2.5">
+                      {FONT_OPTIONS.map(f => (
+                        <button
+                          type="button"
+                          key={f.id}
+                          onClick={() => setReceiptFont(f.id)}
+                          className={clsx(
+                            'px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer border',
+                            receiptFont === f.id
+                              ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10 border-transparent scale-100 font-extrabold'
+                              : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border/60'
+                          )}
+                          style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
+                        >
+                          {f.name}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing receipts &amp; bills.</p>
+                  </div>
+
+                  <div className="p-4 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
+                      Changes apply only to new invoices. Previously generated invoices remain unaffected.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
