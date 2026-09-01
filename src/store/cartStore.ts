@@ -41,6 +41,7 @@ export interface CartItem {
   combo_id?: string;
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
   combo_price?: number;
+  hsn_sac_code?: string | null;
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
@@ -240,7 +241,7 @@ export const useCartStore = create<CartState>()(
       setQuotationMode: (isQuotationMode) => set({ isQuotationMode }),
       setEditingQuotation: (quotationId, quotationNumber) => set({ editingQuotationId: quotationId, editingQuotationNumber: quotationNumber }),
       setEditingInvoice: (id, number, role) => set({ editingInvoiceId: id, editingInvoiceNumber: number, editingInvoiceRole: role }),
-      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: false, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
+      clearCart: () => set((state) => ({ items: [], lastAddedProductId: null, discountValue: 0, discountType: 'FIXED', invoiceType: state.invoiceType, customerState: 'KL', scrapDeduction: 0, scrapInvoiceNumber: '', returnDeduction: 0, returnInvoiceNumber: '', isQuotationMode: false, isReturnMode: false, isScrapMode: state.isScrapMode, returnRefundMethod: 'ADJUST_BILL', editingQuotationId: null, editingQuotationNumber: null, editingInvoiceId: null, editingInvoiceNumber: null, editingInvoiceRole: null, pendingScrapInvoiceToEdit: null })),
     }),
     {
       name: 'nafid-cart-storage',

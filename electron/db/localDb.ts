@@ -1384,6 +1384,11 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       converted_to_invoice_id: 'TEXT',
       converted_to_invoice_number: 'TEXT',
       is_deleted: 'INTEGER DEFAULT 0',
+      // GST split (Indian GST Act compliance)
+      cgst_total: 'REAL DEFAULT 0',
+      sgst_total: 'REAL DEFAULT 0',
+      igst_total: 'REAL DEFAULT 0',
+      supply_type: "TEXT DEFAULT 'INTRA'",
     };
 
     for (const [colName, colType] of Object.entries(invoiceColsToEnsure)) {
@@ -1403,6 +1408,15 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
       is_service_item: 'INTEGER DEFAULT 0',
       combo_id: 'TEXT',
       combo_details: 'TEXT',
+      // GST split (Indian GST Act compliance — stored per line item for GSTR reporting)
+      cgst_rate:    'REAL DEFAULT 0',
+      sgst_rate:    'REAL DEFAULT 0',
+      igst_rate:    'REAL DEFAULT 0',
+      cgst_amount:  'REAL DEFAULT 0',
+      sgst_amount:  'REAL DEFAULT 0',
+      igst_amount:  'REAL DEFAULT 0',
+      hsn_sac_code: 'TEXT',
+      supply_type:  "TEXT DEFAULT 'INTRA'",
     };
     for (const [colName, colType] of Object.entries(itemColsToEnsure)) {
       if (!itemCols.includes(colName)) {

@@ -20,6 +20,7 @@ export function ActionPane() {
   const { subtotal, cgst, sgst, igst, totalTax, discount, grandTotal } = useCartTotals();
   const { theme, toggleTheme } = useThemeStore();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const isCheckingOutRef = useRef(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
 
@@ -48,6 +49,8 @@ export function ActionPane() {
 
   const handleCheckout = async () => {
     if (grandTotal === 0 || items.length === 0) return;
+    if (isCheckingOutRef.current) return;
+    isCheckingOutRef.current = true;
 
     if (window.electronAPI) {
       const invoice_id = uuidv4();
@@ -173,6 +176,7 @@ export function ActionPane() {
           setHardwareError(`Hardware connection issue: ${drawerResult.error || 'Check drawer'}`);
         }
 
+        const cartState = useCartStore.getState();
         const result = await window.electronAPI.dbCheckout({
           invoice_id,
           tenant_id: tenantId || 'unset',
@@ -182,29 +186,43 @@ export function ActionPane() {
           subtotal,
           tax_total: totalTax,
           discount_total: discount,
-          discount_type: useCartStore.getState().discountType,
-          discount_value: useCartStore.getState().discountValue,
+          discount_type: cartState.discountType,
+          discount_value: cartState.discountValue,
+          scrap_deduction: cartState.scrapDeduction || 0,
+          scrap_invoice_number: cartState.scrapInvoiceNumber || null,
           grand_total: grandTotal,
           items: lineItems,
         });
 
         if (!result.success) {
           alert('Checkout failed: ' + result.error);
+          isCheckingOutRef.current = false;
           setIsCheckingOut(false);
           return;
         }
+
+        if (cartState.scrapDeduction > 0 && cartState.scrapInvoiceNumber) {
+          await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
+            tenant_id: tenantId || 'global',
+            scrap_invoice_number: cartState.scrapInvoiceNumber,
+            payment_status: 'SETTLED',
+          }).catch(() => {});
+        }
+
         try {
           window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
         } catch (e) { /* ignore */ }
       } catch (e: any) {
         console.error('[ActionPane Checkout Error]', e);
         setHardwareError(`Checkout failed: ${e?.message || 'Communication error with hardware services.'}`);
+        isCheckingOutRef.current = false;
         setIsCheckingOut(false);
         return;
       }
     }
 
     clearCart();
+    isCheckingOutRef.current = false;
     setIsCheckingOut(false);
     setReservedInvoiceNumber('');
     try {

@@ -312,6 +312,7 @@ export function BillingPage() {
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const isCheckingOutRef = useRef(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState<'saved' | 'printed' | false>(false);
 
@@ -335,8 +336,15 @@ export function BillingPage() {
   const isScrapMode = useCartStore(s => s.isScrapMode);
   const setIsScrapMode = useCartStore(s => s.setIsScrapMode);
   const isScrapActive = isScrapMode || Boolean(editingInvoiceNumber && (editingInvoiceNumber.includes('SCR') || editingInvoiceNumber.includes('Scrap')));
-  const [enableScrap, setEnableScrap] = useState(false);
+  const [enableScrap, setEnableScrap] = useState(true);
   const [showCashRegister, setShowCashRegister] = useState(false);
+
+  // Safety sync: ensure scrap mode remains active when editing a scrap invoice
+  useEffect(() => {
+    if (editingInvoiceNumber && (editingInvoiceNumber.includes('SCR') || editingInvoiceNumber.includes('Scrap')) && !isScrapMode) {
+      setIsScrapMode(true);
+    }
+  }, [editingInvoiceNumber, isScrapMode, setIsScrapMode]);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const lastActiveTabId = useRef(activeTabId);
@@ -792,15 +800,15 @@ export function BillingPage() {
     setIsPastBillMode(false);
     setSelectedReturnInvoice(null);
 
-    // Enable Scrap mode and clear cart
-    setIsScrapMode(true);
+    // Clear cart first, then enable Scrap mode
     clearCart();
     clearScrapDeduction();
+    setIsScrapMode(true);
     useCartStore.getState().setEditingInvoice(invNum, invNum, 'OWNER');
     setDiscount(0, 'FIXED');
 
     const firstTx = detail.transactions[0];
-    const savedPaymentStatus = ['CASH', 'CREDIT'].includes(firstTx.payment_status) ? firstTx.payment_status : 'PENDING';
+    const savedPaymentStatus = ['CASH', 'CREDIT', 'SETTLED'].includes(firstTx.payment_status) ? firstTx.payment_status : 'PENDING';
 
     updateActiveTab({
       customerName: firstTx.party_name || '',
@@ -2565,6 +2573,8 @@ export function BillingPage() {
   const handleCheckout = async (saveOnly = false) => {
     if (items.length === 0) return;
     if (!window.electronAPI) return;
+    if (isCheckingOutRef.current) return;
+    isCheckingOutRef.current = true;
 
     const cartStore = useCartStore.getState();
     const editingInvoiceId = cartStore.editingInvoiceId;
@@ -2878,10 +2888,19 @@ notes: '',
 
     // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
     const regularCartItems = items.filter(item => !item.isScrap);
+    // Determine supply type (intra vs inter-state) once for the whole invoice
+    const _shopStateCart = useCartStore.getState().shopState || '';
+    const _customerStateCart = customerState || '';
+    const _isInterState = invoiceType === 'GST'
+      && _shopStateCart.trim().toUpperCase() !== ''
+      && _customerStateCart.trim().toUpperCase() !== ''
+      && _shopStateCart.trim().toUpperCase() !== _customerStateCart.trim().toUpperCase();
+    const _supplyType: 'INTRA' | 'INTER' = _isInterState ? 'INTER' : 'INTRA';
+
     const checkoutItems = regularCartItems.map(item => {
       if (item.isServiceItem) {
         const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
-        return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true };
+        return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: _supplyType };
       }
 
       const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
@@ -2911,6 +2930,27 @@ notes: '',
           ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
           : 0);
       const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
+
+      // ── GST split (Indian GST Act compliance) ────────────────────────────────
+      // INTRA-state → CGST = rate/2, SGST = rate/2; INTER-state → IGST = rate
+      const taxRatePercent = invoiceType === 'GST' ? (item.tax_rate_percent || 0) : (bosTaxRatePercent || 0);
+      const halfRate = taxRatePercent / 2;
+      const round2 = (n: number) => Math.round(n * 100) / 100;
+      let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
+      let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
+      if (itemTax > 0) {
+        if (_supplyType === 'INTER') {
+          igst_rate = taxRatePercent;
+          igst_amount = round2(itemTax);
+        } else {
+          cgst_rate = halfRate;
+          sgst_rate = halfRate;
+          cgst_amount = round2(itemTax / 2);
+          sgst_amount = round2(itemTax / 2);
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       return {
         item_id: item.item_id || uuidv4(),
         product_id: item.product_id,
@@ -2921,7 +2961,12 @@ notes: '',
         total,
         pieces_sold,
         billing_type: item.billing_type,
-        uom: item.uom || item.unit
+        uom: item.uom || item.unit,
+        // GST split
+        cgst_rate, sgst_rate, igst_rate,
+        cgst_amount, sgst_amount, igst_amount,
+        hsn_sac_code: item.hsn_sac_code || null,
+        supply_type: _supplyType,
       };
     });
 
@@ -3064,6 +3109,8 @@ notes: '',
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
+          // GST totals for edited invoice
+          cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
         });
       } else {
@@ -3080,6 +3127,8 @@ notes: '',
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
+          // GST invoice-level totals (Indian GST Act compliance)
+          cgst_total: cgst, sgst_total: sgst, igst_total: igst, supply_type: _supplyType,
           items: checkoutItems,
           scrap_items: [],
           loyalty_enabled: wantsLoyalty,
@@ -3091,7 +3140,25 @@ notes: '',
           remaining_points_balance: remainingPointsBalance,
         });
       }
-      if (!result.success) { setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`); setIsCheckingOut(false); return; }
+      if (!result.success) {
+        setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`);
+        isCheckingOutRef.current = false;
+        setIsCheckingOut(false);
+        return;
+      }
+
+      // Mark scrap credit as SETTLED if scrap deduction was used
+      if (storeScrapDeduction > 0 && storeScrapInvoiceNumber && window.electronAPI) {
+        try {
+          await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
+            tenant_id: tenantId || 'global',
+            scrap_invoice_number: storeScrapInvoiceNumber,
+            payment_status: 'SETTLED',
+          });
+        } catch (e) {
+          console.error('Failed to update scrap invoice payment status to SETTLED:', e);
+        }
+      }
 
       // Consume ADJUST_BILL return credit. Only the portion actually applied to this
       // bill (clamped to the bill total) is settled; any leftover stays as pending
@@ -3178,11 +3245,13 @@ notes: '',
     } catch (err: any) {
       console.error('[Checkout Error]', err);
       setHardwareError(`Checkout failed: ${err?.message || 'Unexpected error'}`);
+      isCheckingOutRef.current = false;
       setIsCheckingOut(false);
       return;
     }
 
     setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
+    isCheckingOutRef.current = false;
     setIsCheckingOut(false);
 
     // Notify the cashier settlement page (if open) to refresh instantly
@@ -5240,9 +5309,10 @@ notes: '',
                 : 'max-h-[280px] opacity-100 scale-100'
             )}>
               {isScrapMode ? (
-              <div className="grid grid-cols-3 gap-1.5">
+              <div className="grid grid-cols-2 gap-1.5">
                 {[
                   { value: 'PENDING' as const, label: 'Pending', icon: Clock, color: 'text-gray-500', activeBg: 'bg-gray-500/10', activeText: 'text-gray-600 dark:text-gray-400', activeBorder: 'border-gray-500', activeIconBg: 'bg-gray-500/15' },
+                  { value: 'SETTLED' as const, label: 'Settled', icon: CheckCircle2, color: 'text-blue-500', activeBg: 'bg-blue-500/10', activeText: 'text-blue-600 dark:text-blue-400', activeBorder: 'border-blue-500', activeIconBg: 'bg-blue-500/15' },
                   { value: 'CASH' as const, label: 'Cash', icon: Banknote, color: 'text-emerald-500', activeBg: 'bg-emerald-500/10', activeText: 'text-emerald-600 dark:text-emerald-400', activeBorder: 'border-emerald-500', activeIconBg: 'bg-emerald-500/15' },
                   { value: 'CREDIT' as const, label: 'Credit', icon: Users, color: 'text-amber-500', activeBg: 'bg-amber-500/10', activeText: 'text-amber-600 dark:text-amber-400', activeBorder: 'border-amber-500', activeIconBg: 'bg-amber-500/15' },
                 ].map(opt => {
@@ -5577,10 +5647,10 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 </span>
               </div>
 
-              {(!isScrapMode || subtotal > 0) && (
+              {(!isScrapMode ? subtotal > 0 : scrapTotal > 0) && (
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground font-semibold text-sm">Items Subtotal</span>
-                <span className="font-bold text-foreground text-sm">{formatCurrency(subtotal)}</span>
+                <span className="font-bold text-foreground text-sm">{formatCurrency(isScrapMode ? scrapTotal : subtotal)}</span>
               </div>
               )}
 

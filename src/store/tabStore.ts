@@ -50,7 +50,7 @@ export interface Tab {
   reservedScrapInvoiceNumber: string;
   reservedQuotationNumber: string;
   reservedReturnNumber: string;
-  scrapPaymentStatus: 'CASH' | 'PENDING' | 'CREDIT';
+  scrapPaymentStatus: 'CASH' | 'PENDING' | 'CREDIT' | 'SETTLED';
 }
 
 interface TabState {

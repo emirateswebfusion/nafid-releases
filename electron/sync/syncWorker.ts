@@ -720,6 +720,11 @@ async function syncInvoices(token: string, tenantId: string) {
       points_redeemed_discount: Number(inv.points_redeemed_discount) || 0,
       previous_points_balance: Number(inv.previous_points_balance) || 0,
       remaining_points_balance: Number(inv.remaining_points_balance) || 0,
+      // GST split totals (Indian GST Act compliance)
+      cgst_total: Number(inv.cgst_total) || 0,
+      sgst_total: Number(inv.sgst_total) || 0,
+      igst_total: Number(inv.igst_total) || 0,
+      supply_type: inv.supply_type || 'INTRA',
       is_deleted: inv.is_deleted === true || inv.is_deleted === 1 || inv.is_deleted === '1' || inv.is_deleted === 'true',
       items: (getItems.all(inv.invoice_id, tenantId) as any[]).map((item: any) => ({
         ...item,
@@ -727,6 +732,15 @@ async function syncInvoices(token: string, tenantId: string) {
         unit_price: Number(item.unit_price) || 0,
         total: Number(item.total) || 0,
         tax_amount: Number(item.tax_amount) || 0,
+        // GST split per line item
+        cgst_rate:   Number(item.cgst_rate)   || 0,
+        sgst_rate:   Number(item.sgst_rate)   || 0,
+        igst_rate:   Number(item.igst_rate)   || 0,
+        cgst_amount: Number(item.cgst_amount) || 0,
+        sgst_amount: Number(item.sgst_amount) || 0,
+        igst_amount: Number(item.igst_amount) || 0,
+        hsn_sac_code: item.hsn_sac_code || null,
+        supply_type:  item.supply_type || 'INTRA',
       })),
     }));
 
@@ -1287,7 +1301,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       previous_points_balance, remaining_points_balance,
       converted_from_invoice_id, converted_from_invoice_number,
       converted_to_invoice_id, converted_to_invoice_number,
-      is_deleted
+      is_deleted,
+      cgst_total, sgst_total, igst_total, supply_type
     ) VALUES (
       @invoice_id, @tenant_id, @invoice_number, @invoice_type,
       @customer_name, @customer_phone, @customer_gstin, @customer_state, @customer_address,
@@ -1300,7 +1315,8 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       @previous_points_balance, @remaining_points_balance,
       @converted_from_invoice_id, @converted_from_invoice_number,
       @converted_to_invoice_id, @converted_to_invoice_number,
-      @is_deleted
+      @is_deleted,
+      @cgst_total, @sgst_total, @igst_total, @supply_type
     )
     ON CONFLICT(invoice_id) DO UPDATE SET
       customer_name = EXCLUDED.customer_name,
@@ -1335,6 +1351,10 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       converted_to_invoice_id = EXCLUDED.converted_to_invoice_id,
       converted_to_invoice_number = EXCLUDED.converted_to_invoice_number,
       is_deleted = EXCLUDED.is_deleted,
+      cgst_total = EXCLUDED.cgst_total,
+      sgst_total = EXCLUDED.sgst_total,
+      igst_total = EXCLUDED.igst_total,
+      supply_type = EXCLUDED.supply_type,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
   `);
@@ -1342,10 +1362,12 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const upsertItem = db.prepare(`
     INSERT INTO invoice_items (
       item_id, invoice_id, tenant_id, product_id,
-      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock, pieces_sold, billing_type, uom
+      name, quantity, unit_price, tax_amount, total, qty_from_paper_stock, pieces_sold, billing_type, uom,
+      cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type
     ) VALUES (
       @item_id, @invoice_id, @tenant_id, @product_id,
-      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock, @pieces_sold, @billing_type, @uom
+      @name, @quantity, @unit_price, @tax_amount, @total, @qty_from_paper_stock, @pieces_sold, @billing_type, @uom,
+      @cgst_rate, @sgst_rate, @igst_rate, @cgst_amount, @sgst_amount, @igst_amount, @hsn_sac_code, @supply_type
     )
     ON CONFLICT(item_id) DO UPDATE SET
       name = excluded.name,
@@ -1356,7 +1378,15 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       qty_from_paper_stock = excluded.qty_from_paper_stock,
       pieces_sold = COALESCE(excluded.pieces_sold, invoice_items.pieces_sold),
       billing_type = COALESCE(excluded.billing_type, invoice_items.billing_type),
-      uom = COALESCE(excluded.uom, invoice_items.uom)
+      uom = COALESCE(excluded.uom, invoice_items.uom),
+      cgst_rate = excluded.cgst_rate,
+      sgst_rate = excluded.sgst_rate,
+      igst_rate = excluded.igst_rate,
+      cgst_amount = excluded.cgst_amount,
+      sgst_amount = excluded.sgst_amount,
+      igst_amount = excluded.igst_amount,
+      hsn_sac_code = excluded.hsn_sac_code,
+      supply_type = excluded.supply_type
   `);
 
   // Items are replaced per invoice (not just upserted) so items removed from an
@@ -1440,6 +1470,10 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 converted_to_invoice_id: currentInv.converted_to_invoice_id || null,
                 converted_to_invoice_number: currentInv.converted_to_invoice_number || null,
                 is_deleted: parseIsDeleted(currentInv.is_deleted),
+                cgst_total: Number(currentInv.cgst_total) || 0,
+                sgst_total: Number(currentInv.sgst_total) || 0,
+                igst_total: Number(currentInv.igst_total) || 0,
+                supply_type: currentInv.supply_type || 'INTRA',
               });
 
               // If this invoice is soft-deleted and was active locally before this pull, restore local product stock
@@ -1507,6 +1541,14 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
                 pieces_sold: preservedPcs,
                 billing_type: preservedBillingType,
                 uom: preservedUom,
+                cgst_rate: Number(item.cgst_rate) || 0,
+                sgst_rate: Number(item.sgst_rate) || 0,
+                igst_rate: Number(item.igst_rate) || 0,
+                cgst_amount: Number(item.cgst_amount) || 0,
+                sgst_amount: Number(item.sgst_amount) || 0,
+                igst_amount: Number(item.igst_amount) || 0,
+                hsn_sac_code: item.hsn_sac_code || null,
+                supply_type: item.supply_type || 'INTRA',
               });
             }
           }

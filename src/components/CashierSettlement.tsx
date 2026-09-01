@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import {
   Search, Banknote, Wallet, Smartphone, CreditCard, SplitSquareHorizontal,
   CheckCircle2, Plus, Minus, History, X, Receipt, DollarSign,
@@ -742,6 +742,25 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const showSettlement = !featureFlags || featureFlags.cash_settlement;
   const showRegister = !featureFlags || featureFlags.cash_register;
   const pageTitle = cashierPageTitle(featureFlags);
+
+  // ── Date grouping (mirrors InventoryManager pattern) ─────────────────────
+  const formatSettlementDate = (dateStr?: string): string => {
+    if (!dateStr) return 'Unknown Date';
+    const d = parseUTCDate(dateStr);
+    if (isNaN(d.getTime())) return 'Unknown Date';
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+    return `${dd}/${mm}/${yyyy} ${dayName}`;
+  };
+
+  const groupedInvoicesByDate = pendingInvoices.reduce<Record<string, typeof pendingInvoices>>((acc, inv) => {
+    const dateKey = formatSettlementDate(inv.created_at);
+    if (!acc[dateKey]) acc[dateKey] = [];
+    acc[dateKey].push(inv);
+    return acc;
+  }, {});
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
@@ -1570,7 +1589,13 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 </div>
               </div>
             ) : (
-              pendingInvoices.map((inv) => {
+              Object.entries(groupedInvoicesByDate).map(([dateLabel, invoices]) => (
+                <Fragment key={dateLabel}>
+                  {/* ── Date group header ── */}
+                  <div className="sticky top-0 z-10 bg-muted/90 backdrop-blur-xs px-4 py-1.5 text-xs font-black text-primary uppercase tracking-wider border-b border-border shadow-2xs">
+                    {dateLabel}
+                  </div>
+                  {invoices.map((inv) => {
                 const rd  = rowDiscs[inv.invoice_id] ?? 0;
                 const plusVal = rowPluses[inv.invoice_id] ?? 0;
                 const rm  = rowMethods[inv.invoice_id] ?? 'CASH';
@@ -1778,7 +1803,9 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     </div>
                   </div>
                 );
-              })
+                  })}
+                </Fragment>
+              ))
             )}
           </div>
         </div>

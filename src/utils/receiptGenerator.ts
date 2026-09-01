@@ -7,6 +7,7 @@ export interface ReceiptItem {
   discountLabel?: string;
   brand?: string;
   billing_type?: string;
+  pieces_sold?: number;
   pieces_override?: number;
   pieces_per_kg?: number;
   unit?: string;

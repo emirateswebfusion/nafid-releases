@@ -220,7 +220,7 @@ function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  const dbPath = path.join(app.getPath('userData'), 'nafid_v2.db');
+  const dbPath = path.join(app.getPath('userData'), 'vendora_v2.db');
   console.log(`[Main] App Data Path: ${app.getPath('userData')}`);
   console.log(`[Main] Database Path: ${dbPath}`);
 
@@ -1591,9 +1591,22 @@ ipcMain.handle('db:deletePartyLedgerEntry', (event, { ledger_id, party_id }: { l
   }
 });
 
+const recentCheckoutsCache = new Map<string, { timestamp: number; result: any }>();
+
 ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
+
+  // Deduplication guard: block duplicate checkout calls within a 4-second window
+  const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
+  const cacheKey = `${invoice.tenant_id || 'global'}:${invoice.grand_total}:${itemsSig}`;
+  const now = Date.now();
+  const cached = recentCheckoutsCache.get(cacheKey);
+  if (cached && (now - cached.timestamp < 4000)) {
+    console.warn(`[db:checkout] Duplicate checkout request blocked within 4s window (Key: ${cacheKey}). Returning previous invoice ${cached.result.invoice_number}`);
+    return cached.result;
+  }
+
   const transaction = db.transaction(() => {
     const customerId = invoice.customer_id || upsertCustomerRecord(
       db,
@@ -1609,9 +1622,10 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
-        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id
+        scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
+        cgst_total, sgst_total, igst_total, supply_type
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -1638,13 +1652,19 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0,
       invoice.return_invoice_number || null,
-      customerId || null
+      customerId || null,
+      // GST split totals (Indian GST Act compliance)
+      invoice.cgst_total ?? 0,
+      invoice.sgst_total ?? 0,
+      invoice.igst_total ?? 0,
+      invoice.supply_type || 'INTRA',
     );
 
     // 2. Insert items and update stock
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details, billing_type, uom)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, combo_id, combo_details, billing_type, uom,
+        cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     const stockStmt = db.prepare('UPDATE products SET current_stock = current_stock - ?, sync_status = \'PENDING\' WHERE product_id = ?');
     const getDaStmt = db.prepare('SELECT domain_attributes FROM products WHERE product_id = ?');
@@ -1670,7 +1690,16 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
         comboId,
         comboDetailsJson,
         item.billing_type || null,
-        item.uom || item.unit || null
+        item.uom || item.unit || null,
+        // GST split per line item (Indian GST Act compliance)
+        item.cgst_rate ?? 0,
+        item.sgst_rate ?? 0,
+        item.igst_rate ?? 0,
+        item.cgst_amount ?? 0,
+        item.sgst_amount ?? 0,
+        item.igst_amount ?? 0,
+        item.hsn_sac_code || null,
+        item.supply_type || 'INTRA',
       );
       if (!item.isServiceItem) {
         if (isCombo && item.combo_items && Array.isArray(item.combo_items)) {
@@ -1699,7 +1728,26 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       }
     }
 
-    // 3. Handle scrap items — create scrap transactions and update scrap stock
+    // 3. Handle scrap credit deduction settlement & single-use validation
+    if (invoice.scrap_invoice_number && Number(invoice.scrap_deduction) > 0) {
+      const existingScrapTx = db.prepare(`
+        SELECT payment_status FROM scrap_transactions
+        WHERE tenant_id = ? AND scrap_invoice_number = ? AND (is_deleted IS NULL OR is_deleted = 0)
+        LIMIT 1
+      `).get(invoice.tenant_id, invoice.scrap_invoice_number) as any;
+
+      if (existingScrapTx && existingScrapTx.payment_status === 'SETTLED') {
+        throw new Error(`Scrap credit ${invoice.scrap_invoice_number} has already been redeemed.`);
+      }
+
+      db.prepare(`
+        UPDATE scrap_transactions
+        SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ? AND scrap_invoice_number = ?
+      `).run(invoice.tenant_id, invoice.scrap_invoice_number);
+    }
+
+    // 4. Handle scrap items — create scrap transactions and update scrap stock
     if (scrap_items && scrap_items.length > 0) {
       const scrapTxStmt = db.prepare(`
         INSERT INTO scrap_transactions (transaction_id, tenant_id, type, scrap_category_id, quantity, rate, total_amount, party_name, customer_phone, customer_address, notes, scrap_invoice_number, payment_status, sync_status, updated_at)
@@ -1741,7 +1789,15 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       runInitialSync().catch(e => console.error('[Main] Immediate sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
 
-    return { success: true };
+    const res = { success: true, invoice_id: invoice.invoice_id, invoice_number: invoice.invoice_number };
+    recentCheckoutsCache.set(cacheKey, { timestamp: now, result: res });
+    if (recentCheckoutsCache.size > 100) {
+      for (const [k, v] of recentCheckoutsCache.entries()) {
+        if (now - v.timestamp > 30000) recentCheckoutsCache.delete(k);
+      }
+    }
+
+    return res;
   } catch (error: any) {
     console.error('[db:checkout]', error);
     return { success: false, error: 'Operation failed' };
@@ -2579,7 +2635,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         discount_value = ?, grand_total = ?, payment_method = ?, split_details = ?,
         customer_name = ?, customer_phone = ?, customer_gstin = ?, customer_state = ?, customer_address = ?,
         scrap_deduction = ?, scrap_invoice_number = ?, return_deduction = ?, return_invoice_number = ?,
-        customer_id = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        customer_id = ?, cgst_total = ?, sgst_total = ?, igst_total = ?, supply_type = ?,
+        sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
     `).run(
       invoice.subtotal, invoice.tax_total, invoice.discount_total,
@@ -2592,6 +2649,8 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
       invoice.scrap_deduction ?? 0, invoice.scrap_invoice_number || null,
       invoice.return_deduction ?? 0, invoice.return_invoice_number || null,
       customerId || null,
+      (invoice as any).cgst_total ?? 0, (invoice as any).sgst_total ?? 0,
+      (invoice as any).igst_total ?? 0, (invoice as any).supply_type || 'INTRA',
       payload.invoice_id
     );
 
@@ -2600,8 +2659,9 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
 
     // 4. Insert new items
     const itemStmt = db.prepare(`
-      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, billing_type, uom)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO invoice_items (item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, pieces_sold, is_service_item, billing_type, uom,
+        cgst_rate, sgst_rate, igst_rate, cgst_amount, sgst_amount, igst_amount, hsn_sac_code, supply_type)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of (items || [])) {
       itemStmt.run(
@@ -2617,7 +2677,15 @@ ipcMain.handle('db:updateInvoice', async (event, payload: {
         (item as any).pieces_sold ?? (item as any).pieces_override ?? null,
         (item as any).isServiceItem ? 1 : 0,
         (item as any).billing_type || null,
-        (item as any).uom || (item as any).unit || null
+        (item as any).uom || (item as any).unit || null,
+        (item as any).cgst_rate ?? 0,
+        (item as any).sgst_rate ?? 0,
+        (item as any).igst_rate ?? 0,
+        (item as any).cgst_amount ?? 0,
+        (item as any).sgst_amount ?? 0,
+        (item as any).igst_amount ?? 0,
+        (item as any).hsn_sac_code || null,
+        (item as any).supply_type || (invoice as any).supply_type || 'INTRA',
       );
     }
 
@@ -3232,6 +3300,12 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           const newInvoiceId = crypto.randomUUID();
 
+          const isInterStateConv = shopState.trim().toUpperCase() !== '' && (inv.customer_state || '').trim().toUpperCase() !== '' && shopState.trim().toUpperCase() !== (inv.customer_state || '').trim().toUpperCase();
+          const convSupplyType: 'INTRA' | 'INTER' = isInterStateConv ? 'INTER' : 'INTRA';
+          const convCgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
+          const convSgstTotal = isInterStateConv ? 0 : Math.round((adjustedTax / 2) * 100) / 100;
+          const convIgstTotal = isInterStateConv ? adjustedTax : 0;
+
           // 1. Create the GST invoice as a NEW row (copy) — the BoS stays intact.
           //    No stock movement: stock was already deducted when the BoS was sold.
           db.prepare(`
@@ -3241,9 +3315,10 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               payment_method, received_amount, balance_amount,
               customer_name, customer_phone, customer_gstin, customer_state, customer_address,
               sync_status,
-              converted_from_invoice_id, converted_from_invoice_number
+              converted_from_invoice_id, converted_from_invoice_number,
+              cgst_total, sgst_total, igst_total, supply_type
             )
-            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?)
+            VALUES (?, ?, ?, ?, 'GST', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?)
           `).run(
             newInvoiceId,
             inv.tenant_id,
@@ -3264,7 +3339,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
             inv.customer_state || null,
             inv.customer_address || null,
             invoice_id,
-            oldInvoiceNumber
+            oldInvoiceNumber,
+            convCgstTotal,
+            convSgstTotal,
+            convIgstTotal,
+            convSupplyType
           );
 
           // 2. Copy the priced items — they remember their original BoS values so
@@ -3272,12 +3351,17 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
           const insertItemStmt = db.prepare(`
             INSERT INTO invoice_items (
               item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, tax_amount, total, is_service_item,
-              source_item_id, bos_unit_price, bos_tax_amount, bos_total, qty_from_paper_stock
+              source_item_id, bos_unit_price, bos_tax_amount, bos_total, qty_from_paper_stock,
+              cgst_amount, sgst_amount, igst_amount, supply_type
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           `);
 
           for (const ci of copyItems) {
+            const itemCgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
+            const itemSgst = isInterStateConv ? 0 : Math.round((ci.newTaxAmount / 2) * 100) / 100;
+            const itemIgst = isInterStateConv ? ci.newTaxAmount : 0;
+
             insertItemStmt.run(
               ci.item_id,
               newInvoiceId,
@@ -3293,7 +3377,11 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
               ci.bosUnitPrice,
               ci.bosTax,
               ci.bosTotal,
-              ci.qtyFromPaper
+              ci.qtyFromPaper,
+              itemCgst,
+              itemSgst,
+              itemIgst,
+              convSupplyType
             );
           }
 
@@ -3515,7 +3603,7 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(1200),
     });
 
     if (!response.ok) return { success: false, error: `Server returned ${response.status}`, offline: true };
