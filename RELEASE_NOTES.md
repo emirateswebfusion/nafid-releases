@@ -1,3 +1,10 @@
+# Vendora v1.5.35 Release Notes
+
+## What's Changed
+- Added customizable bill settings toggles for credit balance, customer GSTIN, shop address, and instructions in receipts and A4/Half-A4 invoices
+- Enhanced ESC/POS hardware print formatting and billing preview options
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.34...v1.5.35
+
 # Vendora v1.5.34 Release Notes
 
 ## What's Changed
