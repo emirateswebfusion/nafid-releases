@@ -3037,6 +3037,7 @@ notes: '',
       const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
       const isHalfA4 = printFmt?.format === 'half-a4';
+      const isB2B = Boolean(customerGstin?.trim());
       const useA4 = isB2B || printFmt?.format === 'a4' || isHalfA4;
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
 
