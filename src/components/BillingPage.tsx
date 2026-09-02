@@ -13,7 +13,7 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { useTabStore } from '../store/tabStore';
@@ -4415,7 +4415,7 @@ export function BillingPage() {
                               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                                 <span>{inv.customer_name || 'Walk-in'}</span>
                                 <span>&middot;</span>
-                                <span>{new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                                <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
                               </div>
                             </div>
                           </button>
@@ -4587,7 +4587,7 @@ export function BillingPage() {
                               <span>&middot;</span>
                               <span>{inv.customer_name || 'Walk-in'}</span>
                               <span>&middot;</span>
-                              <span>{new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                              <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -6630,7 +6630,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
               {heldBills.map((bill: any) => {
                 const billId = bill.invoice_id || bill.id;
                 const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
-                const createdTime = bill.created_at ? new Date(bill.created_at).toLocaleString() : (bill.heldAt ? new Date(bill.heldAt).toLocaleString() : '');
+                const createdTime = bill.created_at ? parseUTCDate(bill.created_at).toLocaleString() : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString() : '');
                 const totalAmt = Number(bill.grand_total) || 0;
                 const itemCount = Array.isArray(bill.items) ? bill.items.length : 0;
                 const customer = bill.customer_name || bill.customerName || (bill.customer_phone || bill.customerPhone ? (bill.customer_phone || bill.customerPhone) : 'Walk-in Customer');
@@ -6725,7 +6725,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
                       <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                       <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-2 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                      <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN')}</div>
                     </div>
                   ))}
                 </div>
@@ -6834,7 +6834,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {new Date(inv.created_at).toLocaleDateString('en-IN')}
+                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString('en-IN')}
                   </div>
                 </div>
                 <div className="text-xs font-black text-orange-600">{formatCurrency(inv.total_amount)}</div>
