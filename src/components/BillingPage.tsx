@@ -324,6 +324,8 @@ export function BillingPage() {
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState<'saved' | 'printed' | false>(false);
   const [upiAccountToast, setUpiAccountToast] = useState<string | null>(null);
+  const [returnSuccessToast, setReturnSuccessToast] = useState<string | null>(null);
+  const [infoToast, setInfoToast] = useState<string | null>(null);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -1436,7 +1438,12 @@ export function BillingPage() {
               discount_percent = null;
             }
           } else {
-            base_price = Number(item.base_price || item.unit_price) || 0;
+            const itemBase = Number(item.base_price) || 0;
+            const soldPrice = Number(item.unit_price) || 0;
+            base_price = Math.max(itemBase, soldPrice);
+            if (soldPrice > 0 && base_price > soldPrice && offer_price == null && discount_flat == null && discount_percent == null) {
+              offer_price = soldPrice;
+            }
           }
 
           const qty = billing_type === 'WEIGHT'
@@ -2415,7 +2422,10 @@ export function BillingPage() {
   }, [hardwareError]);
 
   const handleSaveQuotation = async (shouldPrint = true) => {
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      setHardwareError('Cart is empty. Add items to quotation.');
+      return;
+    }
     if (!window.electronAPI) return;
     setQuotationSaving(true);
     setHardwareError(null);
@@ -2585,7 +2595,7 @@ export function BillingPage() {
         }
       }
 
-      setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}`);
+      setQuotationSuccess(`${editingQuotationId ? 'Updated' : 'Saved'} Quotation ${quotationNumber}${shouldPrint ? ' & Printed' : ''}`);
       clearCart();
       setEditingQuotation(null, null);
       setQuotationMode(false);
@@ -2710,7 +2720,11 @@ export function BillingPage() {
   };
 
   const handleCheckout = async (saveOnly = false) => {
-    if (items.length === 0) return;
+    if (items.length === 0) {
+      setHardwareError('Cart is empty. Add items to checkout.');
+      setTimeout(() => setHardwareError(null), 4000);
+      return;
+    }
     if (!window.electronAPI) return;
     if (isCheckingOutRef.current) return;
     isCheckingOutRef.current = true;
@@ -2726,15 +2740,14 @@ export function BillingPage() {
     setIsCheckingOut(true);
     setHardwareError(null);
 
-    if (isScrapMode) {
-      try {
+    try {
+      if (isScrapMode) {
         let scrapInvoiceNum = editingInvoiceNumber;
         const finalScrapGrandTotal = scrapTotal + extraBonus;
 
         if (scrapPaymentStatus === 'CREDIT') {
           if (!customerName.trim() || !customerPhone.trim()) {
             setHardwareError('Please enter Customer Name and Phone Number for Credit payment');
-            setIsCheckingOut(false);
             return;
           }
         }
@@ -2777,13 +2790,13 @@ export function BillingPage() {
 
           if (!result.success) {
             setHardwareError(`Failed to update scrap invoice: ${result.error}`);
-            setIsCheckingOut(false); return;
+            return;
           }
         } else {
           const numRes = await window.electronAPI.dbGetNextScrapInvoiceNumber({ tenant_id: 'global' });
           if (!numRes.success || !numRes.invoiceNumber) {
             setHardwareError('Failed to generate scrap invoice number');
-            setIsCheckingOut(false); return;
+            return;
           }
           scrapInvoiceNum = numRes.invoiceNumber;
 
@@ -2819,13 +2832,13 @@ export function BillingPage() {
               party_name: customerName || null,
               customer_phone: customerPhone || null,
               customer_address: customerAddress || null,
-notes: '',
+              notes: '',
               scrap_invoice_number: scrapInvoiceNum || '',
               payment_status: scrapPaymentStatus,
             });
             if (!result.success) {
               setHardwareError(`Failed to save scrap item: ${result.error}`);
-              setIsCheckingOut(false); return;
+              return;
             }
           }
         }
@@ -2943,7 +2956,6 @@ notes: '',
         }
 
         setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
-        setIsCheckingOut(false);
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
           const currentActiveId = activeTabId;
@@ -2962,222 +2974,214 @@ notes: '',
           }
           setCheckoutSuccess(false); // scrap mode reset
         }, 1800);
-      } catch (error) {
-        console.error('Failed to save scrap invoice error:', error);
-        setHardwareError('Failed to save scrap invoice');
-        setIsCheckingOut(false);
+        return;
       }
-      return;
-    }
 
-    // ── Normal Mode Checkout ──
-    // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
-    const pcsSnapshot: Record<string, number> = {};
-    items.forEach(item => {
-      const domInput = qtyRefs.current[item.product_id];
-      if (domInput) {
-        const domVal = domInput.value.replace(/[^\d]/g, '');
-        const parsed = parseInt(domVal, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          pcsSnapshot[item.product_id] = parsed;
+      // ── Normal Mode Checkout ──
+      // Read PCS directly from DOM input elements (100% reliable — avoids ALL React state closure/batching issues)
+      const pcsSnapshot: Record<string, number> = {};
+      items.forEach(item => {
+        const domInput = qtyRefs.current[item.product_id];
+        if (domInput) {
+          const domVal = domInput.value.replace(/[^\d]/g, '');
+          const parsed = parseInt(domVal, 10);
+          if (!isNaN(parsed) && parsed >= 0) {
+            pcsSnapshot[item.product_id] = parsed;
+            return;
+          }
+        }
+        const strVal = localPcsStr[item.product_id];
+        if (strVal !== undefined && strVal !== '') {
+          const parsed = parseInt(strVal, 10);
+          if (!isNaN(parsed) && parsed >= 0) {
+            pcsSnapshot[item.product_id] = parsed;
+            return;
+          }
+        }
+        pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
+      });
+
+      if (paymentMethod === 'CREDIT') {
+        if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
+          setHardwareError('Please enter Customer Name and Phone Number for Credit');
           return;
         }
       }
-      const strVal = localPcsStr[item.product_id];
-      if (strVal !== undefined && strVal !== '') {
-        const parsed = parseInt(strVal, 10);
-        if (!isNaN(parsed) && parsed >= 0) {
-          pcsSnapshot[item.product_id] = parsed;
+
+      if (paymentMethod === 'SPLIT') {
+        if (splitTotal <= 0) {
+          setHardwareError('Please enter split payment breakdown amounts for Cash, Card, or UPI');
           return;
         }
       }
-      pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
-    });
 
-    if (paymentMethod === 'CREDIT') {
-      if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
-        setHardwareError('Please enter Customer Name and Phone Number for Credit');
-        setIsCheckingOut(false);
-        return;
-      }
-    }
+      const isEditing = !!editingInvoiceId;
 
-    if (paymentMethod === 'SPLIT') {
-      if (splitTotal <= 0) {
-        setHardwareError('Please enter split payment breakdown amounts for Cash, Card, or UPI');
-        setIsCheckingOut(false);
-        return;
-      }
-    }
+      const isPaymentPending = paymentMethod === 'PENDING';
+      const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : receivedAmount);
+      const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
 
-    const isEditing = !!editingInvoiceId;
-
-    const isPaymentPending = paymentMethod === 'PENDING';
-    const effectiveReceivedAmount = isPaymentPending ? 0 : (paymentMethod === 'SPLIT' ? splitTotal : receivedAmount);
-    const effectiveBalanceAmount = isPaymentPending ? 0 : (refundAmount > 0 ? 0 : balanceAmount);
-
-    const invoice_id = isEditing ? editingInvoiceId : uuidv4();
-    const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
-    let invoice_number: string;
-    if (isEditing && editingInvoiceNumber) {
-      invoice_number = editingInvoiceNumber;
-    } else {
-      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series });
-      if (serverResult.success && serverResult.invoiceNumber) {
-        invoice_number = serverResult.invoiceNumber;
+      const invoice_id = isEditing ? editingInvoiceId : uuidv4();
+      const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
+      let invoice_number: string;
+      if (isEditing && editingInvoiceNumber) {
+        invoice_number = editingInvoiceNumber;
       } else {
-        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
-        invoice_number = localResult.success && localResult.invoiceNumber
-          ? localResult.invoiceNumber
-          : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
-      }
-    }
-
-    // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
-    const regularCartItems = items.filter(item => !item.isScrap);
-    // Determine supply type (intra vs inter-state) once for the whole invoice
-    const _shopStateCart = useCartStore.getState().shopState || '';
-    const _customerStateCart = customerState || '';
-    const _isInterState = invoiceType === 'GST'
-      && _shopStateCart.trim().toUpperCase() !== ''
-      && _customerStateCart.trim().toUpperCase() !== ''
-      && _shopStateCart.trim().toUpperCase() !== _customerStateCart.trim().toUpperCase();
-    const _supplyType: 'INTRA' | 'INTER' = _isInterState ? 'INTER' : 'INTRA';
-
-    const checkoutItems = regularCartItems.map(item => {
-      if (item.isServiceItem) {
-        const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
-        return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: _supplyType };
-      }
-
-      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
-      const qty = Number(item.quantity) || 0;
-
-      const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-        : rate;
-      const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-      const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-      const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-      let effectiveRate = catalogPriceChk;
-      if (isAdhocOfferC) {
-        effectiveRate = Number(item.offer_price);
-      } else if (isAdhocDiscFlatC) {
-        effectiveRate = catalogPriceChk - Number(item.discount_flat);
-      } else if (isAdhocDiscPctC) {
-        effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
-      }
-      effectiveRate = Math.max(effectiveRate, 0);
-
-      const total = effectiveRate * qty;
-      const unitPrice = qty > 0 ? total / qty : effectiveRate;
-      const itemTax = invoiceType === 'GST' ? total * (item.tax_rate_percent / 100)
-        : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
-          ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
-          : 0);
-      const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
-
-      // ── GST split (Indian GST Act compliance) ────────────────────────────────
-      // INTRA-state → CGST = rate/2, SGST = rate/2; INTER-state → IGST = rate
-      const taxRatePercent = invoiceType === 'GST' ? (item.tax_rate_percent || 0) : (bosTaxRatePercent || 0);
-      const halfRate = taxRatePercent / 2;
-      const round2 = (n: number) => Math.round(n * 100) / 100;
-      let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
-      let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
-      if (itemTax > 0) {
-        if (_supplyType === 'INTER') {
-          igst_rate = taxRatePercent;
-          igst_amount = round2(itemTax);
+        const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global', series });
+        if (serverResult.success && serverResult.invoiceNumber) {
+          invoice_number = serverResult.invoiceNumber;
         } else {
-          cgst_rate = halfRate;
-          sgst_rate = halfRate;
-          cgst_amount = round2(itemTax / 2);
-          sgst_amount = round2(itemTax / 2);
+          const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+          invoice_number = localResult.success && localResult.invoiceNumber
+            ? localResult.invoiceNumber
+            : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
         }
       }
-      // ─────────────────────────────────────────────────────────────────────────
 
-      return {
-        item_id: item.item_id || uuidv4(),
-        product_id: item.product_id,
-        name: item.name,
-        quantity: qty,
-        unit_price: unitPrice,
-        tax_amount: itemTax,
-        total,
-        pieces_sold,
-        billing_type: item.billing_type,
-        uom: item.uom || item.unit,
-        // GST split
-        cgst_rate, sgst_rate, igst_rate,
-        cgst_amount, sgst_amount, igst_amount,
-        hsn_sac_code: item.hsn_sac_code || null,
-        supply_type: _supplyType,
-      };
-    });
+      // Build line items for the invoice (regular items only — scrap items not in cart in normal mode)
+      const regularCartItems = items.filter(item => !item.isScrap);
+      // Determine supply type (intra vs inter-state) once for the whole invoice
+      const _shopStateCart = useCartStore.getState().shopState || '';
+      const _customerStateCart = customerState || '';
+      const _isInterState = invoiceType === 'GST'
+        && _shopStateCart.trim().toUpperCase() !== ''
+        && _customerStateCart.trim().toUpperCase() !== ''
+        && _shopStateCart.trim().toUpperCase() !== _customerStateCart.trim().toUpperCase();
+      const _supplyType: 'INTRA' | 'INTER' = _isInterState ? 'INTER' : 'INTRA';
 
-    // Build receipt display items
-    const receiptItems = regularCartItems.map(item => {
-      if (item.isServiceItem) {
-        const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
-        return { name: item.name, quantity: 1, unit_price: servicePrice, total: servicePrice, originalRate: undefined, discountLabel: 'Service' };
-      }
+      const checkoutItems = regularCartItems.map(item => {
+        if (item.isServiceItem) {
+          const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
+          return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: _supplyType };
+        }
 
-      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
-      const qty = Number(item.quantity) || 0;
-      const catalogPriceRec = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
-        : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
-        : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
-        : rate;
-      const isAdhocOfferRec = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
-      const isAdhocDiscFlatRec = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
-      const isAdhocDiscPctRec = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
-      let effectiveRate = catalogPriceRec;
-      if (isAdhocOfferRec) {
-        effectiveRate = Number(item.offer_price);
-      } else if (isAdhocDiscFlatRec) {
-        effectiveRate = catalogPriceRec - Number(item.discount_flat);
-      } else if (isAdhocDiscPctRec) {
-        effectiveRate = catalogPriceRec * (1 - Number(item.discount_percent) / 100);
-      }
-      effectiveRate = Math.max(effectiveRate, 0);
-      const total = effectiveRate * qty;
-      const unitPrice = qty > 0 ? total / qty : effectiveRate;
-      const mrpRate = rate;
-      let originalRate: number | undefined;
-      let discountLabel: string | undefined;
-      if (isAdhocOfferRec) {
-        originalRate = mrpRate;
-        discountLabel = 'Offer';
-      } else if (isAdhocDiscFlatRec) {
-        originalRate = mrpRate;
-        discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
-      } else if (isAdhocDiscPctRec) {
-        originalRate = mrpRate;
-        discountLabel = `${item.discount_percent}% OFF`;
-      } else if (catalogPriceRec < mrpRate) {
-        originalRate = mrpRate;
-        discountLabel = 'Offer';
-      }
-      return {
-        name: item.name,
-        quantity: qty,
-        unit_price: unitPrice,
-        total,
-        originalRate,
-        discountLabel,
-        brand: item.brand_manufacturer || undefined,
-        billing_type: item.billing_type,
-        pieces_override: item.pieces_override,
-        pieces_per_kg: item.pieces_per_kg,
-        unit: item.unit,
-        isCombo: item.isCombo,
-        combo_items: item.combo_items,
-      };
-    });
+        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const qty = Number(item.quantity) || 0;
 
-    try {
+        const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+          : rate;
+        const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+        const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+        const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+        let effectiveRate = catalogPriceChk;
+        if (isAdhocOfferC) {
+          effectiveRate = Number(item.offer_price);
+        } else if (isAdhocDiscFlatC) {
+          effectiveRate = catalogPriceChk - Number(item.discount_flat);
+        } else if (isAdhocDiscPctC) {
+          effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
+        }
+        effectiveRate = Math.max(effectiveRate, 0);
+
+        const total = effectiveRate * qty;
+        const unitPrice = qty > 0 ? total / qty : effectiveRate;
+        const itemTax = invoiceType === 'GST' ? total * (item.tax_rate_percent / 100)
+          : (invoiceType === 'BILL_OF_SUPPLY' && bosTaxRatePercent > 0
+            ? (bosTaxInclusive ? total * (bosTaxRatePercent / 100 / (1 + bosTaxRatePercent / 100)) : total * (bosTaxRatePercent / 100))
+            : 0);
+        const pieces_sold = pcsSnapshot[item.product_id] ?? 1;
+
+        // ── GST split (Indian GST Act compliance) ────────────────────────────────
+        // INTRA-state → CGST = rate/2, SGST = rate/2; INTER-state → IGST = rate
+        const taxRatePercent = invoiceType === 'GST' ? (item.tax_rate_percent || 0) : (bosTaxRatePercent || 0);
+        const halfRate = taxRatePercent / 2;
+        const round2 = (n: number) => Math.round(n * 100) / 100;
+        let cgst_rate = 0, sgst_rate = 0, igst_rate = 0;
+        let cgst_amount = 0, sgst_amount = 0, igst_amount = 0;
+        if (itemTax > 0) {
+          if (_supplyType === 'INTER') {
+            igst_rate = taxRatePercent;
+            igst_amount = round2(itemTax);
+          } else {
+            cgst_rate = halfRate;
+            sgst_rate = halfRate;
+            cgst_amount = round2(itemTax / 2);
+            sgst_amount = round2(itemTax / 2);
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+        return {
+          item_id: item.item_id || uuidv4(),
+          product_id: item.product_id,
+          name: item.name,
+          quantity: qty,
+          unit_price: unitPrice,
+          tax_amount: itemTax,
+          total,
+          pieces_sold,
+          billing_type: item.billing_type,
+          uom: item.uom || item.unit,
+          // GST split
+          cgst_rate, sgst_rate, igst_rate,
+          cgst_amount, sgst_amount, igst_amount,
+          hsn_sac_code: item.hsn_sac_code || null,
+          supply_type: _supplyType,
+        };
+      });
+
+      // Build receipt display items
+      const receiptItems = regularCartItems.map(item => {
+        if (item.isServiceItem) {
+          const servicePrice = Number(item.offer_price ?? item.base_price) || 0;
+          return { name: item.name, quantity: 1, unit_price: servicePrice, total: servicePrice, originalRate: undefined, discountLabel: 'Service' };
+        }
+
+        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const qty = Number(item.quantity) || 0;
+        const catalogPriceRec = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+          : rate;
+        const isAdhocOfferRec = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+        const isAdhocDiscFlatRec = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+        const isAdhocDiscPctRec = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+        let effectiveRate = catalogPriceRec;
+        if (isAdhocOfferRec) {
+          effectiveRate = Number(item.offer_price);
+        } else if (isAdhocDiscFlatRec) {
+          effectiveRate = catalogPriceRec - Number(item.discount_flat);
+        } else if (isAdhocDiscPctRec) {
+          effectiveRate = catalogPriceRec * (1 - Number(item.discount_percent) / 100);
+        }
+        effectiveRate = Math.max(effectiveRate, 0);
+        const total = effectiveRate * qty;
+        const unitPrice = qty > 0 ? total / qty : effectiveRate;
+        const mrpRate = rate;
+        let originalRate: number | undefined;
+        let discountLabel: string | undefined;
+        if (isAdhocOfferRec) {
+          originalRate = mrpRate;
+          discountLabel = 'Offer';
+        } else if (isAdhocDiscFlatRec) {
+          originalRate = mrpRate;
+          discountLabel = `-₹${Number(item.discount_flat).toFixed(0)}`;
+        } else if (isAdhocDiscPctRec) {
+          originalRate = mrpRate;
+          discountLabel = `${item.discount_percent}% OFF`;
+        } else if (catalogPriceRec < mrpRate) {
+          originalRate = mrpRate;
+          discountLabel = 'Offer';
+        }
+        return {
+          name: item.name,
+          quantity: qty,
+          unit_price: unitPrice,
+          total,
+          originalRate,
+          discountLabel,
+          brand: item.brand_manufacturer || undefined,
+          billing_type: item.billing_type,
+          pieces_override: item.pieces_override,
+          pieces_per_kg: item.pieces_per_kg,
+          unit: item.unit,
+          isCombo: item.isCombo,
+          combo_items: item.combo_items,
+        };
+      });
+
       const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
 
@@ -3300,8 +3304,6 @@ notes: '',
       }
       if (!result.success) {
         setHardwareError(isEditing ? `Update failed: ${result.error || 'Unknown error'}` : `Checkout failed: ${result.error || 'Unknown error'}`);
-        isCheckingOutRef.current = false;
-        setIsCheckingOut(false);
         return;
       }
 
@@ -3401,49 +3403,54 @@ notes: '',
           setTimeout(() => setHardwareError(null), 5000);
         }
       }
+
+      setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
+
+      // Notify the cashier settlement page (if open) to refresh instantly
+      try {
+        window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
+      } catch (e) { /* ignore */ }
+      setTimeout(async () => {
+        const tabsCount = useTabStore.getState().tabs.length;
+        const currentActiveId = activeTabId;
+        if (tabsCount > 1) {
+          closeTab(currentActiveId);
+        } else {
+          clearCart();
+          clearScrapDeduction();
+          clearReturnDeduction();
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+          syncActiveSnapshot();
+          await reserveInvoiceNumberForTab();
+          const tab = getActiveTab();
+          if (tab?.reservedInvoiceNumber) {
+            const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
+            updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+          }
+        }
+        setCheckoutSuccess(false); // normal mode reset
+      }, 1800);
     } catch (err: any) {
       console.error('[Checkout Error]', err);
       setHardwareError(`Checkout failed: ${err?.message || 'Unexpected error'}`);
+    } finally {
       isCheckingOutRef.current = false;
       setIsCheckingOut(false);
-      return;
     }
-
-    setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
-    isCheckingOutRef.current = false;
-    setIsCheckingOut(false);
-
-    // Notify the cashier settlement page (if open) to refresh instantly
-    try {
-      window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
-    } catch (e) { /* ignore */ }
-    setTimeout(async () => {
-      const tabsCount = useTabStore.getState().tabs.length;
-      const currentActiveId = activeTabId;
-      if (tabsCount > 1) {
-        closeTab(currentActiveId);
-      } else {
-        clearCart();
-        clearScrapDeduction();
-        clearReturnDeduction();
-        updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
-        syncActiveSnapshot();
-        await reserveInvoiceNumberForTab();
-        const tab = getActiveTab();
-        if (tab?.reservedInvoiceNumber) {
-          const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
-          updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
-        }
-      }
-      setCheckoutSuccess(false); // normal mode reset
-    }, 1800);
   };
 
   // ── Return Mode: process return from cart items (replaces old 2-phase flow) ──
   const handleProcessReturnFromCart = async (saveOnly = false) => {
-    if (!window.electronAPI || !selectedReturnInvoice) return;
+    if (!window.electronAPI) return;
+    if (!selectedReturnInvoice) {
+      setHardwareError('No original invoice selected for return.');
+      return;
+    }
     const returnCartItems = items.filter(i => i.isReturnItem && Number(i.quantity) > 0);
-    if (returnCartItems.length === 0) return;
+    if (returnCartItems.length === 0) {
+      setHardwareError('No return items selected in cart.');
+      return;
+    }
     setReturnProcessing(true);
     try {
       const tid = tenantId || 'global';
@@ -3544,12 +3551,14 @@ notes: '',
       }
 
       setReturnProcessed(true);
+      setReturnSuccessToast(saveOnly ? `Return ${returnNumber} saved successfully!` : `Return ${returnNumber} processed & receipt printed!`);
       setTimeout(() => {
         setReturnProcessed(false);
         setReturnMode(false);
         setSelectedReturnInvoice(null);
         clearCart();
-      }, 2000);
+        setReturnSuccessToast(null);
+      }, 3500);
     } catch (e) {
       console.error('Return processing failed', e);
       setHardwareError('Return processing failed. Please try again.');
@@ -3622,7 +3631,7 @@ notes: '',
 
     // Build invoice payload similar to checkout
     const invoice_id = uuidv4();
-    const invoice_number = nextInvoiceNumber || `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-HLD-${Date.now()}`;
+    const invoice_number = `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-HLD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const lineItems = items.map((item) => {
       const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
@@ -3692,6 +3701,8 @@ notes: '',
     updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '' });
     syncActiveSnapshot();
     loadHeldBills();
+    setInfoToast(`Bill ${invoice_number} held successfully! (F3)`);
+    setTimeout(() => setInfoToast(null), 3500);
   };
 
   // Recall a held bill — load its items back into cart
@@ -3791,6 +3802,8 @@ notes: '',
       setShowHeldBillsPanel(false);
       syncActiveSnapshot();
       loadHeldBills();
+      setInfoToast(`Held bill ${heldInvoice.invoice_number || ''} loaded into cart`);
+      setTimeout(() => setInfoToast(null), 3500);
     } catch (e) {
       setHardwareError('Failed to recall held bill');
       console.error(e);
@@ -3905,7 +3918,7 @@ notes: '',
         handleCheckout();
       } else if (isReturnMode) {
         handleProcessReturnFromCart();
-      } else if (isQuotationMode && !editingQuotationId) {
+      } else if (isQuotationActive) {
         handleSaveQuotation();
       } else {
         handleCheckout();
@@ -3955,6 +3968,28 @@ notes: '',
             <div className="flex-1 min-w-0 leading-snug">
               <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">QUOTATION SAVED</span>
               <span className="text-white font-bold text-xs block leading-tight">{quotationSuccess}</span>
+            </div>
+          </div>
+        )}
+        {returnSuccessToast && (
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-rose-500/25 text-rose-400 shrink-0">
+              <RotateCcw className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">RETURN PROCESSED</span>
+              <span className="text-white font-bold text-xs block leading-tight">{returnSuccessToast}</span>
+            </div>
+          </div>
+        )}
+        {infoToast && (
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-amber-500/25 text-amber-400 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">NOTIFICATION</span>
+              <span className="text-white font-bold text-xs block leading-tight">{infoToast}</span>
             </div>
           </div>
         )}
@@ -5145,21 +5180,6 @@ notes: '',
                 const pieces = isPiecesWeight ? (item.pieces_override ?? 1) : 0;
                 const qty = weightKg;
 
-                // Explicit discount flag — avoids floating-point comparison bugs
-                const hasItemDiscount = !!(
-                  (item.offer_price !== null && item.offer_price !== undefined) ||
-                  (item.discount_flat !== null && item.discount_flat !== undefined) ||
-                  (item.discount_percent !== null && item.discount_percent !== undefined)
-                );
-
-                const hasAdHocDiscount = !!(
-                  (localDiscPcts[item.product_id] !== undefined && localDiscPcts[item.product_id] !== null && localDiscPcts[item.product_id] !== (item.catalog_discount_percent ?? 0)) ||
-                  (localDiscFlats[item.product_id] !== undefined && localDiscFlats[item.product_id] !== null && localDiscFlats[item.product_id] !== (item.catalog_discount_flat ?? 0)) ||
-                  (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
-                  (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
-                  (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
-                );
-
                 const catalogPriceItem = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
                   : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
                   : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
@@ -5173,6 +5193,24 @@ notes: '',
                 else if (isAdhocDiscPctI) { effectivePrice = catalogPriceItem * (1 - Number(item.discount_percent) / 100); }
                 effectivePrice = Math.max(effectivePrice, 0);
                 const total = effectivePrice * qty;
+
+                // Explicit discount flag — avoids floating-point comparison bugs
+                const hasItemDiscount = (rate * qty > total + 0.005) || !!(
+                  (item.offer_price !== null && item.offer_price !== undefined) ||
+                  (item.discount_flat !== null && item.discount_flat !== undefined) ||
+                  (item.discount_percent !== null && item.discount_percent !== undefined) ||
+                  (item.catalog_offer_price !== null && item.catalog_offer_price !== undefined) ||
+                  (item.catalog_discount_flat !== null && item.catalog_discount_flat !== undefined) ||
+                  (item.catalog_discount_percent !== null && item.catalog_discount_percent !== undefined)
+                );
+
+                const hasAdHocDiscount = !!(
+                  (localDiscPcts[item.product_id] !== undefined && localDiscPcts[item.product_id] !== null && localDiscPcts[item.product_id] !== (item.catalog_discount_percent ?? 0)) ||
+                  (localDiscFlats[item.product_id] !== undefined && localDiscFlats[item.product_id] !== null && localDiscFlats[item.product_id] !== (item.catalog_discount_flat ?? 0)) ||
+                  (item.discount_percent !== null && item.discount_percent !== undefined && item.discount_percent !== (item.catalog_discount_percent ?? null)) ||
+                  (item.discount_flat !== null && item.discount_flat !== undefined && item.discount_flat !== (item.catalog_discount_flat ?? null)) ||
+                  (item.offer_price !== null && item.offer_price !== undefined && item.offer_price !== (item.catalog_offer_price ?? null))
+                );
 
                 // Commit Pcs value to store independently without altering Kg
                 const commitPcs = (pcsStr: string, isFinal = false) => {
@@ -5468,7 +5506,7 @@ notes: '',
                         onFocus={e => e.target.select()}
                         onKeyDown={e => handleDiscFlatKeyDown(e, item.product_id)}
                       />
-                      {hasItemDiscount && (
+                      {(hasItemDiscount || rate * qty > total + 0.005) && rate * qty > total + 0.005 && (
                         <div className="text-[9px] text-muted-foreground/50 line-through font-semibold -mt-0.5 text-right">{formatCurrency(rate * qty)}</div>
                       )}
                     </div>

@@ -1815,6 +1815,12 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
   const { items, ...invoice } = payload;
   const db = getDb();
   const transaction = db.transaction(() => {
+    // Force a unique HLD invoice number for hold bills to avoid UNIQUE constraint conflicts with regular invoices
+    let holdInvoiceNumber = invoice.invoice_number;
+    if (!holdInvoiceNumber || !holdInvoiceNumber.includes('HLD')) {
+      holdInvoiceNumber = `${(invoice.tenant_id || 'POS1').substring(0, 4).toUpperCase()}-HLD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+
     // 1. Insert the invoice as a HOLD type
     const invStmt = db.prepare(`
       INSERT INTO invoices (
@@ -1831,7 +1837,7 @@ ipcMain.handle('db:holdBill', safeHandler((event, payload) => {
       invoice.invoice_id,
       invoice.tenant_id,
       invoice.user_id,
-      invoice.invoice_number,
+      holdInvoiceNumber,
       invoice.subtotal,
       invoice.tax_total,
       invoice.discount_total,
@@ -1943,11 +1949,12 @@ ipcMain.handle('db:recallHeldBill', (event, { invoice_id }: { invoice_id: string
 
       // 2. Get line items
       resultItems = db.prepare(
-        `SELECT ii.*, p.sku_barcode, p.brand_manufacturer, p.grade_id, p.pricing_mode, p.grade_rate, 
+        `SELECT ii.*, p.sku_barcode, p.brand_manufacturer, p.grade_id, p.pricing_mode, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price, 
                 p.discount_percent, p.discount_flat, p.offer_price, p.purchase_price, p.base_price,
                 p.tax_rate_percent as gst_percent, p.uom, p.hsn_sac_code as hsn, p.billing_type
          FROM invoice_items ii
          LEFT JOIN products p ON ii.product_id = p.product_id
+         LEFT JOIN product_grades pg ON p.grade_id = pg.grade_id
          WHERE ii.invoice_id = ?`
       ).all(invoice_id) as any[];
 

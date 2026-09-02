@@ -54,51 +54,51 @@ export function ActionPane() {
     if (isCheckingOutRef.current) return;
     isCheckingOutRef.current = true;
 
-    if (window.electronAPI) {
-      const invoice_id = uuidv4();
-      // Try cloud server first for conflict-free numbering across computers
-      let invoice_number: string;
-      const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
-      if (serverResult.success && serverResult.invoiceNumber) {
-        invoice_number = serverResult.invoiceNumber;
-      } else {
-        // Offline fallback: use local counter
-        const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-        invoice_number = localResult.success && localResult.invoiceNumber
-          ? localResult.invoiceNumber
-          : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
-      }
+    setIsCheckingOut(true);
+    setHardwareError(null);
 
-      const lineItems = items.map((item) => {
-        const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
-          ? (item.grade_rate || 0) 
-          : item.base_price;
+    try {
+      if (window.electronAPI) {
+        const invoice_id = uuidv4();
+        // Try cloud server first for conflict-free numbering across computers
+        let invoice_number: string;
+        const serverResult = await window.electronAPI.dbGetNextServerInvoiceNumber({ tenant_id: tenantId || 'global' });
+        if (serverResult.success && serverResult.invoiceNumber) {
+          invoice_number = serverResult.invoiceNumber;
+        } else {
+          // Offline fallback: use local counter
+          const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+          invoice_number = localResult.success && localResult.invoiceNumber
+            ? localResult.invoiceNumber
+            : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+        }
+
+        const lineItems = items.map((item) => {
+          const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
+            ? (item.grade_rate || 0) 
+            : item.base_price;
+            
+          const pieceCount = Number(item.quantity) || 0;
+
+          let itemTotal = effectiveRate * pieceCount;
+
+          const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
           
-        const pieceCount = Number(item.quantity) || 0;
+          const taxAmount = invoiceType === 'GST'
+            ? itemTotal * (item.tax_rate_percent / 100)
+            : 0;
 
-        let itemTotal = effectiveRate * pieceCount;
+          return {
+            item_id: uuidv4(),
+            product_id: item.product_id,
+            name: item.name,
+            quantity: pieceCount,
+            unit_price: ratePerPiece,
+            tax_amount: taxAmount,
+            total: itemTotal,
+          };
+        });
 
-        const ratePerPiece = pieceCount > 0 ? itemTotal / pieceCount : effectiveRate;
-        
-        const taxAmount = invoiceType === 'GST'
-          ? itemTotal * (item.tax_rate_percent / 100)
-          : 0;
-
-        return {
-          item_id: uuidv4(),
-          product_id: item.product_id,
-          name: item.name,
-          quantity: pieceCount,
-          unit_price: ratePerPiece,
-          tax_amount: taxAmount,
-          total: itemTotal,
-        };
-      });
-
-      setIsCheckingOut(true);
-      setHardwareError(null);
-
-      try {
         const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
@@ -172,7 +172,6 @@ export function ActionPane() {
           const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
           if (!printResult.success) {
             setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
-            setIsCheckingOut(false);
             return;
           }
         }
@@ -202,36 +201,32 @@ export function ActionPane() {
 
         if (!result.success) {
           setHardwareError('Checkout failed: ' + (result.error || 'Unknown error'));
-          isCheckingOutRef.current = false;
-          setIsCheckingOut(false);
           return;
         }
 
         try {
           window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
         } catch (e) { /* ignore */ }
-      } catch (e: any) {
-        console.error('[ActionPane Checkout Error]', e);
-        setHardwareError(`Checkout failed: ${e?.message || 'Communication error with hardware services.'}`);
-        isCheckingOutRef.current = false;
-        setIsCheckingOut(false);
-        return;
       }
-    }
 
-    clearCart();
-    isCheckingOutRef.current = false;
-    setIsCheckingOut(false);
-    setReservedInvoiceNumber('');
-    try {
-      if (window.electronAPI) {
-        const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
-        if (result.success && result.invoiceNumber) {
-          setReservedInvoiceNumber(result.invoiceNumber);
+      clearCart();
+      setReservedInvoiceNumber('');
+      try {
+        if (window.electronAPI) {
+          const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+          if (result.success && result.invoiceNumber) {
+            setReservedInvoiceNumber(result.invoiceNumber);
+          }
         }
+      } catch (e) {
+        console.error('Failed to peek next invoice number', e);
       }
-    } catch (e) {
-      console.error('Failed to peek next invoice number', e);
+    } catch (e: any) {
+      console.error('[ActionPane Checkout Error]', e);
+      setHardwareError(`Checkout failed: ${e?.message || 'Communication error with hardware services.'}`);
+    } finally {
+      isCheckingOutRef.current = false;
+      setIsCheckingOut(false);
     }
   };
 

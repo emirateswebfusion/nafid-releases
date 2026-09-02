@@ -358,6 +358,11 @@ export function CartPane() {
                   </div>
                   <div className="col-span-2 text-right font-medium text-primary">
                     ₹{itemTotal.toFixed(2)}
+                    {rawRate * weightKg > itemTotal + 0.005 && (
+                      <div className="text-[10px] text-muted-foreground/50 line-through font-semibold">
+                        ₹{(rawRate * weightKg).toFixed(2)}
+                      </div>
+                    )}
                   </div>
                   <div className="col-span-1 flex justify-center">
                     <button 

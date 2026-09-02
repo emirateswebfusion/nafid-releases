@@ -1428,6 +1428,18 @@ export function ensureInvoiceColumnsExist(targetDb?: Database.Database) {
         }
       }
     }
+
+    // Migration: Fix legacy held bills that stole standard invoice numbers
+    try {
+      d.exec(`
+        UPDATE invoices
+        SET invoice_number = 'HLD-' || invoice_id
+        WHERE (invoice_type IN ('HOLD', 'RECALLED_HOLD', 'EXPIRED_HOLD') OR is_held = 1)
+          AND (invoice_number NOT LIKE '%HLD%' OR invoice_number IS NULL)
+      `);
+    } catch (e: any) {
+      console.warn('[DB Migration] Fix legacy held invoice numbers error:', e.message);
+    }
   } catch (e: any) {
     console.warn('[DB Migration] Auto-ensure columns error:', e.message);
   }
