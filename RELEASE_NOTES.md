@@ -1,3 +1,10 @@
+# Vendora v1.5.36 Release Notes
+
+## What's Changed
+- Enhanced hardware printer ESC/POS command formatting, UPI configuration settings, and print format helpers
+- Improved tab state store management and billing action pane UI integrations
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.35...v1.5.36
+
 # Vendora v1.5.35 Release Notes
 
 ## What's Changed
