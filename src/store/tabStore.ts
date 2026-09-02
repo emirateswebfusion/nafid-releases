@@ -52,6 +52,7 @@ export interface Tab {
   reservedReturnNumber: string;
   scrapPaymentStatus: 'CASH' | 'PENDING' | 'CREDIT' | 'SETTLED';
   selectedUpiId?: string;
+  selectedUpiSourceId?: string;
   selectedUpiName?: string;
 }
 
@@ -141,6 +142,7 @@ function resetCartStore() {
 
 function createDefaultTab(): Tab {
   const id = uuidv4();
+  const activeTab = useTabStore?.getState?.()?.getActiveTab?.();
   return {
     id,
     title: 'New',
@@ -177,6 +179,9 @@ function createDefaultTab(): Tab {
     reservedQuotationNumber: '',
     reservedReturnNumber: '',
     scrapPaymentStatus: 'PENDING',
+    selectedUpiId: activeTab?.selectedUpiId,
+    selectedUpiSourceId: activeTab?.selectedUpiSourceId,
+    selectedUpiName: activeTab?.selectedUpiName,
   };
 }
 
@@ -271,8 +276,9 @@ export const useTabStore = create<TabState>((set, get) => ({
     const { tabs, activeTabId } = get();
     const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
       'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
-      'paymentMethod', 'receivedAmount', 'reservedInvoiceNumber',
-      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber', 'scrapPaymentStatus'
+      'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
+      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
+      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName'
     ];
     const filtered = Object.fromEntries(
       Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))

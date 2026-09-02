@@ -171,7 +171,7 @@ export function initPrinter() {
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] Print Error:', error);
-      return { success: false, error: 'Print failed' };
+      return { success: false, error: error.message || 'Print failed' };
     }
   });
 
@@ -189,7 +189,7 @@ export function initPrinter() {
       }
       return { success: true };
     } catch (error: any) {
-      return { success: false, error: 'Print failed' };
+      return { success: false, error: error.message || 'Drawer open failed' };
     }
   });
 

@@ -323,6 +323,7 @@ export function BillingPage() {
   const isCheckingOutRef = useRef(false);
   const [hardwareError, setHardwareError] = useState<string | null>(null);
   const [checkoutSuccess, setCheckoutSuccess] = useState<'saved' | 'printed' | false>(false);
+  const [upiAccountToast, setUpiAccountToast] = useState<string | null>(null);
 
   // Three invoice series (Normal, GST B2B, GST B2C)
   const [enableThreeInvoiceSeries, setEnableThreeInvoiceSeries] = useState(false);
@@ -513,6 +514,18 @@ export function BillingPage() {
   const nextScrapInvoiceNumber = activeTab?.reservedScrapInvoiceNumber ?? '';
   const nextQuotationNumber = activeTab?.reservedQuotationNumber ?? '';
   const nextReturnNumber = activeTab?.reservedReturnNumber ?? '';
+
+  const lastSelectedSourceId = typeof localStorage !== 'undefined' ? localStorage.getItem('last_selected_upi_source_id') : null;
+
+  const currentSelectedUpi = upiPageConfig.billing && upiSources.length > 0
+    ? (upiSources.find((s: any) =>
+         (activeTab?.selectedUpiSourceId && s.source_id === activeTab.selectedUpiSourceId) ||
+         (activeTab?.selectedUpiId && (s.source_id === activeTab.selectedUpiId || s.upi_id === activeTab.selectedUpiId))
+       )
+       || (lastSelectedSourceId ? upiSources.find((s: any) => s.source_id === lastSelectedSourceId || s.upi_id === lastSelectedSourceId) : null)
+       || upiSources.find((s: any) => s.is_default === 1)
+       || upiSources[0])
+    : null;
 
   const reserveInvoiceNumberForTab = useCallback(async (forceRefresh = false) => {
     if (!window.electronAPI) return;
@@ -2702,6 +2715,9 @@ export function BillingPage() {
     if (isCheckingOutRef.current) return;
     isCheckingOutRef.current = true;
 
+    let scrapPrintSuccess = true;
+    let printSuccess = true;
+
     const cartStore = useCartStore.getState();
     const editingInvoiceId = cartStore.editingInvoiceId;
     const editingInvoiceNumber = cartStore.editingInvoiceNumber;
@@ -2827,6 +2843,7 @@ notes: '',
         }).catch(() => {});
 
         // Print scrap receipt (skip if saveOnly)
+        scrapPrintSuccess = true;
         if (!saveOnly) {
           const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
           const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
@@ -2902,9 +2919,15 @@ notes: '',
           const scrapReceiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
           const printResult = await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
           if (printResult?.skipped) {
+            scrapPrintSuccess = false;
             setHardwareError('No printer configured. Receipt print skipped.');
+            setTimeout(() => setHardwareError(null), 5000);
           } else if (printResult && !printResult.success) {
-            setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+            scrapPrintSuccess = false;
+            const rawErr = printResult.error || 'check printer';
+            const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
+            setHardwareError(formattedErr);
+            setTimeout(() => setHardwareError(null), 5000);
           }
         }
 
@@ -2921,7 +2944,7 @@ notes: '',
           }).catch(() => {});
         }
 
-        setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
+        setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
         setIsCheckingOut(false);
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
@@ -3329,15 +3352,24 @@ notes: '',
       }
 
       // ── Print receipt AFTER successful save (non-fatal) ──
+      printSuccess = true;
       if (!saveOnly) {
         try {
           if (useA4) {
             const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
             const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
             const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-            if (!printResult.success && (printResult as any).useDefaultDialog) {
-              const pw = window.open('', '_blank');
-              if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+            if (!printResult.success) {
+              printSuccess = false;
+              if ((printResult as any).useDefaultDialog) {
+                const pw = window.open('', '_blank');
+                if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+              } else {
+                const rawErr = printResult.error || 'check printer';
+                const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
+                setHardwareError(formattedErr);
+                setTimeout(() => setHardwareError(null), 5000);
+              }
             }
           } else {
             const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : width;
@@ -3345,18 +3377,28 @@ notes: '',
             const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
             const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
             if (!printResult.success) {
+              printSuccess = false;
               console.warn('[Checkout] Print failed (invoice saved):', printResult.error);
-              setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+              const rawErr = printResult.error || 'check printer';
+              const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
+              setHardwareError(formattedErr);
+              setTimeout(() => setHardwareError(null), 5000);
             } else if (printResult.skipped) {
+              printSuccess = false;
               setHardwareError('No printer configured. Receipt print skipped.');
+              setTimeout(() => setHardwareError(null), 5000);
             }
           }
           if (!isPaymentPending || openCashDrawerOnPending) {
             await window.electronAPI.openCashDrawer(tenantId || 'global');
           }
         } catch (printErr: any) {
+          printSuccess = false;
           console.warn('[Checkout] Print error (invoice already saved):', printErr);
-          setHardwareError(`Print warning: ${printErr.message || 'check printer'}`);
+          const rawErr = printErr.message || 'check printer';
+          const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
+          setHardwareError(formattedErr);
+          setTimeout(() => setHardwareError(null), 5000);
         }
       }
     } catch (err: any) {
@@ -3367,7 +3409,7 @@ notes: '',
       return;
     }
 
-    setCheckoutSuccess(saveOnly ? 'saved' : 'printed');
+    setCheckoutSuccess(saveOnly || !printSuccess ? 'saved' : 'printed');
     isCheckingOutRef.current = false;
     setIsCheckingOut(false);
 
@@ -3494,8 +3536,12 @@ notes: '',
         const printResult = await window.electronAPI.printReceipt(tid, receiptText);
         if (printResult?.skipped) {
           setHardwareError('No printer configured. Receipt print skipped.');
+          setTimeout(() => setHardwareError(null), 5000);
         } else if (printResult && !printResult.success) {
-          setHardwareError(`Printing issue: ${printResult.error || 'check printer'}`);
+          const rawErr = printResult.error || 'check printer';
+          const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
+          setHardwareError(formattedErr);
+          setTimeout(() => setHardwareError(null), 5000);
         }
       }
 
@@ -3897,6 +3943,17 @@ notes: '',
           <div className="px-5 py-3 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
             <FileText className="w-4 h-4 shrink-0" />
             <span>{quotationSuccess}</span>
+          </div>
+        )}
+        {upiAccountToast && (
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-sm">
+            <div className="p-2 rounded-xl bg-violet-500/25 text-violet-400 shrink-0">
+              <Smartphone className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">UPI Account Selected</span>
+              <span className="text-white font-black text-xs truncate block">{upiAccountToast}</span>
+            </div>
           </div>
         )}
       </div>
@@ -5498,264 +5555,257 @@ notes: '',
                 )}
               </div>
               ) : (
-              <div>
-                <div className="grid grid-cols-6 gap-2">
-                  {PAYMENT_OPTIONS.map((opt) => {
-                    const isActive = paymentMethod === opt.value;
-                    const span = 'col-span-2';
+                <div>
+                  <div className="grid grid-cols-6 gap-2">
+                      {PAYMENT_OPTIONS.map((opt) => {
+                        const isActive = paymentMethod === opt.value;
+                        const span = 'col-span-2';
 
-                    // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
-                    if (paymentMethod === 'SPLIT') {
-                      if (opt.value === 'CASH') {
-                        return (
-                          <div key="CASH" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
-                                <Banknote className="w-4 h-4" />
-                                <span>Cash</span>
+                        // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
+                        if (paymentMethod === 'SPLIT') {
+                          if (opt.value === 'CASH') {
+                            return (
+                              <div key="CASH" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
+                                    <Banknote className="w-4 h-4" />
+                                    <span>Cash</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
+                                      updateActiveTab({ splitDetails: { ...splitDetails, cash: rem } });
+                                    }}
+                                    className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
+                                  >
+                                    Fill Rest
+                                  </button>
+                                </div>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitDetails.cash || ''}
+                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, cash: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                  />
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                  updateActiveTab({ splitDetails: { ...splitDetails, cash: rem } });
-                                }}
-                                className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer bg-emerald-500/15 px-1.5 py-0.5 rounded-md"
-                              >
-                                Fill Rest
-                              </button>
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-emerald-500/80">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={splitDetails.cash || ''}
-                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, cash: e.target.value === '' ? 0 : Number(e.target.value) } })}
-                                placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-emerald-500/30 focus:border-emerald-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
-                              />
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (opt.value === 'CARD') {
-                        return (
-                          <div key="CARD" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs">
-                                <Wallet className="w-4 h-4" />
-                                <span>Card</span>
+                          if (opt.value === 'CARD') {
+                            return (
+                              <div key="CARD" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs">
+                                    <Wallet className="w-4 h-4" />
+                                    <span>Card</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
+                                      updateActiveTab({ splitDetails: { ...splitDetails, card: rem } });
+                                    }}
+                                    className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
+                                  >
+                                    Fill Rest
+                                  </button>
+                                </div>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitDetails.card || ''}
+                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, card: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                  />
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.upi) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                  updateActiveTab({ splitDetails: { ...splitDetails, card: rem } });
-                                }}
-                                className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer bg-blue-500/15 px-1.5 py-0.5 rounded-md"
-                              >
-                                Fill Rest
-                              </button>
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-blue-500/80">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={splitDetails.card || ''}
-                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, card: e.target.value === '' ? 0 : Number(e.target.value) } })}
-                                placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-blue-500/30 focus:border-blue-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
-                              />
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (opt.value === 'UPI') {
-                        return (
-                          <div key="UPI" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-violet-600 dark:text-violet-400 font-extrabold text-xs">
-                                <Smartphone className="w-4 h-4" />
-                                <span>UPI</span>
+                          if (opt.value === 'UPI') {
+                            return (
+                              <div key="UPI" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]">
+                                <div className="flex items-center justify-between">
+                                  <div
+                                    className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-extrabold text-xs cursor-pointer hover:underline min-w-0"
+                                    onClick={() => {
+                                      if (upiPageConfig.billing && upiSources.length > 0) {
+                                        setIsUpiSelectModalOpen(true);
+                                      }
+                                    }}
+                                    title={currentSelectedUpi ? `Click to change UPI account: ${currentSelectedUpi.name} (${currentSelectedUpi.upi_id || ''})` : undefined}
+                                  >
+                                    <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                                    <span className="shrink-0">UPI</span>
+                                    {currentSelectedUpi && (
+                                      <span className="text-[10px] font-medium text-violet-700 dark:text-violet-300 truncate max-w-[65px]">
+                                        ({currentSelectedUpi.name})
+                                      </span>
+                                    )}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
+                                      updateActiveTab({ splitDetails: { ...splitDetails, upi: rem } });
+                                    }}
+                                    className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md shrink-0"
+                                  >
+                                    Fill Rest
+                                  </button>
+                                </div>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitDetails.upi || ''}
+                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, upi: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                  />
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.credit) || 0)).toFixed(2)));
-                                  updateActiveTab({ splitDetails: { ...splitDetails, upi: rem } });
-                                }}
-                                className="text-[10px] font-extrabold text-violet-600 dark:text-violet-400 hover:underline cursor-pointer bg-violet-500/15 px-1.5 py-0.5 rounded-md"
-                              >
-                                Fill Rest
-                              </button>
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-violet-500/80">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={splitDetails.upi || ''}
-                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, upi: e.target.value === '' ? 0 : Number(e.target.value) } })}
-                                placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-violet-500/30 focus:border-violet-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
-                              />
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (opt.value === 'CREDIT') {
-                        return (
-                          <div key="CREDIT" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
-                                <BookOpen className="w-4 h-4" />
-                                <span>Credit</span>
+                          if (opt.value === 'CREDIT') {
+                            return (
+                              <div key="CREDIT" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
+                                    <BookOpen className="w-4 h-4" />
+                                    <span>Credit</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
+                                      updateActiveTab({ splitDetails: { ...splitDetails, credit: rem } });
+                                    }}
+                                    className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-amber-500/15 px-1.5 py-0.5 rounded-md"
+                                  >
+                                    Fill Rest
+                                  </button>
+                                </div>
+                                <div className="relative">
+                                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="any"
+                                    value={splitDetails.credit || ''}
+                                    onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, credit: e.target.value === '' ? 0 : Number(e.target.value) } })}
+                                    placeholder="0"
+                                    className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
+                                  />
+                                </div>
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const rem = Math.max(0, Number((displayGrandTotal - (Number(splitDetails.cash) || 0) - (Number(splitDetails.card) || 0) - (Number(splitDetails.upi) || 0)).toFixed(2)));
-                                  updateActiveTab({ splitDetails: { ...splitDetails, credit: rem } });
-                                }}
-                                className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 hover:underline cursor-pointer bg-amber-500/15 px-1.5 py-0.5 rounded-md"
-                              >
-                                Fill Rest
-                              </button>
-                            </div>
-                            <div className="relative">
-                              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-black text-amber-500/80">₹</span>
-                              <input
-                                type="number"
-                                min="0"
-                                step="any"
-                                value={splitDetails.credit || ''}
-                                onChange={(e) => updateActiveTab({ splitDetails: { ...splitDetails, credit: e.target.value === '' ? 0 : Number(e.target.value) } })}
-                                placeholder="0"
-                                className="w-full pl-5 pr-1.5 py-1 bg-background/90 border border-amber-500/30 focus:border-amber-500 rounded-xl text-xs font-black text-right text-foreground outline-none no-spinners h-6.5"
-                              />
-                            </div>
-                          </div>
-                        );
-                      }
+                            );
+                          }
 
-                      if (opt.value === 'SPLIT') {
+                          if (opt.value === 'SPLIT') {
+                            return (
+                              <button
+                                key="SPLIT"
+                                type="button"
+                                onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
+                                className="col-span-2 flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]"
+                                title="Click again to deactivate Split Mode"
+                              >
+                                <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
+                                  <Split className="w-4.5 h-4.5" />
+                                </div>
+                                <span className="text-xs font-extrabold">Split</span>
+                              </button>
+                            );
+                          }
+                        }
+
+                        // ── Single Mode: Standard button options ──
+                        let activeBg = '';
+                        let activeText = '';
+                        let activeBorder = '';
+                        let activeIconBg = '';
+                        if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
+                        if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
+                        if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
+                        if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
+                        if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
+                        if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; }
+
                         return (
                           <button
-                            key="SPLIT"
+                            key={opt.value}
                             type="button"
-                            onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
-                            className="col-span-2 flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]"
-                            title="Click again to deactivate Split Mode"
+                            onClick={() => {
+                              if (opt.value === 'UPI') {
+                                updateActiveTab({ paymentMethod: 'UPI' });
+                                if (upiPageConfig.billing && upiSources.length > 0) {
+                                  setIsUpiSelectModalOpen(true);
+                                }
+                              } else if (opt.value === 'SPLIT') {
+                                if (paymentMethod === 'SPLIT') {
+                                  updateActiveTab({ paymentMethod: 'CASH' });
+                                } else {
+                                  if (splitTotal === 0 && displayGrandTotal > 0) {
+                                    updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
+                                  } else {
+                                    updateActiveTab({ paymentMethod: 'SPLIT' });
+                                  }
+                                }
+                              } else {
+                                updateActiveTab({ paymentMethod: opt.value });
+                              }
+                            }}
+                            className={clsx(
+                              'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px]',
+                              span,
+                              isActive
+                                ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
+                                : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
+                            )}
                           >
-                            <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
-                              <Split className="w-4.5 h-4.5" />
+                            <div className={clsx(
+                              'p-1 rounded-lg transition-colors',
+                              isActive ? activeIconBg : 'bg-muted'
+                            )}>
+                              <opt.icon className="w-3.5 h-3.5" />
                             </div>
-                            <span className="text-xs font-extrabold">Split</span>
+                            <div className="flex flex-col items-center leading-tight min-w-0 max-w-full px-1">
+                              <span className="text-[11px] font-extrabold">{opt.label}</span>
+                              {opt.value === 'UPI' && currentSelectedUpi && (
+                                <span
+                                  className={clsx(
+                                    'text-[9px] font-black truncate max-w-[110px] mt-0.5 px-1.5 py-0.5 rounded-md shadow-2xs transition-colors',
+                                    isActive
+                                      ? 'bg-violet-600 text-white'
+                                      : 'bg-muted-foreground/15 text-foreground'
+                                  )}
+                                  title={`${currentSelectedUpi.name}${currentSelectedUpi.upi_id ? ` (${currentSelectedUpi.upi_id})` : ''}`}
+                                >
+                                  {currentSelectedUpi.name}
+                                </span>
+                              )}
+                            </div>
                           </button>
                         );
-                      }
-                    }
-
-                    // ── Single Mode: Standard button options ──
-                    let activeBg = '';
-                    let activeText = '';
-                    let activeBorder = '';
-                    let activeIconBg = '';
-                    if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
-                    if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
-                    if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
-                    if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
-                    if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
-                    if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; }
-
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => {
-                          if (opt.value === 'UPI') {
-                            updateActiveTab({ paymentMethod: 'UPI' });
-                            if (upiPageConfig.billing && upiSources.length > 0) {
-                              setIsUpiSelectModalOpen(true);
-                            }
-                          } else if (opt.value === 'SPLIT') {
-                            if (paymentMethod === 'SPLIT') {
-                              updateActiveTab({ paymentMethod: 'CASH' });
-                            } else {
-                              if (splitTotal === 0 && displayGrandTotal > 0) {
-                                updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
-                              } else {
-                                updateActiveTab({ paymentMethod: 'SPLIT' });
-                              }
-                            }
-                          } else {
-                            updateActiveTab({ paymentMethod: opt.value });
-                          }
-                        }}
-                        className={clsx(
-                          'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px]',
-                          span,
-                          isActive
-                            ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
-                            : 'border-border text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-border'
-                        )}
-                      >
-                        <div className={clsx(
-                          'p-1.5 rounded-xl transition-colors',
-                          isActive ? activeIconBg : 'bg-muted'
-                        )}>
-                          <opt.icon className="w-4.5 h-4.5" />
-                        </div>
-                        <span className="text-xs font-extrabold">{opt.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* ── UPI Details Account Indicator Bar (Page-wise Config: Billing) ── */}
-                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && upiSources.length > 0 && (() => {
-                  const currentSelected = upiSources.find((s: any) => s.upi_id === activeTab?.selectedUpiId)
-                    || upiSources.find((s: any) => s.is_default === 1)
-                    || upiSources[0];
-
-                  return (
-                    <div className="mt-3.5 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex items-center justify-between gap-3 animate-in fade-in duration-200 select-none">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400 shrink-0">
-                          <Smartphone className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-[10px] font-black uppercase text-violet-600 dark:text-violet-400 tracking-wider">Receiving UPI Account</div>
-                          <div className="text-xs font-extrabold text-foreground truncate flex items-center gap-1.5">
-                            <span>{currentSelected?.name || 'Default UPI'}</span>
-                            {currentSelected?.upi_id && (
-                              <span className="font-mono text-[11px] text-muted-foreground font-normal truncate">
-                                ({currentSelected.upi_id})
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setIsUpiSelectModalOpen(true)}
-                        className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0 active:scale-95 flex items-center gap-1"
-                      >
-                        <span>Change</span>
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      </button>
+                      })}
                     </div>
-                  );
-                })()}
-              </div>
-              )}
+                  </div>
+                )}
             </div>
 
             {/* ── Quotation Details — smoothly replaces payment methods ── */}
@@ -7528,14 +7578,25 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
               {/* Modal Content - UPI Account Options */}
               <div className="p-5 overflow-y-auto space-y-2.5 flex-1">
                 {upiSources.map((s: any) => {
-                  const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
+                  const isSelected = currentSelectedUpi
+                    ? (s.source_id === currentSelectedUpi.source_id || (s.upi_id && s.upi_id === currentSelectedUpi.upi_id))
+                    : (s.is_default === 1 || upiSources[0]?.source_id === s.source_id);
                   return (
                     <button
                       key={s.source_id}
                       type="button"
                       onClick={() => {
-                        updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name });
+                        updateActiveTab({
+                          selectedUpiId: s.upi_id || s.source_id || '',
+                          selectedUpiSourceId: s.source_id || '',
+                          selectedUpiName: s.name
+                        });
+                        try {
+                          localStorage.setItem('last_selected_upi_source_id', s.source_id || s.upi_id || '');
+                        } catch (e) {}
                         setIsUpiSelectModalOpen(false);
+                        setUpiAccountToast(`${s.name}${s.upi_id ? ` (${s.upi_id})` : ''}`);
+                        setTimeout(() => setUpiAccountToast(null), 3500);
                       }}
                       className={clsx(
                         'w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.98]',
