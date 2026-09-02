@@ -3252,7 +3252,11 @@ notes: '',
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
-          split_details: paymentMethod === 'SPLIT' ? splitDetails : undefined,
+          split_details: paymentMethod === 'SPLIT'
+            ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
+            : (paymentMethod === 'UPI' && currentSelectedUpi
+                ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
+                : (splitDetails || undefined)),
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
           customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
@@ -3269,7 +3273,11 @@ notes: '',
           invoice_type: invoiceType, subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
-          split_details: paymentMethod === 'SPLIT' ? splitDetails : undefined,
+          split_details: paymentMethod === 'SPLIT'
+            ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
+            : (paymentMethod === 'UPI' && currentSelectedUpi
+                ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
+                : (splitDetails || undefined)),
           received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,

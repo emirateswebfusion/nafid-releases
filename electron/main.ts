@@ -2746,6 +2746,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
   payment_method: string;
   received_amount: number;
   balance_amount: number;
+  split_details?: any;
 }) => {
   try {
     const db = getDb();
@@ -2757,6 +2758,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
         payment_method = ?,
         received_amount = ?,
         balance_amount = ?,
+        split_details = COALESCE(?, split_details),
         sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
       WHERE invoice_id = ?
@@ -2764,6 +2766,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       payload.payment_method,
       payload.received_amount,
       payload.balance_amount,
+      payload.split_details ? (typeof payload.split_details === 'object' ? JSON.stringify(payload.split_details) : payload.split_details) : null,
       payload.invoice_id
     );
 

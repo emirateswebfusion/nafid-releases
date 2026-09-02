@@ -129,6 +129,43 @@ function getInvoiceTypeInfo(inv: any): { label: string; icon: any; bg: string; t
   return { label: 'Bill of Supply', icon: FileText, bg: 'bg-amber-500/10', text: 'text-amber-500', border: 'border-amber-500/20' };
 }
 
+function parseSplitDetails(splitDetailsRaw: any) {
+  if (!splitDetailsRaw) return null;
+  if (typeof splitDetailsRaw === 'object') return splitDetailsRaw;
+  try {
+    return JSON.parse(splitDetailsRaw);
+  } catch {
+    return null;
+  }
+}
+
+function getUpiDetailsFromInvoice(inv: any, upiSourcesList: any[] = []) {
+  if (!inv) return null;
+  const sd = parseSplitDetails(inv.split_details);
+  if (sd?.upi_name || sd?.upi_id) {
+    const name = sd.upi_name || 'UPI';
+    const upiId = sd.upi_id || '';
+    return {
+      name,
+      upiId,
+      label: name && upiId ? `${name} (${upiId})` : (name || upiId)
+    };
+  }
+  if (inv.payment_method === 'UPI' && upiSourcesList && upiSourcesList.length > 0) {
+    const matched = (sd?.upi_source_id ? upiSourcesList.find((s: any) => s.source_id === sd.upi_source_id) : null)
+      || upiSourcesList.find((s: any) => s.is_default === 1)
+      || upiSourcesList[0];
+    if (matched) {
+      return {
+        name: matched.name,
+        upiId: matched.upi_id || '',
+        label: matched.name && matched.upi_id ? `${matched.name} (${matched.upi_id})` : (matched.name || matched.upi_id || 'UPI')
+      };
+    }
+  }
+  return null;
+}
+
 /* ─── Payment Badge ─── */
 function PaymentBadge({ method }: { method: string }) {
   const c = PAYMENT_COLORS[method] || { bg: 'bg-muted', text: 'text-muted-foreground', dot: '#888' };
@@ -153,7 +190,7 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 /* ─── Invoice Row ─── */
-function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean }) {
+function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onCheck, convertible, upiSources = [] }: { inv: any; isSelected: boolean; onClick: () => void; selectionMode?: boolean; isChecked?: boolean; onCheck?: () => void; convertible?: boolean; upiSources?: any[] }) {
   const { date, time } = formatDate(inv.created_at);
   const _isPending = inv.payment_method === 'PENDING';
   const isCredit = inv.payment_method === 'CREDIT';
@@ -178,35 +215,29 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
           {selectionMode && canConvert && (
             <div onClick={(e) => { e.stopPropagation(); onCheck?.(); }} className="flex items-center justify-center cursor-pointer shrink-0">
               <input type="checkbox" checked={isChecked} readOnly
-                className="w-4 h-4 rounded border-border accent-primary cursor-pointer"
-                disabled={inv.invoice_type !== 'BILL_OF_SUPPLY' || isConvertedBos} />
+                className="w-4 h-4 rounded-md border-2 border-border text-primary focus:ring-primary/20 transition-all cursor-pointer"
+              />
             </div>
           )}
-          {selectionMode && inv.invoice_type === 'BILL_OF_SUPPLY' && !canConvert && (
-            <div title="No GST purchase records — cannot be converted" className="flex items-center justify-center w-4 shrink-0 text-muted-foreground/40">
-              <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/30" />
-            </div>
-          )}
-          <div className={clsx(
-            'w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-all',
-            isSelected ? 'bg-primary/15 text-primary' : 'bg-muted/60 text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary'
-          )}>
-            <Receipt className="w-3.5 h-3.5" />
+          <div className="p-2 rounded-xl bg-primary/10 text-primary shrink-0">
+            <Receipt className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-xs font-mono font-black text-foreground">{inv.invoice_number}</div>
-            {isConvertedBos && (
-              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/10 border border-amber-500/20 text-[9px] font-black text-amber-600 dark:text-amber-400 mt-0.5">
-                <ArrowDownRight className="w-2.5 h-2.5" /> Converted → {inv.converted_to_invoice_number}
-              </div>
-            )}
-            {isConversionCopy && (
-              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-[9px] font-black text-violet-600 dark:text-violet-400 mt-0.5">
-                <ArrowDownRight className="w-2.5 h-2.5" /> From {inv.converted_from_invoice_number}
-              </div>
-            )}
-            <div className={clsx('text-[10px] font-black uppercase', inv.sync_status === 'SYNCED' ? 'text-emerald-500' : 'text-amber-500')}>
-              {inv.sync_status}
+            <div className="text-xs font-black text-foreground group-hover:text-primary transition-colors flex items-center gap-1.5">
+              <span>{inv.invoice_number}</span>
+              {isConvertedBos && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-violet-500/15 text-violet-600 dark:text-violet-400 border border-violet-500/20">
+                  GST Converted
+                </span>
+              )}
+              {isConversionCopy && (
+                <span className="px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-wider bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                  From BOS
+                </span>
+              )}
+            </div>
+            <div className="text-[10px] text-muted-foreground font-medium">
+              {inv.item_count || 0} item{(inv.item_count || 0) !== 1 ? 's' : ''}
             </div>
           </div>
         </div>
@@ -215,7 +246,7 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       <td className="px-4 py-3.5 whitespace-nowrap">
         <InvoiceTypeBadge inv={inv} />
       </td>
-      {/* Date / Time */}
+      {/* Date & Time */}
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="text-xs font-semibold text-foreground/80">{date}</div>
         <div className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
@@ -233,7 +264,25 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       </td>
       {/* Payment */}
       <td className="px-4 py-3.5 whitespace-nowrap">
-        <PaymentBadge method={inv.payment_method || 'PENDING'} />
+        <div className="flex flex-col items-start gap-0.5">
+          <PaymentBadge method={inv.payment_method || 'PENDING'} />
+          {(() => {
+            const upiDetail = getUpiDetailsFromInvoice(inv, upiSources);
+            if ((inv.payment_method === 'UPI' || (inv.payment_method === 'SPLIT' && (Number(parseSplitDetails(inv.split_details)?.upi) || 0) > 0)) && upiDetail) {
+              return (
+                <div className="text-[10px] leading-snug mt-0.5">
+                  <div className="font-extrabold text-violet-700 dark:text-violet-300">{upiDetail.name}</div>
+                  {upiDetail.upiId && (
+                    <div className="text-[9.5px] font-bold text-violet-600/90 dark:text-violet-400/90 font-mono">
+                      {upiDetail.upiId}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+            return null;
+          })()}
+        </div>
         {isCredit && inv.balance_amount < 0 && (
           <div className="text-[10px] text-amber-500 font-semibold mt-0.5">
             Due: {formatCurrency(Math.abs(inv.balance_amount))}
@@ -844,12 +893,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const grandTotal = Number(selectedInvoice.grand_total) || 0;
       const balanceAmount = collectPaymentMethod === 'CREDIT' ? collectReceivedAmount - grandTotal : collectReceivedAmount - grandTotal;
 
+      const selectedCollectSource = upiSources.find((s: any) => s.source_id === collectUpiSourceId) || upiSources[0];
+      const collectSplitDetails = collectPaymentMethod === 'UPI' && selectedCollectSource
+        ? { upi_id: selectedCollectSource.upi_id, upi_name: selectedCollectSource.name, upi_source_id: selectedCollectSource.source_id }
+        : selectedInvoice.split_details;
+
       const result = await window.electronAPI.dbUpdateInvoicePayment({
         invoice_id: selectedInvoice.invoice_id,
         tenant_id: tenantId || 'global',
         payment_method: collectPaymentMethod,
         received_amount: collectReceivedAmount,
         balance_amount: balanceAmount,
+        split_details: collectSplitDetails,
       });
 
       if (result.success) {
@@ -860,6 +915,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           payment_method: collectPaymentMethod,
           received_amount: collectReceivedAmount,
           balance_amount: balanceAmount,
+          split_details: typeof collectSplitDetails === 'object' ? JSON.stringify(collectSplitDetails) : collectSplitDetails,
         });
         // Refresh the full list
         loadInvoices(true);
@@ -1518,6 +1574,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                               return next;
                             });
                           }}
+                          upiSources={upiSources}
                         />
                       ))}
                     </Fragment>
@@ -1738,6 +1795,18 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     <BookOpen className="w-3.5 h-3.5 text-amber-500" />
                   )}
                 </div>
+                {(() => {
+                  const upiDetail = getUpiDetailsFromInvoice(selectedInvoice, upiSources);
+                  if ((selectedInvoice.payment_method === 'UPI' || (selectedInvoice.payment_method === 'SPLIT' && (Number(parseSplitDetails(selectedInvoice.split_details)?.upi) || 0) > 0)) && upiDetail) {
+                    return (
+                      <div className="text-xs font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1.5 pt-0.5">
+                        <Smartphone className="w-3.5 h-3.5 shrink-0" />
+                        <span>Account: <strong className="font-black text-foreground">{upiDetail.label}</strong></span>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
                 {(() => {
                   const received = Number(selectedInvoice.received_amount) || 0;
                   const balance = Number(selectedInvoice.balance_amount) || 0;
