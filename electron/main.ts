@@ -2421,7 +2421,8 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     }
 
     let query = `
-      SELECT i.*, u.name as biller_name 
+      SELECT i.*, u.name as biller_name,
+        COALESCE((SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.invoice_id), 0) as item_count
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
       WHERE i.tenant_id = ? 

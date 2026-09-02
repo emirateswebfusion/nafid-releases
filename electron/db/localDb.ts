@@ -138,6 +138,8 @@ export function initDb() {
         FOREIGN KEY (invoice_id) REFERENCES invoices(invoice_id)
     );
 
+    CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items(invoice_id);
+
     CREATE TABLE IF NOT EXISTS parties (
         party_id TEXT PRIMARY KEY,
         tenant_id TEXT NOT NULL,

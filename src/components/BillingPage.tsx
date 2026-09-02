@@ -2101,14 +2101,52 @@ export function BillingPage() {
             const brand = item.brand_manufacturer || dbProduct.brand_manufacturer || null;
             const uomVal = item.uom || dbProduct.uom || null;
 
+            const soldRate = Number(item.rate) || 0;
+            const mrp = Number(item.base_price || dbProduct.base_price) || 0;
+            const basePrice = Math.max(mrp, soldRate);
+
+            // Catalog offer/discount metadata from DB product
+            const catalog_offer_price = dbProduct.offer_price != null ? Number(dbProduct.offer_price) : (dbProduct.catalog_offer_price != null ? Number(dbProduct.catalog_offer_price) : null);
+            const catalog_discount_flat = dbProduct.discount_flat != null ? Number(dbProduct.discount_flat) : (dbProduct.catalog_discount_flat != null ? Number(dbProduct.catalog_discount_flat) : null);
+            const catalog_discount_percent = dbProduct.discount_percent != null ? Number(dbProduct.discount_percent) : (dbProduct.catalog_discount_percent != null ? Number(dbProduct.catalog_discount_percent) : null);
+
+            const rawRate = dbProduct.pricing_mode === 'GRADE_RATE' && dbProduct.grade_rate ? Number(dbProduct.grade_rate) : basePrice;
+            const catalogEffectivePrice = catalog_offer_price != null ? catalog_offer_price
+              : catalog_discount_flat != null ? Math.max(0, rawRate - catalog_discount_flat)
+              : catalog_discount_percent != null ? Math.max(0, rawRate * (1 - catalog_discount_percent / 100))
+              : rawRate;
+
+            let offer_price = item.offer_price ?? null;
+            let discount_flat = item.discount_flat ?? null;
+            let discount_percent = item.discount_percent ?? null;
+
+            if (offer_price == null && discount_flat == null && discount_percent == null) {
+              if (Math.abs(soldRate - catalogEffectivePrice) < 0.01) {
+                offer_price = null;
+                discount_flat = null;
+                discount_percent = null;
+              } else if (soldRate < catalogEffectivePrice) {
+                discount_flat = Number((catalogEffectivePrice - soldRate).toFixed(2));
+                discount_percent = catalogEffectivePrice > 0 ? Number(((catalogEffectivePrice - soldRate) / catalogEffectivePrice * 100).toFixed(2)) : null;
+              } else {
+                offer_price = soldRate;
+              }
+            }
+
             addItem({
               product_id: productId,
               name: item.name || dbProduct.name || 'Product',
-              base_price: Number(item.rate) || 0,
-              purchase_price: Number(item.rate) || 0,
+              base_price: basePrice,
+              purchase_price: Number(dbProduct.purchase_price || item.purchase_price) || 0,
               tax_rate_percent: 0,
               billing_type: item.weight && Number(item.weight) > 0 ? 'WEIGHT' : (dbProduct.billing_type || undefined),
               quantity: qty,
+              offer_price,
+              discount_flat,
+              discount_percent,
+              catalog_offer_price,
+              catalog_discount_flat,
+              catalog_discount_percent,
               sku_barcode: barcode,
               brand_manufacturer: brand,
               uom: uomVal,
@@ -2442,15 +2480,36 @@ export function BillingPage() {
 
       const qItems = items.map(item => {
         const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
+          : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
+          : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
+          : rate;
+        const isAdhocOfferC = item.offer_price != null && item.offer_price !== item.catalog_offer_price;
+        const isAdhocDiscFlatC = item.discount_flat != null && (item.catalog_discount_flat == null || item.discount_flat !== item.catalog_discount_flat);
+        const isAdhocDiscPctC = item.discount_percent != null && (item.catalog_discount_percent == null || item.discount_percent !== item.catalog_discount_percent);
+        let effectiveRate = catalogPriceChk;
+        if (isAdhocOfferC) {
+          effectiveRate = Number(item.offer_price);
+        } else if (isAdhocDiscFlatC) {
+          effectiveRate = catalogPriceChk - Number(item.discount_flat);
+        } else if (isAdhocDiscPctC) {
+          effectiveRate = catalogPriceChk * (1 - Number(item.discount_percent) / 100);
+        }
+        effectiveRate = Math.max(effectiveRate, 0);
+
         const qty = Number(item.quantity) || 0;
-        const amount = rate * qty;
+        const amount = effectiveRate * qty;
         return {
-          item_id: uuidv4(),
+          item_id: item.item_id || uuidv4(),
           product_id: item.product_id,
           name: item.name,
           quantity: qty,
           weight: item.billing_type === 'WEIGHT' ? qty : 0,
-          rate,
+          rate: effectiveRate,
+          base_price: rate,
+          discount_flat: item.discount_flat ?? null,
+          discount_percent: item.discount_percent ?? null,
+          offer_price: item.offer_price ?? null,
           amount,
         };
       });
