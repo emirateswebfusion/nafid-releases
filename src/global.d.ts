@@ -32,7 +32,7 @@ export interface IElectronAPI {
   dbGetDashboardStats: (tenantId: string) => Promise<{ success: boolean; totalSales: number; invoiceCount: number; error?: string }>;
   dbGetInvoiceItems: (invoice_id: string) => Promise<any[]>;
   dbUpdateInvoice: (payload: any) => Promise<{ success: boolean; error?: string }>;
-  dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number }) => Promise<{ success: boolean; error?: string }>;
+  dbUpdateInvoicePayment: (payload: { invoice_id: string; tenant_id: string; payment_method: string; received_amount: number; balance_amount: number; split_details?: any }) => Promise<{ success: boolean; error?: string }>;
   dbGetCustomers: (params: { tenant_id: string }) => Promise<any[]>;
   dbGetCustomerInvoices: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
   dbGetCustomerLoyaltyTransactions: (params: { customer_id: string; tenant_id: string }) => Promise<any[]>;
