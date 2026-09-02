@@ -123,7 +123,8 @@ export function initPrinter() {
 
       currentA4Html = htmlContent;
       const isA5 = htmlContent.includes('A5 landscape') || htmlContent.includes('size: A5');
-      await printA4USB(config.deviceName || '', isA5 ? 'A5' : 'A4');
+      const isLandscape = htmlContent.includes('landscape');
+      await printA4USB(config.deviceName || '', isA5 ? 'A5' : 'A4', isLandscape);
 
       return { success: true };
     } catch (error: any) {
@@ -426,7 +427,7 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
   });
 }
 
-function printA4USB(deviceName: string, pageSize: string = 'A4'): Promise<void> {
+function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false): Promise<void> {
   return new Promise((resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
@@ -456,8 +457,10 @@ function printA4USB(deviceName: string, pageSize: string = 'A4'): Promise<void> 
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
       const printOptions: any = {
         silent: Boolean(deviceName),
-        margins: { marginType: 'default' },
-        pageSize: pageSize as any
+        margins: { marginType: 'none' },
+        pageSize: pageSize as any,
+        landscape: landscape,
+        printBackground: true,
       };
       if (deviceName) {
         printOptions.deviceName = deviceName;

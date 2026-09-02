@@ -61,7 +61,17 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
   const printRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { loadQuotations(); }, []);
+  useEffect(() => {
+    loadQuotations();
+    if (window.electronAPI?.onSyncDataUpdated) {
+      const unsub = window.electronAPI.onSyncDataUpdated(() => {
+        loadQuotations();
+      });
+      return () => {
+        if (typeof unsub === 'function') (unsub as any)();
+      };
+    }
+  }, []);
 
   const loadQuotations = async () => {
     setLoading(true);

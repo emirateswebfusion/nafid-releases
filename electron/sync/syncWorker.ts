@@ -269,7 +269,31 @@ export function initSyncWorker() {
       }
     }
   }, FAST_CASH_PULL_MS);
+
+  // 4. Fast quotation pull (every 3s) for real-time quotation updates across terminals
+  setInterval(async () => {
+    if (isSyncActive && !fastQuotationPullInProgress && !syncInProgress) {
+      const config = getAuthConfig();
+      if (config && !isJwtExpired(config.jwt_token)) {
+        fastQuotationPullInProgress = true;
+        try {
+          const updated = await pullQuotations(config.jwt_token, config.tenant_id);
+          if (updated) {
+            notifyRenderer();
+            console.log('[SyncWorker] Fast quotation pull: renderer notified.');
+          }
+        } catch {
+          // ignore transient fast pull errors
+        } finally {
+          fastQuotationPullInProgress = false;
+        }
+      }
+    }
+  }, FAST_QUOTATION_PULL_MS);
 }
+
+let fastQuotationPullInProgress = false;
+const FAST_QUOTATION_PULL_MS = 3000;
 
 let urgentInvoiceSyncInProgress = false;
 
@@ -296,6 +320,34 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
     console.error('[SyncWorker] Express invoice sync error:', err.message);
   } finally {
     urgentInvoiceSyncInProgress = false;
+  }
+}
+
+let urgentQuotationSyncInProgress = false;
+
+export async function triggerUrgentQuotationSync(): Promise<void> {
+  if (urgentQuotationSyncInProgress) {
+    console.log('[SyncWorker] Urgent quotation sync already in progress, skipping...');
+    return;
+  }
+  const config = getAuthConfig();
+  if (!config) return;
+  const { jwt_token, tenant_id } = config;
+  if (isJwtExpired(jwt_token)) return;
+
+  urgentQuotationSyncInProgress = true;
+  try {
+    console.log('[SyncWorker] Express priority quotation push/pull running...');
+    await syncQuotations(jwt_token, tenant_id);
+    const updated = await pullQuotations(jwt_token, tenant_id);
+    notifyRenderer();
+    if (updated) {
+      console.log('[SyncWorker] Express priority quotation sync completed: renderer notified.');
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Express quotation sync error:', err.message);
+  } finally {
+    urgentQuotationSyncInProgress = false;
   }
 }
 
@@ -342,6 +394,7 @@ export async function runInitialSync(sender?: WebContents) {
   isSyncActive = true;
   triggerUrgentInvoiceSync().catch(() => {});
   triggerUrgentCashSync().catch(() => {});
+  triggerUrgentQuotationSync().catch(() => {});
   await runSyncCycle(sender);
   return { success: true };
 }
@@ -3192,26 +3245,28 @@ async function pullComboOffers(token: string, tenantId: string): Promise<boolean
 // ── Quotations Sync (Edge → Cloud) ───────────────────────────────────────────────
 async function syncQuotations(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM quotations WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = '' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} quotations to cloud in batches of ${BATCH_SIZE}...`);
 
-  const getItems = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ? AND tenant_id = ?`);
-  const updateStmt = db.prepare(`UPDATE quotations SET sync_status = 'SYNCED' WHERE quotation_id = ? AND tenant_id = ?`);
-  const updateItemsStmt = db.prepare(`UPDATE quotation_items SET sync_status = 'SYNCED' WHERE quotation_id = ? AND tenant_id = ?`);
+  const getItems = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`);
+  const updateStmt = db.prepare(`UPDATE quotations SET sync_status = 'SYNCED', tenant_id = ? WHERE quotation_id = ?`);
+  const updateItemsStmt = db.prepare(`UPDATE quotation_items SET sync_status = 'SYNCED', tenant_id = ? WHERE quotation_id = ?`);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const quotationsWithItems = batch.map((q: any) => ({
       ...q,
+      tenant_id: tenantId,
       subtotal: Number(q.subtotal) || 0,
       tax_total: Number(q.tax_total) || 0,
       grand_total: Number(q.grand_total) || 0,
       converted_to_invoice: parseIsDeleted(q.converted_to_invoice),
-      items: (getItems.all(q.quotation_id, tenantId) as any[]).map((item: any) => ({
+      items: (getItems.all(q.quotation_id) as any[]).map((item: any) => ({
         ...item,
+        tenant_id: tenantId,
         quantity: Number(item.quantity) || 0,
         weight: item.weight != null ? Number(item.weight) : null,
         rate: Number(item.rate) || 0,
@@ -3230,8 +3285,8 @@ async function syncQuotations(token: string, tenantId: string) {
       totalSynced += synced.length;
       const tx = db.transaction((ids: string[]) => {
         for (const id of ids) {
-          updateStmt.run(id, tenantId);
-          updateItemsStmt.run(id, tenantId);
+          updateStmt.run(tenantId, id);
+          updateItemsStmt.run(tenantId, id);
         }
       });
       tx(synced);
@@ -3286,7 +3341,7 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
       sync_status = 'SYNCED'
   `);
 
-  const deleteItems = db.prepare('DELETE FROM quotation_items WHERE quotation_id = ? AND tenant_id = ?');
+  const deleteItems = db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?');
 
   const result = await pullPaginated({
     token,
@@ -3301,7 +3356,7 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
           try {
             if (q.status === 'DELETED' || q.is_deleted) {
               db.prepare("UPDATE quotations SET status = 'DELETED', sync_status = 'SYNCED' WHERE quotation_id = ?").run(q.quotation_id);
-              deleteItems.run(q.quotation_id, tenantId);
+              deleteItems.run(q.quotation_id);
               continue;
             }
             upsertQtn.run({
@@ -3323,7 +3378,7 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
             });
 
             if (Array.isArray(q.items)) {
-              deleteItems.run(q.quotation_id, tenantId);
+              deleteItems.run(q.quotation_id);
               for (const item of q.items) {
                 upsertItem.run({
                   item_id: item.item_id,

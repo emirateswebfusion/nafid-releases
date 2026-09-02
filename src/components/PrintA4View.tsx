@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 
 function sanitizeHtml(html: string): string {
-  // Strip script/style blocks
+  // Strip script blocks
   html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
   // Strip dangerous tags (iframe, object, embed, svg, meta, link, form, input, etc.)
   html = html.replace(/<\/?(?:iframe|object|embed|svg|meta|link|base|form|input|button|textarea|select|option|optgroup|label|fieldset|legend|datalist|output|progress|meter|details|summary|dialog|template|slot|canvas|map|area|math|noscript|noembed|plaintext|xmp)\b[^>]*>/gi, '');
   // Strip event handlers (onclick, onerror, etc.) with any quote style including backticks

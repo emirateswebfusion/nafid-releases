@@ -87,25 +87,31 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'mode
 }
 
 export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
-  const title = titleStr || (data.billSettings?.estimateMode ? 'ORG. ESTIMATE' : 'ESTIMATE / BILL');
+  const bs = data.billSettings;
+  const isB2B = data.isB2B === true;
+  const title = titleStr || (bs?.estimateMode ? 'ORG. ESTIMATE' : getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B));
   const netPayable = data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0));
 
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#555;">(${item.brand})</span>` : '';
+    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
     return `
     <tr>
-      <td style="text-align:center; padding: 4px 6px;">${idx + 1}</td>
-      <td style="padding: 4px 6px;">${displayName}${brandHtml}</td>
-      <td style="text-align:right; padding: 4px 6px;">${fmt.displayRate}</td>
-      <td style="text-align:center; padding: 4px 6px;">${fmt.displayQty}</td>
-      <td style="text-align:right; padding: 4px 6px; font-weight: 600;">${fmt.displayTotal}</td>
+      <td style="text-align:center; padding: 4px 6px; border: 1px solid #000;">${idx + 1}</td>
+      <td style="padding: 4px 6px; border: 1px solid #000;">${displayName}${brandHtml}</td>
+      <td style="text-align:right; padding: 4px 6px; border: 1px solid #000;">${fmt.displayRate}</td>
+      <td style="text-align:center; padding: 4px 6px; border: 1px solid #000;">${fmt.displayQty}</td>
+      <td style="text-align:right; padding: 4px 6px; font-weight: 600; border: 1px solid #000;">${fmt.displayTotal}</td>
     </tr>
     `;
   }).join('');
 
   const amountWords = numberToIndianWords(Math.max(0, netPayable));
+
+  const oldBalance = data.balanceAmount != null && data.receivedAmount != null
+    ? (data.balanceAmount - data.grandTotal + data.receivedAmount)
+    : null;
 
   return `<!DOCTYPE html>
 <html>
@@ -115,7 +121,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   <style>
     @page {
       size: A5 landscape;
-      margin: 6mm 8mm;
+      margin: 5mm 6mm;
     }
     @media print {
       html, body {
@@ -123,14 +129,16 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         height: 148mm;
         margin: 0;
         padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
       }
     }
     body {
-      font-family: Arial, sans-serif;
+      font-family: Arial, "Helvetica Neue", sans-serif;
       font-size: 11px;
       color: #000;
       margin: 0;
-      padding: 4mm;
+      padding: 4mm 6mm;
       box-sizing: border-box;
       background: #fff;
     }
@@ -160,18 +168,18 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     .doc-title {
       font-size: 14px;
       font-weight: 900;
-      text-align: center;
       text-transform: uppercase;
       letter-spacing: 1px;
+      margin-bottom: 4px;
     }
     .items-table {
       width: 100%;
       border-collapse: collapse;
       margin-top: 4px;
-      margin-bottom: 10px;
+      margin-bottom: 8px;
     }
     .items-table th, .items-table td {
-      border: 1px solid #333;
+      border: 1px solid #000;
       padding: 4px 6px;
       font-size: 11px;
     }
@@ -186,15 +194,15 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       align-items: flex-start;
       margin-top: auto;
       padding-top: 6px;
-      border-top: 1px solid #333;
+      border-top: 1px solid #000;
     }
     .left-summary {
-      width: 62%;
+      width: 60%;
       font-size: 11px;
       line-height: 1.5;
     }
     .right-summary {
-      width: 35%;
+      width: 38%;
       font-size: 11px;
       line-height: 1.6;
       text-align: right;
@@ -223,19 +231,17 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     <div>
       <table class="header-table">
         <tr>
-          <td style="width: 32%;">
-            ${data.billSettings?.showTitle !== false ? `<strong>No. :</strong> ${data.invoiceNumber}<br>` : ''}
-            <strong>Date :</strong> ${data.date}
-          </td>
-          <td style="width: 36%; text-align: center;">
-            ${data.billSettings?.showTitle !== false ? `<div class="doc-title">${title}</div>` : ''}
+          <td style="width: 50%;">
             ${data.billSettings?.showShopName !== false && data.shopName ? `<div class="shop-title">${data.shopName}</div>` : ''}
-            ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div style="font-size:9.5px; color:#444;">${data.shopAddress}</div>` : ''}
+            ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div style="font-size:9.5px; color:#333;">${data.shopAddress}</div>` : ''}
             ${data.billSettings?.showPhone !== false && data.shopPhone ? `<div style="font-size:10px;">Ph: ${data.shopPhone}</div>` : ''}
             ${data.billSettings?.showShopGstin !== false && data.shopGstin ? `<div style="font-size:9.5px;">GSTIN: ${data.shopGstin}</div>` : ''}
           </td>
-          <td style="width: 32%; text-align: right;">
-            ${data.billSettings?.showCustomerName !== false ? `<strong>To:</strong> ${data.customerName || 'Cash'}<br>` : ''}
+          <td style="width: 50%; text-align: right;">
+            ${data.billSettings?.showTitle !== false ? `<div class="doc-title">${title}</div>` : ''}
+            ${data.billSettings?.showTitle !== false ? `<strong>No. :</strong> ${data.invoiceNumber}<br>` : ''}
+            <strong>Date :</strong> ${data.date}<br>
+            ${data.billSettings?.showCustomerName !== false ? `<strong>To :</strong> ${data.customerName || 'Cash'}<br>` : ''}
             ${data.customerAddress ? `${data.customerAddress}<br>` : ''}
             ${data.customerPhone ? `Ph: ${data.customerPhone}<br>` : ''}
             ${data.billSettings?.showCustomerGstin !== false && data.customerGstin ? `GSTIN: ${data.customerGstin}` : ''}
@@ -246,11 +252,11 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       <table class="items-table">
         <thead>
           <tr>
-            <th style="width: 35px; text-align: center;">S No</th>
-            <th>Description</th>
-            <th style="width: 75px; text-align: right;">Rate</th>
-            <th style="width: 50px; text-align: center;">Qty</th>
-            <th style="width: 85px; text-align: right;">Total</th>
+            <th style="width: 40px; text-align: center;">S No</th>
+            <th style="text-align: left;">Description</th>
+            <th style="width: 80px; text-align: right;">Rate</th>
+            <th style="width: 55px; text-align: center;">Qty</th>
+            <th style="width: 90px; text-align: right;">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -264,6 +270,12 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         <div class="words-text">Rupees ${amountWords} Only</div>
         ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null) ? `
         <table class="ledger-table">
+          ${oldBalance != null && oldBalance !== 0 ? `
+          <tr>
+            <td style="padding-right: 8px;">Old Balance</td>
+            <td>:</td>
+            <td style="text-align: right; padding-left: 8px;">${oldBalance.toFixed(2)}</td>
+          </tr>` : ''}
           <tr>
             <td style="padding-right: 8px;">Sales</td>
             <td>:</td>
@@ -277,8 +289,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           </tr>` : ''}
           ${data.balanceAmount != null ? `
           <tr>
-            <td style="padding-right: 8px;">Balance</td>
-            <td>:</td>
+            <td style="padding-right: 8px; font-weight: bold;">Balance</td>
+            <td style="font-weight: bold;">:</td>
             <td class="double-underline" style="text-align: right; padding-left: 8px;">${data.balanceAmount.toFixed(2)}</td>
           </tr>` : ''}
         </table>

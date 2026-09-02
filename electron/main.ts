@@ -93,7 +93,7 @@ import { initDb, getDb, upsertCustomerRecord } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
 import { initBarcodeScanner } from './hardware/barcodeScanner.js';
-import { initSyncWorker, setSyncActive } from './sync/syncWorker.js';
+import { initSyncWorker, setSyncActive, triggerUrgentInvoiceSync, triggerUrgentCashSync, triggerUrgentQuotationSync } from './sync/syncWorker.js';
 
 // In CommonJS (which tsc is outputting), __dirname and __filename are already available.
 // We don't need the fileURLToPath logic.
@@ -4485,6 +4485,7 @@ ipcMain.handle('db:saveQuotation', safeHandler((event, q) => {
       }
       return { success: true };
     })();
+    triggerUrgentQuotationSync().catch(() => {});
     return result;
   } catch (error: any) {
     console.error('[db:saveQuotation]', error);
@@ -4527,6 +4528,7 @@ ipcMain.handle('db:deleteQuotation', (event, quotationId: string) => {
       db.prepare("UPDATE quotations SET status = 'DELETED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE quotation_id = ?").run(quotationId);
       db.prepare('DELETE FROM quotation_items WHERE quotation_id = ?').run(quotationId);
     })();
+    triggerUrgentQuotationSync().catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error('[db:deleteQuotation]', error);
@@ -4560,6 +4562,7 @@ ipcMain.handle('db:updateQuotation', (event, q) => {
       }
       return { success: true };
     })();
+    triggerUrgentQuotationSync().catch(() => {});
     return result;
   } catch (error: any) {
     console.error('[db:updateQuotation]', error);
@@ -4577,6 +4580,7 @@ ipcMain.handle('db:updateQuotationStatus', (event, { quotation_id, status, conve
     if (invoice_id) { updates.push('invoice_id = ?'); params.push(invoice_id); }
     params.push(quotation_id);
     db.prepare(`UPDATE quotations SET ${updates.join(', ')} WHERE quotation_id = ?`).run(...params);
+    triggerUrgentQuotationSync().catch(() => {});
     return { success: true };
   } catch (error: any) {
     console.error('[db:updateQuotationStatus]', error);

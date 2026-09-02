@@ -2627,7 +2627,7 @@ export function BillingPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (e.key === ' ' && !showProductCreateForm && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode) {
+      if (e.key === ' ' && !showProductCreateForm && !isScrapMode && !isReturnMode && !isPastBillMode) {
         const tag = (document.activeElement?.tagName || '').toLowerCase();
         const isEditable = (document.activeElement as HTMLElement)?.isContentEditable;
         if (tag !== 'input' && tag !== 'textarea' && tag !== 'select' && !isEditable) {
@@ -2639,7 +2639,7 @@ export function BillingPage() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [showProductCreateForm, isScrapMode, isReturnMode, isPastBillMode, isQuotationMode]);
+  }, [showProductCreateForm, isScrapMode, isReturnMode, isPastBillMode]);
 
   const handleSearchKey = async (e: React.KeyboardEvent) => {
     const maxLen = isScrapMode ? scrapSearchResults.length : isPastBillMode ? pastBillResults.length : results.length;
@@ -2655,7 +2655,7 @@ export function BillingPage() {
       } else {
         // Normal billing / quotation mode:
         const trimmedQuery = searchQuery.trim();
-        if (trimmedQuery.length >= 1 && !isQuotationMode && window.electronAPI) {
+        if (trimmedQuery.length >= 1 && window.electronAPI) {
           try {
             const products = await window.electronAPI.dbGetProducts({ tenant_id: tenantId, barcode: trimmedQuery });
             if (Array.isArray(products) && products.length > 0) {
@@ -2672,13 +2672,13 @@ export function BillingPage() {
 
         if (results[selectedIndex]) {
           handleSelectProduct(results[selectedIndex]);
-        } else if (!showProductCreateForm && searchQuery.length >= 1 && !isQuotationMode) {
+        } else if (!showProductCreateForm && searchQuery.length >= 1) {
           setShowProductCreateForm(true);
           setNewProductName(searchQuery);
         }
       }
     }
-    else if (e.key === ' ' && searchQuery.trim() === '' && !isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode) { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); }
+    else if (e.key === ' ' && searchQuery.trim() === '' && !isScrapMode && !isReturnMode && !isPastBillMode) { e.preventDefault(); setShowProductCreateForm(true); setNewProductName(''); }
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
   };
 
@@ -4329,7 +4329,7 @@ export function BillingPage() {
                       <div className="w-px h-5 bg-border/60" />
                     </>
                   )}
-                  {!isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
+                  {!isScrapMode && !isReturnMode && !isPastBillMode && (
                     <button
                       onClick={() => { setShowProductCreateForm(true); setNewProductName(''); }}
                       className="flex items-center gap-1.5 px-3 py-2.5 transition-all text-sm font-bold cursor-pointer active:scale-95 bg-primary/10 text-primary hover:bg-primary/20 border-0"
@@ -4339,7 +4339,7 @@ export function BillingPage() {
                       <span className="hidden sm:inline">Add</span>
                     </button>
                   )}
-                  {!isScrapMode && !isReturnMode && !isPastBillMode && !isQuotationMode && (
+                  {!isScrapMode && !isReturnMode && !isPastBillMode && (
                     <div className="w-px h-5 bg-border/60" />
                   )}
                   <button
@@ -4599,7 +4599,7 @@ export function BillingPage() {
                   </div>
                 </div>
               )}
-              {!isPastBillMode && !isScrapMode && !isReturnMode && !isQuotationMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
+              {!isPastBillMode && !isScrapMode && !isReturnMode && searchQuery.length >= 1 && results.length === 0 && !showProductCreateForm && (
                 <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-top-1 duration-200">
                   <button
                     type="button"
