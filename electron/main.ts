@@ -571,6 +571,8 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
 ipcMain.handle('db:addProduct', safeHandler((event, p) => {
   try {
     const db = getDb();
+    const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim() !== '') ? String(p.sku_barcode).trim() : null;
+    const cleanItemCode = (p.item_code && String(p.item_code).trim() !== '') ? String(p.item_code).trim() : null;
     const stmt = db.prepare(`
       INSERT INTO products (
         product_id, tenant_id, name, sku_barcode, item_code, category, hsn_sac_code,
@@ -585,8 +587,8 @@ ipcMain.handle('db:addProduct', safeHandler((event, p) => {
       p.product_id,
       p.tenant_id,
       p.name,
-      p.sku_barcode,
-      p.item_code,
+      cleanBarcode,
+      cleanItemCode,
       p.category,
       p.hsn_sac_code,
       p.purchase_price,
@@ -693,6 +695,8 @@ ipcMain.handle('db:ensureServiceItem', safeHandler((event, { tenant_id }: { tena
 ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
   try {
     const db = getDb();
+    const cleanBarcode = (p.sku_barcode && String(p.sku_barcode).trim() !== '') ? String(p.sku_barcode).trim() : null;
+    const cleanItemCode = (p.item_code && String(p.item_code).trim() !== '') ? String(p.item_code).trim() : null;
     const stmt = db.prepare(`
       UPDATE products 
       SET tenant_id = ?, name = ?, sku_barcode = ?, item_code = ?, category = ?, hsn_sac_code = ?, 
@@ -708,8 +712,8 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
     stmt.run(
       p.tenant_id,
       p.name,
-      p.sku_barcode,
-      p.item_code,
+      cleanBarcode,
+      cleanItemCode,
       p.category,
       p.hsn_sac_code,
       p.purchase_price,
@@ -735,8 +739,9 @@ ipcMain.handle('db:updateProduct', safeHandler((event, p) => {
     );
     return { success: true };
   } catch (error: any) {
-    console.error('[db:updateProduct]', error);
-    return { success: false, error: 'Operation failed' };
+    const msg = error?.message || 'Operation failed';
+    console.error('[db:updateProduct]', msg);
+    return { success: false, error: msg };
   }
 }));
 
@@ -3927,7 +3932,8 @@ ipcMain.handle('db:getScrapInvoiceByNumber', (event, { tenant_id, scrap_invoice_
     `).all(tenant_id, scrap_invoice_number);
     if (rows.length === 0) return null;
     const totalAmount = rows.reduce((sum, r) => sum + r.total_amount, 0);
-    return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number };
+    const paymentStatus = rows[0]?.payment_status || 'PENDING';
+    return { transactions: rows, totalAmount, invoiceNumber: scrap_invoice_number, paymentStatus };
   } catch (error: any) {
     console.error('[db:getScrapInvoiceByNumber]', error);
     return { error: 'Operation failed' };

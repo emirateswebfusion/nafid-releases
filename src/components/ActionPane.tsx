@@ -207,14 +207,6 @@ export function ActionPane() {
           return;
         }
 
-        if (cartState.scrapDeduction > 0 && cartState.scrapInvoiceNumber) {
-          await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
-            tenant_id: tenantId || 'global',
-            scrap_invoice_number: cartState.scrapInvoiceNumber,
-            payment_status: 'SETTLED',
-          }).catch(() => {});
-        }
-
         try {
           window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
         } catch (e) { /* ignore */ }

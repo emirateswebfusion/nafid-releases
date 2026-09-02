@@ -3164,19 +3164,6 @@ notes: '',
         return;
       }
 
-      // Mark scrap credit as SETTLED if scrap deduction was used
-      if (storeScrapDeduction > 0 && storeScrapInvoiceNumber && window.electronAPI) {
-        try {
-          await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
-            tenant_id: tenantId || 'global',
-            scrap_invoice_number: storeScrapInvoiceNumber,
-            payment_status: 'SETTLED',
-          });
-        } catch (e) {
-          console.error('Failed to update scrap invoice payment status to SETTLED:', e);
-        }
-      }
-
       // Consume ADJUST_BILL return credit. Only the portion actually applied to this
       // bill (clamped to the bill total) is settled; any leftover stays as pending
       // credit for a future bill. Editing a bill never re-consumes credit.
@@ -5616,63 +5603,55 @@ notes: '',
                 </div>
 
                 {/* ── UPI Details Account Selector (Page-wise Config: Billing) ── */}
-                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && (
+                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && upiSources.length > 0 && (
                   <div className="mt-3.5 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 space-y-2 animate-in fade-in duration-200 select-none">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
                         <Smartphone className="w-3.5 h-3.5" />
                         Select UPI Account
                       </span>
-                      {upiSources.length > 0 && (
-                        <span className="text-[10px] font-bold text-muted-foreground">
-                          {upiSources.length} UPI Account{upiSources.length > 1 ? 's' : ''} Configured
-                        </span>
-                      )}
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {upiSources.length} UPI Account{upiSources.length > 1 ? 's' : ''} Configured
+                      </span>
                     </div>
 
-                    {upiSources.length > 0 ? (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {upiSources.map((s: any) => {
-                          const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
-                          return (
-                            <button
-                              key={s.source_id}
-                              type="button"
-                              onClick={() => updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name })}
-                              className={clsx(
-                                'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2',
-                                isSelected
-                                  ? 'bg-violet-500/20 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-xs'
-                                  : 'bg-background/80 border-border/70 hover:bg-background text-foreground'
-                              )}
-                            >
-                              <div className="min-w-0">
-                                <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                                  {s.name}
-                                  {s.is_default === 1 && (
-                                    <span className="px-1 py-0.2 text-[8px] bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-black">
-                                      DEFAULT
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="text-[10px] font-mono text-muted-foreground truncate">
-                                  {s.upi_id || 'No UPI ID'}
-                                </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {upiSources.map((s: any) => {
+                        const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
+                        return (
+                          <button
+                            key={s.source_id}
+                            type="button"
+                            onClick={() => updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name })}
+                            className={clsx(
+                              'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2',
+                              isSelected
+                                ? 'bg-violet-500/20 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-xs'
+                                : 'bg-background/80 border-border/70 hover:bg-background text-foreground'
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold truncate flex items-center gap-1.5">
+                                {s.name}
+                                {s.is_default === 1 && (
+                                  <span className="px-1 py-0.2 text-[8px] bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-black">
+                                    DEFAULT
+                                  </span>
+                                )}
                               </div>
-                              {isSelected && (
-                                <div className="w-4 h-4 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
-                                  ✓
-                                </div>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="text-xs text-muted-foreground font-medium italic bg-background/50 p-2 rounded-xl border border-dashed border-border/60">
-                        No custom UPI accounts found in Payment Methods. Displaying default shop UPI ({upiId || 'Not configured'}).
-                      </div>
-                    )}
+                              <div className="text-[10px] font-mono text-muted-foreground truncate">
+                                {s.upi_id || 'No UPI ID'}
+                              </div>
+                            </div>
+                            {isSelected && (
+                              <div className="w-4 h-4 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                                ✓
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -5878,17 +5857,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                           <div className="flex items-center gap-1 shrink-0 ml-1">
                             <span className="text-[11px] font-black text-orange-600">-{formatCurrency(storeScrapDeduction)}</span>
                             <button
-                              onClick={async () => {
-                                const invNum = storeScrapInvoiceNumber;
-                                clearScrapDeduction();
-                                if (invNum && window.electronAPI) {
-                                  await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
-                                    tenant_id: tenantId || '',
-                                    scrap_invoice_number: invNum,
-                                    payment_status: 'PENDING',
-                                  });
-                                }
-                              }}
+                              onClick={() => clearScrapDeduction()}
                               title="Remove Scrap Credit"
                               className="p-0.5 text-orange-600/50 hover:text-destructive hover:bg-destructive/10 rounded transition-all cursor-pointer shrink-0"
                             >
@@ -5911,13 +5880,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                                 try {
                                   const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
                                   if (res && res.totalAmount) {
+                                    if (res.paymentStatus === 'SETTLED') {
+                                      setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                      return;
+                                    }
                                     setScrapDeduction(res.totalAmount, q);
                                     setScrapDeductionSearchQuery('');
                                     setScrapDeductionResults([]);
                                     setScrapDeductionDropdownStyle(null);
-                                    if (window.electronAPI) {
-                                      await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
-                                    }
                                   } else {
                                     const getNumPart = getNumericPart;
                                     const numQ = getNumPart(q);
@@ -5929,13 +5899,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                                       if (match) {
                                         const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
                                         if (detailRes && detailRes.totalAmount) {
+                                          if (detailRes.paymentStatus === 'SETTLED') {
+                                            setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                            return;
+                                          }
                                           setScrapDeduction(detailRes.totalAmount, match.invoice_number);
                                           setScrapDeductionSearchQuery('');
                                           setScrapDeductionResults([]);
                                           setScrapDeductionDropdownStyle(null);
-                                          if (window.electronAPI) {
-                                            await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number, payment_status: 'SETTLED' });
-                                          }
                                           return;
                                         }
                                       }
@@ -6080,13 +6051,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                                 try {
                                   const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: q });
                                   if (res && res.totalAmount) {
+                                    if (res.paymentStatus === 'SETTLED') {
+                                      setHardwareError(`Scrap credit ${q} has already been redeemed.`);
+                                      return;
+                                    }
                                     setScrapDeduction(res.totalAmount, q);
                                     setScrapDeductionSearchQuery('');
                                     setScrapDeductionResults([]);
                                     setScrapDeductionDropdownStyle(null);
-                                    if (window.electronAPI) {
-                                      await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: q, payment_status: 'SETTLED' });
-                                    }
                                   } else {
                                     const getNumPart = getNumericPart;
                                     const numQ = getNumPart(q);
@@ -6098,13 +6070,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                                       if (match) {
                                         const detailRes = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number });
                                         if (detailRes && detailRes.totalAmount) {
+                                          if (detailRes.paymentStatus === 'SETTLED') {
+                                            setHardwareError(`Scrap credit ${match.invoice_number} has already been redeemed.`);
+                                            return;
+                                          }
                                           setScrapDeduction(detailRes.totalAmount, match.invoice_number);
                                           setScrapDeductionSearchQuery('');
                                           setScrapDeductionResults([]);
                                           setScrapDeductionDropdownStyle(null);
-                                          if (window.electronAPI) {
-                                            await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({ tenant_id: tenantId || '', scrap_invoice_number: match.invoice_number, payment_status: 'SETTLED' });
-                                          }
                                           return;
                                         }
                                       }
@@ -6640,17 +6613,14 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   try {
                     const res = await window.electronAPI!.dbGetScrapInvoiceByNumber({ tenant_id: tenantId || '', scrap_invoice_number: inv.invoice_number });
                     if (res && res.totalAmount) {
+                      if (res.paymentStatus === 'SETTLED') {
+                        setHardwareError(`Scrap credit ${inv.invoice_number} has already been redeemed.`);
+                        return;
+                      }
                       setScrapDeduction(res.totalAmount, inv.invoice_number);
                       setScrapDeductionSearchQuery('');
                       setScrapDeductionResults([]);
                       setScrapDeductionDropdownStyle(null);
-                      if (window.electronAPI) {
-                        await window.electronAPI.dbUpdateScrapInvoicePaymentStatus({
-                          tenant_id: tenantId || '',
-                          scrap_invoice_number: inv.invoice_number,
-                          payment_status: 'SETTLED',
-                        });
-                      }
                     } else {
                       setHardwareError('Scrap invoice not found');
                     }
