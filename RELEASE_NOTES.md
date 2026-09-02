@@ -1,3 +1,10 @@
+# Vendora v1.5.37 Release Notes
+
+## What's Changed
+- Integrated UPI account badges, UPI source details display, and GST/BOS conversion indicators in `SalesHistory`
+- Improved payment collection dialog with selected UPI source account tracking
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.36...v1.5.37
+
 # Vendora v1.5.36 Release Notes
 
 ## What's Changed
