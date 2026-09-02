@@ -15,12 +15,14 @@ import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { loadFeatureFlags } from '../featureFlags';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
+import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -157,6 +159,10 @@ export function BillingPage() {
   const [pricingTiers, setPricingTiers] = useState<any[]>([]);
   const [productPricingMap, setProductPricingMap] = useState<Record<string, Record<string, number>>>({});
   const [selectedTierId, setSelectedTierId] = useState('');
+
+  // Page-wise UPI Configuration and sources state
+  const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
+  const [upiSources, setUpiSources] = useState<any[]>([]);
   const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = authRole === 'OWNER' || allowBillerOverride;
@@ -657,6 +663,14 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
+    getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
+    if (window.electronAPI?.dbPaymentGetSources) {
+      window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
+        if (Array.isArray(sources)) {
+          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+        }
+      }).catch(() => {});
+    }
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' }).then((v: any) => {
       if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
     });
@@ -3034,12 +3048,14 @@ notes: '',
       const cfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const width = cfg?.receiptWidthCm ? Number(cfg.receiptWidthCm) : 5.8;
 
-      const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const openCashDrawerOnPending = printFmt?.openCashDrawerOnPending === true;
-      const isHalfA4 = printFmt?.format === 'half-a4';
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      const openCashDrawerOnPending = printFmt.openCashDrawerOnPending === true;
+      const isHalfA4 = printFmt.format === 'half-a4';
+      const isA4 = printFmt.format === 'a4';
       const isB2B = Boolean(customerGstin?.trim());
-      const useA4 = isB2B || printFmt?.format === 'a4' || isHalfA4;
-      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+      const useA4 = isB2B || isA4 || isHalfA4;
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
       const state = useCartStore.getState();
       // Calculate loyalty points
@@ -3217,16 +3233,16 @@ notes: '',
       if (!saveOnly) {
         try {
           if (useA4) {
-            const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt?.style || 'standard');
+            const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
             const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
             const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-            if (!printResult.success && printResult.useDefaultDialog) {
+            if (!printResult.success && (printResult as any).useDefaultDialog) {
               const pw = window.open('', '_blank');
               if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
             }
           } else {
-            const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : width;
-            const thermalStyle = printFmt?.style || 'standard';
+            const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : width;
+            const thermalStyle = printFmt.style || 'standard';
             const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
             const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
             if (!printResult.success) {
@@ -5598,6 +5614,67 @@ notes: '',
                     );
                   })}
                 </div>
+
+                {/* ── UPI Details Account Selector (Page-wise Config: Billing) ── */}
+                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && (
+                  <div className="mt-3.5 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 space-y-2 animate-in fade-in duration-200 select-none">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Smartphone className="w-3.5 h-3.5" />
+                        Select UPI Account
+                      </span>
+                      {upiSources.length > 0 && (
+                        <span className="text-[10px] font-bold text-muted-foreground">
+                          {upiSources.length} UPI Account{upiSources.length > 1 ? 's' : ''} Configured
+                        </span>
+                      )}
+                    </div>
+
+                    {upiSources.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {upiSources.map((s: any) => {
+                          const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
+                          return (
+                            <button
+                              key={s.source_id}
+                              type="button"
+                              onClick={() => updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name })}
+                              className={clsx(
+                                'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2',
+                                isSelected
+                                  ? 'bg-violet-500/20 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-xs'
+                                  : 'bg-background/80 border-border/70 hover:bg-background text-foreground'
+                              )}
+                            >
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold truncate flex items-center gap-1.5">
+                                  {s.name}
+                                  {s.is_default === 1 && (
+                                    <span className="px-1 py-0.2 text-[8px] bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-black">
+                                      DEFAULT
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="text-[10px] font-mono text-muted-foreground truncate">
+                                  {s.upi_id || 'No UPI ID'}
+                                </div>
+                              </div>
+                              {isSelected && (
+                                <div className="w-4 h-4 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
+                                  ✓
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground font-medium italic bg-background/50 p-2 rounded-xl border border-dashed border-border/60">
+                        No custom UPI accounts found in Payment Methods. Displaying default shop UPI ({upiId || 'Not configured'}).
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               )}
             </div>

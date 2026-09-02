@@ -252,7 +252,9 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
   }
 }
 
-export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed' = 'standard'): string {
+export type ReceiptStyle = 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
+
+export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: ReceiptStyle | string = 'standard'): string {
   if (charsPerLine == null) {
     charsPerLine = widthCm >= 7.5 ? 36 : 32;
   }

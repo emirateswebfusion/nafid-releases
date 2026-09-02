@@ -53,8 +53,16 @@ let pendingReceiptHeightPx: number = 0; // measured by renderer before printRead
 function getPrintFormatConfig(tenantId: string) {
   try {
     const db = getDb();
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'print_format'").get(tenantId || 'global', 'print_format');
-    if (row) return JSON.parse(row.value);
+    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'print_format'").get(tenantId || 'global');
+    if (row) {
+      try {
+        const parsed = JSON.parse(row.value);
+        if (typeof parsed === 'string') return { format: parsed };
+        return parsed;
+      } catch {
+        return { format: row.value };
+      }
+    }
     return null;
   } catch {
     return null;
@@ -103,22 +111,24 @@ export function initPrinter() {
   ipcMain.handle('hardware:printA4Html', async (event, { tenant_id, htmlContent }: { tenant_id: string; htmlContent: string }) => {
     try {
       const db = getDb();
-      const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tenant_id || 'global', 'a4_printer_config');
-      const config = row ? JSON.parse(row.value) : { deviceName: '' };
-
-      if (config.deviceName) {
-        currentA4Html = htmlContent;
-        const isA5 = htmlContent.includes('A5 landscape') || htmlContent.includes('size: A5');
-        await printA4USB(config.deviceName, isA5 ? 'A5' : 'A4');
-      } else {
-        // No specific A4 printer configured — use default print dialog via popup
-        return { success: false, useDefaultDialog: true };
+      const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tenant_id || 'global');
+      let config = { deviceName: '' };
+      if (row) {
+        try {
+          config = JSON.parse(row.value);
+        } catch {
+          config = { deviceName: row.value || '' };
+        }
       }
+
+      currentA4Html = htmlContent;
+      const isA5 = htmlContent.includes('A5 landscape') || htmlContent.includes('size: A5');
+      await printA4USB(config.deviceName || '', isA5 ? 'A5' : 'A4');
 
       return { success: true };
     } catch (error: any) {
       console.error('[Hardware] A4 Print Error:', error);
-      return { success: false, error: 'Print failed' };
+      return { success: false, error: error.message || 'Print failed' };
     }
   });
 
@@ -444,12 +454,15 @@ function printA4USB(deviceName: string, pageSize: string = 'A4'): Promise<void> 
     }, 30000);
 
     ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
-      printWindow.webContents.print({
-        silent: true,
-        deviceName: deviceName,
+      const printOptions: any = {
+        silent: Boolean(deviceName),
         margins: { marginType: 'default' },
         pageSize: pageSize as any
-      }, (success, failureReason) => {
+      };
+      if (deviceName) {
+        printOptions.deviceName = deviceName;
+      }
+      printWindow.webContents.print(printOptions, (success, failureReason) => {
         clearTimeout(timer);
         setTimeout(() => {
           if (!printWindow.isDestroyed()) printWindow.close();

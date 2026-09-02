@@ -15,6 +15,7 @@ import { DateRangeFilter } from './ui/DateRangeFilter';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
+import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 
 type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
 
@@ -143,6 +144,10 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   });
   const [isSavingHeader, setIsSavingHeader] = useState(false);
 
+  const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
+  const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [scrapUpiSourceId, setScrapUpiSourceId] = useState<string>('');
+
   // Add Item to existing Invoice state
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [addItemForm, setAddItemForm] = useState({
@@ -177,6 +182,14 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             const updated = cats.find(c => c.scrap_category_id === currentCatId);
             if (updated) setSelectedCategory(updated);
           }
+        }
+        getUpiPageConfig(tid || 'global').then(setUpiPageConfig);
+        if (window.electronAPI?.dbPaymentGetSources) {
+          window.electronAPI.dbPaymentGetSources(tid || 'global').then((sources: any[]) => {
+            if (Array.isArray(sources)) {
+              setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+            }
+          }).catch(() => {});
         }
       }
     } catch (err) {
@@ -2309,6 +2322,25 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   ]}
                 />
               </div>
+
+              {/* UPI Account Selector (Page-wise Config: Scrap Manager) */}
+              {editHeaderForm.payment_status === 'UPI' && upiPageConfig.scrap && upiSources.length > 0 && (
+                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-xl space-y-1">
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <RecycleIcon className="w-3.5 h-3.5 text-violet-500" />
+                    Select Scrap UPI Account
+                  </label>
+                  <Select
+                    value={scrapUpiSourceId || upiSources[0]?.source_id || ''}
+                    onChange={(val) => setScrapUpiSourceId(val)}
+                    options={upiSources.map((s: any) => ({
+                      value: s.source_id,
+                      label: `${s.name} (${s.upi_id || 'No UPI ID'})`
+                    }))}
+                    className="w-full text-xs"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">

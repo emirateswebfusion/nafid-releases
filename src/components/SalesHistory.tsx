@@ -16,8 +16,10 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -316,6 +318,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   const [collectReceivedAmount, setCollectReceivedAmount] = useState(0);
   const [collectPaymentSaving, setCollectPaymentSaving] = useState(false);
   const [collectPaymentSuccess, setCollectPaymentSuccess] = useState(false);
+
+  const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
+  const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [collectUpiSourceId, setCollectUpiSourceId] = useState<string>('');
   const LIMIT = 30;
   const [dbSummary, setDbSummary] = useState<{ totalSales: number; totalInvoices: number; totalTax: number; totalDiscount: number; avgOrder: number } | null>(null);
 
@@ -376,6 +382,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [search, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd]);
 
   useEffect(() => {
+    getUpiPageConfig(useAuthStore.getState().tenantId || 'global').then(setUpiPageConfig);
+    if (window.electronAPI?.dbPaymentGetSources) {
+      window.electronAPI.dbPaymentGetSources(useAuthStore.getState().tenantId || 'global').then((sources: any[]) => {
+        if (Array.isArray(sources)) {
+          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+        }
+      }).catch(() => {});
+    }
     if (window.electronAPI) {
       window.electronAPI.onSyncDataUpdated(() => {
         loadInvoices(true);
@@ -651,11 +665,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       ]);
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
       const invoiceType = selectedInvoice.invoice_type;
       const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
-      const useA4 = isB2B || printFmt?.format === 'a4';
-      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+      const isHalfA4 = printFmt.format === 'half-a4';
+      const isA4 = printFmt.format === 'a4';
+      const useA4 = isB2B || isA4 || isHalfA4;
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
       const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
       const returnD = Number(selectedInvoice.return_deduction) || 0;
       
@@ -745,15 +762,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         isB2B,
       };
       if (useA4) {
-        const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
         const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-        if (!printResult.success) {
+        if (!printResult.success && (printResult as any).useDefaultDialog) {
           const pw = window.open('', '_blank');
           if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
         }
       } else {
-        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-        const thermalStyle = printFmt?.style || 'standard';
+        const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+        const thermalStyle = printFmt.style || 'standard';
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
         if ((printResult as any)?.skipped) {
@@ -2036,6 +2054,25 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 <div className="p-3 bg-blue-500/5 border border-blue-500/20 rounded-xl text-xs text-blue-600 dark:text-blue-400 font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   Payment will be recorded as exact amount of {formatCurrency(Number(selectedInvoice.grand_total) || 0)}
+                </div>
+              )}
+
+              {/* UPI Account Selector (Page-wise Config: Sales History) */}
+              {collectPaymentMethod === 'UPI' && upiPageConfig.sales_history && upiSources.length > 0 && (
+                <div className="p-3 bg-violet-500/10 border border-violet-500/30 rounded-xl space-y-1.5">
+                  <label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Smartphone className="w-3.5 h-3.5 text-violet-500" />
+                    Select Receiving UPI Account
+                  </label>
+                  <Select
+                    value={collectUpiSourceId || upiSources[0]?.source_id || ''}
+                    onChange={(val) => setCollectUpiSourceId(val)}
+                    options={upiSources.map((s: any) => ({
+                      value: s.source_id,
+                      label: `${s.name} (${s.upi_id || 'No UPI ID'})`
+                    }))}
+                    className="w-full text-xs"
+                  />
                 </div>
               )}
 

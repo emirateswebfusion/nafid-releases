@@ -11,7 +11,9 @@ import { Badge } from './ui/Badge';
 import { Input } from './ui/Input';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags } from '../featureFlags';
+import { useTabStore } from '../store/tabStore';
 
 export function ActionPane() {
   const discountInputRef = useRef<HTMLInputElement>(null);
@@ -108,18 +110,21 @@ export function ActionPane() {
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
 
-        const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-        const useA4 = printFmt?.format === 'a4';
-        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+        const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+        const printFmt = parsePrintFormat(printFmtRaw);
+        const isHalfA4 = printFmt.format === 'half-a4';
+        const isA4 = printFmt.format === 'a4';
+        const useA4 = isA4 || isHalfA4;
+        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
           shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
           shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
           shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
           shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
-          upiId: upi || undefined,
+          upiId: useTabStore.getState().getActiveTab()?.selectedUpiId || upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
-          showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+          showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
           date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().role || undefined,
@@ -153,15 +158,16 @@ export function ActionPane() {
         };
 
         if (useA4) {
-          const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+          const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+          const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
           const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-          if (!printResult.success) {
+          if (!printResult.success && (printResult as any).useDefaultDialog) {
             const pw = window.open('', '_blank');
             if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
           }
         } else {
-          const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-          const thermalStyle = printFmt?.style || 'standard';
+          const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+          const thermalStyle = printFmt.style || 'standard';
           const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
           const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
           if (!printResult.success) {

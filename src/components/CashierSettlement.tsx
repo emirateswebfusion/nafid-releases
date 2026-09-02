@@ -15,7 +15,9 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
+import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
 
@@ -113,6 +115,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+
+  const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
+  const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [selectedUpiSourceId, setSelectedUpiSourceId] = useState<string>('');
 
   const [rowDiscs, setRowDiscs] = useState<Record<string, number>>({});
   const [rowDiscPercents, setRowDiscPercents] = useState<Record<string, number>>({});
@@ -498,7 +504,18 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     if (Array.isArray(txs)) setTransactions(txs);
   }, [tenantId, searchQuery, processInvoicesUpdate]);
 
-  useEffect(() => { loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags)); Promise.all([load()]).finally(() => setLoading(false)); }, [load]);
+  useEffect(() => {
+    loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
+    getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
+    if (window.electronAPI?.dbPaymentGetSources) {
+      window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
+        if (Array.isArray(sources)) {
+          setUpiSources(sources.filter((s: any) => s.type === 'UPI' && (s.is_enabled === 1 || s.is_enabled === true)));
+        }
+      }).catch(() => {});
+    }
+    Promise.all([load()]).finally(() => setLoading(false));
+  }, [load, tenantId]);
 
   // Auto-refresh: keep the settlement page in sync with the billing counter.
   // Newly printed bills (PENDING) appear here instantly without manual reload.
@@ -2556,11 +2573,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     ]);
                     const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                     const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-                    const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+                    const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+                    const printFmt = parsePrintFormat(printFmtRaw);
                     const invoiceType = selectedInvoice.invoice_type;
                     const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
-                    const useA4 = isB2B || printFmt?.format === 'a4';
-                    const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.billSettings || {}) };
+                    const isHalfA4 = printFmt.format === 'half-a4';
+                    const isA4 = printFmt.format === 'a4';
+                    const useA4 = isB2B || isA4 || isHalfA4;
+                    const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
                     const receiptData: ReceiptData = {
                       shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
                       shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
@@ -2568,7 +2588,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
                       upiId: upi || undefined,
                       showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
-                      showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+                      showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
                       invoiceNumber: selectedInvoice.invoice_number,
                       date: formatBillDateTime(selectedInvoice.created_at),
                       items: invoiceItems.map(item => ({
@@ -2596,15 +2616,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       isB2B,
                     };
                     if (useA4) {
-                      const invoiceHtml = generateInvoiceHtml(receiptData, printFmt?.style || 'standard');
+                      const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+                      const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
                       const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-                      if (!printResult.success && printResult.useDefaultDialog) {
+                      if (!printResult.success && (printResult as any).useDefaultDialog) {
                         const pw = window.open('', '_blank');
                         if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
                       }
                     } else {
-                      const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-                      const thermalStyle = printFmt?.style || 'standard';
+                      const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+                      const thermalStyle = printFmt.style || 'standard';
                       const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
                       await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
                     }
@@ -2994,6 +3015,22 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       className="w-full pl-7 pr-3 py-1.5 text-sm font-extrabold bg-muted/20 border border-border rounded-lg outline-none text-foreground tabular-nums"
                     />
                   </div>
+
+                  {/* Page-wise Config: Show UPI Account List if Settlement Page is Enabled */}
+                  {upiPageConfig.settlement && (splitUpi !== '' && Number(splitUpi) > 0) && upiSources.length > 0 && (
+                    <div className="pt-1.5">
+                      <label className="text-[10px] font-bold text-muted-foreground block mb-1">Target UPI Account:</label>
+                      <Select
+                        value={selectedUpiSourceId || upiSources[0]?.source_id || ''}
+                        onChange={(val) => setSelectedUpiSourceId(val)}
+                        options={upiSources.map((s: any) => ({
+                          value: s.source_id,
+                          label: `${s.name} (${s.upi_id || 'No UPI ID'})`
+                        }))}
+                        className="w-full text-xs py-1"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Bank */}
