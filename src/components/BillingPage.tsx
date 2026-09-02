@@ -7574,9 +7574,10 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 <button
                   type="button"
                   onClick={() => setIsUpiSelectModalOpen(false)}
-                  className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                  className="p-1.5 rounded-xl text-destructive hover:bg-destructive/10 border border-destructive/30 transition-all cursor-pointer"
+                  title="Close"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 text-destructive" />
                 </button>
               </div>
 

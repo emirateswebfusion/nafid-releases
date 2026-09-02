@@ -197,7 +197,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={showCreate ? () => setShowCreate(false) : (isRestricted ? () => useAuthStore.getState().logout() : onClose)}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
+              className="p-2 rounded-xl border border-destructive/30 hover:bg-destructive/10 text-destructive transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
               title="Close"
             >
               <X className="w-4 h-4 text-destructive" />

@@ -2129,7 +2129,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             </button>
           )}
           <button onClick={onClose}
-            className="p-2.5 text-muted-foreground hover:text-foreground hover:bg-destructive/5 hover:border-destructive/30 shadow-[0_0_6px_rgba(239,68,68,0.12)] hover:shadow-[0_0_12px_rgba(239,68,68,0.25)] border border-border/80 rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
+            className="p-2.5 text-destructive hover:bg-destructive/10 border border-destructive/30 shadow-sm rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Close">
             <X className="w-4.5 h-4.5 text-destructive" />
           </button>

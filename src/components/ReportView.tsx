@@ -166,10 +166,10 @@ export function ReportView({ products, grades }: ReportViewProps) {
               {(searchQuery || categoryFilter || stockFilter !== 'all') && (
                 <button
                   onClick={() => { setSearchQuery(''); setCategoryFilter(''); setStockFilter('all'); }}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all active:scale-95"
+                  className="p-2 text-destructive hover:bg-destructive/10 border border-destructive/30 rounded-lg transition-all active:scale-95 cursor-pointer"
                   title="Clear filters"
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-4 h-4 text-destructive" />
                 </button>
               )}
             </div>

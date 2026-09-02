@@ -216,8 +216,8 @@ export function CreateReturn({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button onClick={onClose} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted border border-border rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
-              <X className="w-4 h-4" /> Close
+            <button onClick={onClose} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-destructive hover:bg-destructive/10 border border-destructive/30 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer">
+              <X className="w-4 h-4 text-destructive" /> Close
             </button>
           </div>
         </div>

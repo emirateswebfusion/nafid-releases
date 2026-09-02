@@ -390,13 +390,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         <div className="flex items-center gap-2">
           {view !== 'list' ? (
             <button onClick={() => { setView('list'); setSelectedPages([]); setEditingStaffId(null); }}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+              className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-xs"
               title="Back to list">
               <X className="w-4 h-4 text-destructive" />
             </button>
           ) : (
             <button onClick={onClose}
-              className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30"
+              className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-xs"
               title="Close">
               <X className="w-4 h-4 text-destructive" />
             </button>

@@ -207,10 +207,10 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
             ) : (
               <button
                 onClick={onClose}
-                className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border flex items-center justify-center shadow-xs"
+                className="h-10 w-10 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-xs"
                 title="Close"
               >
-                <X className="w-4 h-4" />
+                <X className="w-4 h-4 text-destructive" />
               </button>
             )}
           </div>
