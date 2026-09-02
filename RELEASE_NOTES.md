@@ -1,3 +1,10 @@
+# Vendora v1.5.38 Release Notes
+
+## What's Changed
+- Implemented quotation management system with CRUD support, invoice conversion, and A4 printing functionality
+- Enhanced `BillingPage` scanner-burst protection and integrated cart and weighing scale management
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.37...v1.5.38
+
 # Vendora v1.5.37 Release Notes
 
 ## What's Changed
