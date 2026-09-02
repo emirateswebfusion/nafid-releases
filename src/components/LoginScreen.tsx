@@ -227,7 +227,7 @@ export function LoginScreen() {
 
               <Button type="submit" disabled={loading} className="w-full h-11 text-base font-semibold shadow-sm">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {loading ? 'Signing you in...' : 'Sign In to Vendora'}
+                {loading ? 'Signing you in...' : 'Sign In to Nafid'}
               </Button>
             </form>
           )}

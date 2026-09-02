@@ -822,11 +822,8 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                     <Smartphone className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-base font-black text-foreground tracking-tight flex items-center gap-2">
+                    <h3 className="text-base font-black text-foreground tracking-tight">
                       UPI Details – Page-wise Configuration
-                      <span className="px-2.5 py-0.5 text-[10px] uppercase tracking-wider font-black rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                        Page Display Rules
-                      </span>
                     </h3>
                     <p className="text-xs text-muted-foreground font-medium mt-0.5">
                       Enable or disable displaying the configured UPI ID list when UPI payment method is selected on each page.

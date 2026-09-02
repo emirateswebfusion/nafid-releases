@@ -20,15 +20,34 @@ export function BillingTabBar({ onAddTab, enableThreeInvoiceSeries }: { onAddTab
   };
 
   const formatTabTitle = (tab: typeof tabs[0]) => {
-    const isGst = tab.snapshot.invoiceType === 'GST';
+    const isReturn = tab.snapshot?.isReturnMode;
+    const isScrap = tab.snapshot?.isScrapMode;
+    const isQuotation = tab.snapshot?.isQuotationMode;
+    const editingNumber = tab.snapshot?.editingInvoiceNumber || tab.snapshot?.editingQuotationNumber;
+    const isGst = tab.snapshot?.invoiceType === 'GST';
+
+    let displayNum = '';
+    if (isReturn) {
+      displayNum = tab.reservedReturnNumber || tab.title;
+    } else if (isScrap) {
+      displayNum = tab.reservedScrapInvoiceNumber || tab.title;
+    } else if (isQuotation) {
+      displayNum = tab.reservedQuotationNumber || tab.title;
+    } else if (editingNumber) {
+      displayNum = editingNumber;
+    } else {
+      displayNum = tab.reservedInvoiceNumber || tab.title;
+    }
+
+    if (!displayNum) return 'New Bill';
     if (enableThreeInvoiceSeries) {
-      return tab.title;
+      return displayNum;
     }
-    const isModeNumber = tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber;
-    if (isGst && !tab.title.startsWith('GST-') && !isModeNumber) {
-      return `GST-${tab.title}`;
+    const isModeNumber = displayNum === tab.reservedScrapInvoiceNumber || displayNum === tab.reservedQuotationNumber || displayNum === tab.reservedReturnNumber;
+    if (isGst && !displayNum.startsWith('GST-') && !isModeNumber) {
+      return `GST-${displayNum}`;
     }
-    return tab.title;
+    return displayNum;
   };
 
   return (

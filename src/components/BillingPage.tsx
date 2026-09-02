@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -23,6 +23,7 @@ import { loadFeatureFlags } from '../featureFlags';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -163,6 +164,7 @@ export function BillingPage() {
   // Page-wise UPI Configuration and sources state
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
   const [upiSources, setUpiSources] = useState<any[]>([]);
+  const [isUpiSelectModalOpen, setIsUpiSelectModalOpen] = useState(false);
   const [allowBillerOverride, setAllowBillerOverride] = useState(true);
   const [partiesForTier, setPartiesForTier] = useState<any[]>([]);
   const canOverrideTier = authRole === 'OWNER' || allowBillerOverride;
@@ -399,9 +401,10 @@ export function BillingPage() {
     if (!featureFlags.returns && isReturnMode) setReturnMode(false);
   }, [featureFlags, isQuotationMode, isReturnMode, setQuotationMode, setReturnMode]);
 
-  // Reset reserved invoice numbers when mode changes (but preserve when editing existing)
+  // Update tab title when mode changes (normal, scrap, quotation, return)
   const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
   useEffect(() => {
+    syncActiveSnapshot();
     if (lastActiveTabId.current !== activeTabId) {
       prevReserveMode.current = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
       return;
@@ -409,9 +412,20 @@ export function BillingPage() {
     const currentMode = isScrapMode ? 'scrap' : isReturnMode ? 'return' : isQuotationMode ? 'quotation' : 'normal';
     if (prevReserveMode.current !== currentMode && !editingInvoiceNumber) {
       prevReserveMode.current = currentMode;
-      updateActiveTab({ reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+      const tab = getActiveTab();
+      if (tab) {
+        let targetNum = tab.reservedInvoiceNumber;
+        if (isScrapMode) targetNum = tab.reservedScrapInvoiceNumber;
+        else if (isQuotationMode) targetNum = tab.reservedQuotationNumber;
+        else if (isReturnMode) targetNum = tab.reservedReturnNumber;
+
+        const shouldUpdate = !tab.title || tab.title === 'New' || tab.title === tab.reservedInvoiceNumber || tab.title === tab.reservedScrapInvoiceNumber || tab.title === tab.reservedQuotationNumber || tab.title === tab.reservedReturnNumber || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
+        if (targetNum && shouldUpdate) {
+          updateActiveTab({ title: targetNum });
+        }
+      }
     }
-  }, [isScrapMode, isReturnMode, isQuotationMode, activeTabId]);
+  }, [isScrapMode, isReturnMode, isQuotationMode, activeTabId, getActiveTab, updateActiveTab, editingInvoiceNumber, syncActiveSnapshot]);
 
   useEffect(() => {
     lastActiveTabId.current = activeTabId;
@@ -441,12 +455,37 @@ export function BillingPage() {
     let scrapNumber = '';
     let quotationNumber = '';
     let returnNumber = '';
+    const allTabs = useTabStore.getState().tabs;
     if (window.electronAPI) {
       const series = enableThreeInvoiceSeries ? 'normal' : undefined;
-      try { const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series }); if (r?.success && r.invoiceNumber) billNumber = r.invoiceNumber; } catch { }
-      try { const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' }); if (r?.success && r.invoiceNumber) scrapNumber = r.invoiceNumber; } catch { }
-      try { const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' }); if (r?.success && r.quotationNumber) quotationNumber = r.quotationNumber; } catch { }
-      try { const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' }); if (r?.success && r.returnNumber) returnNumber = r.returnNumber; } catch { }
+      try {
+        const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+        if (r?.success && r.invoiceNumber) {
+          const reserved = allTabs.map(t => t.reservedInvoiceNumber);
+          billNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
+        }
+      } catch { }
+      try {
+        const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
+        if (r?.success && r.invoiceNumber) {
+          const reserved = allTabs.map(t => t.reservedScrapInvoiceNumber);
+          scrapNumber = getNextOffsetInvoiceNumber(r.invoiceNumber, reserved);
+        }
+      } catch { }
+      try {
+        const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
+        if (r?.success && r.quotationNumber) {
+          const reserved = allTabs.map(t => t.reservedQuotationNumber);
+          quotationNumber = getNextOffsetInvoiceNumber(r.quotationNumber, reserved);
+        }
+      } catch { }
+      try {
+        const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+        if (r?.success && r.returnNumber) {
+          const reserved = allTabs.map(t => t.reservedReturnNumber);
+          returnNumber = getNextOffsetInvoiceNumber(r.returnNumber, reserved);
+        }
+      } catch { }
     }
     tabCounter.current++;
     const title = billNumber || scrapNumber || quotationNumber || returnNumber || `Bill ${tabCounter.current}`;
@@ -486,7 +525,9 @@ export function BillingPage() {
       const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
-        const nextNum = result.invoiceNumber;
+        const allTabs = useTabStore.getState().tabs;
+        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedInvoiceNumber);
+        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
         const oldReserved = tab.reservedInvoiceNumber;
         if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
           const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ') || tab.title.startsWith('GST-');
@@ -508,12 +549,16 @@ export function BillingPage() {
     }, 0);
 
     try {
+      const tab = getActiveTab();
       const series = enableThreeInvoiceSeries ? (type === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
       const result = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
       if (result.success && result.invoiceNumber) {
+        const allTabs = useTabStore.getState().tabs;
+        const otherTabsReserved = allTabs.filter(t => t?.id !== tab?.id).map(t => t.reservedInvoiceNumber);
+        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
         updateActiveTab({ 
-          reservedInvoiceNumber: result.invoiceNumber,
-          title: result.invoiceNumber
+          reservedInvoiceNumber: nextNum,
+          title: nextNum
         });
       }
     } catch (e) {
@@ -530,7 +575,9 @@ export function BillingPage() {
     try {
       const result = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
       if (result.success && result.invoiceNumber) {
-        const nextNum = result.invoiceNumber;
+        const allTabs = useTabStore.getState().tabs;
+        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedScrapInvoiceNumber);
+        const nextNum = getNextOffsetInvoiceNumber(result.invoiceNumber, otherTabsReserved);
         const oldReserved = tab.reservedScrapInvoiceNumber;
         if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
           const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
@@ -554,7 +601,9 @@ export function BillingPage() {
     try {
       const result = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
       if (result.success && result.quotationNumber) {
-        const nextNum = result.quotationNumber;
+        const allTabs = useTabStore.getState().tabs;
+        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedQuotationNumber);
+        const nextNum = getNextOffsetInvoiceNumber(result.quotationNumber, otherTabsReserved);
         const oldReserved = tab.reservedQuotationNumber;
         if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
           const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
@@ -577,7 +626,9 @@ export function BillingPage() {
     try {
       const result = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
       if (result.success && result.returnNumber) {
-        const nextNum = result.returnNumber;
+        const allTabs = useTabStore.getState().tabs;
+        const otherTabsReserved = allTabs.filter(t => t.id !== tab.id).map(t => t.reservedReturnNumber);
+        const nextNum = getNextOffsetInvoiceNumber(result.returnNumber, otherTabsReserved);
         const oldReserved = tab.reservedReturnNumber;
         if (forceRefresh || !oldReserved || oldReserved !== nextNum) {
           const shouldUpdateTitle = !tab.title || tab.title === 'New' || tab.title === oldReserved || tab.title.startsWith('Bill ');
@@ -770,16 +821,77 @@ export function BillingPage() {
 
   // Whenever checkout/billing completes, invalidate stale reserved numbers across tabs and re-peek
   useEffect(() => {
-    const handleInvoiceCreated = () => {
+    const handleInvoiceCreated = async () => {
       const { tabs } = useTabStore.getState();
-      const updated = tabs.map(t => {
-        if (!t.snapshot.editingInvoiceId) {
-          return { ...t, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' };
-        }
-        return t;
+      let updatedTabs = [...tabs];
+
+      let baseNormal = '';
+      let baseScrap = '';
+      let baseQuotation = '';
+      let baseReturn = '';
+
+      if (window.electronAPI) {
+        try {
+          const series = enableThreeInvoiceSeries ? (invoiceType === 'GST' ? (customerGstin?.trim() ? 'gst_b2b' : 'gst_b2c') : 'normal') : undefined;
+          const r = await window.electronAPI.dbPeekNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
+          if (r?.success && r.invoiceNumber) baseNormal = r.invoiceNumber;
+        } catch {}
+
+        try {
+          const r = await window.electronAPI.dbPeekNextScrapInvoiceNumber({ tenant_id: 'global' });
+          if (r?.success && r.invoiceNumber) baseScrap = r.invoiceNumber;
+        } catch {}
+
+        try {
+          const r = await window.electronAPI.dbPeekNextQuotationNumber({ tenant_id: 'global' });
+          if (r?.success && r.quotationNumber) baseQuotation = r.quotationNumber;
+        } catch {}
+
+        try {
+          const r = await window.electronAPI.dbPeekNextReturnNumber({ tenant_id: tenantId || 'global' });
+          if (r?.success && r.returnNumber) baseReturn = r.returnNumber;
+        } catch {}
+      }
+
+      const reservedNormalList: string[] = [];
+      const reservedScrapList: string[] = [];
+      const reservedQuotationList: string[] = [];
+      const reservedReturnList: string[] = [];
+
+      updatedTabs = updatedTabs.map(t => {
+        if (t.snapshot.editingInvoiceId || t.snapshot.editingQuotationId) return t;
+
+        const nextNormal = baseNormal ? getNextOffsetInvoiceNumber(baseNormal, reservedNormalList) : '';
+        if (nextNormal) reservedNormalList.push(nextNormal);
+
+        const nextScrap = baseScrap ? getNextOffsetInvoiceNumber(baseScrap, reservedScrapList) : '';
+        if (nextScrap) reservedScrapList.push(nextScrap);
+
+        const nextQuotation = baseQuotation ? getNextOffsetInvoiceNumber(baseQuotation, reservedQuotationList) : '';
+        if (nextQuotation) reservedQuotationList.push(nextQuotation);
+
+        const nextReturn = baseReturn ? getNextOffsetInvoiceNumber(baseReturn, reservedReturnList) : '';
+        if (nextReturn) reservedReturnList.push(nextReturn);
+
+        const isScrap = t.snapshot.isScrapMode;
+        const isQuotation = t.snapshot.isQuotationMode;
+        const isReturn = t.snapshot.isReturnMode;
+        const activeNum = isReturn ? nextReturn : isScrap ? nextScrap : isQuotation ? nextQuotation : nextNormal;
+
+        const oldTitle = t.title;
+        const shouldUpdateTitle = !oldTitle || oldTitle === 'New' || oldTitle === t.reservedInvoiceNumber || oldTitle === t.reservedScrapInvoiceNumber || oldTitle === t.reservedQuotationNumber || oldTitle === t.reservedReturnNumber || oldTitle.startsWith('Bill ') || oldTitle.startsWith('GST-');
+
+        return {
+          ...t,
+          reservedInvoiceNumber: nextNormal,
+          reservedScrapInvoiceNumber: nextScrap,
+          reservedQuotationNumber: nextQuotation,
+          reservedReturnNumber: nextReturn,
+          title: shouldUpdateTitle && activeNum ? activeNum : t.title,
+        };
       });
-      useTabStore.setState({ tabs: updated });
-      reserveInvoiceNumberForTab(true);
+
+      useTabStore.setState({ tabs: updatedTabs });
     };
 
     window.addEventListener('checkout:completed', handleInvoiceCreated);
@@ -788,7 +900,7 @@ export function BillingPage() {
       window.removeEventListener('checkout:completed', handleInvoiceCreated);
       window.removeEventListener('invoice:created', handleInvoiceCreated);
     };
-  }, [reserveInvoiceNumberForTab]);
+  }, [tenantId, enableThreeInvoiceSeries, invoiceType, customerGstin]);
 
   // Ensure tab title stays synced with scrap editing invoice number
   useEffect(() => {
@@ -5568,7 +5680,12 @@ notes: '',
                       <button
                         key={opt.value}
                         onClick={() => {
-                          if (opt.value === 'SPLIT') {
+                          if (opt.value === 'UPI') {
+                            updateActiveTab({ paymentMethod: 'UPI' });
+                            if (upiPageConfig.billing && upiSources.length > 0) {
+                              setIsUpiSelectModalOpen(true);
+                            }
+                          } else if (opt.value === 'SPLIT') {
                             if (paymentMethod === 'SPLIT') {
                               updateActiveTab({ paymentMethod: 'CASH' });
                             } else {
@@ -5602,58 +5719,41 @@ notes: '',
                   })}
                 </div>
 
-                {/* ── UPI Details Account Selector (Page-wise Config: Billing) ── */}
-                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && upiSources.length > 0 && (
-                  <div className="mt-3.5 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 space-y-2 animate-in fade-in duration-200 select-none">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-black text-violet-600 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <Smartphone className="w-3.5 h-3.5" />
-                        Select UPI Account
-                      </span>
-                      <span className="text-[10px] font-bold text-muted-foreground">
-                        {upiSources.length} UPI Account{upiSources.length > 1 ? 's' : ''} Configured
-                      </span>
-                    </div>
+                {/* ── UPI Details Account Indicator Bar (Page-wise Config: Billing) ── */}
+                {upiPageConfig.billing && (paymentMethod === 'UPI' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.upi) || 0) > 0)) && upiSources.length > 0 && (() => {
+                  const currentSelected = upiSources.find((s: any) => s.upi_id === activeTab?.selectedUpiId)
+                    || upiSources.find((s: any) => s.is_default === 1)
+                    || upiSources[0];
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {upiSources.map((s: any) => {
-                        const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
-                        return (
-                          <button
-                            key={s.source_id}
-                            type="button"
-                            onClick={() => updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name })}
-                            className={clsx(
-                              'p-2.5 rounded-xl border text-left transition-all cursor-pointer flex items-center justify-between gap-2',
-                              isSelected
-                                ? 'bg-violet-500/20 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-xs'
-                                : 'bg-background/80 border-border/70 hover:bg-background text-foreground'
+                  return (
+                    <div className="mt-3.5 p-3 rounded-2xl bg-violet-500/10 border border-violet-500/30 flex items-center justify-between gap-3 animate-in fade-in duration-200 select-none">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400 shrink-0">
+                          <Smartphone className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase text-violet-600 dark:text-violet-400 tracking-wider">Receiving UPI Account</div>
+                          <div className="text-xs font-extrabold text-foreground truncate flex items-center gap-1.5">
+                            <span>{currentSelected?.name || 'Default UPI'}</span>
+                            {currentSelected?.upi_id && (
+                              <span className="font-mono text-[11px] text-muted-foreground font-normal truncate">
+                                ({currentSelected.upi_id})
+                              </span>
                             )}
-                          >
-                            <div className="min-w-0">
-                              <div className="text-xs font-bold truncate flex items-center gap-1.5">
-                                {s.name}
-                                {s.is_default === 1 && (
-                                  <span className="px-1 py-0.2 text-[8px] bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded font-black">
-                                    DEFAULT
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] font-mono text-muted-foreground truncate">
-                                {s.upi_id || 'No UPI ID'}
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <div className="w-4 h-4 rounded-full bg-violet-600 text-white flex items-center justify-center text-[10px] font-black shrink-0">
-                                ✓
-                              </div>
-                            )}
-                          </button>
-                        );
-                      })}
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsUpiSelectModalOpen(true)}
+                        className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all duration-200 cursor-pointer shadow-xs shrink-0 active:scale-95 flex items-center gap-1"
+                      >
+                        <span>Change</span>
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      </button>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
               )}
             </div>
@@ -7394,6 +7494,92 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
       </div>
       {cashRegisterOpen && (
         <CashierSettlement onClose={() => setCashRegisterOpen(false)} />
+      )}
+
+      {/* ── UPI Account Selection Dialog Modal ── */}
+      {isUpiSelectModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs z-[150] animate-in fade-in duration-200"
+            onClick={() => setIsUpiSelectModalOpen(false)}
+          />
+          <div className="fixed inset-0 z-[151] flex items-center justify-center p-4 select-none">
+            <div className="w-full max-w-md bg-card border border-border rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/80 bg-violet-500/5">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 rounded-xl bg-violet-500/20 text-violet-600 dark:text-violet-400">
+                    <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black text-foreground tracking-tight">Select UPI Account</h3>
+                    <p className="text-[11px] text-muted-foreground font-medium">Choose receiving account for UPI payments</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsUpiSelectModalOpen(false)}
+                  className="p-1.5 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-all cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Modal Content - UPI Account Options */}
+              <div className="p-5 overflow-y-auto space-y-2.5 flex-1">
+                {upiSources.map((s: any) => {
+                  const isSelected = activeTab?.selectedUpiId === s.upi_id || (!activeTab?.selectedUpiId && (s.is_default === 1 || upiSources[0]?.source_id === s.source_id));
+                  return (
+                    <button
+                      key={s.source_id}
+                      type="button"
+                      onClick={() => {
+                        updateActiveTab({ selectedUpiId: s.upi_id || '', selectedUpiName: s.name });
+                        setIsUpiSelectModalOpen(false);
+                      }}
+                      className={clsx(
+                        'w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 active:scale-[0.98]',
+                        isSelected
+                          ? 'bg-violet-500/15 border-violet-500 text-violet-700 dark:text-violet-300 font-extrabold shadow-sm ring-1 ring-violet-500/50'
+                          : 'bg-background hover:bg-muted/50 border-border/80 text-foreground'
+                      )}
+                    >
+                      <div className="min-w-0 space-y-0.5">
+                        <div className="text-xs font-black truncate flex items-center gap-2">
+                          {s.name}
+                          {s.is_default === 1 && (
+                            <span className="px-1.5 py-0.5 text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-400 rounded-md font-black tracking-wider uppercase">
+                              DEFAULT
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs font-mono text-muted-foreground truncate">
+                          {s.upi_id || 'No UPI ID'}
+                        </div>
+                      </div>
+                      {isSelected && (
+                        <div className="w-5 h-5 rounded-full bg-violet-600 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-xs">
+                          ✓
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t border-border/80 bg-muted/30 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsUpiSelectModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
