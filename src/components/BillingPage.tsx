@@ -15,7 +15,7 @@ import { Modal } from './ui/Modal';
 import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
-import { parsePrintFormat } from '../utils/printFormatHelper';
+import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { useTabStore } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
@@ -2920,13 +2920,11 @@ notes: '',
           const printResult = await window.electronAPI.printReceipt(tenantId || 'global', scrapReceiptText);
           if (printResult?.skipped) {
             scrapPrintSuccess = false;
-            setHardwareError('No printer configured. Receipt print skipped.');
+            setHardwareError(formatPrinterError('No printer configured'));
             setTimeout(() => setHardwareError(null), 5000);
           } else if (printResult && !printResult.success) {
             scrapPrintSuccess = false;
-            const rawErr = printResult.error || 'check printer';
-            const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
-            setHardwareError(formattedErr);
+            setHardwareError(formatPrinterError(printResult.error));
             setTimeout(() => setHardwareError(null), 5000);
           }
         }
@@ -3365,9 +3363,7 @@ notes: '',
                 const pw = window.open('', '_blank');
                 if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
               } else {
-                const rawErr = printResult.error || 'check printer';
-                const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
-                setHardwareError(formattedErr);
+                setHardwareError(formatPrinterError(printResult.error));
                 setTimeout(() => setHardwareError(null), 5000);
               }
             }
@@ -3379,13 +3375,11 @@ notes: '',
             if (!printResult.success) {
               printSuccess = false;
               console.warn('[Checkout] Print failed (invoice saved):', printResult.error);
-              const rawErr = printResult.error || 'check printer';
-              const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
-              setHardwareError(formattedErr);
+              setHardwareError(formatPrinterError(printResult.error));
               setTimeout(() => setHardwareError(null), 5000);
             } else if (printResult.skipped) {
               printSuccess = false;
-              setHardwareError('No printer configured. Receipt print skipped.');
+              setHardwareError(formatPrinterError('No printer configured'));
               setTimeout(() => setHardwareError(null), 5000);
             }
           }
@@ -3395,9 +3389,7 @@ notes: '',
         } catch (printErr: any) {
           printSuccess = false;
           console.warn('[Checkout] Print error (invoice already saved):', printErr);
-          const rawErr = printErr.message || 'check printer';
-          const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
-          setHardwareError(formattedErr);
+          setHardwareError(formatPrinterError(printErr.message));
           setTimeout(() => setHardwareError(null), 5000);
         }
       }
@@ -3535,12 +3527,10 @@ notes: '',
         const receiptText = generateReceiptText(returnReceiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await window.electronAPI.printReceipt(tid, receiptText);
         if (printResult?.skipped) {
-          setHardwareError('No printer configured. Receipt print skipped.');
+          setHardwareError(formatPrinterError('No printer configured'));
           setTimeout(() => setHardwareError(null), 5000);
         } else if (printResult && !printResult.success) {
-          const rawErr = printResult.error || 'check printer';
-          const formattedErr = rawErr.toLowerCase().startsWith('print') ? rawErr : `Printing issue: ${rawErr}`;
-          setHardwareError(formattedErr);
+          setHardwareError(formatPrinterError(printResult.error));
           setTimeout(() => setHardwareError(null), 5000);
         }
       }
@@ -3926,23 +3916,38 @@ notes: '',
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background">
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
+      <div className="fixed bottom-5 left-5 z-[9999] flex flex-col items-start gap-2.5 w-full max-w-md pointer-events-none">
         {hardwareError && (
-          <div className="px-5 py-3 bg-destructive/10 border border-destructive/20 rounded-xl flex items-center gap-2.5 text-destructive text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{hardwareError}</span>
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-red-500/25 text-red-400 shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">HARDWARE & PRINT ALERT</span>
+              <span className="text-white font-bold text-xs block leading-tight">{hardwareError}</span>
+            </div>
           </div>
         )}
         {checkoutSuccess && (
-          <div className="px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
-            <CheckCircle2 className="w-4 h-4 shrink-0 animate-bounce" />
-            <span>{checkoutSuccess === 'printed' ? 'Invoice completed & Receipt printed!' : 'Invoice saved successfully!'}</span>
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-emerald-500/25 text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">CHECKOUT COMPLETE</span>
+              <span className="text-white font-bold text-xs block leading-tight">{checkoutSuccess === 'printed' ? 'Invoice completed & Receipt printed!' : 'Invoice saved successfully!'}</span>
+            </div>
           </div>
         )}
         {quotationSuccess && (
-          <div className="px-5 py-3 bg-blue-500/10 border border-blue-500/25 rounded-xl flex items-center gap-2 text-blue-600 dark:text-blue-400 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto">
-            <FileText className="w-4 h-4 shrink-0" />
-            <span>{quotationSuccess}</span>
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-blue-500/25 text-blue-400 shrink-0">
+              <FileText className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">QUOTATION SAVED</span>
+              <span className="text-white font-bold text-xs block leading-tight">{quotationSuccess}</span>
+            </div>
           </div>
         )}
         {upiAccountToast && (

@@ -390,16 +390,18 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
 
       {/* Floating Status Toast */}
       {statusMessage && (
-        <div className={clsx(
-          "fixed top-4 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-2xl text-xs font-bold flex items-center gap-3 border shadow-2xl backdrop-blur-md animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto select-none",
-          statusMessage.type === 'success' 
-            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30" 
-            : "bg-destructive/15 text-destructive border-destructive/30"
-        )}>
-          {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" /> : <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />}
-          <span>{statusMessage.text}</span>
-          <button onClick={() => setStatusMessage(null)} className="ml-2 p-1 hover:bg-black/10 rounded-lg transition-colors cursor-pointer">
-            <X className="w-3.5 h-3.5 opacity-70 hover:opacity-100" />
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
+          <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+              {statusMessage.type === 'success' ? 'COMBO STATUS' : 'COMBO ERROR'}
+            </span>
+            <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+          </div>
+          <button onClick={() => setStatusMessage(null)} className="ml-1 p-1 hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}

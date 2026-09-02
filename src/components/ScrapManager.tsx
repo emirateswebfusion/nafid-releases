@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { formatPrinterError } from '../utils/printFormatHelper';
 
 type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
 
@@ -466,10 +467,17 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       };
 
       const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-      await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-      setReprintSuccess(true);
-    } catch (err) {
+      const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+      if (printResult?.skipped) {
+        showStatus(formatPrinterError('No printer configured'), 'error');
+      } else if (printResult && !printResult.success) {
+        showStatus(formatPrinterError(printResult.error), 'error');
+      } else {
+        setReprintSuccess(true);
+      }
+    } catch (err: any) {
       console.error('Failed to reprint scrap invoice', err);
+      showStatus('Failed to reprint: ' + (err?.message || 'Unknown error'), 'error');
     }
   };
 

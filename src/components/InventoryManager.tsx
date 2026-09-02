@@ -2781,20 +2781,18 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       )}
 
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed bottom-4 left-4 z-50 flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
+      <div className="fixed bottom-5 left-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
         {statusMessage && (
-          <div className={clsx(
-            "px-5 py-3 border rounded-xl flex items-center gap-2.5 text-sm font-bold shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto",
-            statusMessage.type === 'success'
-              ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400"
-              : "bg-destructive/10 border-destructive/20 text-destructive"
-          )}>
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0" />
-            )}
-            <span className="flex-1">{statusMessage.text}</span>
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+                {statusMessage.type === 'success' ? 'INVENTORY STATUS' : 'INVENTORY ALERT'}
+              </span>
+              <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+            </div>
           </div>
         )}
       </div>

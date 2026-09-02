@@ -469,14 +469,16 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
 
       {/* Floating Status Toast Notification */}
       {statusMessage && (
-        <div className={clsx(
-          'fixed top-5 left-1/2 -translate-x-1/2 z-[70] px-5 py-3 rounded-2xl shadow-xl text-xs font-bold flex items-center gap-2.5 animate-in slide-in-from-top-3 duration-300 border backdrop-blur-md',
-          statusMessage.type === 'success' 
-            ? 'bg-emerald-950/90 text-emerald-100 border-emerald-500/40 shadow-emerald-950/20' 
-            : 'bg-red-950/90 text-red-100 border-red-500/40 shadow-red-950/20'
-        )}>
-          {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />}
-          <span>{statusMessage.text}</span>
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
+          <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+              {statusMessage.type === 'success' ? 'PAYMENT STATUS' : 'PAYMENT ERROR'}
+            </span>
+            <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+          </div>
         </div>
       )}
 

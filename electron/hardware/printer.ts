@@ -163,7 +163,7 @@ export function initPrinter() {
         currentReceiptText = receiptText;
         await printReceiptUSB(config.deviceName, widthMm);
       } else if (config.type === 'usb') {
-        throw new Error('USB printing requested but deviceName not configured');
+        throw new Error('No Printer Selected: USB printer enabled but no Printer Name configured. Select your printer in Settings → Hardware.');
       } else {
         throw new Error(`Unknown printer type: ${config.type}`);
       }
@@ -471,7 +471,14 @@ function printA4USB(deviceName: string, pageSize: string = 'A4'): Promise<void> 
         if (success) {
           resolve();
         } else {
-          reject(new Error(`A4 Print failed: ${failureReason}`));
+          const reason = failureReason || 'Spooler error';
+          if (reason.toLowerCase().includes('invalid devicename') || reason.toLowerCase().includes('invalid')) {
+            reject(new Error(`Printer "${deviceName || 'Default'}" not found. Check if printer is ON/connected, or re-select in Settings.`));
+          } else if (reason.toLowerCase() === 'print failed') {
+            reject(new Error(`Could not print to "${deviceName || 'Default'}". Check printer status, USB cable, and paper.`));
+          } else {
+            reject(new Error(`A4 Print failed: ${reason}`));
+          }
         }
       });
     });
@@ -502,7 +509,7 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
         printWindow.close();
-        reject(new Error('USB print timeout'));
+        reject(new Error(`Printer Timeout: Printer "${deviceName}" did not respond after 20s. Check power & USB cable.`));
       }
     }, 20000);
 
@@ -531,7 +538,14 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
         if (success) {
           resolve();
         } else {
-          reject(new Error(`Print failed: ${failureReason}`));
+          const reason = failureReason || 'Spooler error';
+          if (reason.toLowerCase().includes('invalid devicename') || reason.toLowerCase().includes('invalid')) {
+            reject(new Error(`Printer "${deviceName}" not found. Check if printer is ON/connected, or re-select in Settings.`));
+          } else if (reason.toLowerCase() === 'print failed') {
+            reject(new Error(`Could not print to "${deviceName}". Check printer status, USB cable, and paper.`));
+          } else {
+            reject(new Error(`Print failed: ${reason}`));
+          }
         }
       });
     });

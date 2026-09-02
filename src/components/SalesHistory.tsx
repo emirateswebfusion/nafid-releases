@@ -16,7 +16,7 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
-import { parsePrintFormat } from '../utils/printFormatHelper';
+import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
@@ -765,9 +765,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
         const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
         const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-        if (!printResult.success && (printResult as any).useDefaultDialog) {
-          const pw = window.open('', '_blank');
-          if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+        if (!printResult.success) {
+          if ((printResult as any).useDefaultDialog) {
+            const pw = window.open('', '_blank');
+            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+          } else {
+            showToast(formatPrinterError(printResult.error), 'error');
+            return;
+          }
         }
       } else {
         const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
@@ -775,9 +780,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
         const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
         if ((printResult as any)?.skipped) {
-          alert('No printer configured. Receipt print skipped.');
+          showToast(formatPrinterError('No printer configured'), 'error');
+          return;
         } else if (printResult && !printResult.success) {
-          alert(`Printing issue: ${printResult.error || 'check printer'}`);
+          showToast(formatPrinterError(printResult.error), 'error');
+          return;
         }
       }
       setReprintSuccess(true);
@@ -812,10 +819,10 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         setTimeout(() => { setSelectedInvoice(null); setItems([]); }, 300);
         loadInvoices(true);
       } else {
-        alert('Delete failed: ' + (result.error || 'Unknown error'));
+        showToast('Delete failed: ' + (result.error || 'Unknown error'), 'error');
       }
     } catch (err: any) {
-      alert('Delete failed: ' + (err?.message || 'Unknown error'));
+      showToast('Delete failed: ' + (err?.message || 'Unknown error'), 'error');
     } finally {
       setDeleteSaving(false);
     }
@@ -863,11 +870,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           setCollectPaymentSuccess(false);
         }, 1500);
       } else {
-        alert('Failed to update payment: ' + result.error);
+        showToast('Failed to update payment: ' + (result.error || 'Unknown error'), 'error');
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to collect payment', err);
-      alert('Failed to update payment');
+      showToast('Failed to update payment: ' + (err?.message || 'Unknown error'), 'error');
     } finally {
       setCollectPaymentSaving(false);
     }
@@ -1071,20 +1078,29 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
       {/* ─── TOAST ─── */}
       {reprintSuccess && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 bg-emerald-500/10 border border-emerald-500/25 rounded-2xl flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm font-bold shadow-2xl" style={{ animation: 'slideDown 0.25s ease' }}>
-          <CheckCheck className="w-4 h-4 shrink-0" />
-          Invoice reprinted successfully!
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
+          <div className="p-2 rounded-xl bg-emerald-500/25 text-emerald-400 shrink-0">
+            <CheckCheck className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">PRINT SUCCESS</span>
+            <span className="text-white font-black text-xs block truncate">Invoice reprinted successfully!</span>
+          </div>
         </div>
       )}
 
       {/* ─── CONVERSION TOAST ─── */}
       {toast && (
-        <div className={clsx(
-          'fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-2xl flex items-center gap-2 text-sm font-bold shadow-2xl',
-          toast.type === 'success' ? 'bg-emerald-500/10 border border-emerald-500/25 text-emerald-600 dark:text-emerald-400' : 'bg-red-500/10 border border-red-500/30 text-red-600 dark:text-red-400'
-        )} style={{ animation: 'slideDown 0.25s ease' }}>
-          {toast.type === 'success' ? <CheckCheck className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-          {toast.text}
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
+          <div className={clsx("p-2 rounded-xl shrink-0", toast.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+            {toast.type === 'success' ? <CheckCheck className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+              {toast.type === 'success' ? 'SUCCESS' : 'PRINT & ACTION ALERT'}
+            </span>
+            <span className="text-white font-bold text-xs block leading-tight">{toast.text}</span>
+          </div>
         </div>
       )}
 

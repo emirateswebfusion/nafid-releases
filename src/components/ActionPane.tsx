@@ -201,7 +201,7 @@ export function ActionPane() {
         });
 
         if (!result.success) {
-          alert('Checkout failed: ' + result.error);
+          setHardwareError('Checkout failed: ' + (result.error || 'Unknown error'));
           isCheckingOutRef.current = false;
           setIsCheckingOut(false);
           return;

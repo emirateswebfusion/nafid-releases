@@ -540,26 +540,19 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
       {/* Floating Toast Notification */}
       {statusMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-in slide-in-from-bottom-5 fade-in duration-300 pointer-events-auto">
-          <div className={clsx(
-            "flex items-center gap-3 px-4 py-3 rounded-2xl border shadow-xl backdrop-blur-md text-xs font-bold transition-all",
-            statusMessage.type === 'success'
-              ? "bg-emerald-500/95 dark:bg-emerald-600/95 text-white border-emerald-400/40 shadow-emerald-500/20"
-              : "bg-destructive/95 text-white border-destructive/40 shadow-destructive/20"
-          )}>
-            {statusMessage.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-white" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-white" />
-            )}
-            <span>{statusMessage.text}</span>
-            <button
-              onClick={() => setStatusMessage(null)}
-              className="ml-2 p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5 text-white" />
-            </button>
+        <div className="fixed bottom-5 right-5 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md">
+          <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+              {statusMessage.type === 'success' ? 'QUOTATION STATUS' : 'QUOTATION ALERT'}
+            </span>
+            <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+          </div>
+          <button onClick={() => setStatusMessage(null)} className="ml-1 p-1 hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
       )}
     </div>
