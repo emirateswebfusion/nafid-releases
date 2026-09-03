@@ -136,9 +136,9 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             .text-right { text-align: right; }
             .text-center { text-align: center; }
             .total-row td { font-weight: bold; }
-            .terms { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
-            .terms h3 { font-size: 14px; margin-bottom: 8px; }
-            .terms p { font-size: 11px; color: #555; white-space: pre-line; }
+            .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
+            .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
+            .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
           </style>
         </head>
         <body>${content}</body>
@@ -468,7 +468,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               {selectedQuotation.terms_conditions && (
                 <div className="border-t border-border pt-4">
                   <h3 className="font-bold text-sm mb-2">Terms & Conditions</h3>
-                  <p className="text-xs text-muted-foreground whitespace-pre-line">{selectedQuotation.terms_conditions}</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line leading-relaxed">{selectedQuotation.terms_conditions}</p>
                 </div>
               )}
 

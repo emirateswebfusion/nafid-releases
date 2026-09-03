@@ -1464,7 +1464,7 @@ export function upsertCustomerRecord(
   rawAddress?: string | null
 ): string | null {
   if (!db || !tenantId) return null;
-  const name = (rawName || '').trim();
+  const name = (rawName || '').trim().replace(/\s+/g, ' ');
   const phone = (rawPhone || '').trim() || null;
   const address = (rawAddress || '').trim() || null;
 
@@ -1476,7 +1476,14 @@ export function upsertCustomerRecord(
       existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND phone = ?').get(tenantId, phone);
     }
     if (!existing && name) {
-      existing = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').get(tenantId, name);
+      const candidates = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ? AND name = ? COLLATE NOCASE').all(tenantId, name);
+      if (candidates && candidates.length > 0) {
+        existing = candidates[0];
+      } else {
+        const allCust = db.prepare('SELECT customer_id, name, phone, address FROM customers WHERE tenant_id = ?').all(tenantId);
+        const normTarget = name.toLowerCase().replace(/\s+/g, ' ');
+        existing = allCust.find((c: any) => (c.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === normTarget);
+      }
     }
 
     const displayName = name || phone!;

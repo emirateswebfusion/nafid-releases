@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
@@ -318,6 +318,11 @@ export function BillingPage() {
   const [pointsToRedeem, setPointsToRedeem] = useState(0);
 
   const [customerSearchResults, setCustomerSearchResults] = useState<any[]>([]);
+  const [allCustomersList, setAllCustomersList] = useState<any[]>([]);
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(0);
+  const customerNameContainerRef = useRef<HTMLDivElement>(null);
+  const customerNameInputRef = useRef<HTMLInputElement>(null);
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
@@ -1252,11 +1257,24 @@ export function BillingPage() {
   const returnDeductionInputRef = useRef<HTMLInputElement>(null);
   const [returnDeductionDropdownStyle, setReturnDeductionDropdownStyle] = useState<React.CSSProperties | null>(null);
 
+  // Load all existing customers for fast autocomplete
+  useEffect(() => {
+    if (window.electronAPI?.dbGetCustomers) {
+      window.electronAPI.dbGetCustomers({ tenant_id: tenantId || 'global' })
+        .then((data: any) => {
+          if (Array.isArray(data)) {
+            setAllCustomersList(data);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [tenantId]);
+
   // Customer autofill search by name or phone
   useEffect(() => {
     const nameQuery = customerName.trim();
     const phoneQuery = customerPhone.trim();
-    if ((!nameQuery && !phoneQuery) || nameQuery.length < 2 || !window.electronAPI || !loyaltyEnabled) {
+    if ((!nameQuery && !phoneQuery) || !window.electronAPI) {
       setCustomerSearchResults([]);
       return;
     }
@@ -1268,16 +1286,91 @@ export function BillingPage() {
           phone: phoneQuery || undefined,
         });
         if (Array.isArray(results)) {
-          setCustomerSearchResults(results.filter((c: any) => {
-            if (nameQuery && c.name) return c.name.toLowerCase().includes(nameQuery.toLowerCase());
-            if (phoneQuery && c.phone) return c.phone.includes(phoneQuery);
-            return false;
-          }));
+          setCustomerSearchResults(results);
         }
       } catch {}
-    }, 300);
+    }, 150);
     return () => clearTimeout(t);
-  }, [customerName, customerPhone, tenantId, loyaltyEnabled]);
+  }, [customerName, customerPhone, tenantId]);
+
+  // Compute filtered & deduplicated customer suggestions
+  const filteredCustomerSuggestions = useMemo(() => {
+    const qName = customerName.trim().replace(/\s+/g, ' ').toLowerCase();
+    const qPhone = customerPhone.trim();
+    if (!qName && !qPhone) return [];
+
+    const seen = new Set<string>();
+    const combined = [...customerSearchResults, ...allCustomersList];
+    const matched: any[] = [];
+
+    for (const c of combined) {
+      if (!c || !c.name) continue;
+      const cNormName = c.name.trim().replace(/\s+/g, ' ').toLowerCase();
+      const cPhone = (c.phone || '').trim();
+      const key = `${cNormName}|${cPhone}`;
+      if (seen.has(key)) continue;
+
+      const matchesName = qName ? cNormName.includes(qName) : false;
+      const matchesPhone = qPhone ? cPhone.includes(qPhone) : false;
+
+      if (matchesName || matchesPhone) {
+        seen.add(key);
+        matched.push(c);
+      }
+    }
+    return matched.slice(0, 15);
+  }, [customerName, customerPhone, customerSearchResults, allCustomersList]);
+
+  // Click outside to dismiss customer suggestions dropdown
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (customerNameContainerRef.current && !customerNameContainerRef.current.contains(e.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectCustomerSuggestion = (c: any) => {
+    const cleanName = (c.name || '').trim().replace(/\s+/g, ' ');
+    const cleanPhone = (c.phone || '').trim();
+    const cleanAddress = (c.address || '').trim();
+
+    updateActiveTab({
+      customerName: cleanName,
+      customerPhone: cleanPhone,
+      customerAddress: cleanAddress,
+      customerGstin: c.gstin || c.customer_gstin || '',
+    });
+    applyPartyTier(cleanName, cleanPhone);
+    if (c.customer_id) {
+      setLoyaltyCustomerData({
+        customerId: c.customer_id,
+        pointsBalance: Number(c.current_points_balance) || 0,
+      });
+    }
+    setCustomerSearchResults([]);
+    setShowCustomerDropdown(false);
+  };
+
+  const handleCustomerNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!showCustomerDropdown || filteredCustomerSuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      if (filteredCustomerSuggestions[selectedCustomerIndex]) {
+        e.preventDefault();
+        selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
+      }
+    } else if (e.key === 'Escape') {
+      setShowCustomerDropdown(false);
+    }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -2575,9 +2668,9 @@ export function BillingPage() {
                 .text-right { text-align: right; }
                 .text-center { text-align: center; }
                 .total-row td { font-weight: bold; }
-                .terms { margin-top: 30px; padding-top: 15px; border-top: 1px solid #ddd; }
-                .terms h3 { font-size: 14px; margin-bottom: 8px; }
-                .terms p { font-size: 11px; color: #555; white-space: pre-line; }
+                .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
+                .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
+                .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
               </style>
             </head>
             <body>
@@ -4689,20 +4782,21 @@ export function BillingPage() {
           {/* Customer details — moved to top of cart */}
           <div className="px-4 py-2.5 border-b border-border bg-card shrink-0">
             <div className="flex items-center gap-2 mb-2">
-              <div className="relative flex-1">
+              <div className="relative flex-1" ref={customerNameContainerRef}>
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
+                  ref={customerNameInputRef}
                   placeholder={'Customer Name (optional)'}
                   value={customerName}
+                  onFocus={() => setShowCustomerDropdown(true)}
                   onChange={e => {
-                    updateActiveTab({ customerName: e.target.value });
-                    applyPartyTier(e.target.value, customerPhone);
-                    if (loyaltyEnabled && e.target.value.length >= 2) {
-                      window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', name: e.target.value }).then((res: any) => {
-                        if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.name?.toLowerCase().includes(e.target.value.toLowerCase())));
-                      });
-                    }
+                    const val = e.target.value;
+                    updateActiveTab({ customerName: val });
+                    applyPartyTier(val, customerPhone);
+                    setShowCustomerDropdown(true);
+                    setSelectedCustomerIndex(0);
                   }}
+                  onKeyDown={handleCustomerNameKeyDown}
                   className={clsx(
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
@@ -4710,21 +4804,25 @@ export function BillingPage() {
                       : 'border-border focus:ring-primary/20 focus:border-primary'
                   )}
                 />
-                {customerSearchResults.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[200px] overflow-y-auto">
-                    {customerSearchResults.map((c: any) => (
-                      <button key={c.customer_id}
-                        onClick={() => {
-                          updateActiveTab({ customerName: c.name, customerPhone: c.phone || '', customerAddress: c.address || '' });
-                          applyPartyTier(c.name, c.phone || '');
-                          setLoyaltyCustomerData({ customerId: c.customer_id, pointsBalance: Number(c.current_points_balance) || 0 });
-                          setCustomerSearchResults([]);
+                {showCustomerDropdown && filteredCustomerSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
+                    {filteredCustomerSuggestions.map((c: any, index: number) => (
+                      <button
+                        key={c.customer_id || index}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectCustomerSuggestion(c);
                         }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-muted/40 border-b border-border last:border-0 cursor-pointer">
+                        className={clsx(
+                          "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border last:border-0 cursor-pointer transition-colors",
+                          index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold" : "hover:bg-muted/40"
+                        )}
+                      >
                         <User className="w-4 h-4 text-muted-foreground shrink-0" />
                         <div className="flex-1 min-w-0">
                           <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No details'}</div>
+                          <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No phone/address'}</div>
                         </div>
                         {Number(c.current_points_balance) > 0 && (
                           <span className="text-[10px] font-bold text-emerald-600 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
@@ -4739,15 +4837,14 @@ export function BillingPage() {
                 <input
                   placeholder={'Phone Number (optional)'}
                   value={customerPhone}
+                  onFocus={() => setShowCustomerDropdown(true)}
                   onChange={e => {
-                    updateActiveTab({ customerPhone: e.target.value });
-                    applyPartyTier(customerName, e.target.value);
-                    if (loyaltyEnabled && e.target.value.length >= 5) {
-                      window.electronAPI?.dbFindCustomers({ tenant_id: tenantId || 'global', phone: e.target.value }).then((res: any) => {
-                        if (Array.isArray(res)) setCustomerSearchResults(res.filter((c: any) => c.phone?.includes(e.target.value)));
-                      });
-                    }}
-                  }
+                    const val = e.target.value;
+                    updateActiveTab({ customerPhone: val });
+                    applyPartyTier(customerName, val);
+                    setShowCustomerDropdown(true);
+                    setSelectedCustomerIndex(0);
+                  }}
                   className={clsx(
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'

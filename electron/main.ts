@@ -432,7 +432,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
       `).all(tenantId);
     }
 
-    const { limit, offset, search, sortBy, barcode, filterDate, isGst } = arg;
+    const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField } = arg;
     let query = `
       SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
         COALESCE((
@@ -468,11 +468,12 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     }
 
     if (filterDate) {
+       const dateCol = dateField === 'updated_at' ? 'p.updated_at' : 'p.created_at';
        if (arg.filterDateEnd) {
-         query += ' AND date(p.created_at, \'localtime\') BETWEEN ? AND ?';
+         query += ` AND date(${dateCol}, 'localtime') BETWEEN ? AND ?`;
          params.push(filterDate, arg.filterDateEnd);
        } else {
-         query += ' AND date(p.created_at, \'localtime\') = ?';
+         query += ` AND date(${dateCol}, 'localtime') = ?`;
          params.push(filterDate);
        }
     }
@@ -552,11 +553,12 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
     }
 
     if (arg?.filterDate) {
+       const dateCol = arg?.dateField === 'updated_at' ? 'updated_at' : 'created_at';
        if (arg.filterDateEnd) {
-         query += ' AND date(created_at, \'localtime\') BETWEEN ? AND ?';
+         query += ` AND date(${dateCol}, 'localtime') BETWEEN ? AND ?`;
          params.push(arg.filterDate, arg.filterDateEnd);
        } else {
-         query += ' AND date(created_at, \'localtime\') = ?';
+         query += ` AND date(${dateCol}, 'localtime') = ?`;
          params.push(arg.filterDate);
        }
     }
@@ -5638,15 +5640,19 @@ ipcMain.handle('db:findCustomers', (event, { tenant_id, name, phone }: { tenant_
     if (!tenant_id) return [];
     let query = `SELECT * FROM customers WHERE tenant_id = ?`;
     const params: any[] = [tenant_id];
-    if (name) {
-      query += ` AND name LIKE ?`;
-      params.push(`%${name}%`);
-    }
-    if (phone) {
+    if (name && phone) {
+      const cleanName = name.trim().replace(/\s+/g, ' ');
+      query += ` AND (name LIKE ? OR phone LIKE ?)`;
+      params.push(`%${cleanName}%`, `%${phone.trim()}%`);
+    } else if (name) {
+      const cleanName = name.trim().replace(/\s+/g, ' ');
+      query += ` AND (name LIKE ? OR phone LIKE ?)`;
+      params.push(`%${cleanName}%`, `%${cleanName}%`);
+    } else if (phone) {
       query += ` AND phone LIKE ?`;
-      params.push(`%${phone}%`);
+      params.push(`%${phone.trim()}%`);
     }
-    query += ` ORDER BY name COLLATE NOCASE ASC LIMIT 20`;
+    query += ` ORDER BY name COLLATE NOCASE ASC LIMIT 25`;
     return db.prepare(query).all(...params);
   } catch (error: any) {
     console.error('[db:findCustomers]', error);

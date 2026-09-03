@@ -117,7 +117,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     return pricingTiers.filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted);
   }, [pricingTiers]);
   const [tierPrices, setTierPrices] = useState<Record<string, string>>({});
-  const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [showCategorySuggestions, setShowCategorySuggestions] = useState(false);
+  const [selectedCategoryIndex, setSelectedCategoryIndex] = useState(0);
+  const categoryContainerRef = useRef<HTMLDivElement>(null);
   const [isAddingGrade, setIsAddingGrade] = useState(false);
   const [savingGrade, setSavingGrade] = useState(false);
   const [newGradeForm, setNewGradeForm] = useState({ grade_name: '', purchase_price: '', rate: '', offer_price: '' });
@@ -135,9 +137,33 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   const savedScrollTop = useRef<number>(0);
   const [highlightedProductId, setHighlightedProductId] = useState<string | null>(null);
 
-  const configuredCategories = Array.from(new Set(grades.map(g => g.category)));
+  const existingCategories = useMemo(() => {
+    const map = new Map<string, string>();
+    const addCat = (raw: string | null | undefined) => {
+      if (!raw) return;
+      const trimmed = raw.trim().replace(/\s+/g, ' ');
+      if (!trimmed) return;
+      const lower = trimmed.toLowerCase();
+      if (!map.has(lower)) {
+        map.set(lower, trimmed);
+      }
+    };
+    grades.forEach(g => addCat(g.category));
+    products.forEach(p => addCat(p.category));
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [grades, products]);
 
-  const categoryGrades = grades.filter(g => g.category === formData.category);
+  const categorySuggestions = useMemo(() => {
+    const query = (formData.category || '').trim().toLowerCase();
+    if (!query) {
+      return existingCategories;
+    }
+    return existingCategories.filter(c => c.toLowerCase().includes(query));
+  }, [existingCategories, formData.category]);
+
+  const configuredCategories = existingCategories;
+
+  const categoryGrades = grades.filter(g => (g.category || '').trim().toLowerCase() === (formData.category || '').trim().toLowerCase());
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -424,10 +450,34 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       if (nameContainerRef.current && !nameContainerRef.current.contains(e.target as Node)) {
         setNameSuggestions([]);
       }
+      if (categoryContainerRef.current && !categoryContainerRef.current.contains(e.target as Node)) {
+        setShowCategorySuggestions(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  const handleCategoryKeyDown = (e: React.KeyboardEvent) => {
+    if (!showCategorySuggestions || categorySuggestions.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedCategoryIndex(prev => Math.min(prev + 1, categorySuggestions.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedCategoryIndex(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter' && selectedCategoryIndex >= 0) {
+      e.preventDefault();
+      selectCategorySuggestion(categorySuggestions[selectedCategoryIndex]);
+    } else if (e.key === 'Escape') {
+      setShowCategorySuggestions(false);
+    }
+  };
+
+  const selectCategorySuggestion = (cat: string) => {
+    handleInputChange('category', cat);
+    setShowCategorySuggestions(false);
+  };
 
   const handleNameKeyDown = (e: React.KeyboardEvent) => {
     if (!nameSuggestions.length) return;
@@ -564,7 +614,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       gst_bill_date: new Date().toLocaleDateString('en-CA'),
       gst_purchase_is_dummy: false,
     });
-    setIsCustomCategory(product.category ? !configuredCategories.includes(product.category) : false);
     if (window.electronAPI) {
       window.electronAPI.dbGetProductPricing(tenantId || 'global')
         .then((rows: any[]) => {
@@ -1114,9 +1163,19 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
     
     setLoading(true);
 
+    // Normalize category: clean whitespace and resolve canonical casing from existing categories
+    let normalizedCategory = (formData.category || '').trim().replace(/\s+/g, ' ');
+    if (normalizedCategory) {
+      const match = existingCategories.find(c => c.toLowerCase() === normalizedCategory.toLowerCase());
+      if (match) {
+        normalizedCategory = match;
+      }
+    }
+
     const payload = {
       ...(editingProduct ?? { product_id: uuidv4(), tenant_id: tenantId || 'unset', sync_status: 'pending', created_at: new Date().toLocaleString('en-CA', { hour12: false }).replace(', ', 'T') }),
       ...formData,
+      category: normalizedCategory,
       sku_barcode: finalBarcode,
       purchase_price: Number(formData.purchase_price) || 0,
       base_price: Number(formData.base_price) || 0,
@@ -1215,10 +1274,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
         }
 
         // Auto-register custom categories in the Categories & Grades page so they can be managed there
-        if (formData.category.trim() && !configuredCategories.includes(formData.category.trim())) {
-          const cat = formData.category.trim();
+        if (normalizedCategory && !existingCategories.some(c => c.toLowerCase() === normalizedCategory.toLowerCase())) {
+          const cat = normalizedCategory;
           const existing = await window.electronAPI.dbGetGrades(tenantId || 'global');
-          if (Array.isArray(existing) && !existing.some(g => g.category === cat && !String(g.grade_name || '').trim())) {
+          if (Array.isArray(existing) && !existing.some(g => (g.category || '').trim().toLowerCase() === cat.toLowerCase() && !String(g.grade_name || '').trim())) {
             const gradeRes = await window.electronAPI.dbAddGrade({
               grade_id: uuidv4(),
               tenant_id: tenantId || '',
@@ -1723,36 +1782,60 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-4">
-                      <div>
+                      <div ref={categoryContainerRef} className="relative">
                         <label className="block text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1.5">Category</label>
-                        {isCustomCategory || configuredCategories.length === 0 ? (
-                          <div className="relative">
-                             <input type="text" value={formData.category} onChange={e => handleInputChange('category', e.target.value)} className="w-full bg-background border border-border rounded-xl p-3 pr-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" placeholder="Custom Category" />
-                             {configuredCategories.length > 0 && (
-                               <button type="button" onClick={() => { setIsCustomCategory(false); handleInputChange('category', ''); }} title="Cancel custom category"
-                                 className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-red-500 hover:bg-red-500/10 cursor-pointer transition-all">
-                                 <X className="w-4 h-4" />
-                               </button>
-                             )}
-                          </div>
-                        ) : (
-                          <Select
-                            value={configuredCategories.includes(formData.category) ? formData.category : (formData.category ? 'CUSTOM' : '')}
-                            onChange={v => {
-                              if (v === 'CUSTOM') {
-                                setIsCustomCategory(true);
-                                handleInputChange('category', '');
-                              } else {
-                                handleInputChange('category', v);
-                              }
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.category}
+                            onChange={e => {
+                              handleInputChange('category', e.target.value);
+                              setShowCategorySuggestions(true);
+                              setSelectedCategoryIndex(0);
                             }}
-                            placeholder="-- Select Category --"
-                            options={[
-                              ...configuredCategories.map(c => ({ value: String(c), label: String(c) })),
-                              { value: 'CUSTOM', label: 'Custom...' }
-                            ]}
-                            triggerClassName="rounded-xl h-[46px]"
+                            onFocus={() => setShowCategorySuggestions(true)}
+                            onKeyDown={handleCategoryKeyDown}
+                            className="w-full bg-background border border-border rounded-xl p-3 pr-8 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm"
+                            placeholder="Type or select category..."
                           />
+                          {formData.category && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleInputChange('category', '');
+                                setShowCategorySuggestions(true);
+                              }}
+                              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-muted-foreground/60 hover:text-foreground rounded-lg hover:bg-muted transition-colors cursor-pointer"
+                              title="Clear category"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {showCategorySuggestions && categorySuggestions.length > 0 && (
+                          <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-card border border-border rounded-xl shadow-xl overflow-hidden max-h-48 overflow-y-auto">
+                            {categorySuggestions.map((cat, i) => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onMouseDown={(e) => {
+                                  e.preventDefault();
+                                  selectCategorySuggestion(cat);
+                                }}
+                                onMouseEnter={() => setSelectedCategoryIndex(i)}
+                                className={clsx(
+                                  'w-full text-left px-4 py-2.5 flex items-center justify-between text-sm transition-colors cursor-pointer border-b border-border/40 last:border-0',
+                                  i === selectedCategoryIndex ? 'bg-primary/10 text-primary font-bold' : 'bg-card text-foreground hover:bg-muted'
+                                )}
+                              >
+                                <span>{cat}</span>
+                                {cat.toLowerCase() === (formData.category || '').trim().toLowerCase() && (
+                                  <Check className="w-4 h-4 text-primary shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>
