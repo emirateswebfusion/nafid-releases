@@ -1,3 +1,11 @@
+# Vendora v1.5.39 Release Notes
+
+## What's Changed
+- Refactored paper preview modal, invoice HTML generator, and ESC/POS print format helpers
+- Enhanced Select dropdown UI component, owner dashboard stats, and background sync worker logic
+- Updated Vite configuration to `.mts` extension
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.38...v1.5.39
+
 # Vendora v1.5.38 Release Notes
 
 ## What's Changed
