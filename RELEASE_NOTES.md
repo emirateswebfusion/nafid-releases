@@ -1,3 +1,10 @@
+# Vendora v1.5.40 Release Notes
+
+## What's Changed
+- Optimized `localDb` queries, SQLite connection safety, and Electron main process IPC handlers
+- Enhanced `InventoryManager`, `QuotationManager`, `BillingPage`, and A4 invoice HTML templates
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.39...v1.5.40
+
 # Vendora v1.5.39 Release Notes
 
 ## What's Changed
