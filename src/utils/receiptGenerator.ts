@@ -195,6 +195,7 @@ export interface ReceiptData {
   pointsRedeemedDiscount?: number;
   remainingPointsBalance?: number;
   extraBonus?: number;
+  a5Orientation?: 'horizontal' | 'vertical';
 }
 
 /**
