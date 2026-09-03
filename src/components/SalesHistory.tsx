@@ -809,6 +809,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
         billSettings,
         isB2B,
+        a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
       if (useA4) {
         const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');

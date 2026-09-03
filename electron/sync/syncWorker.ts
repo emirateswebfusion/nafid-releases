@@ -167,12 +167,26 @@ function toSqliteDate(iso: string | number | null | undefined): string {
   return str.replace('T', ' ').replace('Z', '');
 }
 
-// Background sync interval (default 0.166 = every 10s).
+// Background sync interval (default 1.0 = every 60s).
 // Express priority sync is automatically triggered immediately on urgent user actions (bill creation/edits).
-const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '0.166');
-const SYNC_INTERVAL_MS = Math.max(5000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
+const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1.0');
+const SYNC_INTERVAL_MS = Math.max(15000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
 
 function getCloudApiBase() {
+  try {
+    const db = getDb();
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id || 'global';
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
+        return `http://${parsed.lanHostIp}:${parsed.lanPort || 3888}`;
+      }
+    }
+  } catch {
+    // fallback to default cloud API
+  }
   return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
 }
 
@@ -215,7 +229,7 @@ async function clearAuthAndNotify() {
   }
 }
 
-const FAST_INVOICE_PULL_MS = 2000;
+const FAST_INVOICE_PULL_MS = 20000;
 let fastInvoicePullInProgress = false;
 
 export function initSyncWorker() {
@@ -293,7 +307,7 @@ export function initSyncWorker() {
 }
 
 let fastQuotationPullInProgress = false;
-const FAST_QUOTATION_PULL_MS = 3000;
+const FAST_QUOTATION_PULL_MS = 30000;
 
 let urgentInvoiceSyncInProgress = false;
 
@@ -352,7 +366,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
 }
 
 let fastCashPullInProgress = false;
-const FAST_CASH_PULL_MS = 3000;
+const FAST_CASH_PULL_MS = 30000;
 
 
 

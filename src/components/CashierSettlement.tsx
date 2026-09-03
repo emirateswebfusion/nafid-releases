@@ -527,7 +527,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     window.addEventListener('focus', refresh);
     window.addEventListener('checkout:completed', refresh);
     window.addEventListener('storage', refresh);
-    const interval = setInterval(refresh, 1500);
+    const interval = setInterval(refresh, 15000);
     return () => {
       if (typeof unsubscribeSync === 'function') (unsubscribeSync as any)();
       window.removeEventListener('focus', refresh);

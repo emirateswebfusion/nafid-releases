@@ -103,7 +103,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
         const interval = setInterval(() => {
             loadStats();
-        }, 10000);
+        }, 30000);
 
         return () => clearInterval(interval);
     }, [setLastSyncTime, loadStats]);

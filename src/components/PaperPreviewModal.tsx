@@ -55,7 +55,7 @@ function createSampleReceiptData(showProductOffers = true, billSettings?: BillSe
   };
 }
 
-function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSettings): InvoiceData {
+function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSettings, a5Orientation: 'horizontal' | 'vertical' = 'horizontal'): InvoiceData {
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   return {
     shopName: bs.showShopName ? 'Nafid Mart' : '',
@@ -87,6 +87,7 @@ function createSampleInvoiceData(showProductOffers = true, billSettings?: BillSe
     showProductOffers,
     billSettings: bs,
     isB2B: Boolean(bs.showCustomerGstin && '32AAAAA2222A1Z1'),
+    a5Orientation,
   };
 }
 
@@ -172,10 +173,11 @@ interface PaperPreviewModalProps {
   showProductOffers: boolean;
   receiptFont?: string;
   billSettings?: BillSettings;
+  a5Orientation?: 'horizontal' | 'vertical';
   onSelectStyle?: (style: string) => void;
 }
 
-export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier', billSettings, onSelectStyle }: PaperPreviewModalProps) {
+export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Style, paperWidth, showProductOffers, receiptFont = 'courier', billSettings, a5Orientation = 'horizontal', onSelectStyle }: PaperPreviewModalProps) {
   const [zoom, setZoom] = useState(1);
 
   const style = format === 'thermal' ? thermalStyle : a4Style;
@@ -186,13 +188,13 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
       const data = createSampleReceiptData(showProductOffers, billSettings);
       return generateReceiptText(data, paperWidth, undefined, style);
     } else if (format === 'half-a4') {
-      const data = createSampleInvoiceData(showProductOffers, billSettings);
+      const data = createSampleInvoiceData(showProductOffers, billSettings, a5Orientation);
       return generateInvoiceHtml(data, 'half-a4');
     } else {
       const data = createSampleInvoiceData(showProductOffers, billSettings);
       return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
     }
-  }, [isOpen, format, style, paperWidth, showProductOffers, billSettings]);
+  }, [isOpen, format, style, paperWidth, showProductOffers, billSettings, a5Orientation]);
 
   const rows = useMemo(() => {
     if (format !== 'thermal') return [];
@@ -477,10 +479,10 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
             </div>
           ) : (
             <div
-              className="bg-white shadow-2xl overflow-hidden rounded-md border border-gray-300"
+              className="bg-white shadow-2xl overflow-hidden rounded-md border border-gray-300 transition-all duration-300"
               style={{
-                width: format === 'half-a4' ? '740px' : '820px',
-                minHeight: format === 'half-a4' ? '520px' : '1100px',
+                width: format === 'half-a4' ? (a5Orientation === 'vertical' ? '520px' : '740px') : '820px',
+                minHeight: format === 'half-a4' ? (a5Orientation === 'vertical' ? '740px' : '520px') : '1100px',
               }}
             >
               <div className="bg-gray-100 px-4 py-1.5 flex items-center justify-between border-b border-gray-200">
@@ -489,16 +491,16 @@ export function PaperPreviewModal({ isOpen, onClose, format, thermalStyle, a4Sty
                   <div className="w-2.5 h-2.5 rounded-full bg-yellow-400" />
                   <div className="w-2.5 h-2.5 rounded-full bg-green-400" />
                   <span className="text-[11px] text-gray-600 font-mono font-bold ml-2 uppercase">
-                    {format === 'half-a4' ? '📄 A5 LANDSCAPE (210mm × 148.5mm)' : '📑 FULL A4 INVOICE (210mm × 297mm)'}
+                    {format === 'half-a4' ? (a5Orientation === 'vertical' ? '📄 A5 PORTRAIT (148mm × 210mm)' : '📄 A5 LANDSCAPE (210mm × 148.5mm)') : '📑 FULL A4 INVOICE (210mm × 297mm)'}
                   </span>
                 </div>
               </div>
               <iframe
                 srcDoc={content}
                 title={format === 'half-a4' ? "A5 Preview" : "A4 Invoice Preview"}
-                className="w-full border-0"
+                className="w-full border-0 transition-all duration-300"
                 style={{
-                  height: format === 'half-a4' ? '520px' : '1100px',
+                  height: format === 'half-a4' ? (a5Orientation === 'vertical' ? '740px' : '520px') : '1100px',
                   background: '#fff',
                 }}
                 sandbox="allow-same-origin"

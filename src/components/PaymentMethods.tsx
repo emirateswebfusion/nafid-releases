@@ -393,11 +393,12 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     return matchesSearch && matchesFilter;
   });
 
-  const totalLiquidity = sources.filter(s => s.is_enabled === 1).reduce((sum, s) => sum + (Number(s.current_balance) || 0), 0);
-  const totalAccounts = sources.length;
-  const activeAccounts = sources.filter(s => s.is_enabled === 1).length;
-  const defaultSource = sources.find(s => s.is_default === 1);
-  const totalTxnCount = sources.reduce((sum, s) => sum + (Number(s.transaction_count) || 0), 0);
+  const safeSources = Array.isArray(sources) ? sources : [];
+  const totalLiquidity = safeSources.filter(s => s.is_enabled === 1).reduce((sum, s) => sum + (Number(s.current_balance) || 0), 0);
+  const totalAccounts = safeSources.length;
+  const activeAccounts = safeSources.filter(s => s.is_enabled === 1).length;
+  const defaultSource = safeSources.find(s => s.is_default === 1);
+  const totalTxnCount = safeSources.reduce((sum, s) => sum + (Number(s.transaction_count) || 0), 0);
 
   const filteredTransactions = transactions.filter(t => {
     if (!txSearch.trim()) return true;

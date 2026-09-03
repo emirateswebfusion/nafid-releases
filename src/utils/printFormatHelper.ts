@@ -1,5 +1,6 @@
 export interface PrintFormatConfig {
   format: 'thermal' | 'a4' | 'half-a4';
+  a5Orientation?: 'horizontal' | 'vertical';
   width?: number;
   style?: string;
   showProductOffers?: boolean;

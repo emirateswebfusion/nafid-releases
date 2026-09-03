@@ -1725,10 +1725,12 @@ export function BillingPage() {
       pieces_per_kg: piecesPerKg,
       grade_id: tierPrice != null ? null : product.grade_id,
       pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
-      grade_rate: tierPrice != null ? null : product.grade_rate,
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
       offer_price: product.offer_price ?? null,
+      catalog_discount_percent: product.catalog_discount_percent !== undefined ? product.catalog_discount_percent : (product.discount_percent ?? null),
+      catalog_discount_flat: product.catalog_discount_flat !== undefined ? product.catalog_discount_flat : (product.discount_flat ?? null),
+      catalog_offer_price: product.catalog_offer_price !== undefined ? product.catalog_offer_price : (product.offer_price ?? null),
       sku_barcode: product.sku_barcode || null,
       brand_manufacturer: product.brand_manufacturer || null,
       isServiceItem: Number(product.is_service_item) ? true : undefined,
@@ -1848,6 +1850,9 @@ export function BillingPage() {
         discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
         discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
         offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+        catalog_discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+        catalog_discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+        catalog_offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
         current_stock: 0,
       });
       if (qty > 0) updateQuantity(productId, qty);
@@ -1955,6 +1960,9 @@ export function BillingPage() {
         discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
         discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
         offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+        catalog_discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+        catalog_discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+        catalog_offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
         current_stock: newProductIsDummy ? 0 : qty,
       });
       setSearchQuery('');

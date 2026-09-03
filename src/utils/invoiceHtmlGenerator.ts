@@ -52,6 +52,7 @@ export interface InvoiceData {
   showProductOffers?: boolean;
   billSettings?: BillSettings;
   isB2B?: boolean;
+  a5Orientation?: 'horizontal' | 'vertical';
 }
 
 function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
@@ -91,6 +92,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const isB2B = data.isB2B === true;
   const title = titleStr || (bs?.estimateMode ? 'ORG. ESTIMATE' : getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B));
   const netPayable = data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0));
+  const isVertical = data.a5Orientation === 'vertical';
 
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
@@ -113,12 +115,31 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     ? (data.balanceAmount - data.grandTotal + data.receivedAmount)
     : null;
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>${title} - ${data.shopName || 'Estimate'}</title>
-  <style>
+  const pageCss = isVertical ? `
+    @page {
+      size: A5 portrait;
+      margin: 5mm 6mm;
+    }
+    @media print {
+      html, body {
+        width: 148mm;
+        height: 210mm;
+        margin: 0;
+        padding: 0;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+    body {
+      font-family: Arial, "Helvetica Neue", sans-serif;
+      font-size: 11px;
+      color: #000;
+      margin: 0;
+      padding: 3mm 4mm;
+      box-sizing: border-box;
+      background: #fff;
+    }
+  ` : `
     @page {
       size: A5 landscape;
       margin: 5mm 6mm;
@@ -142,6 +163,15 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       box-sizing: border-box;
       background: #fff;
     }
+  `;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title} - ${data.shopName || 'Estimate'}</title>
+  <style>
+    ${pageCss}
     .bill-card {
       width: 100%;
       height: 100%;
@@ -160,13 +190,13 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       line-height: 1.4;
     }
     .shop-title {
-      font-size: 15px;
+      font-size: ${isVertical ? '14px' : '15px'};
       font-weight: bold;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
     .doc-title {
-      font-size: 14px;
+      font-size: ${isVertical ? '13px' : '14px'};
       font-weight: 900;
       text-transform: uppercase;
       letter-spacing: 1px;
@@ -197,12 +227,12 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       border-top: 1px solid #000;
     }
     .left-summary {
-      width: 60%;
+      width: ${isVertical ? '55%' : '60%'};
       font-size: 11px;
       line-height: 1.5;
     }
     .right-summary {
-      width: 38%;
+      width: ${isVertical ? '43%' : '38%'};
       font-size: 11px;
       line-height: 1.6;
       text-align: right;
@@ -252,11 +282,11 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       <table class="items-table">
         <thead>
           <tr>
-            <th style="width: 40px; text-align: center;">S No</th>
+            <th style="width: ${isVertical ? '35px' : '40px'}; text-align: center;">S No</th>
             <th style="text-align: left;">Description</th>
-            <th style="width: 80px; text-align: right;">Rate</th>
-            <th style="width: 55px; text-align: center;">Qty</th>
-            <th style="width: 90px; text-align: right;">Total</th>
+            <th style="width: ${isVertical ? '65px' : '80px'}; text-align: right;">Rate</th>
+            <th style="width: ${isVertical ? '45px' : '55px'}; text-align: center;">Qty</th>
+            <th style="width: ${isVertical ? '75px' : '90px'}; text-align: right;">Total</th>
           </tr>
         </thead>
         <tbody>
@@ -302,11 +332,11 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           ${data.discount > 0 ? `
           <tr>
             <td style="text-align: right; padding-right: 6px;">Discount :</td>
-            <td style="text-align: right; width: 80px;">${data.discount.toFixed(2)}</td>
+            <td style="text-align: right; width: ${isVertical ? '75px' : '80px'};">${data.discount.toFixed(2)}</td>
           </tr>` : ''}
           <tr>
             <td style="text-align: right; padding-right: 6px; font-weight: bold; font-size: 12px;">Net Amount :</td>
-            <td style="text-align: right; font-weight: bold; font-size: 13px; width: 80px;">${netPayable.toFixed(2)}</td>
+            <td style="text-align: right; font-weight: bold; font-size: 13px; width: ${isVertical ? '75px' : '80px'};">${netPayable.toFixed(2)}</td>
           </tr>
         </table>
       </div>

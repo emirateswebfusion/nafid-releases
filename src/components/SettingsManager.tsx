@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb,
-  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus,
+  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi,
   Smartphone, X, RotateCcw, Maximize2, Eye,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power
@@ -98,6 +98,13 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     icon: Settings,
     items: [
       { id: 'system', label: 'App Preferences', icon: Settings },
+    ],
+  },
+  {
+    category: 'Network & Connectivity',
+    icon: Wifi,
+    items: [
+      { id: 'network', label: 'Network & Sync Mode', icon: Wifi, ownerOnly: true },
     ],
   },
   {
@@ -202,6 +209,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [billSettings, setBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [scrapBillSettings, setScrapBillSettings] = useState<BillSettings>({ ...DEFAULT_BILL_SETTINGS });
   const [printFormat, setPrintFormat] = useState<'thermal' | 'a4' | 'half-a4'>('thermal');
+  const [a5Orientation, setA5Orientation] = useState<'horizontal' | 'vertical'>('horizontal');
   const [labelCodeType, setLabelCodeType] = useState<CodeType>(DEFAULT_CODE_TYPE);
   const [labelShowShopName, setLabelShowShopName] = useState(true);
   const [printWidth, setPrintWidth] = useState<number>(58);
@@ -235,13 +243,18 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [serviceChargeProduct, setServiceChargeProduct] = useState<any>(null);
   const [serviceChargeBarcode, setServiceChargeBarcode] = useState('');
   const [timeFormat, setTimeFormat] = useState<'12h' | '24h'>('12h');
+  const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('HYBRID');
+  const [lanRole, setLanRole] = useState<'PRIMARY' | 'SECONDARY'>('PRIMARY');
+  const [lanHostIp, setLanHostIp] = useState('192.168.1.100');
+  const [lanPort, setLanPort] = useState<number>(3888);
+  const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
   const initialSnapshot = useRef<string>('');
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
-    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
+    const current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
     return current !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, featureFlags, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -275,7 +288,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
   useEffect(() => {
     if (!loading) {
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
     }
   }, [loading]);
 
@@ -328,6 +341,15 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
     setShopGstin(typeof gstinVal === 'string' ? gstinVal : '');
     setShopState(typeof stateVal === 'string' ? stateVal : '');
+
+    const netSync = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'network_sync_config' });
+    if (netSync && typeof netSync === 'object') {
+      if (netSync.syncMode) setSyncMode(netSync.syncMode);
+      if (netSync.lanRole) setLanRole(netSync.lanRole);
+      if (netSync.lanHostIp) setLanHostIp(netSync.lanHostIp);
+      if (netSync.lanPort) setLanPort(Number(netSync.lanPort) || 3888);
+      if (netSync.syncFrequency) setSyncFrequency(netSync.syncFrequency);
+    }
     setShopNameLocal(typeof nameVal === 'string' ? nameVal : '');
     setShopAddress(typeof addressVal === 'string' ? addressVal : '');
     setShopPhone(typeof phoneVal === 'string' ? phoneVal : '');
@@ -377,6 +399,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (printFmt.style) setA4Style(printFmt.style);
       } else if (printFmt.format === 'half-a4') {
         setPrintFormat('half-a4');
+        if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
+          setA5Orientation(printFmt.a5Orientation);
+        }
       } else {
         setPrintFormat('thermal');
         setPrintWidth(Number(printFmt.width) || 58);
@@ -464,6 +489,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       console.error('Failed to load Service Charge settings', err);
     }
 
+    initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap: scrapEnabled, showCashRegister: cashReg, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(flags) });
     setLoading(false);
   };
 
@@ -501,7 +527,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode || 'POS1'}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${terminalCode || 'POS1'}-RTN`}-`, counter: Number(returnStartNumber) || 1 } }), name: 'return_counter' },
@@ -515,6 +541,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
       for (const { promise, name } of checks) {
@@ -540,7 +567,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setEnableScrap(Boolean(featureFlags.scrap));
       setMessage({ type: 'success', text: 'All settings saved successfully!' });
-      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap: featureFlags.scrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
+      initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap: featureFlags.scrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -649,7 +676,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     );
   }
 
-  const activeItem = SIDEBAR_GROUPS.flatMap(g => g.items).find(i => i.id === activeSection);
+  const activeItem = (SIDEBAR_GROUPS || []).flatMap(g => g?.items || []).find(i => i?.id === activeSection);
 
   const renderSectionContent = (sectionId: string) => {
     switch (sectionId) {
@@ -1451,8 +1478,61 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 )}
 
                 {printFormat === 'half-a4' && (
-                  /* A5 Options: Styles */
+                  /* A5 Options: Styles & Orientation */
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
+                    <div>
+                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">A5 Page Orientation</span>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <button
+                          type="button"
+                          onClick={() => setA5Orientation('horizontal')}
+                          className={clsx(
+                            "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                            a5Orientation === 'horizontal'
+                              ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                              : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                          )}
+                        >
+                          <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'horizontal' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                            <FileText className="w-5 h-5 rotate-90" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">Horizontal (Landscape)</p>
+                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">210mm × 148.5mm wide paper feed</p>
+                          </div>
+                          {a5Orientation === 'horizontal' && (
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                            </div>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setA5Orientation('vertical')}
+                          className={clsx(
+                            "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                            a5Orientation === 'vertical'
+                              ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                              : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                          )}
+                        >
+                          <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'vertical' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                            <FileText className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">Vertical (Portrait)</p>
+                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">148.5mm × 210mm tall paper feed</p>
+                          </div>
+                          {a5Orientation === 'vertical' && (
+                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                            </div>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
                     <div>
                       <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">A5 Estimate &amp; Bill Style</span>
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1461,7 +1541,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                             <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
                           </div>
                           <div className="p-3 border-b border-border bg-gradient-to-r from-amber-500/10 to-amber-500/5">
-                            <span className="text-xs font-extrabold text-foreground">Standard A5 Layout</span>
+                            <span className="text-xs font-extrabold text-foreground">Standard A5 Layout ({a5Orientation === 'vertical' ? 'Vertical' : 'Horizontal'})</span>
                           </div>
                           <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                             <div className="relative group flex justify-center">
@@ -2090,6 +2170,139 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             </div>
           </div>
         );
+      case 'network':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <Wifi className="w-4.5 h-4.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-black text-foreground uppercase tracking-widest block">Network & Connectivity Mode</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">Choose how POS billing terminals sync data across the store and cloud</span>
+                </div>
+              </div>
+
+              {/* Mode Selector Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Option 1: Cloud Sync */}
+                <button
+                  type="button"
+                  onClick={() => setSyncMode('CLOUD')}
+                  className={clsx(
+                    'p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between space-y-3',
+                    syncMode === 'CLOUD'
+                      ? 'border-primary bg-primary/5 text-primary shadow-sm ring-2 ring-primary/20'
+                      : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <Globe className="w-5 h-5 text-indigo-500" />
+                    {syncMode === 'CLOUD' && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-foreground mb-1">Cloud API Sync</h4>
+                    <p className="text-[10px] opacity-80 leading-relaxed">Direct internet sync to cloud API. Best for multi-branch stores or remote monitoring.</p>
+                  </div>
+                </button>
+
+                {/* Option 2: Local Wi-Fi Direct (LAN) */}
+                <button
+                  type="button"
+                  onClick={() => setSyncMode('LAN')}
+                  className={clsx(
+                    'p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between space-y-3',
+                    syncMode === 'LAN'
+                      ? 'border-primary bg-primary/5 text-primary shadow-sm ring-2 ring-primary/20'
+                      : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <Wifi className="w-5 h-5 text-emerald-500" />
+                    {syncMode === 'LAN' && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-foreground mb-1">Local Wi-Fi Direct (LAN)</h4>
+                    <p className="text-[10px] opacity-80 leading-relaxed">Direct terminal-to-terminal Wi-Fi sync in the shop. Zero internet cost & sub-1ms speed.</p>
+                  </div>
+                </button>
+
+                {/* Option 3: Hybrid Smart Mode */}
+                <button
+                  type="button"
+                  onClick={() => setSyncMode('HYBRID')}
+                  className={clsx(
+                    'p-5 rounded-2xl border-2 text-left transition-all cursor-pointer flex flex-col justify-between space-y-3',
+                    syncMode === 'HYBRID'
+                      ? 'border-primary bg-primary/5 text-primary shadow-sm ring-2 ring-primary/20'
+                      : 'border-border bg-background hover:border-primary/40 text-muted-foreground'
+                  )}
+                >
+                  <div className="flex items-center justify-between">
+                    <RefreshCw className="w-5 h-5 text-amber-500" />
+                    {syncMode === 'HYBRID' && <CheckCircle2 className="w-4 h-4 text-primary" />}
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-extrabold text-foreground mb-1">Hybrid Smart Mode</h4>
+                    <p className="text-[10px] opacity-80 leading-relaxed">Auto-detects local Wi-Fi for in-store speed; falls back to cloud API when remote.</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* LAN Configuration Settings */}
+              {(syncMode === 'LAN' || syncMode === 'HYBRID') && (
+                <div className="p-5 bg-muted/30 border border-border rounded-2xl space-y-4 mb-6 animate-in fade-in duration-200">
+                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Local Store Server Settings</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Terminal Role</label>
+                      <Select
+                        value={lanRole}
+                        onChange={(val) => setLanRole(val as any)}
+                        options={[
+                          { value: 'PRIMARY', label: 'Primary Store Host Server (Main Cashier PC)' },
+                          { value: 'SECONDARY', label: 'Secondary Billing Counter (Connects to Host)' },
+                        ]}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Primary PC Local IP Address</label>
+                      <Input type="text" value={lanHostIp} onChange={(e) => setLanHostIp(e.target.value)} placeholder="e.g. 192.168.1.100" className="font-mono text-xs font-semibold" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Heartbeat Sync Frequency */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground uppercase tracking-wider block">Sync Heartbeat Rate</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'NORMAL', label: 'Normal (60s)', desc: 'Lowest data usage & maximum server efficiency' },
+                    { id: 'BALANCED', label: 'Balanced (30s)', desc: 'Standard multi-terminal store sync' },
+                    { id: 'HIGH', label: 'Power Sync (15s)', desc: 'Fastest refresh for heavy checkout counters' },
+                  ].map((rate) => (
+                    <button
+                      key={rate.id}
+                      type="button"
+                      onClick={() => setSyncFrequency(rate.id as any)}
+                      className={clsx(
+                        'p-3.5 rounded-xl border text-left transition-all cursor-pointer',
+                        syncFrequency === rate.id
+                          ? 'border-primary bg-primary/10 text-primary font-bold shadow-xs'
+                          : 'border-border bg-background hover:border-primary/30 text-muted-foreground'
+                      )}
+                    >
+                      <span className="text-xs font-bold block">{rate.label}</span>
+                      <span className="text-[10px] opacity-75 mt-0.5 block">{rate.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
       default:
         return null;
     }
@@ -2120,14 +2333,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {hasChanges && (
-            <button onClick={handleSave} disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in border border-primary/20 hover:border-primary shadow-sm">
-              {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
-              <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
-              <span className="sm:hidden">Save</span>
-            </button>
-          )}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className={clsx(
+              "flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm border",
+              hasChanges
+                ? "text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/20 ring-2 ring-primary/20 animate-pulse"
+                : "text-foreground bg-primary/10 hover:bg-primary hover:text-primary-foreground border-primary/20"
+            )}
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
+            <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
+            <span className="sm:hidden">{saving ? 'Saving...' : 'Save'}</span>
+            {hasChanges && <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />}
+          </button>
           <button onClick={onClose}
             className="p-2.5 text-destructive hover:bg-destructive/10 border border-destructive/30 shadow-sm rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
             title="Close">
@@ -2230,6 +2451,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
                       {activeItem.id === 'printing' && 'Choose print formats, invoice styles, receipt typography, and barcode layouts.'}
                       {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
+                      {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
                       {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}
                     </p>
                   </div>
@@ -2260,6 +2482,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         showProductOffers={showProductOffers}
         receiptFont={receiptFont}
         billSettings={billSettings}
+        a5Orientation={a5Orientation}
       />
     </div>
   );

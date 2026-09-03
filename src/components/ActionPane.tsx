@@ -155,6 +155,7 @@ export function ActionPane() {
           grandTotal,
           invoiceType,
           billSettings,
+          a5Orientation: printFmt.a5Orientation || 'horizontal',
         };
 
         if (useA4) {

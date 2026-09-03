@@ -22,7 +22,7 @@ export interface SelectProps {
 }
 
 export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
-  ({ value, onChange, options, placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, _ref) => {
+  ({ value, onChange, options = [], placeholder = 'Select...', className, disabled = false, searchable = false, size = 'default', triggerClassName, renderOption }, _ref) => {
     const [open, setOpen] = React.useState(false);
     const [search, setSearch] = React.useState('');
     const [focusedIndex, setFocusedIndex] = React.useState(-1);
@@ -30,7 +30,8 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
     const searchInputRef = React.useRef<HTMLInputElement>(null);
     const listRef = React.useRef<HTMLDivElement>(null);
 
-    const selectedOption = options.find(o => o.value === value);
+    const safeOptions = Array.isArray(options) ? options : [];
+    const selectedOption = safeOptions.find(o => o.value === value);
 
     React.useEffect(() => {
       const handler = (e: MouseEvent) => {
@@ -63,8 +64,8 @@ export const Select = React.forwardRef<HTMLDivElement, SelectProps>(
     }, [focusedIndex, open]);
 
     const filtered = searchable && search.trim()
-      ? options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
-      : options;
+      ? safeOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+      : safeOptions;
 
     const handleSelect = (option: SelectOption) => {
       onChange(option.value);
