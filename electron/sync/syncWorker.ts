@@ -700,7 +700,11 @@ async function pushBatch<T>(
           await clearAuthAndNotify();
           return [];
         }
-        console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}`);
+        let errDetail = '';
+        try {
+          errDetail = await response.text();
+        } catch {}
+        console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}${errDetail ? ` — ${errDetail.slice(0, 300)}` : ''}`);
         return [];
       }
 
