@@ -1,3 +1,10 @@
+# Vendora v1.5.42 Release Notes
+
+## What's Changed
+- Implemented background data sync worker with LAN/cloud fallback and configuration management dashboard components
+- Enhanced owner dashboard, multi-user management, SettingsManager, and SettingsPricingTiers UI
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.41...v1.5.42
+
 # Vendora v1.5.41 Release Notes
 
 ## What's Changed
