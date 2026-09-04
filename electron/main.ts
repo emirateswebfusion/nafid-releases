@@ -380,6 +380,85 @@ app.on('window-all-closed', () => {
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
 
+// ── Auth Token Persistence ───────────────────────────────────────────────────
+const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
+const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
+
+const encrypt = (text: string): Buffer | null => {
+  if (!safeStorage.isEncryptionAvailable()) {
+    console.warn('[Auth] safeStorage unavailable — token will be stored in plaintext on disk');
+    return Buffer.from(text);
+  }
+  return safeStorage.encryptString(text);
+};
+
+const decrypt = (data: Buffer): string | null => {
+  if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
+  try {
+    return safeStorage.decryptString(data);
+  } catch {
+    return null;
+  }
+};
+
+function readAuthPayload(): any {
+  const encPath = getEncryptedPath();
+  if (fs.existsSync(encPath)) {
+    const raw = fs.readFileSync(encPath);
+    const decrypted = decrypt(raw);
+    if (decrypted) {
+      try { return JSON.parse(decrypted); } catch {}
+    }
+  }
+  const p = getConfigPath();
+  if (!fs.existsSync(p)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(p, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+ipcMain.removeHandler('auth:saveToken');
+ipcMain.handle('auth:saveToken', (event, payload) => {
+  try {
+    const plaintext = JSON.stringify(payload);
+    fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
+    const encrypted = encrypt(plaintext);
+    if (encrypted) {
+      fs.writeFileSync(getEncryptedPath(), encrypted);
+    }
+    setSyncActive(true);
+    return { success: true };
+  } catch (error: any) {
+    return { success: false, error: 'Failed to save token' };
+  }
+});
+
+ipcMain.removeHandler('auth:getToken');
+ipcMain.handle('auth:getToken', () => {
+  try {
+    return readAuthPayload();
+  } catch {
+    return null;
+  }
+});
+
+ipcMain.removeHandler('auth:clearToken');
+ipcMain.handle('auth:clearToken', () => {
+  try {
+    const encPath = getEncryptedPath();
+    if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
+    const p = getConfigPath();
+    if (fs.existsSync(p)) fs.unlinkSync(p);
+    setSyncActive(false);
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Failed to clear token' };
+  }
+});
+
+ipcMain.removeHandler('log:error');
 ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) => {
   log.error('[Frontend Error]', payload.message, payload.error || '');
 });
@@ -3502,6 +3581,7 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
   }
 });
 
+ipcMain.removeHandler('settings:get');
 ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; key: string }) => {
   try {
     const db = getDb();
@@ -3526,6 +3606,7 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
   }
 });
 
+ipcMain.removeHandler('settings:set');
 ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant_id: string; key: string; value: any }) => {
   try {
     const db = getDb();
@@ -3568,84 +3649,7 @@ ipcMain.handle('sync:getProgress', async () => {
   return getSyncProgress();
 });
 
-// ── Auth Token Persistence ───────────────────────────────────────────────────
-const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
-const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 
-const encrypt = (text: string): Buffer | null => {
-  if (!safeStorage.isEncryptionAvailable()) {
-    console.warn('[Auth] safeStorage unavailable — token will be stored in plaintext on disk');
-    return Buffer.from(text);
-  }
-  return safeStorage.encryptString(text);
-};
-
-const decrypt = (data: Buffer): string | null => {
-  if (!safeStorage.isEncryptionAvailable()) return data.toString('utf-8');
-  try {
-    return safeStorage.decryptString(data);
-  } catch {
-    return null;
-  }
-};
-
-ipcMain.handle('auth:saveToken', (event, payload) => {
-  try {
-    const plaintext = JSON.stringify(payload);
-    // Always save plaintext backup so auth survives safeStorage key changes after updates
-    fs.writeFileSync(getConfigPath(), plaintext, 'utf-8');
-    const encrypted = encrypt(plaintext);
-    if (encrypted) {
-      fs.writeFileSync(getEncryptedPath(), encrypted);
-    }
-    setSyncActive(true);
-    return { success: true };
-  } catch (error: any) {
-    return { success: false, error: 'Failed to save token' };
-  }
-});
-
-// Shared helper to read auth payload from encrypted storage
-function readAuthPayload(): any {
-  const encPath = getEncryptedPath();
-  if (fs.existsSync(encPath)) {
-    const raw = fs.readFileSync(encPath);
-    const decrypted = decrypt(raw);
-    if (decrypted) {
-      try { return JSON.parse(decrypted); } catch {}
-    }
-    // Decryption failed (e.g. safeStorage key changed after update) — fall through to plaintext backup
-  }
-  // Plaintext backup (always written by saveToken, survives app updates)
-  const p = getConfigPath();
-  if (!fs.existsSync(p)) return null;
-  try {
-    return JSON.parse(fs.readFileSync(p, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
-ipcMain.handle('auth:getToken', () => {
-  try {
-    return readAuthPayload();
-  } catch {
-    return null;
-  }
-});
-
-ipcMain.handle('auth:clearToken', () => {
-  try {
-    const encPath = getEncryptedPath();
-    if (fs.existsSync(encPath)) fs.unlinkSync(encPath);
-    const p = getConfigPath();
-    if (fs.existsSync(p)) fs.unlinkSync(p);
-    setSyncActive(false);
-    return { success: true };
-  } catch {
-    return { success: false, error: 'Failed to clear token' };
-  }
-});
 
 function getOrInitTerminalCode(db: any): string {
   const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');

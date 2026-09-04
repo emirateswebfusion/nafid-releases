@@ -638,7 +638,6 @@ function App() {
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
-      {currentUserRole === 'OWNER' && <DomainWizard />}
       <div className="absolute top-0 left-0 right-0 z-50">
         <UpdateBanner onOpenSettings={() => setShowSettingsManager(true)} />
       </div>

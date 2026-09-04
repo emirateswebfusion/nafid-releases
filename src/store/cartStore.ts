@@ -117,8 +117,8 @@ export const useCartStore = create<CartState>()(
       customerState: 'KL', // Default to same state (Kerala)
       shopState: 'KL', // Shop is in KL
       currentUserRole: 'OWNER',
-      shopDomain: null,
-      shopDomainConfirmed: false,
+      shopDomain: 'GENERAL',
+      shopDomainConfirmed: true,
       scrapDeduction: 0,
       scrapInvoiceNumber: '',
       returnDeduction: 0,
