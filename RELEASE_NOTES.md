@@ -1,3 +1,9 @@
+# Vendora v1.5.45 Release Notes
+
+## What's Changed
+- Maintenance release with performance improvements, bug fixes, and updated build configurations
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.44...v1.5.45
+
 # Vendora v1.5.44 Release Notes
 
 ## What's Changed
