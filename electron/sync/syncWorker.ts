@@ -154,13 +154,6 @@ function notifyCycleComplete(sender?: WebContents) {
   }
 }
 
-function notifyOnlineStatus(online: boolean) {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win) {
-    win.webContents.send('sync:online-status', online);
-  }
-}
-
 function toSqliteDate(iso: string | number | null | undefined): string {
   if (!iso) return localTimestamp();
   const str = typeof iso === 'string' ? iso : String(iso);
@@ -172,7 +165,25 @@ function toSqliteDate(iso: string | number | null | undefined): string {
 const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1.0');
 const SYNC_INTERVAL_MS = Math.max(15000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
 
-function getCloudApiBase() {
+let currentActiveRoute: 'LAN' | 'CLOUD' | 'NONE' = 'NONE';
+
+function notifyOnlineStatus(online: boolean, route?: 'LAN' | 'CLOUD') {
+  if (route) currentActiveRoute = online ? route : 'NONE';
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    win.webContents.send('sync:online-status', online, route || (online ? currentActiveRoute : 'NONE'));
+  }
+}
+
+export interface SyncEndpoints {
+  primaryUrl: string;
+  fallbackUrl?: string;
+  primaryRoute: 'LAN' | 'CLOUD';
+  fallbackRoute?: 'CLOUD';
+}
+
+export function getSyncEndpoints(): SyncEndpoints {
+  const defaultCloud = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
   try {
     const db = getDb();
     const config = getAuthConfig();
@@ -181,13 +192,73 @@ function getCloudApiBase() {
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
-        return `http://${parsed.lanHostIp}:${parsed.lanPort || 3888}`;
+        const isHybrid = parsed.syncMode === 'HYBRID';
+        return {
+          primaryUrl: `http://${parsed.lanHostIp}:${parsed.lanPort || 3888}`,
+          fallbackUrl: isHybrid ? defaultCloud : undefined,
+          primaryRoute: 'LAN',
+          fallbackRoute: isHybrid ? 'CLOUD' : undefined,
+        };
       }
     }
   } catch {
     // fallback to default cloud API
   }
-  return process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+  return {
+    primaryUrl: defaultCloud,
+    primaryRoute: 'CLOUD',
+  };
+}
+
+function getCloudApiBase() {
+  return getSyncEndpoints().primaryUrl;
+}
+
+async function fetchWithFallback(
+  urlPath: string,
+  options: RequestInit & { signal?: any } = {}
+): Promise<{ response: Response; activeUrl: string; activeRoute: 'LAN' | 'CLOUD' }> {
+  const endpoints = getSyncEndpoints();
+
+  // Primary request attempt
+  try {
+    const primaryFullUrl = urlPath.startsWith('http') ? urlPath : `${endpoints.primaryUrl}${urlPath}`;
+    const res = await fetch(primaryFullUrl, options);
+    currentActiveRoute = endpoints.primaryRoute;
+    return { response: res, activeUrl: endpoints.primaryUrl, activeRoute: endpoints.primaryRoute };
+  } catch (primaryErr: any) {
+    const isNetworkError = primaryErr.name === 'TimeoutError' || 
+                           primaryErr.message?.includes('timeout') || 
+                           primaryErr.message?.includes('aborted') || 
+                           primaryErr.message?.includes('fetch failed') || 
+                           primaryErr.message?.includes('ENOTFOUND') || 
+                           primaryErr.message?.includes('ECONNREFUSED') ||
+                           primaryErr.message?.includes('EHOSTUNREACH');
+
+    if (endpoints.fallbackUrl && isNetworkError) {
+      console.warn(`[SyncWorker] Primary endpoint (${endpoints.primaryUrl}) unreachable (${primaryErr.message}). Retrying on Cloud API Fallback (${endpoints.fallbackUrl})...`);
+      try {
+        let fallbackFullUrl = urlPath;
+        if (!urlPath.startsWith('http')) {
+          fallbackFullUrl = `${endpoints.fallbackUrl}${urlPath}`;
+        } else if (urlPath.startsWith(endpoints.primaryUrl)) {
+          fallbackFullUrl = urlPath.replace(endpoints.primaryUrl, endpoints.fallbackUrl);
+        }
+        const res = await fetch(fallbackFullUrl, options);
+        currentActiveRoute = endpoints.fallbackRoute!;
+        notifyOnlineStatus(true, 'CLOUD');
+        return { response: res, activeUrl: endpoints.fallbackUrl, activeRoute: endpoints.fallbackRoute! };
+      } catch (fallbackErr: any) {
+        currentActiveRoute = 'NONE';
+        notifyOnlineStatus(false);
+        throw fallbackErr;
+      }
+    }
+
+    currentActiveRoute = 'NONE';
+    notifyOnlineStatus(false);
+    throw primaryErr;
+  }
 }
 
 function parseIsDeleted(val: any): number {
@@ -450,19 +521,40 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
   syncPromise = (async () => {
     try {
-      try {
-        notifyProgress(0, sender);
-        const res = await fetch(getCloudApiBase() + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
-        if (!res.ok) {
+      notifyProgress(0, sender);
+      const endpoints = getSyncEndpoints();
+      let healthOk = false;
+      let activeRoute: 'LAN' | 'CLOUD' = endpoints.primaryRoute;
+
+        try {
+          const res = await fetch(endpoints.primaryUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
+          if (res.ok) {
+            healthOk = true;
+            activeRoute = endpoints.primaryRoute;
+          }
+        } catch {
+          // Primary LAN server unreachable
+        }
+
+        if (!healthOk && endpoints.fallbackUrl) {
+          try {
+            console.log(`[SyncWorker] LAN Primary Master (${endpoints.primaryUrl}) unreachable. Falling back to Cloud API (${endpoints.fallbackUrl})...`);
+            const res = await fetch(endpoints.fallbackUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(5000) });
+            if (res.ok) {
+              healthOk = true;
+              activeRoute = endpoints.fallbackRoute!;
+            }
+          } catch {
+            // Fallback Cloud API also unreachable
+          }
+        }
+
+        if (!healthOk) {
           notifyOnlineStatus(false);
           return;
         }
-      } catch {
-        notifyOnlineStatus(false);
-        return;
-      }
 
-      notifyOnlineStatus(true);
+        notifyOnlineStatus(true, activeRoute);
 
       const config = getAuthConfig();
       if (!config) {
@@ -595,7 +687,7 @@ async function pushBatch<T>(
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
-      const response = await fetch(url, {
+      const { response } = await fetchWithFallback(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ [bodyKey]: batch }),
@@ -970,7 +1062,7 @@ async function pullPaginated(opts: {
     if (since) params.set('since', since);
     for (let attempt = 1; attempt <= PULL_MAX_RETRIES; attempt++) {
       try {
-        const response = await fetch(`${getCloudApiBase()}${opts.urlPath}?${params.toString()}`, {
+        const { response } = await fetchWithFallback(`${opts.urlPath}?${params.toString()}`, {
           method: 'GET',
           headers: { 'Authorization': `Bearer ${opts.token}` },
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -1655,7 +1747,7 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
 
   try {
-    const response = await fetch(`${getCloudApiBase()}/auth/staff`, {
+    const { response } = await fetchWithFallback('/auth/staff', {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${token}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
@@ -1745,7 +1837,7 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
       `SELECT * FROM customers WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`
     ).all(tenantId);
     if (!Array.isArray(pending) || pending.length === 0) return true;
-    const response = await fetch(`${getCloudApiBase()}/api/sync/customers`, {
+    const { response } = await fetchWithFallback('/api/sync/customers', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ customers: pending }),
@@ -1880,7 +1972,7 @@ async function pushLoyaltyTransactions(token: string, tenantId: string): Promise
       `SELECT * FROM loyalty_transactions WHERE tenant_id = ? AND sync_status IN ('PENDING', 'FAILED')`
     ).all(tenantId);
     if (!Array.isArray(pending) || pending.length === 0) return true;
-    const response = await fetch(`${getCloudApiBase()}/api/sync/loyalty-transactions`, {
+    const { response } = await fetchWithFallback('/api/sync/loyalty-transactions', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ loyalty_transactions: pending }),

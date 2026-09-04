@@ -44,6 +44,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
     const [totalSales, setTotalSales] = useState(0);
     const [invoiceCount, setInvoiceCount] = useState(0);
     const [isOnline, setIsOnline] = useState(true);
+    const [activeRoute, setActiveRoute] = useState<'LAN' | 'CLOUD' | null>(null);
     const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('CLOUD');
     const [enableScrap, setEnableScrap] = useState(false);
     const [featureFlags, setFeatureFlags] = useState<FeatureFlags | null>(null);
@@ -118,7 +119,10 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
 
     useEffect(() => {
         if (window.electronAPI?.onOnlineStatus) {
-            window.electronAPI.onOnlineStatus(setIsOnline);
+            window.electronAPI.onOnlineStatus((online: boolean, route?: 'LAN' | 'CLOUD') => {
+                setIsOnline(online);
+                if (route) setActiveRoute(route);
+            });
             return;
         }
         setIsOnline(navigator.onLine);
@@ -361,7 +365,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", isOnline ? "bg-primary/10 border-primary/20" : "bg-destructive/10 border-destructive/20")}>
                                 <span className={clsx("w-1.5 h-1.5 rounded-full", isOnline ? "bg-primary animate-pulse" : "bg-destructive")} />
                                 <span className={clsx("text-[10px] font-bold tracking-wider", isOnline ? "text-primary" : "text-destructive")}>
-                                    {!isOnline ? 'Sync Inactive' : (syncMode === 'LAN' || syncMode === 'HYBRID' ? 'Wifi Sync Active' : 'Cloud Sync Active')}
+                                    {!isOnline ? 'Sync Inactive' : ((activeRoute ? activeRoute === 'LAN' : (syncMode === 'LAN' || syncMode === 'HYBRID')) ? 'Wifi Sync Active' : 'Cloud Sync Active')}
                                 </span>
                             </div>
                             <span className="w-px h-5 bg-border/40" />

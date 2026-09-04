@@ -77,7 +77,7 @@ export interface IElectronAPI {
   onScaleWeight: (callback: (weight: number) => void) => () => void;
   onSyncDataUpdated: (callback: () => void) => void;
   onSyncCycleComplete: (callback: () => void) => void;
-  onOnlineStatus: (callback: (online: boolean) => void) => void;
+  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD') => void) => void;
   onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
   onTokenExpired: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;

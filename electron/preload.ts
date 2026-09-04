@@ -99,7 +99,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   },
   onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
   onSyncCycleComplete: (callback: () => void) => ipcRenderer.on('sync:cycle-complete', () => callback()),
-  onOnlineStatus: (callback: (online: boolean) => void) => ipcRenderer.on('sync:online-status', (_event, online) => callback(online)),
+  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD') => void) => ipcRenderer.on('sync:online-status', (_event, online, route) => callback(online, route)),
   onSyncProgress: (callback: (progress: { percent: number; label: string; recordsSynced: number; totalRecords: number }) => void) => {
     ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
   },
