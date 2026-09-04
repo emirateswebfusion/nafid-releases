@@ -309,7 +309,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
         <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-2xl border border-destructive/20 flex items-center justify-between gap-3 shadow-inner">
           <div className="flex items-center gap-2">
             <div className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse shrink-0" />
-            <span className="font-bold">{error}</span>
+            <span className="font-bold">{typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}</span>
           </div>
           <button onClick={() => setError(null)} className="p-1 hover:bg-destructive/20 rounded-lg transition-colors shrink-0 cursor-pointer">
             <X className="w-4.5 h-4.5" />

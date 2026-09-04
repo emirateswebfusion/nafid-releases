@@ -35,6 +35,21 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+function formatError(err: any, fallback: string): string {
+  if (!err) return fallback;
+  if (typeof err === 'string') return err;
+  if (typeof err === 'object') {
+    if (typeof err.message === 'string') return err.message;
+    if (typeof err.error === 'string') return err.error;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return fallback;
+    }
+  }
+  return String(err);
+}
+
 export const useAuthStore = create<AuthState>()((set) => ({
   isAuthenticated: false,
   token: null,
@@ -110,7 +125,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       });
       const data = await res.json();
 
-      if (!res.ok) return { success: false, error: data.error || 'Login failed' };
+      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Login failed') };
 
       // Persist to disk via IPC
       if (window.electronAPI) {
@@ -153,7 +168,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
       }
       return { success: true };
     } catch (err: any) {
-      return { success: false, error: `Cannot reach server. Check your network connection.` };
+      return { success: false, error: formatError(err, 'Cannot reach server. Check your network connection.') };
     }
   },
 
@@ -178,7 +193,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         body: JSON.stringify({ domain_type: domain }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Update failed' };
+      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
 
       // Update local cart store
       useCartStore.getState().setDomain(domain as any);
@@ -213,7 +228,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         body: JSON.stringify({ email }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Request failed' };
+      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Request failed') };
       return { success: true };
     } catch (err: any) {
       return { success: false, error: 'Cannot reach server.' };
@@ -228,7 +243,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         body: JSON.stringify({ token, password }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Reset failed' };
+      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Reset failed') };
       return { success: true };
     } catch (err: any) {
       return { success: false, error: 'Cannot reach server.' };
@@ -249,7 +264,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         body: JSON.stringify({ oldPassword, newPassword }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.error || 'Update failed' };
+      if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Update failed') };
       return { success: true };
     } catch (err: any) {
       return { success: false, error: 'Cannot reach server.' };
