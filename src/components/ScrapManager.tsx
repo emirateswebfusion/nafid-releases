@@ -16,7 +16,8 @@ import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
-import { formatPrinterError } from '../utils/printFormatHelper';
+import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 
 type View = 'list' | 'category_form' | 'transaction' | 'tx_form' | 'selling' | 'invoices' | 'invoice_detail';
 
@@ -431,9 +432,11 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
       ]);
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
-      const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-      const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-      const thermalStyle = printFmt?.style || 'standard';
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      const isHalfA4 = printFmt.format === 'half-a4';
+      const isA4 = printFmt.format === 'a4';
+      const useA4 = isA4 || isHalfA4;
 
       const scrapItems = invoiceDetailTxs.map((tx: any) => ({
         name: tx.scrap_category_name || 'Unknown',
@@ -464,16 +467,30 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         isReprint: true,
         customerName: scrapBillSettings.showCustomerName ? (invoiceDetailTxs[0]?.party_name || undefined) : undefined,
         billSettings: scrapBillSettings,
+        a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
 
-      const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-      const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-      if (printResult?.skipped) {
-        showStatus(formatPrinterError('No printer configured'), 'error');
-      } else if (printResult && !printResult.success) {
-        showStatus(formatPrinterError(printResult.error), 'error');
+      if (useA4) {
+        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        if (printResult && !printResult.success) {
+          showStatus(formatPrinterError(printResult.error), 'error');
+        } else {
+          setReprintSuccess(true);
+        }
       } else {
-        setReprintSuccess(true);
+        const thermalWidth = printFmt?.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+        const thermalStyle = printFmt?.style || 'standard';
+        const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        if (printResult?.skipped) {
+          showStatus(formatPrinterError('No printer configured'), 'error');
+        } else if (printResult && !printResult.success) {
+          showStatus(formatPrinterError(printResult.error), 'error');
+        } else {
+          setReprintSuccess(true);
+        }
       }
     } catch (err: any) {
       console.error('Failed to reprint scrap invoice', err);

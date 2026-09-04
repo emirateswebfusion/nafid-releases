@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbGetDashboardStats: (tenantId: string) => ipcRenderer.invoke('db:getDashboardStats', tenantId),
   dbGetInvoiceItems: (invoice_id: string) => ipcRenderer.invoke('db:getInvoiceItems', invoice_id),
   dbUpdateInvoice: (payload: any) => ipcRenderer.invoke('db:updateInvoice', payload),
+  dbUpdateInvoicePayment: (payload: any) => ipcRenderer.invoke('db:updateInvoicePayment', payload),
   dbGetGrades: (tenant_id: string) => ipcRenderer.invoke('db:getGrades', tenant_id),
   dbAddGrade: (grade: any) => ipcRenderer.invoke('db:addGrade', grade),
   dbUpdateGrade: (grade: any) => ipcRenderer.invoke('db:updateGrade', grade),

@@ -74,9 +74,9 @@ export function ActionPane() {
         }
 
         const lineItems = items.map((item) => {
-          const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
-            ? (item.grade_rate || 0) 
-            : item.base_price;
+          const effectiveRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
+            ? Number(item.grade_rate)
+            : Number(item.base_price || 0);
             
           const pieceCount = Number(item.quantity) || 0;
 
@@ -129,9 +129,9 @@ export function ActionPane() {
           date: formatBillDateTime(new Date()),
           billerName: useAuthStore.getState().role || undefined,
           items: items.map(item => {
-            const effectiveRate = item.pricing_mode === 'GRADE_RATE' 
-              ? (item.grade_rate || 0) 
-              : item.base_price;
+            const effectiveRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
+              ? Number(item.grade_rate)
+              : Number(item.base_price || 0);
                
             const pieceCount = Number(item.quantity) || 0;
 

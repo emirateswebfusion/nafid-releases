@@ -55,12 +55,15 @@ export interface InvoiceData {
   a5Orientation?: 'horizontal' | 'vertical';
 }
 
-function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
-  if (isReprint) return 'INVOICE (REPRINT)';
+function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
   if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
     case 'SCRAP': return 'SCRAP BILL';
+    case 'RETURN':
+    case 'SALES_RETURN':
+    case 'CREDIT_NOTE': return 'SALES RETURN';
+    case 'QUOTATION': return 'QUOTATION';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
     case 'ESTIMATE': return 'ORG. ESTIMATE';
     default: return 'INVOICE';
@@ -91,10 +94,12 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
   const title = titleStr || (bs?.estimateMode ? 'ORG. ESTIMATE' : getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B));
-  const netPayable = data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0));
+  const grandTotal = Number(data.grandTotal) || 0;
+  const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
   const isVertical = data.a5Orientation === 'vertical';
+  const itemsList = Array.isArray(data.items) ? data.items : [];
 
-  const itemsHtml = data.items.map((item, idx) => {
+  const itemsHtml = itemsList.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
@@ -112,7 +117,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const amountWords = numberToIndianWords(Math.max(0, netPayable));
 
   const oldBalance = data.balanceAmount != null && data.receivedAmount != null
-    ? (data.balanceAmount - data.grandTotal + data.receivedAmount)
+    ? (data.balanceAmount - grandTotal + data.receivedAmount)
     : null;
 
   const pageCss = isVertical ? `
@@ -309,7 +314,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           <tr>
             <td style="padding-right: 8px;">Sales</td>
             <td>:</td>
-            <td style="text-align: right; padding-left: 8px;">${data.grandTotal.toFixed(2)}</td>
+            <td style="text-align: right; padding-left: 8px;">${grandTotal.toFixed(2)}</td>
           </tr>
           ${data.receivedAmount != null ? `
           <tr>

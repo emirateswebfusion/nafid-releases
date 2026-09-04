@@ -246,9 +246,9 @@ export function CartPane() {
         ) : (
           <div className="divide-y divide-border">
             {items.map((item) => {
-              const rawRate = item.pricing_mode === 'GRADE_RATE' 
-                ? (item.grade_rate || 0) 
-                : item.base_price;
+              const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
+                ? Number(item.grade_rate)
+                : Number(item.base_price || 0);
               const catalogPriceCP = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
                 : item.catalog_discount_flat != null ? rawRate - Number(item.catalog_discount_flat)
                 : item.catalog_discount_percent != null ? rawRate * (1 - Number(item.catalog_discount_percent) / 100)
@@ -311,11 +311,11 @@ export function CartPane() {
                         {item.billing_type === 'WEIGHT' ? '/Kg' : '/Pc'}
                       </span>
                     </span>
-                    {isPiecesWeight && (
+                    {isPiecesWeight && item.pieces_per_kg && item.pieces_per_kg > 0 ? (
                       <span className="text-[10px] text-muted-foreground">
-                        (₹{(effectiveRate / item.pieces_per_kg!).toFixed(2)}/Pc)
+                        (₹{(effectiveRate / item.pieces_per_kg).toFixed(2)}/Pc)
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   <div className="col-span-2 flex justify-center flex-col items-center gap-1">
                     {isPiecesWeight ? (

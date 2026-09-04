@@ -235,7 +235,7 @@ export function BillingPage() {
   // Calculate total savings from per-item offers/discounts (before global F8 discount)
   const _totalItemSavings = items.reduce((sum, item) => {
     if (item.isScrap) return sum;
-    const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+    const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
     const qty = Number(item.quantity) || 0;
     const rawTotal = rate * qty;
     const catalogPrice = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
@@ -973,13 +973,13 @@ export function BillingPage() {
     // Populate scrap items cleanly into cart
     detail.transactions.forEach((tx: any) => {
       addItem({
-        product_id: tx.scrap_category_id,
+        product_id: tx.transaction_id || uuidv4(),
         scrap_category_id: tx.scrap_category_id,
         name: tx.scrap_category_name || 'Scrap Item',
         base_price: Number(tx.rate),
         purchase_price: Number(tx.rate),
         tax_rate_percent: 0,
-        quantity: Number(tx.quantity),
+        quantity: Number(tx.quantity) || 0,
         isScrap: true,
         billing_type: 'WEIGHT',
         unit: tx.unit || 'Kgs',
@@ -1818,6 +1818,7 @@ export function BillingPage() {
       pieces_per_kg: piecesPerKg,
       grade_id: tierPrice != null ? null : product.grade_id,
       pricing_mode: tierPrice != null ? 'FIXED_PRICE' : product.pricing_mode,
+      grade_rate: tierPrice != null ? null : (product.grade_rate ?? null),
       discount_percent: product.discount_percent ?? null,
       discount_flat: product.discount_flat ?? null,
       offer_price: product.offer_price ?? null,
@@ -2580,7 +2581,7 @@ export function BillingPage() {
       }
 
       const qItems = items.map(item => {
-        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
         const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
           : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
           : item.catalog_discount_percent != null ? rate * (1 - Number(item.catalog_discount_percent) / 100)
@@ -3215,7 +3216,7 @@ export function BillingPage() {
           return { item_id: item.item_id || uuidv4(), product_id: item.product_id, name: item.name, quantity: 1, unit_price: servicePrice, tax_amount: 0, total: servicePrice, isServiceItem: true, cgst_rate: 0, sgst_rate: 0, igst_rate: 0, cgst_amount: 0, sgst_amount: 0, igst_amount: 0, hsn_sac_code: null, supply_type: _supplyType };
         }
 
-        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
         const qty = Number(item.quantity) || 0;
 
         const catalogPriceChk = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
@@ -3289,7 +3290,7 @@ export function BillingPage() {
           return { name: item.name, quantity: 1, unit_price: servicePrice, total: servicePrice, originalRate: undefined, discountLabel: 'Service' };
         }
 
-        const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+        const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
         const qty = Number(item.quantity) || 0;
         const catalogPriceRec = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
           : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
@@ -3794,7 +3795,7 @@ export function BillingPage() {
     const invoice_number = `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-HLD-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
     const lineItems = items.map((item) => {
-      const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+      const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
       const qty = Number(item.quantity) || 0;
       const catalogPriceLine = item.catalog_offer_price != null ? Number(item.catalog_offer_price)
         : item.catalog_discount_flat != null ? rate - Number(item.catalog_discount_flat)
@@ -5336,7 +5337,7 @@ export function BillingPage() {
                   );
                 }
 
-                const rate = item.pricing_mode === 'GRADE_RATE' ? (item.grade_rate || 0) : item.base_price;
+                const rate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0) ? Number(item.grade_rate) : Number(item.base_price || 0);
                 const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
                 const isPiecesWeight = item.billing_type === 'WEIGHT' || weightUoms.includes((item.uom || '').toLowerCase());
                 const _ppk = item.pieces_per_kg || 1;
@@ -5451,7 +5452,7 @@ export function BillingPage() {
                         <span className="text-muted-foreground/40">&middot;</span>
                         <span className="font-bold text-primary">
                           {item.billing_type === 'WEIGHT' ? (
-                            isPiecesWeight ? (
+                            isPiecesWeight && _ppk > 0 ? (
                               `${formatCurrency(effectivePrice)}/Kg (${formatCurrency(effectivePrice / _ppk)}/Pc)`
                             ) : (
                               `${formatCurrency(effectivePrice)}/Kg`
@@ -5508,7 +5509,7 @@ export function BillingPage() {
                           <span className="text-[8px] text-muted-foreground font-bold uppercase">Kgs</span>
                           <input type="text" inputMode="decimal"
                             ref={(el) => { kRefs.current[item.product_id] = el; }}
-                            className="w-9 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            className="w-16 text-center h-7 bg-transparent border-0 text-xs font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             value={localKgStr[item.product_id] ?? String(item.quantity ?? '')}
                             onFocus={e => e.target.select()}
                             onChange={e => {
@@ -5547,7 +5548,10 @@ export function BillingPage() {
                               pendingFocusProductIdRef.current = null;
                             }
                           }}
-                          className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                          className={clsx(
+                            "text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+                            (item.billing_type === 'WEIGHT' || item.isScrap) ? "w-20 min-w-[5rem]" : "w-12"
+                          )}
                           value={item.quantity}
                           onChange={e => updateQuantity(item.product_id, sanitizeQtyText(e.target.value))}
                           onKeyDown={e => { guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}

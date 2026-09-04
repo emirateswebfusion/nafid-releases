@@ -229,11 +229,25 @@ async function clearAuthAndNotify() {
   }
 }
 
+import { startLocalHostServer } from './localHostServer.js';
+
 const FAST_INVOICE_PULL_MS = 20000;
 let fastInvoicePullInProgress = false;
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
+  try {
+    const db = getDb();
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`).get() as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'PRIMARY') {
+        startLocalHostServer(Number(parsed.lanPort) || 3888);
+      }
+    }
+  } catch (err: any) {
+    console.error('[SyncWorker] Failed to check local server startup config:', err.message);
+  }
   // 1. Full multi-table background sync cycle (every 10s)
   setInterval(() => {
     if (isSyncActive) {

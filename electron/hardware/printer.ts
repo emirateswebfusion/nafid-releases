@@ -122,7 +122,7 @@ export function initPrinter() {
       }
 
       currentA4Html = htmlContent;
-      const isA5 = htmlContent.includes('A5 landscape') || htmlContent.includes('size: A5');
+      const isA5 = htmlContent.includes('A5') || htmlContent.includes('half-a4');
       const isLandscape = htmlContent.includes('landscape');
       await printA4USB(config.deviceName || '', isA5 ? 'A5' : 'A4', isLandscape);
 

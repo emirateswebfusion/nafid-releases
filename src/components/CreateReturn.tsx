@@ -4,6 +4,9 @@ import { ArrowLeft, X, Package, AlertCircle, Minus, Plus, FileText, Undo2 } from
 import { v4 as uuidv4 } from 'uuid';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
 
 function formatCurrency(amount: number): string {
   return `\u20B9${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -180,6 +183,64 @@ export function CreateReturn({
 
         const res = await window.electronAPI.dbCreateReturn(payload);
         if (res.success) {
+          try {
+            const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+              window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+            ]);
+            const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+            const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+            const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+            const printFmt = parsePrintFormat(printFmtRaw);
+            const isHalfA4 = printFmt.format === 'half-a4';
+            const isA4 = printFmt.format === 'a4';
+            const useA4 = isA4 || isHalfA4;
+            const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+
+            const receiptData: ReceiptData = {
+              shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+              shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+              shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+              shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+              upiId: upi || undefined,
+              showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+              showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+              invoiceNumber: returnNumber,
+              invoiceType: 'RETURN',
+              date: formatBillDateTime(new Date()),
+              items: selectedItems.map(s => ({
+                name: s.name,
+                quantity: s.quantity,
+                unit_price: s.unit_price,
+                total: s.total,
+              })),
+              subtotal,
+              tax: taxTotal,
+              discount: 0,
+              grandTotal,
+              customerName: billSettings.showCustomerName ? (invoice.customer_name || undefined) : undefined,
+              customerPhone: billSettings.showPhone ? (invoice.customer_phone || undefined) : undefined,
+              billSettings,
+              a5Orientation: printFmt.a5Orientation || 'horizontal',
+            };
+
+            if (useA4) {
+              const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+              const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+              await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+            } else {
+              const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+              const thermalStyle = printFmt.style || 'standard';
+              const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+              await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+            }
+          } catch (err) {
+            console.error('Failed to print return bill', err);
+          }
           onSuccess();
           onClose();
         } else {

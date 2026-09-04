@@ -892,7 +892,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     try {
       const { tenantId } = useAuthStore.getState();
       const grandTotal = Number(selectedInvoice.grand_total) || 0;
-      const balanceAmount = collectPaymentMethod === 'CREDIT' ? collectReceivedAmount - grandTotal : collectReceivedAmount - grandTotal;
+      const balanceAmount = collectReceivedAmount - grandTotal;
 
       const selectedCollectSource = upiSources.find((s: any) => s.source_id === collectUpiSourceId) || upiSources[0];
       const collectSplitDetails = collectPaymentMethod === 'UPI' && selectedCollectSource

@@ -276,9 +276,9 @@ export const useCartTotals = (bosTaxRatePercent = 0, bosTaxInclusive = false) =>
       return;
     }
 
-    const rawRate = item.pricing_mode === 'GRADE_RATE' 
-      ? (item.grade_rate || 0) 
-      : item.base_price;
+    const rawRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
+      ? Number(item.grade_rate)
+      : Number(item.base_price || 0);
 
     const isScrap = !!item.isScrap;
 

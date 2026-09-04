@@ -413,7 +413,7 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
     if (!tenantId) return [];
 
-    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst)) {
+    if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField)) {
       return db.prepare(`
         SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
           COALESCE((
@@ -467,14 +467,14 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
        params.push(`%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, `%${cleanSearch}%`, cleanSearch);
     }
 
-    if (filterDate) {
-       const dateCol = dateField === 'updated_at' ? 'p.updated_at' : 'p.created_at';
-       if (arg.filterDateEnd) {
-         query += ` AND date(${dateCol}, 'localtime') BETWEEN ? AND ?`;
-         params.push(filterDate, arg.filterDateEnd);
+    if (filterDate && String(filterDate).trim() !== '') {
+       const dateCol = dateField === 'updated_at' ? 'COALESCE(p.updated_at, p.created_at)' : 'p.created_at';
+       if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
+         query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
+         params.push(filterDate, arg.filterDateEnd, filterDate, arg.filterDateEnd);
        } else {
-         query += ` AND date(${dateCol}, 'localtime') = ?`;
-         params.push(filterDate);
+         query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
+         params.push(filterDate, filterDate);
        }
     }
 
@@ -552,14 +552,14 @@ ipcMain.handle('db:getProductsCount', (event, arg: any) => {
        params.push(`%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, `%${arg.search}%`, arg.search);
     }
 
-    if (arg?.filterDate) {
-       const dateCol = arg?.dateField === 'updated_at' ? 'updated_at' : 'created_at';
-       if (arg.filterDateEnd) {
-         query += ` AND date(${dateCol}, 'localtime') BETWEEN ? AND ?`;
-         params.push(arg.filterDate, arg.filterDateEnd);
+    if (arg?.filterDate && String(arg.filterDate).trim() !== '') {
+       const dateCol = arg?.dateField === 'updated_at' ? 'COALESCE(updated_at, created_at)' : 'created_at';
+       if (arg.filterDateEnd && String(arg.filterDateEnd).trim() !== '') {
+         query += ` AND (substr(${dateCol}, 1, 10) BETWEEN ? AND ? OR date(${dateCol}, 'localtime') BETWEEN ? AND ?)`;
+         params.push(arg.filterDate, arg.filterDateEnd, arg.filterDate, arg.filterDateEnd);
        } else {
-         query += ` AND date(${dateCol}, 'localtime') = ?`;
-         params.push(arg.filterDate);
+         query += ` AND (substr(${dateCol}, 1, 10) = ? OR date(${dateCol}, 'localtime') = ?)`;
+         params.push(arg.filterDate, arg.filterDate);
        }
     }
 
@@ -1603,10 +1603,11 @@ const recentCheckoutsCache = new Map<string, { timestamp: number; result: any }>
 ipcMain.handle('db:checkout', safeHandler((event, payload) => {
   const { items, scrap_items, ...invoice } = payload;
   const db = getDb();
+  const tenantId = invoice.tenant_id || 'global';
 
   // Deduplication guard: block duplicate checkout calls within a 4-second window
   const itemsSig = (items || []).map((i: any) => `${i.product_id}:${i.quantity}:${i.unit_price}`).sort().join('|');
-  const cacheKey = `${invoice.tenant_id || 'global'}:${invoice.grand_total}:${itemsSig}`;
+  const cacheKey = `${tenantId}:${invoice.grand_total}:${itemsSig}`;
   const now = Date.now();
   const cached = recentCheckoutsCache.get(cacheKey);
   if (cached && (now - cached.timestamp < 4000)) {
@@ -1614,10 +1615,37 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     return cached.result;
   }
 
+  // Idempotency guard: if invoice_id already exists in database, return existing result
+  if (invoice.invoice_id) {
+    const existingById: any = db.prepare('SELECT invoice_id, invoice_number FROM invoices WHERE invoice_id = ?').get(invoice.invoice_id);
+    if (existingById) {
+      console.warn(`[db:checkout] Invoice ID ${invoice.invoice_id} already exists in database. Returning existing invoice ${existingById.invoice_number}`);
+      const res = { success: true, invoice_id: existingById.invoice_id, invoice_number: existingById.invoice_number };
+      recentCheckoutsCache.set(cacheKey, { timestamp: now, result: res });
+      return res;
+    }
+  }
+
+  // Collision guard: if invoice_number is missing or already taken by another invoice, generate a guaranteed unique number
+  let finalInvoiceNumber = invoice.invoice_number;
+  if (!finalInvoiceNumber) {
+    const series = invoice.invoice_type === 'GST' ? 'gst' : undefined;
+    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+    finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
+  } else {
+    const existingByNum: any = db.prepare('SELECT invoice_id FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1').get(tenantId, finalInvoiceNumber);
+    if (existingByNum) {
+      console.warn(`[db:checkout] Invoice number collision detected for "${finalInvoiceNumber}". Resolving with new guaranteed unique number.`);
+      const series = invoice.invoice_type === 'GST' ? 'gst' : undefined;
+      const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+      finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
+    }
+  }
+
   const transaction = db.transaction(() => {
     const customerId = invoice.customer_id || upsertCustomerRecord(
       db,
-      invoice.tenant_id || 'global',
+      tenantId,
       invoice.customer_name,
       invoice.customer_phone,
       invoice.customer_address
@@ -1638,7 +1666,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.invoice_id,
       invoice.tenant_id,
       invoice.user_id,
-      invoice.invoice_number,
+      finalInvoiceNumber,
       invoice.invoice_type,
       invoice.subtotal,
       invoice.tax_total,
@@ -1773,7 +1801,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
           invoice.customer_name || null,
           invoice.customer_phone || null,
           invoice.customer_address || null,
-          `From invoice ${invoice.invoice_number}`,
+          `From invoice ${finalInvoiceNumber}`,
           invoice.scrap_invoice_number || null,
           scrap.payment_status || 'SETTLED'
         );
@@ -1796,7 +1824,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       runInitialSync().catch(e => console.error('[Main] Immediate sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
 
-    const res = { success: true, invoice_id: invoice.invoice_id, invoice_number: invoice.invoice_number };
+    const res = { success: true, invoice_id: invoice.invoice_id, invoice_number: finalInvoiceNumber };
     recentCheckoutsCache.set(cacheKey, { timestamp: now, result: res });
     if (recentCheckoutsCache.size > 100) {
       for (const [k, v] of recentCheckoutsCache.entries()) {
@@ -2761,7 +2789,12 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
   try {
     const db = getDb();
     const existingInv = db.prepare(`SELECT tenant_id, payment_method, received_amount, grand_total, split_details, created_at FROM invoices WHERE invoice_id = ?`).get(payload.invoice_id) as any;
-    const oldCash = existingInv ? getCashAmountFromInvoice(existingInv) : 0;
+    if (!existingInv) {
+      return { success: false, error: 'Invoice not found' };
+    }
+    const oldCash = getCashAmountFromInvoice(existingInv);
+
+    const splitDetailsVal = payload.split_details ? (typeof payload.split_details === 'object' ? JSON.stringify(payload.split_details) : payload.split_details) : null;
 
     db.prepare(`
       UPDATE invoices SET
@@ -2776,17 +2809,19 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
       payload.payment_method,
       payload.received_amount,
       payload.balance_amount,
-      payload.split_details ? (typeof payload.split_details === 'object' ? JSON.stringify(payload.split_details) : payload.split_details) : null,
+      splitDetailsVal,
       payload.invoice_id
     );
 
-    const newCash = payload.payment_method === 'CASH'
-      ? (payload.received_amount > 0 ? payload.received_amount : (existingInv ? Number(existingInv.grand_total) : 0))
-      : 0;
+    const updatedInvObj = {
+      ...existingInv,
+      payment_method: payload.payment_method,
+      received_amount: payload.received_amount,
+      split_details: payload.split_details ?? existingInv.split_details,
+    };
+    const newCash = getCashAmountFromInvoice(updatedInvObj);
 
-    if (existingInv) {
-      adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
-    }
+    adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
 
     import('./sync/syncWorker.js').then(({ runInitialSync }) => {
       runInitialSync().catch(e => console.error('[Main] Invoice payment update sync error:', e));
@@ -3466,7 +3501,7 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
   }
 });
 
-ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: string; key: string; value: any }) => {
+ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant_id: string; key: string; value: any }) => {
   try {
     const db = getDb();
     db.prepare(`
@@ -3477,6 +3512,15 @@ ipcMain.handle('settings:set', (event, { tenant_id, key, value }: { tenant_id: s
         sync_status = 'PENDING',
         updated_at = CURRENT_TIMESTAMP
     `).run(tenant_id || 'global', key, JSON.stringify(value));
+
+    if (key === 'network_sync_config' && value && typeof value === 'object') {
+      const { startLocalHostServer, stopLocalHostServer } = await import('./sync/localHostServer.js');
+      if ((value.syncMode === 'LAN' || value.syncMode === 'HYBRID') && value.lanRole === 'PRIMARY') {
+        startLocalHostServer(Number(value.lanPort) || 3888);
+      } else {
+        stopLocalHostServer();
+      }
+    }
     return { success: true };
   } catch (error: any) {
     console.error('[settings:set]', error);
@@ -3657,45 +3701,94 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
   }
 });
 
+function getGuaranteedNextInvoiceNumber(
+  db: any,
+  tenantId: string,
+  configKey: string = 'invoice_counter_config',
+  overrideDefaultPrefix?: string
+): { invoiceNumber: string; counter: number; prefix: string } {
+  const terminalCode = getOrInitTerminalCode(db);
+  const defaultPrefix = overrideDefaultPrefix || `${terminalCode}-`;
+
+  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+  let counter = 1;
+  let prefix = defaultPrefix;
+
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value);
+      counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
+      if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+        prefix = parsed.prefix;
+      }
+    } catch {
+      counter = 1;
+    }
+  }
+
+  const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+  let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+
+  while (checkStmt.get(tenantId || 'global', candidate)) {
+    counter++;
+    candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+  }
+
+  const nextConfig = { prefix, counter: counter + 1 };
+  db.prepare(`
+    INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+    VALUES ('global', ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+    ON CONFLICT(tenant_id, key) DO UPDATE SET
+      value = EXCLUDED.value,
+      sync_status = 'PENDING',
+      updated_at = CURRENT_TIMESTAMP
+  `).run(configKey, JSON.stringify(nextConfig));
+
+  return { invoiceNumber: candidate, counter, prefix };
+}
+
+function peekGuaranteedNextInvoiceNumber(
+  db: any,
+  tenantId: string,
+  configKey: string = 'invoice_counter_config',
+  overrideDefaultPrefix?: string
+): { invoiceNumber: string } {
+  const terminalCode = getOrInitTerminalCode(db);
+  const defaultPrefix = overrideDefaultPrefix || `${terminalCode}-`;
+
+  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+  let counter = 1;
+  let prefix = defaultPrefix;
+
+  if (row) {
+    try {
+      const parsed = JSON.parse(row.value);
+      counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
+      if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+        prefix = parsed.prefix;
+      }
+    } catch {
+      counter = 1;
+    }
+  }
+
+  const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+  let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+
+  while (checkStmt.get(tenantId || 'global', candidate)) {
+    counter++;
+    candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+  }
+
+  return { invoiceNumber: candidate };
+}
+
 ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
   try {
     const db = getDb();
-    const terminalCode = getOrInitTerminalCode(db);
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-
-    const result = db.transaction(() => {
-      const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-      let counter = 1;
-      let config: { prefix: string; counter: number } = { prefix: `${terminalCode}-`, counter: 1 };
-
-      if (row) {
-        try {
-          const parsed = JSON.parse(row.value);
-          counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
-          // Validate prefix — must contain at least one alphanumeric character
-          const prefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-`;
-          config = { prefix, counter };
-        } catch {
-          counter = 1;
-        }
-      }
-
-      const invoiceNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
-      
-      config.counter = counter + 1;
-      db.prepare(`
-        INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-        ON CONFLICT(tenant_id, key) DO UPDATE SET
-          value = EXCLUDED.value,
-          sync_status = 'PENDING',
-          updated_at = CURRENT_TIMESTAMP
-      `).run('global', configKey, JSON.stringify(config));
-
-      return { success: true, invoiceNumber, counter };
-    })();
-
-    return result;
+    const result = getGuaranteedNextInvoiceNumber(db, tenant_id || 'global', configKey);
+    return { success: true, invoiceNumber: result.invoiceNumber, counter: result.counter };
   } catch (error: any) {
     console.error('[db:getNextInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };
@@ -3705,22 +3798,9 @@ ipcMain.handle('db:getNextInvoiceNumber', (event, { tenant_id, series }: { tenan
 ipcMain.handle('db:peekNextInvoiceNumber', (event, { tenant_id, series }: { tenant_id: string; series?: string }) => {
   try {
     const db = getDb();
-    const terminalCode = getOrInitTerminalCode(db);
     const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-    const defaultPrefix = `${terminalCode}-`;
-
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-    if (row) {
-      try {
-        const config = JSON.parse(row.value);
-        // Validate prefix — must contain at least one alphanumeric character
-        const prefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
-        return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
-      } catch {
-        // Invalid JSON in stored value — fall through to default
-      }
-    }
-    return { success: true, invoiceNumber: `${terminalCode}-001` };
+    const result = peekGuaranteedNextInvoiceNumber(db, tenant_id || 'global', configKey);
+    return { success: true, invoiceNumber: result.invoiceNumber };
   } catch (error: any) {
     console.error('[db:peekNextInvoiceNumber]', error);
     return { success: false, error: 'Operation failed' };

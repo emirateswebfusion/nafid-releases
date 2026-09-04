@@ -4,6 +4,9 @@ import { useCartStore } from '../store/cartStore';
 import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat } from '../utils/printFormatHelper';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
 
 interface Quotation {
   quotation_id: string;
@@ -118,6 +121,53 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const handlePrint = async () => {
+    if (window.electronAPI) {
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      if (printFmt.format === 'half-a4' && selectedQuotation) {
+        const [shopGstin, shopAddr, shopPh, upi] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        ]);
+        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+        const receiptData: ReceiptData = {
+          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+          upiId: upi || undefined,
+          showUpiQr: true,
+          showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+          invoiceNumber: selectedQuotation.quotation_number,
+          invoiceType: 'QUOTATION',
+          date: formatDateLabel(selectedQuotation.created_at),
+          items: quotationItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unit_price: item.rate,
+            total: item.amount,
+          })),
+          subtotal: selectedQuotation.subtotal,
+          tax: selectedQuotation.tax_total,
+          discount: 0,
+          grandTotal: selectedQuotation.grand_total,
+          customerName: billSettings.showCustomerName ? (selectedQuotation.customer_name || undefined) : undefined,
+          customerPhone: billSettings.showPhone ? (selectedQuotation.customer_phone || undefined) : undefined,
+          billSettings,
+          a5Orientation: printFmt.a5Orientation || 'horizontal',
+        };
+        const invoiceHtml = generateInvoiceHtml(receiptData, 'half-a4');
+        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        if (!printResult.success) {
+          const pw = window.open('', '_blank');
+          if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+        }
+        return;
+      }
+    }
+
     const content = printRef.current?.innerHTML || '';
     const fullHtml = `<!DOCTYPE html>
       <html>

@@ -1,10 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
-import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock } from 'lucide-react';
+import { Undo2, Search, X, Package, User, AlertCircle, CheckCircle2, LogOut, Phone, Trash, IndianRupee, Clock, Printer } from 'lucide-react';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Modal } from './ui/Modal';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
+import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
 
 interface ReturnInvoice {
   return_id: string;
@@ -106,6 +109,81 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       setStatusMessage({ text: 'Failed to delete return', type: 'error' });
     }
     setDeleteSaving(false);
+  };
+
+  const handlePrintReturn = async (r: ReturnInvoice, items: ReturnItem[]) => {
+    if (!window.electronAPI) return;
+    try {
+      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+      ]);
+      const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
+      const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      const isHalfA4 = printFmt.format === 'half-a4';
+      const isA4 = printFmt.format === 'a4';
+      const useA4 = isA4 || isHalfA4;
+      const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+
+      const receiptData: ReceiptData = {
+        shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+        shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+        upiId: upi || undefined,
+        showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
+        showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+        invoiceNumber: r.return_number,
+        invoiceType: 'RETURN',
+        date: formatBillDateTime(r.return_date || r.created_at || Date.now()),
+        items: items.map(item => ({
+          name: item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total: item.total,
+        })),
+        subtotal: r.subtotal,
+        tax: r.tax_total,
+        discount: 0,
+        grandTotal: r.grand_total,
+        customerName: billSettings.showCustomerName ? (r.customer_name || undefined) : undefined,
+        customerPhone: billSettings.showPhone ? (r.customer_phone || undefined) : undefined,
+        billSettings,
+        a5Orientation: printFmt.a5Orientation || 'horizontal',
+      };
+
+      if (useA4) {
+        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+        const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+        const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+        if (printResult && !printResult.success) {
+          setStatusMessage({ text: formatPrinterError(printResult.error), type: 'error' });
+        } else {
+          setStatusMessage({ text: 'Return bill printed successfully', type: 'success' });
+        }
+      } else {
+        const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+        const thermalStyle = printFmt.style || 'standard';
+        const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+        const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+        if (printResult?.skipped) {
+          setStatusMessage({ text: formatPrinterError('No printer configured'), type: 'error' });
+        } else if (printResult && !printResult.success) {
+          setStatusMessage({ text: formatPrinterError(printResult.error), type: 'error' });
+        } else {
+          setStatusMessage({ text: 'Return bill printed successfully', type: 'success' });
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to print return bill', err);
+      setStatusMessage({ text: 'Failed to print: ' + (err?.message || 'Unknown error'), type: 'error' });
+    }
   };
 
   // Calculations for Stats
@@ -409,6 +487,12 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
             </div>
 
             <div className="flex gap-3 mt-6 pt-4 border-t border-border">
+              <button
+                onClick={() => selectedReturn && handlePrintReturn(selectedReturn, returnItems)}
+                className="flex items-center justify-center gap-1.5 px-4 h-10 text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/20 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
+              >
+                <Printer className="w-3.5 h-3.5" /> Print Return Bill
+              </button>
               <button
                 onClick={() => { setDeleteConfirmOpen(true); }}
                 className="flex items-center justify-center gap-1.5 px-4 h-10 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 border border-red-500/15 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
