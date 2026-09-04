@@ -4,6 +4,16 @@ import { getDb } from '../db/localDb.js';
 let server: http.Server | null = null;
 let currentPort: number = 3888;
 
+const ALLOWED_TABLES = new Set([
+  'users', 'product_grades', 'products', 'invoices', 'invoice_items',
+  'parties', 'party_ledger', 'settings', 'scrap_categories', 'scrap_transactions',
+  'quotations', 'quotation_items', 'warranties', 'purchase_bills', 'cash_drawer',
+  'cash_transactions', 'cashier_audit_log', 'cash_categories', 'purchase_bill_items',
+  'returns', 'return_items', 'customers', 'loyalty_transactions', 'payment_sources',
+  'payment_source_transactions', 'pricing_tiers', 'product_pricing', 'combo_offers',
+  'combo_items', 'sync_meta'
+]);
+
 function parseJsonBody(req: http.IncomingMessage): Promise<any> {
   return new Promise((resolve, reject) => {
     let data = '';
@@ -116,12 +126,16 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
 
       for (const col of allCols) {
         let val = rawRow[col];
-        if (typeof val === 'boolean') val = val ? 1 : 0;
+        if (typeof val === 'boolean') {
+          val = val ? 1 : 0;
+        } else if (typeof val === 'object' && val !== null) {
+          val = JSON.stringify(val);
+        }
         paramObj[col] = val !== undefined ? val : null;
       }
 
       if (allCols.includes('sync_status')) {
-        paramObj['sync_status'] = 'SYNCED';
+        paramObj['sync_status'] = rawRow.sync_status || 'PENDING';
       }
 
       stmt.run(paramObj);
@@ -187,11 +201,16 @@ export function startLocalHostServer(port: number = 3888) {
 
       // ── Generic & Explicit Sync Endpoints for LAN ────────────────────────
       if (pathname.startsWith('/api/sync/')) {
-        const tableName = pathname.replace('/api/sync/', '');
+        const endpointName = pathname.replace('/api/sync/', '');
+        const tableName = endpointName.replace(/-/g, '_');
+
+        if (!ALLOWED_TABLES.has(tableName)) {
+          return sendJson(res, 400, { error: `Invalid sync endpoint: ${endpointName}` });
+        }
 
         if (req.method === 'POST') {
           const body = await parseJsonBody(req);
-          const key = body[tableName] ? tableName : Object.keys(body)[0];
+          const key = body[endpointName] ? endpointName : (body[tableName] ? tableName : Object.keys(body)[0]);
           const items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
           const synced = upsertTableRows(db, tableName, items);
           return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
@@ -253,10 +272,10 @@ export function startLocalHostServer(port: number = 3888) {
               }
             }
 
-            return sendJson(res, 200, { [tableName]: rows });
+            return sendJson(res, 200, { [endpointName]: rows, [tableName]: rows, data: rows });
           } catch (err: any) {
-            console.error(`[LocalHostServer] Error querying ${tableName}:`, err.message);
-            return sendJson(res, 200, { [tableName]: [] });
+            console.error(`[LocalHostServer] Error querying ${tableName} (${endpointName}):`, err.message);
+            return sendJson(res, 200, { [endpointName]: [], [tableName]: [], data: [] });
           }
         }
       }
@@ -274,6 +293,10 @@ export function startLocalHostServer(port: number = 3888) {
 
   server.on('error', (err: any) => {
     console.error(`[LocalHostServer] Server error:`, err.message);
+    if (server) {
+      try { server.close(); } catch {}
+      server = null;
+    }
   });
 }
 

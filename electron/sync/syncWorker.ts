@@ -183,7 +183,7 @@ export interface SyncEndpoints {
 }
 
 export function getSyncEndpoints(): SyncEndpoints {
-  const defaultCloud = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
   try {
     const db = getDb();
     const config = getAuthConfig();

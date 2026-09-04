@@ -36,12 +36,37 @@ if (fs.existsSync(envPath)) {
 ipcMain.handle('app:getLocalIp', () => {
   try {
     const interfaces = os.networkInterfaces();
+    const virtualPatterns = [/vEthernet/i, /wsl/i, /hyper-v/i, /virtualbox/i, /vmware/i, /bluetooth/i, /zerotier/i, /tailscale/i, /docker/i, /loopback/i, /npcap/i, /vbox/i];
+    const physicalPatterns = [/wi-fi/i, /wifi/i, /wireless/i, /wlan/i, /ethernet/i, /eth/i, /lan/i, /local area connection/i];
+
+    const candidates: { address: string; score: number }[] = [];
+
     for (const name of Object.keys(interfaces)) {
+      const isVirtual = virtualPatterns.some(pat => pat.test(name));
+      const isPhysical = physicalPatterns.some(pat => pat.test(name));
+
       for (const iface of interfaces[name] || []) {
-        if (iface.family === 'IPv4' && !iface.internal) {
-          return iface.address;
+        if ((iface.family === 'IPv4' || (iface as any).family === 4) && !iface.internal) {
+          const ip = iface.address;
+          if (ip.startsWith('127.') || ip.startsWith('169.254.')) continue;
+
+          let score = 50;
+          if (isVirtual) {
+            score = 10;
+          } else {
+            if (isPhysical) score += 30;
+            if (ip.startsWith('192.168.')) score += 20;
+            else if (ip.startsWith('10.')) score += 15;
+            else if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) score += 10;
+          }
+          candidates.push({ address: ip, score });
         }
       }
+    }
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => b.score - a.score);
+      return candidates[0].address;
     }
   } catch (e) {
     console.error('[app:getLocalIp] Failed to detect IP address', e);
@@ -357,15 +382,27 @@ app.whenReady().then(async () => {
     }
   });
 
-  // Check for updates every 1 hour
-  setInterval(() => {
-    autoUpdater.checkForUpdatesAndNotify();
-  }, 60 * 60 * 1000);
+  let lastCheckTime = 0;
+  const triggerUpdateCheck = () => {
+    const now = Date.now();
+    // Debounce checks so they don't fire more frequently than every 60 seconds
+    if (now - lastCheckTime < 60 * 1000) return;
+    lastCheckTime = now;
+    autoUpdater.checkForUpdatesAndNotify().catch(err => {
+      console.error('[Updater] Check error:', err.message);
+    });
+  };
+
+  // Check for updates every 5 minutes (reduced from 60 minutes for fast release detection)
+  setInterval(triggerUpdateCheck, 5 * 60 * 1000);
+
+  // Also check for updates when app window receives focus
+  if (mainWindow) {
+    mainWindow.on('focus', triggerUpdateCheck);
+  }
 
   // Initial check on startup
-  autoUpdater.checkForUpdatesAndNotify().catch(err => {
-    console.error('[Updater] Initial check error:', err.message);
-  });
+  triggerUpdateCheck();
 });
 
 app.on('window-all-closed', () => {

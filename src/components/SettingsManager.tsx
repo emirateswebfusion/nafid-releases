@@ -266,9 +266,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     try {
       if (syncMode === 'LAN' || syncMode === 'HYBRID') {
         if (lanRole === 'PRIMARY') {
+          const hostIp = detectedLocalIp || lanHostIp || '192.168.1.100';
           setMessage({
             type: 'success',
-            text: `Wifi Sync Active — This PC is Primary Master Server (Port ${lanPort})`
+            text: `Wifi Sync Active — This PC is Primary Master Server (IP: ${hostIp}, Port ${lanPort})`
           });
         } else {
           const host = lanHostIp || '192.168.1.100';
@@ -684,7 +685,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setEnableScrap(Boolean(featureFlags.scrap));
       const syncStatusToast = (syncMode === 'LAN' || syncMode === 'HYBRID')
-        ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? 'Primary Master Server' : `Connected to Master Server ${lanHostIp}`})`
+        ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
         : 'Cloud Sync Active (Connected to Cloud API)';
       setMessage({ type: 'success', text: `Settings saved successfully! ${syncStatusToast}` });
       initialSnapshot.current = getSettingsSnapshot();
