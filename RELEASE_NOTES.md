@@ -1,3 +1,10 @@
+# Vendora v1.5.46 Release Notes
+
+## What's Changed
+- Enhanced local HTTP sync server worker and connection handling in `syncWorker`
+- Improved network resilience, local DB synchronization, and IPC error handling
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.45...v1.5.46
+
 # Vendora v1.5.45 Release Notes
 
 ## What's Changed
