@@ -1075,7 +1075,10 @@ async function pullPaginated(opts: {
           console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
           return null;
         }
-        const rows = await response.json();
+        const data = await response.json();
+        const rows = Array.isArray(data)
+          ? data
+          : (data[opts.table] || data.data || data.items || data.rows || []);
         return Array.isArray(rows) ? rows : [];
       } catch (err: any) {
         const isTimeout = err.name === 'TimeoutError' || err.message?.includes('timeout') || err.message?.includes('aborted');
@@ -1762,7 +1765,8 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
       return false;
     }
 
-    const cloudUsers: any[] = await response.json();
+    const rawUsers = await response.json();
+    const cloudUsers: any[] = Array.isArray(rawUsers) ? rawUsers : (rawUsers.users || rawUsers.data || []);
     if (!Array.isArray(cloudUsers) || cloudUsers.length === 0) return false;
 
     const currentHash = JSON.stringify(cloudUsers.map(u => ({ id: u.user_id, name: u.name, role: u.role, page: u.restricted_page })));

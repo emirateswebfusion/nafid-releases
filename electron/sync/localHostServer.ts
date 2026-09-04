@@ -61,6 +61,88 @@ function extractItemId(item: any): string | null {
   return null;
 }
 
+const columnCache = new Map<string, { allCols: string[]; pkCols: string[]; updateCols: string[] }>();
+
+function getTableMeta(db: any, tableName: string) {
+  if (columnCache.has(tableName)) return columnCache.get(tableName)!;
+  try {
+    const columns = db.pragma(`table_info(${tableName})`) as { name: string; pk: number }[];
+    if (!columns || columns.length === 0) return null;
+
+    const allCols = columns.map(c => c.name);
+    let pkCols = columns.filter(c => c.pk > 0).map(c => c.name);
+
+    if (pkCols.length === 0) {
+      for (const col of allCols) {
+        if (col === 'id' || col === 'key' || col.endsWith('_id')) {
+          pkCols = [col];
+          break;
+        }
+      }
+    }
+
+    const updateCols = allCols.filter(c => !pkCols.includes(c));
+    const meta = { allCols, pkCols, updateCols };
+    columnCache.set(tableName, meta);
+    return meta;
+  } catch {
+    return null;
+  }
+}
+
+function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
+  if (!Array.isArray(items) || items.length === 0) return [];
+  const meta = getTableMeta(db, tableName);
+  if (!meta) return [];
+
+  const { allCols, pkCols, updateCols } = meta;
+  const syncedIds: string[] = [];
+
+  let sql = `INSERT INTO ${tableName} (${allCols.join(', ')}) VALUES (${allCols.map(c => `@${c}`).join(', ')})`;
+  if (pkCols.length > 0 && updateCols.length > 0) {
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO UPDATE SET ${updateCols.map(c => `${c} = EXCLUDED.${c}`).join(', ')}`;
+  } else if (pkCols.length > 0) {
+    sql += ` ON CONFLICT(${pkCols.join(', ')}) DO NOTHING`;
+  }
+
+  const stmt = db.prepare(sql);
+
+  const tx = db.transaction((rows: any[]) => {
+    for (const rawRow of rows) {
+      if (!rawRow || typeof rawRow !== 'object') continue;
+
+      const itemId = extractItemId(rawRow);
+      const paramObj: Record<string, any> = {};
+
+      for (const col of allCols) {
+        let val = rawRow[col];
+        if (typeof val === 'boolean') val = val ? 1 : 0;
+        paramObj[col] = val !== undefined ? val : null;
+      }
+
+      if (allCols.includes('sync_status')) {
+        paramObj['sync_status'] = 'SYNCED';
+      }
+
+      stmt.run(paramObj);
+      if (itemId) syncedIds.push(itemId);
+
+      if (tableName === 'invoices' && Array.isArray(rawRow.items)) {
+        upsertTableRows(db, 'invoice_items', rawRow.items);
+      } else if (tableName === 'purchase_bills' && Array.isArray(rawRow.items)) {
+        upsertTableRows(db, 'purchase_bill_items', rawRow.items);
+      } else if (tableName === 'returns' && Array.isArray(rawRow.items)) {
+        upsertTableRows(db, 'return_items', rawRow.items);
+      } else if (tableName === 'quotations' && Array.isArray(rawRow.items)) {
+        upsertTableRows(db, 'quotation_items', rawRow.items);
+      }
+    }
+  });
+
+  tx(items);
+  return syncedIds;
+}
+
 export function startLocalHostServer(port: number = 3888) {
   if (server) {
     if (currentPort === port) return;
@@ -95,180 +177,85 @@ export function startLocalHostServer(port: number = 3888) {
 
       const db = getDb();
 
-      // ── Invoice Sync Endpoints ──────────────────────────────────────────
-      if (pathname === '/api/sync/invoices') {
+      // ── Users / Staff Endpoint ──────────────────────────────────────────
+      if (pathname === '/auth/staff' || pathname === '/api/sync/users') {
+        if (req.method === 'GET') {
+          const rows = db.prepare(`SELECT * FROM users`).all();
+          return sendJson(res, 200, { users: rows });
+        }
+      }
+
+      // ── Generic & Explicit Sync Endpoints for LAN ────────────────────────
+      if (pathname.startsWith('/api/sync/')) {
+        const tableName = pathname.replace('/api/sync/', '');
+
         if (req.method === 'POST') {
           const body = await parseJsonBody(req);
-          const invoices = body.invoices || [];
-          const syncedIds: string[] = [];
-
-          const insertInvoice = db.prepare(`
-            INSERT INTO invoices (
-              invoice_id, tenant_id, user_id, invoice_number, customer_name, customer_phone,
-              subtotal, tax_total, grand_total, discount_total, discount_type, discount_value,
-              payment_method, received_amount, balance_amount, created_at,
-              invoice_type, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED')
-            ON CONFLICT(invoice_id) DO UPDATE SET
-              customer_name = excluded.customer_name,
-              customer_phone = excluded.customer_phone,
-              subtotal = excluded.subtotal,
-              tax_total = excluded.tax_total,
-              grand_total = excluded.grand_total,
-              payment_method = excluded.payment_method,
-              received_amount = excluded.received_amount,
-              balance_amount = excluded.balance_amount,
-              sync_status = 'SYNCED'
-          `);
-
-          const insertItem = db.prepare(`
-            INSERT INTO invoice_items (
-              item_id, invoice_id, tenant_id, product_id, name, quantity, unit_price, total
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(item_id) DO NOTHING
-          `);
-
-          const tx = db.transaction((invs: any[]) => {
-            for (const inv of invs) {
-              insertInvoice.run(
-                inv.invoice_id, inv.tenant_id || 'global', inv.user_id || 'system',
-                inv.invoice_number, inv.customer_name || 'Walk-in Customer', inv.customer_phone || null,
-                inv.subtotal || 0, inv.tax_total || 0, inv.grand_total || 0, inv.discount_total || 0,
-                inv.discount_type || 'FIXED', inv.discount_value || 0,
-                inv.payment_method || 'CASH', inv.received_amount || 0, inv.balance_amount || 0,
-                inv.created_at || new Date().toISOString().replace('T', ' ').replace('Z', ''),
-                inv.invoice_type || 'tax_invoice'
-              );
-              if (Array.isArray(inv.items)) {
-                for (const item of inv.items) {
-                  insertItem.run(
-                    item.item_id || `${inv.invoice_id}_${Math.random().toString(36).substring(2, 7)}`,
-                    inv.invoice_id, inv.tenant_id || 'global', item.product_id || null,
-                    item.name || item.item_name || 'Item', item.quantity || 1,
-                    item.unit_price || item.price || 0, item.total || 0
-                  );
-                }
-              }
-              syncedIds.push(inv.invoice_id);
-            }
-          });
-
-          tx(invoices);
-          return sendJson(res, 200, { synced: syncedIds, synced_count: syncedIds.length, failed_count: 0 });
+          const key = body[tableName] ? tableName : Object.keys(body)[0];
+          const items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
+          const synced = upsertTableRows(db, tableName, items);
+          return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
         }
 
         if (req.method === 'GET') {
           const since = url.searchParams.get('since');
-          let query = `SELECT * FROM invoices WHERE invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`;
+          const meta = getTableMeta(db, tableName);
+          let query = `SELECT * FROM ${tableName}`;
           const params: any[] = [];
-          if (since) {
-            query += ` AND created_at > ?`;
-            params.push(since);
+
+          if (tableName === 'invoices') {
+            query += ` WHERE invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`;
+            if (since) {
+              query += ` AND (updated_at > ? OR created_at > ?)`;
+              params.push(since, since);
+            }
+          } else if (tableName === 'products') {
+            query += ` WHERE is_deleted = 0`;
+            if (since && meta?.allCols.includes('updated_at')) {
+              query += ` AND updated_at > ?`;
+              params.push(since);
+            }
+          } else if (since && meta) {
+            if (meta.allCols.includes('updated_at')) {
+              query += ` WHERE updated_at > ?`;
+              params.push(since);
+            } else if (meta.allCols.includes('created_at')) {
+              query += ` WHERE created_at > ?`;
+              params.push(since);
+            }
           }
-          query += ` ORDER BY created_at DESC LIMIT 500`;
-          const rows = db.prepare(query).all(...params);
-          return sendJson(res, 200, { invoices: rows });
-        }
-      }
 
-      // ── Product Sync Endpoints ──────────────────────────────────────────
-      if (pathname === '/api/sync/products') {
-        if (req.method === 'POST') {
-          const body = await parseJsonBody(req);
-          const products = body.products || [];
-          const syncedIds: string[] = [];
+          const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);
+          if (orderCol) {
+            query += ` ORDER BY ${orderCol} DESC`;
+          }
+          query += ` LIMIT 500`;
 
-          const insertProduct = db.prepare(`
-            INSERT INTO products (
-              product_id, tenant_id, name, sku_barcode, item_code, category,
-              base_price, purchase_price, current_stock, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'SYNCED')
-            ON CONFLICT(product_id) DO UPDATE SET
-              name = excluded.name,
-              sku_barcode = excluded.sku_barcode,
-              base_price = excluded.base_price,
-              purchase_price = excluded.purchase_price,
-              current_stock = excluded.current_stock,
-              sync_status = 'SYNCED'
-          `);
-
-          const tx = db.transaction((prods: any[]) => {
-            for (const p of prods) {
-              insertProduct.run(
-                p.product_id, p.tenant_id || 'global', p.name, p.sku_barcode || null,
-                p.item_code || null, p.category || 'General', p.base_price ?? p.selling_price ?? 0,
-                p.purchase_price || 0, p.current_stock ?? p.stock_quantity ?? 0
-              );
-              syncedIds.push(p.product_id);
-            }
-          });
-
-          tx(products);
-          return sendJson(res, 200, { synced: syncedIds, synced_count: syncedIds.length, failed_count: 0 });
-        }
-
-        if (req.method === 'GET') {
-          const rows = db.prepare(`SELECT * FROM products WHERE is_deleted = 0 LIMIT 1000`).all();
-          return sendJson(res, 200, { products: rows });
-        }
-      }
-
-      // ── Parties & Ledger Endpoints ─────────────────────────────────────
-      if (pathname === '/api/sync/parties') {
-        if (req.method === 'POST') {
-          const body = await parseJsonBody(req);
-          const parties = body.parties || [];
-          const syncedIds: string[] = [];
-
-          const insertParty = db.prepare(`
-            INSERT INTO parties (
-              party_id, tenant_id, name, phone, address, gstin, balance, sync_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'SYNCED')
-            ON CONFLICT(party_id) DO UPDATE SET
-              name = excluded.name,
-              phone = excluded.phone,
-              address = excluded.address,
-              gstin = excluded.gstin,
-              balance = excluded.balance,
-              sync_status = 'SYNCED'
-          `);
-
-          const tx = db.transaction((pts: any[]) => {
-            for (const p of pts) {
-              const partyId = p.party_id || p.id;
-              if (!partyId) continue;
-              insertParty.run(
-                partyId, p.tenant_id || 'global', p.name || 'Party', p.phone || null,
-                p.address || null, p.gstin || null, p.balance || 0
-              );
-              syncedIds.push(partyId);
-            }
-          });
-
-          tx(parties);
-          return sendJson(res, 200, { synced: syncedIds, synced_count: syncedIds.length, failed_count: 0 });
-        }
-        if (req.method === 'GET') {
-          const rows = db.prepare(`SELECT * FROM parties LIMIT 500`).all();
-          return sendJson(res, 200, { parties: rows });
-        }
-      }
-
-      // ── Generic Catch-All Sync Handler for LAN ──────────────────────────
-      if (pathname.startsWith('/api/sync/')) {
-        if (req.method === 'POST') {
-          const body = await parseJsonBody(req);
-          const key = Object.keys(body)[0];
-          const items = Array.isArray(body[key]) ? body[key] : [];
-          const ids = items.map(extractItemId).filter((id): id is string => Boolean(id));
-          return sendJson(res, 200, { synced: ids, synced_count: ids.length, failed_count: 0 });
-        }
-        if (req.method === 'GET') {
-          const tableName = pathname.replace('/api/sync/', '');
           try {
-            const rows = db.prepare(`SELECT * FROM ${tableName} LIMIT 500`).all();
+            const rows = db.prepare(query).all(...params) as any[];
+
+            // Attach nested items for header-detail records
+            if (tableName === 'invoices') {
+              for (const inv of rows) {
+                inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
+              }
+            } else if (tableName === 'purchase_bills') {
+              for (const bill of rows) {
+                bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
+              }
+            } else if (tableName === 'returns') {
+              for (const ret of rows) {
+                ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
+              }
+            } else if (tableName === 'quotations') {
+              for (const q of rows) {
+                q.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(q.quotation_id);
+              }
+            }
+
             return sendJson(res, 200, { [tableName]: rows });
-          } catch {
+          } catch (err: any) {
+            console.error(`[LocalHostServer] Error querying ${tableName}:`, err.message);
             return sendJson(res, 200, { [tableName]: [] });
           }
         }

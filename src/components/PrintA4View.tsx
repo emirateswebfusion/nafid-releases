@@ -36,9 +36,20 @@ export function PrintA4View() {
   if (!htmlContent) return null;
 
   return (
-    <div
-      style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0 }}
-      dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
-    />
+    <>
+      <style>{`
+        @media print {
+          html, body, #root {
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
+          }
+        }
+      `}</style>
+      <div
+        style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0 }}
+        dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
+      />
+    </>
   );
 }

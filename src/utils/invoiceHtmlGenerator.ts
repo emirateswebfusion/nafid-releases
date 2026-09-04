@@ -123,16 +123,18 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const pageCss = isVertical ? `
     @page {
       size: A5 portrait;
-      margin: 5mm 6mm;
+      margin: 4mm 5mm;
     }
     @media print {
       html, body {
-        width: 148mm;
-        height: 210mm;
+        width: 100%;
+        height: auto;
+        max-height: 100%;
         margin: 0;
         padding: 0;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        overflow: hidden;
       }
     }
     body {
@@ -140,23 +142,25 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       font-size: 11px;
       color: #000;
       margin: 0;
-      padding: 3mm 4mm;
+      padding: 2mm 3mm;
       box-sizing: border-box;
       background: #fff;
     }
   ` : `
     @page {
       size: A5 landscape;
-      margin: 5mm 6mm;
+      margin: 4mm 5mm;
     }
     @media print {
       html, body {
-        width: 210mm;
-        height: 148mm;
+        width: 100%;
+        height: auto;
+        max-height: 100%;
         margin: 0;
         padding: 0;
         -webkit-print-color-adjust: exact;
         print-color-adjust: exact;
+        overflow: hidden;
       }
     }
     body {
@@ -164,7 +168,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       font-size: 11px;
       color: #000;
       margin: 0;
-      padding: 4mm 6mm;
+      padding: 2mm 4mm;
       box-sizing: border-box;
       background: #fff;
     }
@@ -179,10 +183,14 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     ${pageCss}
     .bill-card {
       width: 100%;
-      height: 100%;
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
       justify-content: space-between;
+      page-break-after: avoid;
+      break-after: avoid;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .header-table {
       width: 100%;
@@ -227,9 +235,11 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-top: auto;
+      margin-top: 8px;
       padding-top: 6px;
       border-top: 1px solid #000;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .left-summary {
       width: ${isVertical ? '55%' : '60%'};
@@ -495,7 +505,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
   .footer { text-align: center; font-size: 9px; color: #9ca3af; margin-top: 30px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
   .terms { margin-top: 20px; padding: 10px 14px; background: #f9fafb; border-radius: 6px; font-size: 12px; color: #4b5563; line-height: 1.5; }
   .terms strong { color: #1f2937; }
-  @media print { body { background: #fff; } .page { box-shadow: none; } .header-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+  @media print { body { background: #fff; } .page { box-shadow: none; min-height: auto; } .header-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
   <div class="page">
     <div class="header-bar">
