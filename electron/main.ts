@@ -5780,9 +5780,7 @@ ipcMain.handle('db:getCustomerInvoices', (event, { customer_id, tenant_id }: { c
     const db = getDb();
     if (!customer_id || !tenant_id) return [];
     return db.prepare(`
-      SELECT invoice_id, invoice_number, invoice_type, grand_total, points_earned, points_redeemed,
-             points_redeemed_discount, previous_points_balance, remaining_points_balance,
-             created_at
+      SELECT *
       FROM invoices
       WHERE customer_id = ? AND tenant_id = ? AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (is_held IS NULL OR is_held = 0) AND (is_deleted IS NULL OR is_deleted = 0)
       ORDER BY created_at DESC

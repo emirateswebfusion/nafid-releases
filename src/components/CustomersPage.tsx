@@ -715,19 +715,25 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
       {/* Invoice Detail Modal */}
       {viewingInvoice && (
         <Modal isOpen={!!viewingInvoice} onClose={() => setViewingInvoice(null)} title={`Invoice Detail #${viewingInvoice.invoice_number}`}>
-          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1 select-none">
             <div className="flex items-center justify-between bg-muted/40 p-3.5 rounded-xl border border-border">
               <div>
-                <p className="text-xs text-muted-foreground">Invoice Number</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground">Invoice Number</p>
                 <p className="text-base font-black text-foreground font-mono">#{viewingInvoice.invoice_number}</p>
+                {viewingInvoice.payment_method && (
+                  <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+                    Method: {viewingInvoice.payment_method}
+                  </span>
+                )}
               </div>
               <div className="text-right">
-                <p className="text-xs text-muted-foreground">Date & Time</p>
+                <p className="text-[10px] uppercase font-bold text-muted-foreground">Date & Time</p>
                 <p className="text-xs font-bold text-foreground">{formatDateTime(viewingInvoice.created_at)}</p>
               </div>
             </div>
 
-            <div className="border border-border rounded-xl overflow-hidden">
+            {/* Purchased Items Table */}
+            <div className="border border-border rounded-xl overflow-hidden bg-card">
               <div className="bg-muted/60 px-4 py-2 border-b border-border text-xs font-bold text-muted-foreground flex justify-between">
                 <span>Items Purchased</span>
                 <span>{invoiceItems.length} item{invoiceItems.length !== 1 ? 's' : ''}</span>
@@ -744,6 +750,7 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
                         <p className="font-bold text-foreground">{item.name}</p>
                         <p className="text-[10px] text-muted-foreground font-mono">
                           {item.quantity} {item.uom || 'Pcs'} × {formatCurrency(item.unit_price)}
+                          {Number(item.tax_amount) > 0 && <span className="ml-2 text-emerald-600 font-semibold">(Tax: +{formatCurrency(item.tax_amount)})</span>}
                         </p>
                       </div>
                       <div className="text-right font-bold text-foreground font-mono">
@@ -755,11 +762,49 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
               )}
             </div>
 
+            {/* Financial Summary Box */}
             <div className="bg-card border border-border rounded-xl p-4 space-y-2 text-xs">
-              <div className="flex justify-between font-extrabold text-sm pt-2 border-t border-border">
-                <span>Grand Total:</span>
-                <span className="text-primary font-mono">{formatCurrency(viewingInvoice.grand_total)}</span>
+              {/* Subtotal */}
+              <div className="flex justify-between text-muted-foreground font-semibold">
+                <span>Subtotal:</span>
+                <span className="font-mono text-foreground font-bold">
+                  {formatCurrency(viewingInvoice.subtotal ?? invoiceItems.reduce((s, i) => s + (Number(i.total) || 0), 0))}
+                </span>
               </div>
+
+              {/* Total Tax */}
+              <div className="flex justify-between text-emerald-600 font-bold">
+                <span>Tax Total (GST):</span>
+                <span className="font-mono">
+                  +{formatCurrency(viewingInvoice.tax_total ?? invoiceItems.reduce((s, i) => s + (Number(i.tax_amount) || 0), 0))}
+                </span>
+              </div>
+
+              {/* Bill Discount */}
+              {Number(viewingInvoice.discount_total || viewingInvoice.discount_value) > 0 && (
+                <div className="flex justify-between text-amber-600 font-bold">
+                  <span>Trade Discount:</span>
+                  <span className="font-mono">-{formatCurrency(viewingInvoice.discount_total || viewingInvoice.discount_value || 0)}</span>
+                </div>
+              )}
+
+              {/* Scrap Deduction */}
+              {Number(viewingInvoice.scrap_deduction) > 0 && (
+                <div className="flex justify-between text-purple-600 font-bold">
+                  <span>Scrap Deduction {viewingInvoice.scrap_invoice_number ? `(#${viewingInvoice.scrap_invoice_number})` : ''}:</span>
+                  <span className="font-mono">-{formatCurrency(viewingInvoice.scrap_deduction || 0)}</span>
+                </div>
+              )}
+
+              {/* Return Deduction */}
+              {Number(viewingInvoice.return_deduction) > 0 && (
+                <div className="flex justify-between text-rose-600 font-bold">
+                  <span>Return Deduction {viewingInvoice.return_invoice_number ? `(#${viewingInvoice.return_invoice_number})` : ''}:</span>
+                  <span className="font-mono">-{formatCurrency(viewingInvoice.return_deduction || 0)}</span>
+                </div>
+              )}
+
+              {/* Loyalty Points Earned / Redeemed */}
               {viewingInvoice.points_earned > 0 && (
                 <div className="flex justify-between text-emerald-600 font-bold">
                   <span>Loyalty Points Earned:</span>
@@ -768,19 +813,32 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
               )}
               {viewingInvoice.points_redeemed > 0 && (
                 <div className="flex justify-between text-amber-600 font-bold">
-                  <span>Points Redeemed Discount:</span>
-                  <span>-{formatCurrency(viewingInvoice.points_redeemed_discount)}</span>
+                  <span>Loyalty Points Discount:</span>
+                  <span className="font-mono">-{formatCurrency(viewingInvoice.points_redeemed_discount)}</span>
                 </div>
               )}
-            </div>
 
-            <div className="flex justify-end pt-2">
-              <button
-                onClick={() => setViewingInvoice(null)}
-                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
-              >
-                Close Bill View
-              </button>
+              {/* Grand Total */}
+              <div className="flex justify-between font-extrabold text-base pt-2.5 border-t border-border">
+                <span>Grand Total:</span>
+                <span className="text-primary font-mono">{formatCurrency(viewingInvoice.grand_total)}</span>
+              </div>
+
+              {/* Received & Balance Breakdown */}
+              {(Number(viewingInvoice.received_amount) > 0 || Number(viewingInvoice.balance_amount) > 0) && (
+                <div className="pt-2 border-t border-border/60 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="bg-muted/40 p-2 rounded-lg border border-border/40">
+                    <span className="text-muted-foreground font-semibold block">Received Amount:</span>
+                    <span className="font-bold text-foreground font-mono">{formatCurrency(viewingInvoice.received_amount || 0)}</span>
+                  </div>
+                  <div className="bg-muted/40 p-2 rounded-lg border border-border/40">
+                    <span className="text-muted-foreground font-semibold block">Outstanding Balance:</span>
+                    <span className={clsx("font-bold font-mono", Number(viewingInvoice.balance_amount) > 0 ? "text-amber-600" : "text-emerald-600")}>
+                      {formatCurrency(viewingInvoice.balance_amount || 0)}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </Modal>
