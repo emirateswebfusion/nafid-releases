@@ -2,6 +2,7 @@ import { app, BrowserWindow, ipcMain, session, safeStorage } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { autoUpdater } from 'electron-updater';
 import dotenv from 'dotenv';
 import log from 'electron-log/main';
@@ -29,6 +30,30 @@ if (fs.existsSync(envPath)) {
 } else {
   dotenv.config(); // Fallback to root .env
 }
+
+// ── IPC Handlers ─────────────────────────────────────────────────────────────
+
+ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) => {
+  log.error('[Frontend Error]', payload.message, payload.error || '');
+});
+
+ipcMain.handle('app:getVersion', () => app.getVersion());
+
+ipcMain.handle('app:getLocalIp', () => {
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      for (const iface of interfaces[name] || []) {
+        if (iface.family === 'IPv4' && !iface.internal) {
+          return iface.address;
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[app:getLocalIp] Failed to detect IP address', e);
+  }
+  return '192.168.1.100';
+});
 
 // ── IPC Input Validation ────────────────────────────────────────────────────────
 function validateString(value: unknown, name: string): string {

@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   ping: () => ipcRenderer.invoke('ping'),
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
+  appGetLocalIp: () => ipcRenderer.invoke('app:getLocalIp'),
   appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   appDownloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),

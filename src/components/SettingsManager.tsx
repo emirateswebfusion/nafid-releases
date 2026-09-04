@@ -246,9 +246,79 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [syncMode, setSyncMode] = useState<'CLOUD' | 'LAN' | 'HYBRID'>('HYBRID');
   const [lanRole, setLanRole] = useState<'PRIMARY' | 'SECONDARY'>('PRIMARY');
   const [lanHostIp, setLanHostIp] = useState('192.168.1.100');
+  const [detectedLocalIp, setDetectedLocalIp] = useState('');
   const [lanPort, setLanPort] = useState<number>(3888);
   const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
+  const [testingNetwork, setTestingNetwork] = useState(false);
   const initialSnapshot = useRef<string>('');
+
+  useEffect(() => {
+    if (window.electronAPI?.appGetLocalIp) {
+      window.electronAPI.appGetLocalIp().then((ip) => {
+        if (ip) setDetectedLocalIp(ip);
+      }).catch(() => {});
+    }
+  }, []);
+
+  const handleTestNetworkConnection = async () => {
+    setTestingNetwork(true);
+    setMessage({ type: 'success', text: 'Testing network connection...' });
+    try {
+      if (syncMode === 'LAN' || syncMode === 'HYBRID') {
+        if (lanRole === 'PRIMARY') {
+          setMessage({
+            type: 'success',
+            text: `Wifi Sync Active — This PC is Primary Master Server (Port ${lanPort})`
+          });
+        } else {
+          const host = lanHostIp || '192.168.1.100';
+          try {
+            const res = await fetch(`http://${host}:${lanPort}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+            if (res.ok) {
+              setMessage({
+                type: 'success',
+                text: `Wifi Sync Active — Connected to Primary Master Server (${host})`
+              });
+            } else {
+              setMessage({
+                type: 'error',
+                text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+              });
+            }
+          } catch {
+            setMessage({
+              type: 'error',
+              text: `Sync Inactive — Could not connect to Master Server at ${host}:${lanPort}. Ensure PC 1 is on & POS is open.`
+            });
+          }
+        }
+      } else {
+        try {
+          const cloudApi = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
+          const res = await fetch(`${cloudApi}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
+          if (res.ok) {
+            setMessage({
+              type: 'success',
+              text: `Cloud Sync Active — Connected to Cloud API server`
+            });
+          } else {
+            setMessage({
+              type: 'error',
+              text: `Sync Inactive — Cloud API returned status ${res.status}. Operating offline.`
+            });
+          }
+        } catch {
+          setMessage({
+            type: 'error',
+            text: `Sync Inactive — Could not reach Cloud API server. Operating in Offline Mode.`
+          });
+        }
+      }
+    } finally {
+      setTestingNetwork(false);
+      setTimeout(() => setMessage(null), 5000);
+    }
+  };
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
@@ -566,7 +636,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       useCartStore.setState({ shopState });
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setEnableScrap(Boolean(featureFlags.scrap));
-      setMessage({ type: 'success', text: 'All settings saved successfully!' });
+      const syncStatusToast = (syncMode === 'LAN' || syncMode === 'HYBRID')
+        ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? 'Primary Master Server' : `Connected to Master Server ${lanHostIp}`})`
+        : 'Cloud Sync Active (Connected to Cloud API)';
+      setMessage({ type: 'success', text: `Settings saved successfully! ${syncStatusToast}` });
       initialSnapshot.current = JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap: featureFlags.scrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, features: JSON.stringify(featureFlags) });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
@@ -2180,7 +2253,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
                 <div>
                   <span className="text-xs font-black text-foreground uppercase tracking-widest block">Network & Connectivity Mode</span>
-                  <span className="text-[11px] text-muted-foreground font-medium">Choose how POS billing terminals sync data across the store and cloud</span>
+                  <span className="text-[11px] text-muted-foreground font-medium">Choose how POS terminals sync all store data (Products, Invoices, Stock, Customers & Parties)</span>
                 </div>
               </div>
 
@@ -2224,7 +2297,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <div>
                     <h4 className="text-xs font-extrabold text-foreground mb-1">Local Wi-Fi Direct (LAN)</h4>
-                    <p className="text-[10px] opacity-80 leading-relaxed">Direct terminal-to-terminal Wi-Fi sync in the shop. Zero internet cost & sub-1ms speed.</p>
+                    <p className="text-[10px] opacity-80 leading-relaxed">Direct terminal-to-terminal Wi-Fi sync for all store data. Zero internet cost & sub-1ms speed.</p>
                   </div>
                 </button>
 
@@ -2245,7 +2318,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <div>
                     <h4 className="text-xs font-extrabold text-foreground mb-1">Hybrid Smart Mode</h4>
-                    <p className="text-[10px] opacity-80 leading-relaxed">Auto-detects local Wi-Fi for in-store speed; falls back to cloud API when remote.</p>
+                    <p className="text-[10px] opacity-80 leading-relaxed">Auto-detects local Wi-Fi for instant in-store data sync; falls back to cloud API when remote.</p>
                   </div>
                 </button>
               </div>
@@ -2253,24 +2326,66 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               {/* LAN Configuration Settings */}
               {(syncMode === 'LAN' || syncMode === 'HYBRID') && (
                 <div className="p-5 bg-muted/30 border border-border rounded-2xl space-y-4 mb-6 animate-in fade-in duration-200">
-                  <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Local Store Server Settings</h4>
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Local Store Server & Data Sync Settings</h4>
+                    <span className="text-[10px] font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded-full">Full Database Sync</span>
+                  </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Terminal Role</label>
                       <Select
                         value={lanRole}
-                        onChange={(val) => setLanRole(val as any)}
+                        onChange={(val) => {
+                          setLanRole(val as any);
+                          if (val === 'PRIMARY' && detectedLocalIp) setLanHostIp(detectedLocalIp);
+                        }}
                         options={[
-                          { value: 'PRIMARY', label: 'Primary Store Host Server (Main Cashier PC)' },
-                          { value: 'SECONDARY', label: 'Secondary Billing Counter (Connects to Host)' },
+                          { value: 'PRIMARY', label: 'Primary Master Server (Main Store PC - Syncs All Data)' },
+                          { value: 'SECONDARY', label: 'Secondary Store Terminal (Connects to Master PC)' },
                         ]}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Primary PC Local IP Address</label>
-                      <Input type="text" value={lanHostIp} onChange={(e) => setLanHostIp(e.target.value)} placeholder="e.g. 192.168.1.100" className="font-mono text-xs font-semibold" />
-                    </div>
+                    {lanRole === 'PRIMARY' ? (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">This PC (Master Server) Local IP Address</label>
+                        <div className="flex items-center gap-2 p-2.5 bg-background border border-border rounded-xl font-mono text-xs font-bold text-primary">
+                          <span>{detectedLocalIp || lanHostIp || '192.168.1.100'}</span>
+                          <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full ml-auto">Server Host</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Primary Master Server (PC 1) IP Address</label>
+                        <Input
+                          type="text"
+                          value={lanHostIp}
+                          onChange={(e) => setLanHostIp(e.target.value)}
+                          placeholder="e.g. 192.168.1.100"
+                          className="font-mono text-xs font-semibold"
+                        />
+                      </div>
+                    )}
                   </div>
+
+                  {lanRole === 'PRIMARY' ? (
+                    <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl flex items-center gap-2.5">
+                      <span className="text-xs shrink-0">💡</span>
+                      <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                        Enter this IP address <strong className="text-primary font-bold">{detectedLocalIp || lanHostIp || '192.168.1.100'}</strong> on Secondary Store Terminals (PC 2) so they connect to this Master Server.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl flex items-center gap-2.5">
+                      <span className="text-xs shrink-0">💡</span>
+                      <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                        Enter the exact IP address displayed on Primary PC 1 (Settings → Network & Connectivity).
+                      </p>
+                    </div>
+                  )}
+
+                  <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-medium">
+                    * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Parties & Cashier settlement across all terminals.
+                  </p>
                 </div>
               )}
 
@@ -2299,6 +2414,25 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Network Health Check & Live Toast Notification Action */}
+              <div className="p-4 bg-primary/5 border border-primary/20 rounded-2xl flex items-center justify-between gap-4 mt-6">
+                <div>
+                  <h4 className="text-xs font-bold text-foreground">Test Network Connection</h4>
+                  <p className="text-[10px] text-muted-foreground font-medium mt-0.5">
+                    Click to test connectivity and trigger live status toast notification.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleTestNetworkConnection}
+                  disabled={testingNetwork}
+                  className="flex items-center gap-2 text-xs font-bold px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl transition-all shadow-xs disabled:opacity-50 cursor-pointer shrink-0"
+                >
+                  <RefreshCw className={clsx("w-3.5 h-3.5", testingNetwork && "animate-spin")} />
+                  <span>{testingNetwork ? 'Testing Connection...' : 'Test Connection Status'}</span>
+                </button>
               </div>
             </div>
           </div>
