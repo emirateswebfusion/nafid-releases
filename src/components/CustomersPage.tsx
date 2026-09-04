@@ -214,20 +214,9 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
       <header className="shrink-0 border-b border-border/80 bg-card/90 backdrop-blur-md shadow-xs z-30">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            {view === 'detail' ? (
-              <button
-                onClick={() => setView('list')}
-                className="p-2 rounded-xl bg-muted/60 hover:bg-muted text-foreground transition-all duration-200 active:scale-95 cursor-pointer border border-border/60 flex items-center gap-2 group"
-                title="Back to Customers"
-              >
-                <ArrowLeft className="w-4 h-4 text-muted-foreground group-hover:text-foreground transition-colors" />
-                <span className="text-xs font-bold hidden sm:inline">Customers</span>
-              </button>
-            ) : (
-              <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
-                <UserCheck className="w-5 h-5" />
-              </div>
-            )}
+            <div className="p-2.5 rounded-xl bg-primary/10 text-primary border border-primary/20 shadow-inner">
+              <UserCheck className="w-5 h-5" />
+            </div>
 
             <div className="min-w-0 leading-tight">
               <div className="flex items-center gap-2">
@@ -271,9 +260,9 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
               </button>
             ) : (
               <button
-                onClick={onClose}
+                onClick={() => view === 'detail' ? setView('list') : onClose()}
                 className="h-10 w-10 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-xs"
-                title="Close"
+                title={view === 'detail' ? 'Back to Customers' : 'Close to Dashboard'}
               >
                 <X className="w-4 h-4 text-destructive" />
               </button>
