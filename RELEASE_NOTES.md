@@ -1,3 +1,10 @@
+# Vendora v1.5.44 Release Notes
+
+## What's Changed
+- Implemented user authentication flow with login, password recovery, and state management
+- Refactored Electron main process with hardware integration, local DB, and IPC communication handlers
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.43...v1.5.44
+
 # Vendora v1.5.43 Release Notes
 
 ## What's Changed
