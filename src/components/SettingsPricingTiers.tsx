@@ -483,27 +483,34 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
       </header>
 
       {/* ── FLOATING TOAST MESSAGES ── */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-2.5 w-full max-w-sm pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2.5 w-full max-w-md pointer-events-none">
         {statusMessage && (
-          <div className={clsx(
-            'px-4 py-3 bg-card border rounded-2xl flex items-center gap-2.5 text-xs font-bold shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto',
-            statusMessage.type === 'success'
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30'
-              : 'bg-destructive/10 text-destructive border-destructive/30'
-          )}>
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{statusMessage.text}</span>
-            <button type="button" onClick={() => setStatusMessage(null)} className="p-1 hover:bg-muted rounded-full text-muted-foreground cursor-pointer">
-              <X className="w-3.5 h-3.5" />
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+                {statusMessage.type === 'success' ? 'PRICING STATUS' : 'PRICING ALERT'}
+              </span>
+              <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+            </div>
+            <button type="button" onClick={() => setStatusMessage(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
         {error && (
-          <div className="px-4 py-3 bg-card border border-destructive/30 bg-destructive/10 text-destructive text-xs font-bold rounded-2xl flex items-center gap-2.5 shadow-2xl animate-in fade-in slide-in-from-bottom-3 duration-200 pointer-events-auto">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span className="flex-1">{error}</span>
-            <button type="button" onClick={() => setError(null)} className="p-1 hover:bg-muted rounded-full text-muted-foreground cursor-pointer">
-              <X className="w-3.5 h-3.5" />
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+            <div className="p-2 rounded-xl bg-red-500/25 text-red-400 shrink-0">
+              <AlertCircle className="w-4 h-4" />
+            </div>
+            <div className="flex-1 min-w-0 leading-snug">
+              <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">PRICING ERROR</span>
+              <span className="text-white font-bold text-xs block leading-tight">{error}</span>
+            </div>
+            <button type="button" onClick={() => setError(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}

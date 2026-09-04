@@ -726,15 +726,21 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const renderMessage = () => {
     if (!message) return null;
     return (
-      <div className={clsx(
-        "fixed bottom-6 right-6 z-50 px-5 py-3.5 rounded-xl border shadow-lg flex items-center gap-3 text-sm animate-in fade-in slide-in-from-bottom-2 max-w-md",
-        message.type === 'success' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-600 dark:text-red-400"
-      )}>
-        {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-        <p className="flex-1 font-medium">{message.text}</p>
-        <button onClick={() => setMessage(null)} className="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
-          <X className="w-4 h-4" />
-        </button>
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-end gap-2 w-full max-w-md pointer-events-none">
+        <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+          <div className={clsx("p-2 rounded-xl shrink-0", message.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+            {message.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+          </div>
+          <div className="flex-1 min-w-0 leading-snug">
+            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+              {message.type === 'success' ? 'SYSTEM & SYNC STATUS' : 'SETTINGS ALERT'}
+            </span>
+            <span className="text-white font-bold text-xs block leading-tight">{message.text}</span>
+          </div>
+          <button onClick={() => setMessage(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
     );
   };
