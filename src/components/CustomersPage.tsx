@@ -59,6 +59,11 @@ interface InvoiceRecord {
   discount_total?: number;
   received_amount?: number;
   balance_amount?: number;
+  discount_value?: number;
+  scrap_deduction?: number;
+  scrap_invoice_number?: string;
+  return_deduction?: number;
+  return_invoice_number?: string;
 }
 
 function formatCurrency(amount: number): string {
