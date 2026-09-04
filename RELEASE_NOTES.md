@@ -1,3 +1,10 @@
+# Vendora v1.5.47 Release Notes
+
+## What's Changed
+- Integrated A4/A5 print preview system with local sync server and HTML invoice generation
+- Implemented customer management UI, receipt/invoice generation utilities, and settings manager updates
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.46...v1.5.47
+
 # Vendora v1.5.46 Release Notes
 
 ## What's Changed
