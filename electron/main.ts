@@ -33,12 +33,6 @@ if (fs.existsSync(envPath)) {
 
 // ── IPC Handlers ─────────────────────────────────────────────────────────────
 
-ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) => {
-  log.error('[Frontend Error]', payload.message, payload.error || '');
-});
-
-ipcMain.handle('app:getVersion', () => app.getVersion());
-
 ipcMain.handle('app:getLocalIp', () => {
   try {
     const interfaces = os.networkInterfaces();
@@ -463,6 +457,7 @@ ipcMain.handle('log:error', (event, payload: { message: string, error?: any }) =
   log.error('[Frontend Error]', payload.message, payload.error || '');
 });
 
+ipcMain.removeHandler('app:getVersion');
 ipcMain.handle('app:getVersion', () => app.getVersion());
 
 ipcMain.handle('app:installUpdate', () => {
