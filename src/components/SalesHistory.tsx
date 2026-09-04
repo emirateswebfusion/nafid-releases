@@ -717,10 +717,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       const invoiceType = selectedInvoice.invoice_type;
-      const isB2B = invoiceType === 'GST' && !!(selectedInvoice.customer_gstin);
+      const isB2B = Boolean(selectedInvoice.customer_gstin?.trim());
+      const isGstOrB2B = invoiceType === 'GST' || isB2B;
       const isHalfA4 = printFmt.format === 'half-a4';
       const isA4 = printFmt.format === 'a4';
-      const useA4 = isB2B || isA4 || isHalfA4;
+      const useA4 = isGstOrB2B || isA4 || isHalfA4;
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
       const scrapD = Number(selectedInvoice.scrap_deduction) || 0;
       const returnD = Number(selectedInvoice.return_deduction) || 0;
@@ -806,13 +807,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         isReprint: true,
         invoiceType,
         customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
-        customerGstin: billSettings.showCustomerGstin ? (selectedInvoice.customer_gstin || undefined) : undefined,
+        customerGstin: selectedInvoice.customer_gstin?.trim() || undefined,
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
       if (useA4) {
-        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+        const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
         const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
         const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
         if (!printResult.success) {

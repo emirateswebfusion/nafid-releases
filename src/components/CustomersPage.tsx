@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
   Search, User, UserCheck, X, Phone, MapPin, Receipt, Star, Calendar, ArrowLeft, Gift, LogOut,
-  ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp
+  ShoppingBag, Sparkles, Clock, ChevronRight, CreditCard, Award, ArrowUpRight, TrendingUp, ExternalLink, Eye, Building2
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
+import { Modal } from './ui/Modal';
 
 interface Customer {
   customer_id: string;
@@ -18,6 +19,16 @@ interface Customer {
   current_points_balance: number;
   last_purchase_date: string;
   created_at: string;
+}
+
+interface Party {
+  party_id: string;
+  name: string;
+  phone: string;
+  balance: number;
+  gst_balance?: number;
+  estimate_balance?: number;
+  balance_type: 'RECEIVABLE' | 'PAYABLE';
 }
 
 interface LoyaltyTx {
@@ -42,6 +53,12 @@ interface InvoiceRecord {
   points_earned: number;
   points_redeemed: number;
   points_redeemed_discount: number;
+  payment_method?: string;
+  subtotal?: number;
+  tax_total?: number;
+  discount_total?: number;
+  received_amount?: number;
+  balance_amount?: number;
 }
 
 function formatCurrency(amount: number): string {
@@ -68,16 +85,18 @@ function getInitials(name: string): string {
 type View = 'list' | 'detail';
 type DetailTab = 'purchases' | 'points';
 
-export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
+export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose: () => void; isRestricted?: boolean; onOpenParty?: (partyIdOrQuery?: string) => void }) {
   useCloseOnEscape(onClose);
   const { tenantId } = useAuthStore();
 
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [parties, setParties] = useState<Party[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
   const [view, setView] = useState<View>('list');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [matchedParty, setMatchedParty] = useState<Party | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>('purchases');
 
   const [invoices, setInvoices] = useState<InvoiceRecord[]>([]);
@@ -85,6 +104,11 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
   const [loyaltyTxs, setLoyaltyTxs] = useState<LoyaltyTx[]>([]);
   const [loyaltyTxsLoading, setLoyaltyTxsLoading] = useState(false);
+
+  // Invoice Detail Modal state
+  const [viewingInvoice, setViewingInvoice] = useState<InvoiceRecord | null>(null);
+  const [invoiceItems, setInvoiceItems] = useState<any[]>([]);
+  const [itemsLoading, setItemsLoading] = useState(false);
 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
@@ -97,8 +121,12 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
     if (!tenantId || !window.electronAPI) return;
     setLoading(true);
     try {
-      const data = await window.electronAPI.dbGetCustomers({ tenant_id: tenantId });
-      setCustomers(Array.isArray(data) ? data : []);
+      const [custData, partyData] = await Promise.all([
+        window.electronAPI.dbGetCustomers({ tenant_id: tenantId }),
+        window.electronAPI.dbGetParties(tenantId).catch(() => []),
+      ]);
+      setCustomers(Array.isArray(custData) ? custData : []);
+      setParties(Array.isArray(partyData) ? partyData : []);
     } catch {
       showStatus('Failed to load customers', 'error');
     } finally {
@@ -110,6 +138,16 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
 
   const loadCustomerDetails = async (customer: Customer) => {
     setSelectedCustomer(customer);
+
+    // Match customer to Party by phone or name
+    const cleanPhone = (customer.phone || '').trim();
+    const cleanName = (customer.name || '').trim().toLowerCase();
+    const pMatch = parties.find(p =>
+      (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone) ||
+      (cleanName && p.name && p.name.trim().toLowerCase() === cleanName)
+    );
+    setMatchedParty(pMatch || null);
+
     setView('detail');
     setDetailTab('purchases');
     setInvoicesLoading(true);
@@ -128,6 +166,33 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
     } finally {
       setInvoicesLoading(false);
       setLoyaltyTxsLoading(false);
+    }
+  };
+
+  const handleOpenInvoiceDetail = async (inv: InvoiceRecord) => {
+    setViewingInvoice(inv);
+    setItemsLoading(true);
+    try {
+      if (window.electronAPI?.dbGetInvoiceItems) {
+        const items = await window.electronAPI.dbGetInvoiceItems(inv.invoice_id);
+        setInvoiceItems(Array.isArray(items) ? items : []);
+      } else {
+        setInvoiceItems([]);
+      }
+    } catch {
+      showStatus('Failed to load invoice items', 'error');
+    } finally {
+      setItemsLoading(false);
+    }
+  };
+
+  const handleNavigateToParty = () => {
+    if (!selectedCustomer) return;
+    const target = matchedParty?.party_id || selectedCustomer.phone || selectedCustomer.name;
+    if (onOpenParty) {
+      onOpenParty(target);
+    } else {
+      showStatus(`Party ledger for "${selectedCustomer.name}" is accessible via the Parties menu.`, 'success');
     }
   };
 
@@ -387,17 +452,41 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                 </div>
               </div>
 
-              {/* Available Points Badge Box */}
-              <div className="w-full md:w-auto bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4.5 min-w-[220px] text-left md:text-right shadow-xs">
-                <div className="flex items-center md:justify-end gap-1.5 text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-                  <Sparkles className="w-3.5 h-3.5" /> Available Points Balance
+              {/* Action & Points Badges */}
+              <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+                {/* Party Ledger Outstanding Balance Box */}
+                <div className="bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-4 min-w-[200px] shadow-xs">
+                  <div className="flex items-center justify-between text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
+                    <span>Party Ledger Balance</span>
+                    <Building2 className="w-3.5 h-3.5" />
+                  </div>
+                  <p className={clsx("text-2xl font-black font-mono tracking-tight", (matchedParty?.balance || 0) >= 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600")}>
+                    {matchedParty
+                      ? ((matchedParty.balance || 0) >= 0 ? `+${formatCurrency(matchedParty.balance)} (Rec)` : `-${formatCurrency(Math.abs(matchedParty.balance))} (Pay)`)
+                      : 'No Party Record'}
+                  </p>
+                  <button
+                    onClick={handleNavigateToParty}
+                    className="mt-2 w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-500/30 active:scale-95"
+                  >
+                    <span>View Party Ledger</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </button>
                 </div>
-                <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight mt-1">
-                  {(selectedCustomer.current_points_balance || 0).toFixed(0)}
-                </p>
-                <p className="text-[10px] text-muted-foreground/80 font-bold mt-1">
-                  Total Points Earned: {(selectedCustomer.total_points_earned || 0).toFixed(0)} pts
-                </p>
+
+                {/* Available Points Badge Box */}
+                <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4 min-w-[180px] text-left shadow-xs">
+                  <div className="flex items-center justify-between text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
+                    <span>Available Points</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+                    {(selectedCustomer.current_points_balance || 0).toFixed(0)} pts
+                  </p>
+                  <p className="text-[10px] text-muted-foreground/80 font-bold mt-2">
+                    Total Earned: {(selectedCustomer.total_points_earned || 0).toFixed(0)} pts
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -509,15 +598,16 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                       {invoices.map(inv => (
                         <div
                           key={inv.invoice_id}
-                          className="p-4 rounded-2xl border border-border/60 bg-card hover:border-primary/30 transition-all shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
+                          onClick={() => handleOpenInvoiceDetail(inv)}
+                          className="p-4 rounded-2xl border border-border/60 bg-card hover:border-primary/40 transition-all shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 cursor-pointer group"
                         >
                           <div className="flex items-center gap-3.5">
-                            <div className="p-3 bg-muted/40 rounded-xl border border-border/40 text-foreground font-mono font-black text-xs shrink-0">
-                              #
+                            <div className="p-3 bg-primary/10 rounded-xl border border-primary/20 text-primary font-mono font-black text-xs shrink-0 group-hover:scale-105 transition-transform flex items-center gap-1">
+                              <Eye className="w-3.5 h-3.5" />
                             </div>
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-black text-foreground font-mono">{inv.invoice_number}</span>
+                                <span className="text-sm font-black text-primary group-hover:underline font-mono">#{inv.invoice_number}</span>
                                 <span className="text-xs text-muted-foreground font-medium flex items-center gap-1">
                                   <Clock className="w-3 h-3 text-muted-foreground/60" /> {formatDateTime(inv.created_at)}
                                 </span>
@@ -539,6 +629,9 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
                                 -{inv.points_redeemed.toFixed(0)} pts ({formatCurrency(inv.points_redeemed_discount)} off)
                               </span>
                             )}
+                            <span className="text-xs font-bold text-primary flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                              View Bill <ChevronRight className="w-3.5 h-3.5" />
+                            </span>
                           </div>
                         </div>
                       ))}
@@ -617,6 +710,80 @@ export function CustomersPage({ onClose, isRestricted }: { onClose: () => void; 
             </div>
           </div>
         </div>
+      )}
+
+      {/* Invoice Detail Modal */}
+      {viewingInvoice && (
+        <Modal isOpen={!!viewingInvoice} onClose={() => setViewingInvoice(null)} title={`Invoice Detail #${viewingInvoice.invoice_number}`}>
+          <div className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            <div className="flex items-center justify-between bg-muted/40 p-3.5 rounded-xl border border-border">
+              <div>
+                <p className="text-xs text-muted-foreground">Invoice Number</p>
+                <p className="text-base font-black text-foreground font-mono">#{viewingInvoice.invoice_number}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs text-muted-foreground">Date & Time</p>
+                <p className="text-xs font-bold text-foreground">{formatDateTime(viewingInvoice.created_at)}</p>
+              </div>
+            </div>
+
+            <div className="border border-border rounded-xl overflow-hidden">
+              <div className="bg-muted/60 px-4 py-2 border-b border-border text-xs font-bold text-muted-foreground flex justify-between">
+                <span>Items Purchased</span>
+                <span>{invoiceItems.length} item{invoiceItems.length !== 1 ? 's' : ''}</span>
+              </div>
+              {itemsLoading ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">Loading invoice line items...</div>
+              ) : invoiceItems.length === 0 ? (
+                <div className="p-6 text-center text-xs text-muted-foreground">No itemized details recorded for this invoice.</div>
+              ) : (
+                <div className="divide-y divide-border">
+                  {invoiceItems.map((item, idx) => (
+                    <div key={item.item_id || idx} className="p-3 text-xs flex items-center justify-between">
+                      <div>
+                        <p className="font-bold text-foreground">{item.name}</p>
+                        <p className="text-[10px] text-muted-foreground font-mono">
+                          {item.quantity} {item.uom || 'Pcs'} × {formatCurrency(item.unit_price)}
+                        </p>
+                      </div>
+                      <div className="text-right font-bold text-foreground font-mono">
+                        {formatCurrency(item.total)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="bg-card border border-border rounded-xl p-4 space-y-2 text-xs">
+              <div className="flex justify-between font-extrabold text-sm pt-2 border-t border-border">
+                <span>Grand Total:</span>
+                <span className="text-primary font-mono">{formatCurrency(viewingInvoice.grand_total)}</span>
+              </div>
+              {viewingInvoice.points_earned > 0 && (
+                <div className="flex justify-between text-emerald-600 font-bold">
+                  <span>Loyalty Points Earned:</span>
+                  <span>+{viewingInvoice.points_earned.toFixed(0)} pts</span>
+                </div>
+              )}
+              {viewingInvoice.points_redeemed > 0 && (
+                <div className="flex justify-between text-amber-600 font-bold">
+                  <span>Points Redeemed Discount:</span>
+                  <span>-{formatCurrency(viewingInvoice.points_redeemed_discount)}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setViewingInvoice(null)}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Close Bill View
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

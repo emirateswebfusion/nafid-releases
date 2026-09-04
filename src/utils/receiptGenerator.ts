@@ -242,6 +242,7 @@ export function numberToIndianWords(amount: number): string {
 }
 
 function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
+  if (isB2B) return 'TAX INVOICE (B2B)';
   if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
@@ -249,7 +250,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
     case 'ESTIMATE': return 'BILL OF SUPPLY';
     case 'RETURN': return 'RETURN INVOICE';
-    default: return 'INVOICE';
+    default: return isB2B ? 'TAX INVOICE (B2B)' : 'INVOICE';
   }
 }
 

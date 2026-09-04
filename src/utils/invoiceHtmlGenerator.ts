@@ -56,6 +56,7 @@ export interface InvoiceData {
 }
 
 function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
+  if (isB2B) return 'TAX INVOICE (B2B)';
   if (estimateMode) return 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
@@ -66,7 +67,7 @@ function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMo
     case 'QUOTATION': return 'QUOTATION';
     case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
     case 'ESTIMATE': return 'ORG. ESTIMATE';
-    default: return 'INVOICE';
+    default: return isB2B ? 'TAX INVOICE (B2B)' : 'INVOICE';
   }
 }
 
@@ -138,13 +139,15 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       }
     }
     body {
-      font-family: Arial, "Helvetica Neue", sans-serif;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
       font-size: 11px;
       color: #000;
       margin: 0;
       padding: 2mm 3mm;
       box-sizing: border-box;
       background: #fff;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
   ` : `
     @page {
@@ -164,13 +167,15 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       }
     }
     body {
-      font-family: Arial, "Helvetica Neue", sans-serif;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif;
       font-size: 11px;
       color: #000;
       margin: 0;
       padding: 2mm 4mm;
       box-sizing: border-box;
       background: #fff;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
     }
   `;
 
@@ -387,7 +392,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 <html><head><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 15mm; }
-  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
   .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
   .header h1 { font-size: 22px; margin: 0; color: #1a1a1a; }
   .header p { font-size: 12px; color: #666; margin: 3px 0; }

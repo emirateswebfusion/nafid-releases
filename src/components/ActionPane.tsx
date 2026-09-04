@@ -110,11 +110,19 @@ export function ActionPane() {
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
 
+        const activeTab = useTabStore.getState().getActiveTab();
+        const customerName = activeTab?.customerName || '';
+        const customerPhone = activeTab?.customerPhone || '';
+        const customerGstin = activeTab?.customerGstin || '';
+        const customerAddress = activeTab?.customerAddress || '';
+        const isB2B = Boolean(customerGstin.trim());
+        const isGstOrB2B = invoiceType === 'GST' || isB2B;
+
         const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
         const printFmt = parsePrintFormat(printFmtRaw);
         const isHalfA4 = printFmt.format === 'half-a4';
         const isA4 = printFmt.format === 'a4';
-        const useA4 = isA4 || isHalfA4;
+        const useA4 = isGstOrB2B || isA4 || isHalfA4;
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
@@ -122,7 +130,7 @@ export function ActionPane() {
           shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
           shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
           shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
-          upiId: useTabStore.getState().getActiveTab()?.selectedUpiId || upi || undefined,
+          upiId: activeTab?.selectedUpiId || upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
@@ -154,33 +162,14 @@ export function ActionPane() {
           discountValue: useCartStore.getState().discountValue,
           grandTotal,
           invoiceType,
+          customerName: customerName || undefined,
+          customerPhone: customerPhone || undefined,
+          customerGstin: customerGstin.trim() || undefined,
+          customerAddress: customerAddress || undefined,
+          isB2B,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
         };
-
-        if (useA4) {
-          const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
-          const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
-          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
-          if (!printResult.success && (printResult as any).useDefaultDialog) {
-            const pw = window.open('', '_blank');
-            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
-          }
-        } else {
-          const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-          const thermalStyle = printFmt.style || 'standard';
-          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
-          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
-          if (!printResult.success) {
-            setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
-            return;
-          }
-        }
-
-        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
-        if (!drawerResult.success) {
-          setHardwareError(`Hardware connection issue: ${drawerResult.error || 'Check drawer'}`);
-        }
 
         const cartState = useCartStore.getState();
         const result = await window.electronAPI.dbCheckout({
@@ -205,8 +194,34 @@ export function ActionPane() {
           return;
         }
 
+        const confirmedNum = result?.invoice_number || invoice_number || '';
+        receiptData.invoiceNumber = confirmedNum;
+
+        if (useA4) {
+          const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
+          const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
+          const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
+          if (!printResult.success && (printResult as any).useDefaultDialog) {
+            const pw = window.open('', '_blank');
+            if (pw) { pw.document.write(invoiceHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+          }
+        } else {
+          const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
+          const thermalStyle = printFmt.style || 'standard';
+          const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
+          const printResult = await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
+          if (!printResult.success) {
+            setHardwareError(`Printing failed: ${printResult.error || 'Check printer'}`);
+          }
+        }
+
+        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
+        if (!drawerResult.success) {
+          setHardwareError(`Hardware connection issue: ${drawerResult.error || 'Check drawer'}`);
+        }
+
         try {
-          window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
+          window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: confirmedNum } }));
         } catch (e) { /* ignore */ }
       }
 

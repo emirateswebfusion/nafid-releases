@@ -1727,16 +1727,27 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
 
   // Collision guard: if invoice_number is missing or already taken by another invoice, generate a guaranteed unique number
   let finalInvoiceNumber = invoice.invoice_number;
+  const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
+  let isTripleSeries = false;
+  if (tripleSeriesRow && tripleSeriesRow.value) {
+    try { isTripleSeries = Boolean(JSON.parse(tripleSeriesRow.value).enabled); } catch {}
+  }
+  let resolvedSeries: string | undefined;
+  if (invoice.invoice_type === 'GST') {
+    if (isTripleSeries) {
+      resolvedSeries = (invoice.customer_gstin && String(invoice.customer_gstin).trim()) ? 'gst_b2b' : 'gst_b2c';
+    } else {
+      resolvedSeries = 'gst';
+    }
+  }
+  const configKey = resolvedSeries === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : resolvedSeries === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : resolvedSeries === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+
   if (!finalInvoiceNumber) {
-    const series = invoice.invoice_type === 'GST' ? 'gst' : undefined;
-    const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
     finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
   } else {
     const existingByNum: any = db.prepare('SELECT invoice_id FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1').get(tenantId, finalInvoiceNumber);
     if (existingByNum) {
       console.warn(`[db:checkout] Invoice number collision detected for "${finalInvoiceNumber}". Resolving with new guaranteed unique number.`);
-      const series = invoice.invoice_type === 'GST' ? 'gst' : undefined;
-      const configKey = series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
       finalInvoiceNumber = getGuaranteedNextInvoiceNumber(db, tenantId, configKey).invoiceNumber;
     }
   }

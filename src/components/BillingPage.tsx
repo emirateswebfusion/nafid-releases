@@ -3352,7 +3352,8 @@ export function BillingPage() {
       const isHalfA4 = printFmt.format === 'half-a4';
       const isA4 = printFmt.format === 'a4';
       const isB2B = Boolean(customerGstin?.trim());
-      const useA4 = isB2B || isA4 || isHalfA4;
+      const isGstOrB2B = invoiceType === 'GST' || isB2B;
+      const useA4 = isGstOrB2B || isA4 || isHalfA4;
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
       const state = useCartStore.getState();
@@ -3403,8 +3404,8 @@ export function BillingPage() {
         invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
-        customerGstin: billSettings.showCustomerGstin ? (customerGstin || undefined) : undefined,
-        customerState: billSettings.showCustomerGstin ? (customerState || undefined) : undefined,
+        customerGstin: customerGstin?.trim() || undefined,
+        customerState: customerState || undefined,
         billSettings,
         isB2B,
       };
@@ -3468,6 +3469,11 @@ export function BillingPage() {
         return;
       }
 
+      // Ensure receipt printing and activeTab title use the exact confirmed invoice_number returned by DB/checkout
+      const confirmedInvoiceNumber = (result && result.invoice_number) ? result.invoice_number : invoice_number;
+      invoice_number = confirmedInvoiceNumber;
+      receiptData.invoiceNumber = confirmedInvoiceNumber;
+
       // Consume ADJUST_BILL return credit. Only the portion actually applied to this
       // bill (clamped to the bill total) is settled; any leftover stays as pending
       // credit for a future bill. Editing a bill never re-consumes credit.
@@ -3525,7 +3531,7 @@ export function BillingPage() {
       if (!saveOnly) {
         try {
           if (useA4) {
-            const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+            const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
             const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
             const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
             if (!printResult.success) {
