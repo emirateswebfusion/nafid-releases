@@ -1,3 +1,9 @@
+# Vendora v1.5.43 Release Notes
+
+## What's Changed
+- General system stability improvements, performance optimizations, and dependency updates
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.42...v1.5.43
+
 # Vendora v1.5.42 Release Notes
 
 ## What's Changed
