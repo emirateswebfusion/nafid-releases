@@ -1,3 +1,10 @@
+# Vendora v1.5.48 Release Notes
+
+## What's Changed
+- Enhanced sync worker resilience, local HTTP server connection management, and main process IPC handlers
+- Updated `SettingsManager` UI components for printer & hardware settings
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.47...v1.5.48
+
 # Vendora v1.5.47 Release Notes
 
 ## What's Changed
