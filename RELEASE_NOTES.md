@@ -1,3 +1,10 @@
+# Vendora v1.5.41 Release Notes
+
+## What's Changed
+- Enhanced thermal & ESC/POS printer hardware integration and return management workflows
+- Added local sync server worker and updated UI components for quotation and sales history
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.40...v1.5.41
+
 # Vendora v1.5.40 Release Notes
 
 ## What's Changed
