@@ -1963,6 +1963,42 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     const newCash = getCashAmountFromInvoice(invoice);
     if (newCash > 0) {
       adjustCashDrawerForInvoice(db, invoice.tenant_id || 'global', localDate(), 0, newCash);
+    } else {
+      const scrapD = Number(invoice.scrap_deduction) || 0;
+      const returnD = Number(invoice.return_deduction) || 0;
+      const totalDeductions = scrapD + returnD;
+      const sub = Number(invoice.subtotal) || 0;
+      const tax = Number(invoice.tax_total) || 0;
+      const disc = Number(invoice.discount_total) || 0;
+      const ptsDisc = Number((invoice as any).points_redeemed_discount) || 0;
+      const preDeductionTotal = Math.max(0, sub + tax - disc - ptsDisc);
+      const netRefund = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
+
+      const pm = (invoice.payment_method || '').toUpperCase();
+      if (netRefund > 0 && (pm === 'CASH' || pm === 'SPLIT')) {
+        const todayDate = localDate();
+        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(invoice.tenant_id || 'global', todayDate) as any;
+        if (drawer) {
+          const txnId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
+            VALUES (?, ?, ?, 'CASH_OUT', ?, 'CREDIT_REFUND', ?, ?, 'PENDING')
+          `).run(
+            txnId,
+            invoice.tenant_id || 'global',
+            drawer.drawer_id,
+            netRefund,
+            `Net cash refund for invoice ${finalInvoiceNumber}`,
+            invoice.user_id || 'system'
+          );
+          const newCashOut = Number(drawer.cash_out) + netRefund;
+          const newCurrentCash = Number(drawer.current_cash) - netRefund;
+          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+          db.prepare(`
+            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      }
     }
 
     // Trigger immediate background sync so the invoice appears on web portal instantly
@@ -3038,6 +3074,34 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
       );
       stockStmt.run(item.quantity, item.product_id);
     }
+
+    if (returnData.refund_method === 'CASH' && Number(returnData.grand_total) > 0) {
+      const todayDate = localDate();
+      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(returnData.tenant_id, todayDate) as any;
+      if (drawer) {
+        const existingTx = db.prepare(`SELECT transaction_id FROM cash_transactions WHERE drawer_id = ? AND category = 'RETURN_REFUND' AND notes LIKE ?`).get(drawer.drawer_id, `%${returnData.return_number}%`);
+        if (!existingTx) {
+          const txnId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
+            VALUES (?, ?, ?, 'CASH_OUT', ?, 'RETURN_REFUND', ?, ?, 'PENDING')
+          `).run(
+            txnId,
+            returnData.tenant_id,
+            drawer.drawer_id,
+            Number(returnData.grand_total),
+            `Return refund for ${returnData.return_number}`,
+            returnData.user_id || 'system'
+          );
+          const newCashOut = Number(drawer.cash_out) + Number(returnData.grand_total);
+          const newCurrentCash = Number(drawer.current_cash) - Number(returnData.grand_total);
+          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+          db.prepare(`
+            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      }
+    }
   });
 
   try {
@@ -3966,6 +4030,30 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
       `).run(t.transaction_id, t.tenant_id, t.type, t.scrap_category_id, t.quantity, t.rate, t.total_amount, t.party_name || null, t.customer_phone || null, t.customer_address || null, t.notes || null, t.scrap_invoice_number || null, paymentStatus);
       db.prepare(`UPDATE scrap_categories SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_category_id = ?`).run(delta, t.scrap_category_id);
+
+      if (t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
+        const todayDate = localDate();
+        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(t.tenant_id || 'global', todayDate) as any;
+        if (drawer) {
+          const txnId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
+            VALUES (?, ?, ?, 'CASH_OUT', ?, 'SCRAP_PURCHASE', ?, 'system', 'PENDING')
+          `).run(
+            txnId,
+            t.tenant_id || 'global',
+            drawer.drawer_id,
+            Number(t.total_amount),
+            `Scrap purchase ${t.scrap_invoice_number || ''}`.trim()
+          );
+          const newCashOut = Number(drawer.cash_out) + Number(t.total_amount);
+          const newCurrentCash = Number(drawer.current_cash) - Number(t.total_amount);
+          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+          db.prepare(`
+            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      }
       return { success: true };
     })();
     return result;
@@ -4918,6 +5006,31 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
         }
       }
 
+      // If CASH payment, deduct cash from current cash drawer
+      if (paymentType === 'CASH' && Number(bill.total_amount) > 0) {
+        const todayDate = localDate();
+        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(bill.tenant_id, todayDate) as any;
+        if (drawer) {
+          const txnId = crypto.randomUUID();
+          db.prepare(`
+            INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, sync_status)
+            VALUES (?, ?, ?, 'CASH_OUT', ?, 'Purchase Bill', ?, 'system', 'PENDING')
+          `).run(
+            txnId,
+            bill.tenant_id,
+            drawer.drawer_id,
+            Number(bill.total_amount),
+            `Purchase bill ${bill.bill_number} - ${bill.supplier_name}`
+          );
+          const newCashOut = Number(drawer.cash_out) + Number(bill.total_amount);
+          const newCurrentCash = Number(drawer.current_cash) - Number(bill.total_amount);
+          const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+          db.prepare(`
+            UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
+          `).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+        }
+      }
+
       return { success: true };
     })();
     return result;
@@ -5096,15 +5209,31 @@ ipcMain.handle('db:deletePurchaseBill', (event, purchase_bill_id: string) => {
   try {
     const db = getDb();
     db.transaction(() => {
-      const bill = db.prepare('SELECT supplier_id, bill_number, tenant_id FROM purchase_bills WHERE purchase_bill_id = ?').get(purchase_bill_id) as any;
-      if (bill && bill.supplier_id && bill.bill_number) {
-        const ledgerEntries = db.prepare(
-          'SELECT ledger_id FROM party_ledger WHERE tenant_id = ? AND party_id = ? AND reference_number = ?'
-        ).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as any[];
-        for (const entry of ledgerEntries) {
-          db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
+      const bill = db.prepare('SELECT supplier_id, bill_number, tenant_id, payment_type, total_amount FROM purchase_bills WHERE purchase_bill_id = ?').get(purchase_bill_id) as any;
+      if (bill) {
+        if (bill.supplier_id && bill.bill_number) {
+          const ledgerEntries = db.prepare(
+            'SELECT ledger_id FROM party_ledger WHERE tenant_id = ? AND party_id = ? AND reference_number = ?'
+          ).all(bill.tenant_id, bill.supplier_id, bill.bill_number) as any[];
+          for (const entry of ledgerEntries) {
+            db.prepare("UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE ledger_id = ?").run(entry.ledger_id);
+          }
+          recalcPartyBalances(db, bill.supplier_id);
         }
-        recalcPartyBalances(db, bill.supplier_id);
+
+        if (bill.payment_type === 'CASH' && Number(bill.total_amount) > 0) {
+          const tx = db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND category = 'Purchase Bill' AND notes LIKE ?`).get(bill.tenant_id, `%${bill.bill_number}%`) as any;
+          if (tx) {
+            db.prepare(`DELETE FROM cash_transactions WHERE transaction_id = ?`).run(tx.transaction_id);
+            const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE drawer_id = ?`).get(tx.drawer_id) as any;
+            if (drawer) {
+              const newCashOut = Math.max(0, Number(drawer.cash_out) - Number(tx.amount));
+              const newCurrentCash = Number(drawer.opening_balance) + Number(drawer.cash_sales) + Number(drawer.cash_in) - newCashOut;
+              const newExpectedClosing = newCurrentCash;
+              db.prepare(`UPDATE cash_drawer SET cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?`).run(newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+            }
+          }
+        }
       }
       db.prepare('DELETE FROM purchase_bill_items WHERE purchase_bill_id = ?').run(purchase_bill_id);
       db.prepare('DELETE FROM purchase_bills WHERE purchase_bill_id = ?').run(purchase_bill_id);
