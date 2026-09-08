@@ -180,7 +180,7 @@ export function getSyncIntervalMs(): number {
 
 let currentActiveRoute: 'LAN' | 'CLOUD' | 'NONE' = 'NONE';
 
-function notifyOnlineStatus(online: boolean, route?: 'LAN' | 'CLOUD') {
+function notifyOnlineStatus(online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') {
   if (route) currentActiveRoute = online ? route : 'NONE';
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
@@ -212,9 +212,10 @@ export function getSyncEndpoints(): SyncEndpoints {
         };
       }
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
+        const cleanHost = String(parsed.lanHostIp).trim().replace(/^https?:\/\//i, '').replace(/:\d+$/, '').replace(/\/.*$/, '');
         const isHybrid = parsed.syncMode === 'HYBRID';
         return {
-          primaryUrl: `http://${parsed.lanHostIp}:${parsed.lanPort || 3888}`,
+          primaryUrl: `http://${cleanHost}:${parsed.lanPort || 3888}`,
           fallbackUrl: isHybrid ? defaultCloud : undefined,
           primaryRoute: 'LAN',
           fallbackRoute: isHybrid ? 'CLOUD' : undefined,
@@ -232,18 +233,28 @@ export function getSyncEndpoints(): SyncEndpoints {
 
 export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'LAN' | 'CLOUD' }> {
   const endpoints = getSyncEndpoints();
-  if (endpoints.disabled) return { ok: false };
+  if (endpoints.disabled) {
+    notifyOnlineStatus(false, 'NONE');
+    return { ok: false };
+  }
   try {
-    const res = await fetch(endpoints.primaryUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(2000) });
-    if (res.ok) return { ok: true, route: endpoints.primaryRoute };
+    const res = await fetch(endpoints.primaryUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      notifyOnlineStatus(true, endpoints.primaryRoute);
+      return { ok: true, route: endpoints.primaryRoute };
+    }
   } catch {}
 
   if (endpoints.fallbackUrl) {
     try {
       const res = await fetch(endpoints.fallbackUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
-      if (res.ok) return { ok: true, route: endpoints.fallbackRoute };
+      if (res.ok) {
+        notifyOnlineStatus(true, endpoints.fallbackRoute);
+        return { ok: true, route: endpoints.fallbackRoute };
+      }
     } catch {}
   }
+  notifyOnlineStatus(false, 'NONE');
   return { ok: false };
 }
 

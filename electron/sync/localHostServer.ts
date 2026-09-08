@@ -40,6 +40,7 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Private-Network': 'true',
   });
   res.end(JSON.stringify(payload));
 }
@@ -168,6 +169,7 @@ export function startLocalHostServer(port: number = 3888) {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Allow-Private-Network': 'true',
       });
       res.end();
       return;

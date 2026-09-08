@@ -405,8 +405,8 @@ export function BillingPage() {
 
   useEffect(() => {
     if (!featureFlags) return;
-    if (!featureFlags.quotations && isQuotationMode) setQuotationMode(false);
-    if (!featureFlags.returns && isReturnMode) setReturnMode(false);
+    if (featureFlags.quotations === false && isQuotationMode) setQuotationMode(false);
+    if (featureFlags.returns === false && isReturnMode) setReturnMode(false);
   }, [featureFlags, isQuotationMode, isReturnMode, setQuotationMode, setReturnMode]);
 
   // Update tab title when mode changes (normal, scrap, quotation, return)
@@ -2280,6 +2280,7 @@ export function BillingPage() {
       clearCart();
       setReturnMode(false);
       setIsScrapMode(false);
+      setIsPastBillMode(false);
       setEditingQuotation(null, null);
       useCartStore.getState().setEditingInvoice(null, null, null);
       setQuotationMode(true);
@@ -2293,6 +2294,7 @@ export function BillingPage() {
         receivedAmount: 0,
         reservedQuotationNumber: '',
       });
+      syncActiveSnapshot();
       await reserveQuotationNumberForTab(true);
       syncActiveSnapshot();
       setTimeout(() => {
@@ -3116,10 +3118,14 @@ export function BillingPage() {
           }).catch(() => {});
         }
 
+        const wasScrapPrinted = !saveOnly && scrapPrintSuccess;
         setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
           const currentActiveId = activeTabId;
+          if (wasScrapPrinted) {
+            setIsScrapMode(false);
+          }
           if (tabsCount > 1) {
             closeTab(currentActiveId);
           } else {
@@ -3129,7 +3135,11 @@ export function BillingPage() {
             syncActiveSnapshot();
             await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
             const tab = getActiveTab();
-            if (tab?.reservedScrapInvoiceNumber) {
+            if (wasScrapPrinted) {
+              if (tab?.reservedInvoiceNumber) {
+                updateActiveTab({ title: tab.reservedInvoiceNumber });
+              }
+            } else if (tab?.reservedScrapInvoiceNumber) {
               updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
             }
           }
@@ -4321,6 +4331,7 @@ export function BillingPage() {
                 if (next && isReturnMode) setReturnMode(false);
                 if (next && isPastBillMode) setIsPastBillMode(false);
                 if (next) reserveQuotationNumberForTab();
+                syncActiveSnapshot();
                 setTimeout(() => searchRef.current?.focus(), 100);
               }}
             className={clsx(

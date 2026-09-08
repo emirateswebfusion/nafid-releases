@@ -46,6 +46,25 @@ function todayStr(): string {
   return new Date().toLocaleDateString('en-CA');
 }
 
+function formatBusinessDate(d: string | null | undefined): string {
+  if (!d) return '—';
+  const cleanStr = String(d).split('T')[0].split(' ')[0];
+  const parts = cleanStr.split('-');
+  let date: Date;
+  if (parts.length === 3 && parts[0].length === 4) {
+    const [year, month, day] = parts;
+    date = new Date(Number(year), Number(month) - 1, Number(day));
+  } else {
+    date = new Date(d);
+  }
+  if (isNaN(date.getTime())) return String(d);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  return `${day}-${month}-${year} ${dayName}`;
+}
+
 const PAYMENT_LABELS: Record<string, string> = {
   PENDING: 'Pending',
   CASH: 'Cash',
@@ -814,7 +833,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   {drawerOpen ? 'Open' : drawerClosed ? 'Closed' : yesterdayNotClosed ? 'Blocked' : 'Not Started'}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
-                  {drawer?.business_date || todayStr()}
+                  {formatBusinessDate(drawer?.business_date || todayStr())}
                 </span>
                 {drawerClosed && drawer?.actual_cash !== null && drawer?.actual_cash !== undefined && (
                   <span className={clsx(

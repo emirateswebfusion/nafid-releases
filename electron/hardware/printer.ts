@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import net from 'net';
 import path from 'path';
 import fs from 'fs';
@@ -130,6 +130,72 @@ export function initPrinter() {
     } catch (error: any) {
       console.error('[Hardware] A4 Print Error:', error);
       return { success: false, error: error.message || 'Print failed' };
+    }
+  });
+
+  ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename }: { tenant_id: string; htmlContent: string; defaultFilename?: string }) => {
+    try {
+      const printWindow = new BrowserWindow({
+        show: false,
+        width: 800,
+        height: 600,
+        webPreferences: {
+          preload: path.join(__dirname, '../preload.js'),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        }
+      });
+
+      if (app.isPackaged) {
+        printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
+      } else {
+        printWindow.loadURL(`http://localhost:5173/#/print-a4`);
+      }
+
+      currentA4Html = htmlContent;
+
+      const pdfBuffer = await new Promise<Buffer>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          if (!printWindow.isDestroyed()) {
+            printWindow.close();
+            reject(new Error('PDF generation timeout'));
+          }
+        }, 30000);
+
+        ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+          try {
+            const data = await printWindow.webContents.printToPDF({
+              printBackground: true,
+              pageSize: 'A4',
+              margins: { marginType: 'none' },
+            });
+            clearTimeout(timer);
+            if (!printWindow.isDestroyed()) printWindow.close();
+            resolve(data);
+          } catch (err) {
+            clearTimeout(timer);
+            if (!printWindow.isDestroyed()) printWindow.close();
+            reject(err);
+          }
+        });
+      });
+
+      const { filePath } = await dialog.showSaveDialog({
+        title: 'Save PDF',
+        defaultPath: defaultFilename || 'Quotation.pdf',
+        filters: [{ name: 'PDF Document (*.pdf)', extensions: ['pdf'] }],
+      });
+
+      if (filePath) {
+        fs.writeFileSync(filePath, pdfBuffer);
+        return { success: true };
+      }
+
+      return { success: true, canceled: true };
+    } catch (error: any) {
+      console.error('[Hardware] A4 PDF Export Error:', error);
+      return { success: false, error: error.message || 'PDF export failed' };
     }
   });
 

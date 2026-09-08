@@ -13,6 +13,25 @@ const formatCurrency = (v: any) => {
   return '₹' + n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 };
 
+const formatBusinessDate = (d: string | null | undefined): string => {
+  if (!d) return '—';
+  const cleanStr = String(d).split('T')[0].split(' ')[0];
+  const parts = cleanStr.split('-');
+  let date: Date;
+  if (parts.length === 3 && parts[0].length === 4) {
+    const [year, month, day] = parts;
+    date = new Date(Number(year), Number(month) - 1, Number(day));
+  } else {
+    date = new Date(d);
+  }
+  if (isNaN(date.getTime())) return String(d);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' }).toUpperCase();
+  return `${day}-${month}-${year} ${dayName}`;
+};
+
 const formatTime = (d: string) => {
   if (!d) return '—';
   const date = new Date(d);
@@ -245,7 +264,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   {drawerOpen ? 'Open' : drawer ? 'Closed' : 'Not Started'}
                 </span>
                 <span className="text-[10px] text-muted-foreground font-semibold tabular-nums">
-                  {drawer?.business_date || new Date().toLocaleDateString('en-CA')}
+                  {formatBusinessDate(drawer?.business_date || new Date().toLocaleDateString('en-CA'))}
                 </span>
                 {drawer && (
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
@@ -657,7 +676,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   <div className="flex flex-col items-center py-6 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl">
                     <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center mb-2"><CheckCircle2 className="w-8 h-8 text-emerald-500" /></div>
                     <p className="text-lg font-black text-foreground">Day Closed</p>
-                    <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">{drawer?.business_date}</p>
+                    <p className="text-[11px] text-muted-foreground font-semibold mt-0.5">{formatBusinessDate(drawer?.business_date)}</p>
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-sm">
                     <div className="p-3 rounded-xl bg-muted/30 border border-border/50"><p className="text-[10px] font-bold text-muted-foreground uppercase">Expected</p><p className="text-sm font-black text-foreground mt-0.5">{formatCurrency(closeResult.expected_closing)}</p></div>

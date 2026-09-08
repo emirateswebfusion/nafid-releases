@@ -51,6 +51,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
   forceResyncInvoices: () => ipcRenderer.invoke('sync:forceResyncInvoices'),
   getSyncProgress: () => ipcRenderer.invoke('sync:getProgress'),
+  testNetworkConnection: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => ipcRenderer.invoke('sync:testConnection', payload),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
 
@@ -73,6 +74,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPrinters: () => ipcRenderer.invoke('hardware:getPrinters'),
   printReady: (contentHeightPx?: number) => ipcRenderer.invoke('hardware:printReady', contentHeightPx),
   printA4Html: (tenant_id: string, htmlContent: string) => ipcRenderer.invoke('hardware:printA4Html', { tenant_id, htmlContent }),
+  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => ipcRenderer.invoke('hardware:exportA4Pdf', { tenant_id, htmlContent, defaultFilename }),
   
   onUpdateStatus: (callback: (status: string) => void) => {
     ipcRenderer.on('update-status', (_event, status) => callback(status));

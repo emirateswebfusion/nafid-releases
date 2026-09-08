@@ -3763,6 +3763,103 @@ ipcMain.handle('sync:getProgress', async () => {
   return getSyncProgress();
 });
 
+ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => {
+  const syncMode = payload?.syncMode || 'HYBRID';
+  const lanRole = payload?.lanRole || 'SECONDARY';
+  const rawHost = payload?.lanHostIp || '';
+  const port = Number(payload?.lanPort) || 3888;
+  const cleanHost = String(rawHost).trim().replace(/^https?:\/\//i, '').replace(/:\d+$/, '').replace(/\/.*$/, '');
+  const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
+
+  if (syncMode === 'LAN' || syncMode === 'HYBRID') {
+    if (lanRole === 'PRIMARY') {
+      return {
+        ok: true,
+        route: 'LAN',
+        message: `Wifi Sync Active — This PC is Primary Master Server (Port ${port})`
+      };
+    }
+
+    const host = cleanHost || '192.168.1.100';
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+      const res = await fetch(`http://${host}:${port}/health`, { method: 'GET', signal: controller.signal });
+      clearTimeout(timeoutId);
+      if (res.ok) {
+        return {
+          ok: true,
+          route: 'LAN',
+          message: `Wifi Sync Active — Connected to Primary Master Server (${host}:${port})`
+        };
+      } else if (syncMode === 'HYBRID') {
+        try {
+          const cloudCtrl = new AbortController();
+          const cloudTimeout = setTimeout(() => cloudCtrl.abort(), 3500);
+          const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: cloudCtrl.signal });
+          clearTimeout(cloudTimeout);
+          if (cloudRes.ok) {
+            return {
+              ok: true,
+              route: 'CLOUD',
+              fallback: true,
+              message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
+            };
+          }
+        } catch {}
+        return {
+          ok: false,
+          error: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+        };
+      } else {
+        return {
+          ok: false,
+          error: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+        };
+      }
+    } catch {
+      if (syncMode === 'HYBRID') {
+        try {
+          const cloudCtrl = new AbortController();
+          const cloudTimeout = setTimeout(() => cloudCtrl.abort(), 3500);
+          const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: cloudCtrl.signal });
+          clearTimeout(cloudTimeout);
+          if (cloudRes.ok) {
+            return {
+              ok: true,
+              route: 'CLOUD',
+              fallback: true,
+              message: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
+            };
+          }
+        } catch {}
+      }
+      return {
+        ok: false,
+        error: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+      };
+    }
+  } else {
+    try {
+      const cloudCtrl = new AbortController();
+      const cloudTimeout = setTimeout(() => cloudCtrl.abort(), 3500);
+      const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: cloudCtrl.signal });
+      clearTimeout(cloudTimeout);
+      if (cloudRes.ok) {
+        return {
+          ok: true,
+          route: 'CLOUD',
+          message: `Cloud Sync Active — Connected to Cloud API server`
+        };
+      }
+    } catch {}
+    return {
+      ok: false,
+      error: `Sync Inactive — Cloud API server (${defaultCloud}) is unreachable.`
+    };
+  }
+});
+
 
 
 function getOrInitTerminalCode(db: any): string {
@@ -5741,8 +5838,11 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
   const db = getDb();
   try {
     const tx = db.transaction(() => {
-      const date = business_date || localDate();
-      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+      const date = business_date ? (typeof business_date === 'string' ? business_date.slice(0, 10) : localDate(new Date(business_date))) : localDate();
+      let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
+      if (!drawer) {
+        drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
+      }
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
       const expected = Number(drawer.expected_closing);
@@ -5773,7 +5873,7 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     return { success: true };
   } catch (error: any) {
     console.error('[db:cashier:dayClosing]', error);
-    return { success: false, error: 'Operation failed' };
+    return { success: false, error: error.message || 'Operation failed' };
   }
 }));
 
@@ -5781,13 +5881,15 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
   try {
     const db = getDb();
     const date = localDate();
-    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
     if (!drawer) {
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
     }
-    if (!drawer) return [];
+    if (!drawer) {
+      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, date, `${date}%`);
+    }
     
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND drawer_id = ? ORDER BY transaction_date DESC`).all(tenant_id, drawer.drawer_id);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id = ? OR date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, drawer.drawer_id, date, `${date}%`);
   } catch (error: any) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };

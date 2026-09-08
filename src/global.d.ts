@@ -51,6 +51,7 @@ export interface IElectronAPI {
   runInitialSync: () => Promise<{ success: boolean; error?: string }>;
   forceResyncInvoices: () => Promise<{ success: boolean; error?: string }>;
   getSyncProgress: () => Promise<SyncProgress | null>;
+  testNetworkConnection?: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => Promise<{ ok: boolean; route?: string; fallback?: boolean; message?: string; error?: string }>;
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
@@ -70,6 +71,7 @@ export interface IElectronAPI {
   getA4Html: () => Promise<string>;
   printReady: (contentHeightPx?: number) => Promise<{ success: boolean; error?: string }>;
   printA4Html: (tenant_id: string, htmlContent: string) => Promise<{ success: boolean; useDefaultDialog?: boolean; error?: string }>;
+  exportA4Pdf: (tenant_id: string, htmlContent: string, defaultFilename?: string) => Promise<{ success: boolean; canceled?: boolean; error?: string }>;
   onUpdateStatus: (callback: (status: string) => void) => void;
   onUpdateProgress: (callback: (progress: { percent: number; bytesPerSecond: number; transferred: number; total: number }) => void) => void;
   onUpdateInfo: (callback: (info: any) => void) => void;
@@ -77,7 +79,7 @@ export interface IElectronAPI {
   onScaleWeight: (callback: (weight: number) => void) => () => void;
   onSyncDataUpdated: (callback: () => void) => void;
   onSyncCycleComplete: (callback: () => void) => void;
-  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD') => void) => void;
+  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => void;
   onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
   onTokenExpired: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;

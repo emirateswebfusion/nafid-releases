@@ -263,102 +263,115 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const handleTestNetworkConnection = async () => {
     setTestingNetwork(true);
     setMessage({ type: 'success', text: 'Testing network connection...' });
+    const cleanHost = lanHostIp.trim().replace(/^https?:\/\//i, '').replace(/:\d+$/, '').replace(/\/.*$/, '');
+    const port = Number(lanPort) || 3888;
+
     try {
-      if (syncMode === 'LAN' || syncMode === 'HYBRID') {
-        if (lanRole === 'PRIMARY') {
-          const hostIp = detectedLocalIp || lanHostIp || '192.168.1.100';
-          setMessage({
-            type: 'success',
-            text: `Wifi Sync Active — This PC is Primary Master Server (IP: ${hostIp}, Port ${lanPort})`
-          });
+      if (window.electronAPI?.testNetworkConnection) {
+        const result = await window.electronAPI.testNetworkConnection({
+          syncMode,
+          lanRole,
+          lanHostIp: cleanHost,
+          lanPort: port,
+        });
+        if (result.ok) {
+          setMessage({ type: 'success', text: result.message || 'Connection test successful' });
         } else {
-          const host = lanHostIp || '192.168.1.100';
-          try {
-            const res = await fetch(`http://${host}:${lanPort}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
-            if (res.ok) {
-              setMessage({
-                type: 'success',
-                text: `Wifi Sync Active — Connected to Primary Master Server (${host})`
-              });
-            } else if (syncMode === 'HYBRID') {
-              // Try Cloud API fallback in HYBRID mode only
-              try {
-                const cloudApi = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
-                const cloudRes = await fetch(`${cloudApi}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
-                if (cloudRes.ok) {
-                  setMessage({
-                    type: 'success',
-                    text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
-                  });
-                } else {
+          setMessage({ type: 'error', text: result.error || 'Connection failed' });
+        }
+      } else {
+        const defaultCloud = (import.meta.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
+        if (syncMode === 'LAN' || syncMode === 'HYBRID') {
+          if (lanRole === 'PRIMARY') {
+            const hostIp = detectedLocalIp || cleanHost || '192.168.1.100';
+            setMessage({
+              type: 'success',
+              text: `Wifi Sync Active — This PC is Primary Master Server (IP: ${hostIp}, Port ${port})`
+            });
+          } else {
+            const host = cleanHost || '192.168.1.100';
+            try {
+              const res = await fetch(`http://${host}:${port}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+              if (res.ok) {
+                setMessage({
+                  type: 'success',
+                  text: `Wifi Sync Active — Connected to Primary Master Server (${host})`
+                });
+              } else if (syncMode === 'HYBRID') {
+                try {
+                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+                  if (cloudRes.ok) {
+                    setMessage({
+                      type: 'success',
+                      text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) returned status ${res.status}. Syncing via Cloud API.`
+                    });
+                  } else {
+                    setMessage({
+                      type: 'error',
+                      text: `Sync Inactive — Master Server (${host}) returned status ${res.status} & Cloud API unreachable.`
+                    });
+                  }
+                } catch {
                   setMessage({
                     type: 'error',
-                    text: `Sync Inactive — Master Server (${host}) returned status ${res.status} & Cloud API unreachable.`
+                    text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
                   });
                 }
-              } catch {
+              } else {
                 setMessage({
                   type: 'error',
                   text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
                 });
               }
+            } catch {
+              if (syncMode === 'HYBRID') {
+                try {
+                  const cloudRes = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+                  if (cloudRes.ok) {
+                    setMessage({
+                      type: 'success',
+                      text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
+                    });
+                  } else {
+                    setMessage({
+                      type: 'error',
+                      text: `Sync Inactive — Could not connect to Master Server at ${host}:${port} or Cloud API. Operating offline.`
+                    });
+                  }
+                } catch {
+                  setMessage({
+                    type: 'error',
+                    text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+                  });
+                }
+              } else {
+                setMessage({
+                  type: 'error',
+                  text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+                });
+              }
+            }
+          }
+        } else {
+          try {
+            const res = await fetch(`${defaultCloud}/health`, { method: 'GET', signal: AbortSignal.timeout(3500) });
+            if (res.ok) {
+              setMessage({
+                type: 'success',
+                text: `Cloud Sync Active — Connected to Cloud API server`
+              });
             } else {
               setMessage({
                 type: 'error',
-                text: `Sync Inactive — Master Server (${host}) returned status ${res.status}`
+                text: `Sync Inactive — Could not reach Cloud API server (${defaultCloud}). Operating in Offline Mode.`
               });
             }
           } catch {
-            if (syncMode === 'HYBRID') {
-              // Try Cloud API fallback in HYBRID mode when LAN master connection fails
-              try {
-                const cloudApi = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
-                const cloudRes = await fetch(`${cloudApi}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
-                if (cloudRes.ok) {
-                  setMessage({
-                    type: 'success',
-                    text: `Cloud Sync Active (Hybrid Fallback) — LAN Master Server (${host}) unreachable. Automatically syncing via Cloud API!`
-                  });
-                } else {
-                  setMessage({
-                    type: 'error',
-                    text: `Sync Inactive — Could not connect to Master Server at ${host}:${lanPort} or Cloud API. Operating offline.`
-                  });
-                }
-              } catch {
-                setMessage({
-                  type: 'error',
-                  text: `Sync Inactive — Could not connect to Master Server at ${host}:${lanPort}. Ensure PC 1 is on & POS is open.`
-                });
-              }
-            } else {
-              setMessage({
-                type: 'error',
-                text: `Sync Inactive — Could not connect to Master Server at ${host}:${lanPort}. Ensure PC 1 is on & POS is open.`
-              });
-            }
-          }
-        }
-      } else {
-        try {
-          const cloudApi = (import.meta.env.VITE_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
-          const res = await fetch(`${cloudApi}/health`, { method: 'GET', signal: AbortSignal.timeout(3000) });
-          if (res.ok) {
-            setMessage({
-              type: 'success',
-              text: `Cloud Sync Active — Connected to Cloud API server`
-            });
-          } else {
             setMessage({
               type: 'error',
-              text: `Sync Inactive — Cloud API returned status ${res.status}. Operating offline.`
+              text: `Sync Inactive — Could not reach Cloud API server (${defaultCloud}). Operating in Offline Mode.`
             });
           }
-        } catch {
-          setMessage({
-            type: 'error',
-            text: `Sync Inactive — Could not reach Cloud API server. Operating in Offline Mode.`
-          });
         }
       }
     } finally {

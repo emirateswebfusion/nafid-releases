@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { useTabStore } from '../store/tabStore';
 import { X, Search, Printer, FileText, RefreshCw, Pencil, Trash, CheckCircle2, AlertCircle, Plus } from 'lucide-react';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
@@ -101,12 +102,13 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
   const handleCreateNewQuotation = () => {
     useCartStore.getState().setRole('BILLER');
+    useCartStore.getState().clearCart();
     useCartStore.getState().setReturnMode(false);
     useCartStore.getState().setIsScrapMode(false);
     useCartStore.getState().setEditingQuotation(null, null);
     useCartStore.getState().setEditingInvoice(null, null, null);
     useCartStore.getState().setQuotationMode(true);
-    useCartStore.getState().clearCart();
+    useTabStore.getState().syncActiveSnapshot();
     window.dispatchEvent(new CustomEvent('open-new-quotation'));
     onClose();
   };
@@ -203,6 +205,97 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     } else {
       const pw = window.open('', '_blank');
       if (pw) { pw.document.write(fullHtml); pw.document.close(); setTimeout(() => pw.print(), 500); }
+    }
+  };
+
+  const handleExportPdf = async () => {
+    if (!selectedQuotation) return;
+    const defaultFilename = `Quotation_${selectedQuotation.quotation_number || 'Detail'}.pdf`;
+
+    let htmlToExport = '';
+
+    if (window.electronAPI) {
+      const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
+      const printFmt = parsePrintFormat(printFmtRaw);
+      if (printFmt.format === 'half-a4') {
+        const [shopGstin, shopAddr, shopPh, upi] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+        ]);
+        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+        const receiptData: ReceiptData = {
+          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+          upiId: upi || undefined,
+          showUpiQr: true,
+          showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
+          invoiceNumber: selectedQuotation.quotation_number,
+          invoiceType: 'QUOTATION',
+          date: formatDateLabel(selectedQuotation.created_at),
+          items: quotationItems.map(item => ({
+            name: item.name,
+            quantity: item.quantity,
+            unit_price: item.rate,
+            total: item.amount,
+          })),
+          subtotal: selectedQuotation.subtotal,
+          tax: selectedQuotation.tax_total,
+          discount: 0,
+          grandTotal: selectedQuotation.grand_total,
+          customerName: billSettings.showCustomerName ? (selectedQuotation.customer_name || undefined) : undefined,
+          customerPhone: billSettings.showPhone ? (selectedQuotation.customer_phone || undefined) : undefined,
+          billSettings,
+          a5Orientation: printFmt.a5Orientation || 'horizontal',
+        };
+        htmlToExport = generateInvoiceHtml(receiptData, 'half-a4');
+      }
+    }
+
+    if (!htmlToExport) {
+      const content = printRef.current?.innerHTML || '';
+      htmlToExport = `<!DOCTYPE html>
+        <html>
+          <head>
+            <title>Quotation - ${selectedQuotation.quotation_number}</title>
+            <style>
+              @page { size: A4; margin: 15mm; }
+              body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+              .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+              .header h1 { font-size: 24px; margin: 0; }
+              .header p { font-size: 13px; color: #666; margin: 3px 0; }
+              .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
+              table { width: 100%; border-collapse: collapse; }
+              th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
+              td { padding: 6px; border: 1px solid #ddd; }
+              .text-right { text-align: right; }
+              .text-center { text-align: center; }
+              .total-row td { font-weight: bold; }
+              .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
+              .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
+              .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
+            </style>
+          </head>
+          <body>${content}</body>
+        </html>`;
+    }
+
+    if (window.electronAPI?.exportA4Pdf) {
+      const res = await window.electronAPI.exportA4Pdf(tenantId || 'global', htmlToExport, defaultFilename);
+      if (!res.success && res.error) {
+        alert(`Export PDF failed: ${res.error}`);
+      }
+    } else {
+      const pw = window.open('', '_blank');
+      if (pw) {
+        pw.document.write(htmlToExport);
+        pw.document.title = defaultFilename.replace('.pdf', '');
+        pw.document.close();
+        setTimeout(() => pw.print(), 500);
+      }
     }
   };
 
@@ -531,7 +624,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               <button onClick={handlePrint} className="px-4 py-2.5 bg-muted hover:bg-muted/80 border border-border text-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
                 <Printer className="w-4 h-4" /> Print
               </button>
-              <button onClick={handlePrint} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
+              <button onClick={handleExportPdf} className="px-4 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all active:scale-95 cursor-pointer shadow-sm">
                 <FileText className="w-4 h-4" /> PDF Export
               </button>
               {selectedQuotation.status === 'ACTIVE' && (

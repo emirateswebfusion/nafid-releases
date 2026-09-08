@@ -311,3 +311,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     return tabs.find(t => t.id === activeTabId);
   },
 }));
+
+if (typeof window !== 'undefined') {
+  (window as any).useTabStore = useTabStore;
+}
