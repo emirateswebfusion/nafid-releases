@@ -3733,11 +3733,13 @@ ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant
 
     if (key === 'network_sync_config' && value && typeof value === 'object') {
       const { startLocalHostServer, stopLocalHostServer } = await import('./sync/localHostServer.js');
+      const { reloadSyncConfig } = await import('./sync/syncWorker.js');
       if ((value.syncMode === 'LAN' || value.syncMode === 'HYBRID') && value.lanRole === 'PRIMARY') {
         startLocalHostServer(Number(value.lanPort) || 3888);
       } else {
         stopLocalHostServer();
       }
+      reloadSyncConfig();
     }
     return { success: true };
   } catch (error: any) {

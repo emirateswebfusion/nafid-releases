@@ -1346,6 +1346,26 @@ export function initDb() {
     );
   }
 
+  // Ensure Terminal Role is set to PRIMARY Master Server
+  try {
+    const netSyncRow = db.prepare("SELECT value FROM settings WHERE key = 'network_sync_config'").get() as { value: string } | undefined;
+    if (!netSyncRow) {
+      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+        'network_sync_config',
+        JSON.stringify({ syncMode: 'HYBRID', lanRole: 'PRIMARY', lanHostIp: '', lanPort: 3888, syncFrequency: 'BALANCED' })
+      );
+    } else {
+      const parsed = typeof netSyncRow.value === 'string' ? JSON.parse(netSyncRow.value) : netSyncRow.value;
+      if (parsed && parsed.lanRole === 'SECONDARY') {
+        parsed.lanRole = 'PRIMARY';
+        db.prepare("UPDATE settings SET value = ? WHERE key = 'network_sync_config'").run(JSON.stringify(parsed));
+        console.log('[DB Migration] Set network_sync_config terminal role to PRIMARY Master Server.');
+      }
+    }
+  } catch (e: any) {
+    console.error('[DB Migration] Error setting network_sync_config to PRIMARY:', e.message);
+  }
+
   // Clean up legacy records with 0.0 offer_price
   try {
     db.exec(`

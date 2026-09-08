@@ -154,16 +154,29 @@ function notifyCycleComplete(sender?: WebContents) {
   }
 }
 
-function toSqliteDate(iso: string | number | null | undefined): string {
+function toSqliteDate(iso: string | number | Date | null | undefined): string {
   if (!iso) return localTimestamp();
+  if (iso instanceof Date) return localTimestamp(iso);
   const str = typeof iso === 'string' ? iso : String(iso);
   return str.replace('T', ' ').replace('Z', '');
 }
 
-// Background sync interval (default 1.0 = every 60s).
-// Express priority sync is automatically triggered immediately on urgent user actions (bill creation/edits).
-const SYNC_INTERVAL_MINS = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1.0');
-const SYNC_INTERVAL_MS = Math.max(15000, Math.round(SYNC_INTERVAL_MINS * 60 * 1000));
+export function getSyncIntervalMs(): number {
+  try {
+    const db = getDb();
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id || 'global';
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (parsed.syncFrequency === 'HIGH') return 15000;
+      if (parsed.syncFrequency === 'BALANCED') return 30000;
+      if (parsed.syncFrequency === 'NORMAL') return 60000;
+    }
+  } catch {}
+  const envMins = parseFloat(process.env.VENDORA_SYNC_INTERVAL_MINUTES || '1.0');
+  return Math.max(15000, Math.round(envMins * 60 * 1000));
+}
 
 let currentActiveRoute: 'LAN' | 'CLOUD' | 'NONE' = 'NONE';
 
@@ -240,6 +253,12 @@ function getCloudApiBase() {
 
 export function getSyncTargetLabel(): string {
   return currentActiveRoute === 'LAN' ? 'Local Wi-Fi Host (LAN)' : 'Cloud API';
+}
+
+export function getSyncPrefix(): string {
+  if (currentActiveRoute === 'LAN') return '[SyncWorker - LAN]';
+  if (currentActiveRoute === 'CLOUD') return '[SyncWorker - CLOUD]';
+  return '[SyncWorker]';
 }
 
 function getRouteTag(): string {
@@ -338,6 +357,28 @@ import { startLocalHostServer } from './localHostServer.js';
 
 const FAST_INVOICE_PULL_MS = 20000;
 let fastInvoicePullInProgress = false;
+let syncCycleTimerId: NodeJS.Timeout | null = null;
+
+function scheduleNextSyncCycle() {
+  if (syncCycleTimerId) {
+    clearTimeout(syncCycleTimerId);
+  }
+  const intervalMs = getSyncIntervalMs();
+  syncCycleTimerId = setTimeout(async () => {
+    if (isSyncActive) {
+      try {
+        await runSyncCycle();
+      } catch (err: any) {
+        console.error('[SyncWorker] Background sync error:', err.message);
+      }
+    }
+    scheduleNextSyncCycle();
+  }, intervalMs);
+}
+
+export function reloadSyncConfig() {
+  scheduleNextSyncCycle();
+}
 
 export function initSyncWorker() {
   console.log('[SyncWorker] Initializing background sync worker...');
@@ -353,12 +394,9 @@ export function initSyncWorker() {
   } catch (err: any) {
     console.error('[SyncWorker] Failed to check local server startup config:', err.message);
   }
-  // 1. Full multi-table background sync cycle (every 10s)
-  setInterval(() => {
-    if (isSyncActive) {
-      runSyncCycle().catch(err => console.error('[SyncWorker] Background sync error:', err.message));
-    }
-  }, SYNC_INTERVAL_MS);
+
+  // 1. Dynamic background sync cycle (configured heartbeat rate)
+  scheduleNextSyncCycle();
 
   // 2. High-speed priority invoice pull (every 2s) for instant Cashier Counter updates
   setInterval(async () => {
@@ -623,16 +661,13 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       let dataUpdated = false;
       const db = getDb();
 
-      // One-time auto-heal: reset invoice & return pull cursors so older edited bills are re-pulled and updated locally
-      const healingKey = `invoice_conflict_fix_v1:${tenant_id}`;
+      // One-time auto-heal: reset pull cursors so older cash drawers & edited bills are re-pulled and updated locally
+      const healingKey = `cash_drawer_conflict_fix_v2:${tenant_id}`;
       if (!getMeta(healingKey)) {
         try {
-          db.prepare(`DELETE FROM sync_meta WHERE key IN (?, ?)`).run(
-            cursorKey(tenant_id, 'invoices'),
-            cursorKey(tenant_id, 'returns')
-          );
+          db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`).run(`pull_cursor:${tenant_id}:%`);
           setMeta(healingKey, 'true');
-          console.log('[SyncWorker] One-time reset of invoice & return cursors applied to heal existing old bills.');
+          console.log('[SyncWorker] One-time reset of all pull cursors applied to force full re-sync of cash drawer, transactions & bills.');
         } catch (e: any) {
           console.error('[SyncWorker] Error performing one-time cursor reset:', e.message);
         }
@@ -757,17 +792,15 @@ async function pushBatch<T>(
         try {
           errDetail = await response.text();
         } catch {}
-        console.error(`[SyncWorker] ${label} batch failed: HTTP ${response.status}${errDetail ? ` — ${errDetail.slice(0, 300)}` : ''}`);
+        console.error(`${getSyncPrefix()} ${label} batch failed: HTTP ${response.status}${errDetail ? ` — ${errDetail.slice(0, 300)}` : ''}`);
         return [];
       }
 
       const result: any = await response.json();
       if (result.synced?.length > 0) {
-        console.log(`[SyncWorker] ${label}: ${result.synced_count} synced, ${result.failed_count} failed.`);
+        console.log(`${getSyncPrefix()} ${label}: ${result.synced_count ?? result.synced.length} synced, ${result.failed_count ?? 0} failed.`);
       } else if (result.failed?.length > 0) {
-        console.log(`[SyncWorker] ${label}: 0 synced, ${result.failed_count} failed. First error: ${result.failed[0].error}`);
-      } else {
-        console.warn(`[SyncWorker] ${label}: 0 synced, 0 failed — unexpected response shape. Body: ${JSON.stringify(result).slice(0, 500)}`);
+        console.log(`${getSyncPrefix()} ${label}: 0 synced, ${result.failed_count ?? result.failed.length} failed. First error: ${result.failed[0].error}`);
       }
       return result.synced || [];
     } catch (err: any) {
@@ -992,18 +1025,18 @@ async function syncInvoices(token: string, tenantId: string) {
 
 const HARDWARE_SETTING_KEYS = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
 
-// ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
+// ── Settings Sync (Edge → Cloud / LAN) ─────────────────────────────────────────────
 async function syncSettings(token: string, tenantId: string) {
   const db = getDb();
   try {
-    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE tenant_id = ? AND key IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config') AND sync_status = 'PENDING'`).run(tenantId);
+    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE (tenant_id = ? OR tenant_id = 'global') AND key IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config') AND sync_status = 'PENDING'`).run(tenantId);
   } catch (e) {}
 
-  const pending = (db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[])
+  const pending = (db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global')`).all(tenantId) as any[])
     .filter((row: any) => !HARDWARE_SETTING_KEYS.includes(row.key));
 
   if (pending.length === 0) return;
-  console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
+  console.log(`[SyncWorker] Pushing ${pending.length} settings to ${getSyncTargetLabel()}...`);
 
   const synced = await pushBatch(
     `${getCloudApiBase()}/api/sync/settings`,
@@ -1013,9 +1046,15 @@ async function syncSettings(token: string, tenantId: string) {
     'Settings',
   );
   if (synced.length > 0) {
-    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND tenant_id = ?`);
+    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND (tenant_id = ? OR tenant_id = 'global')`);
     const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
     tx(synced);
+  } else {
+    // If target acknowledged 0 synced and 0 failed (e.g. local hardware/filtered keys), mark remaining pending as SYNCED to prevent infinite 15s retry loop
+    const pendingKeys = pending.map((p: any) => p.key);
+    const updateStmt = db.prepare(`UPDATE settings SET sync_status = 'SYNCED' WHERE key = ? AND (tenant_id = ? OR tenant_id = 'global')`);
+    const tx = db.transaction((keys: string[]) => { for (const key of keys) updateStmt.run(key, tenantId); });
+    tx(pendingKeys);
   }
 }
 
