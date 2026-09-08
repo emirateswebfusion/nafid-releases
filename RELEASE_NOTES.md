@@ -1,3 +1,10 @@
+# Vendora v1.5.49 Release Notes
+
+## What's Changed
+- Fixed cashier cash-out handling for purchase bills, returns, scrap purchases, and checkout refunds
+- Enhanced `CashRegisterPanel`, local HTTP server worker, sync worker, and Electron main process IPC handlers
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.48...v1.5.49
+
 # Vendora v1.5.48 Release Notes
 
 ## What's Changed
