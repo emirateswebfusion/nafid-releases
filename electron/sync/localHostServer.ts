@@ -46,33 +46,26 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
 
 function extractItemId(item: any): string | null {
   if (!item || typeof item !== 'object') return null;
-  if (item.key) return String(item.key);
-  if (item.id) return String(item.id);
-  if (item.scrap_category_id) return String(item.scrap_category_id);
+  if (item.transaction_id) return String(item.transaction_id);
+  if (item.audit_id) return String(item.audit_id);
+  if (item.invoice_id) return String(item.invoice_id);
+  if (item.party_id) return String(item.party_id);
+  if (item.product_id) return String(item.product_id);
+  if (item.user_id) return String(item.user_id);
+  if (item.drawer_id) return String(item.drawer_id);
+  if (item.category_id) return String(item.category_id);
+  if (item.customer_id) return String(item.customer_id);
+  if (item.source_id) return String(item.source_id);
+  if (item.purchase_bill_id) return String(item.purchase_bill_id);
+  if (item.return_id) return String(item.return_id);
+  if (item.quotation_id) return String(item.quotation_id);
+  if (item.warranty_id) return String(item.warranty_id);
+  if (item.combo_id) return String(item.combo_id);
   if (item.grade_id) return String(item.grade_id);
   if (item.tier_id) return String(item.tier_id);
   if (item.pricing_id) return String(item.pricing_id);
-  if (item.entry_id) return String(item.entry_id);
-  if (item.ledger_id) return String(item.ledger_id);
-  if (item.scrap_transaction_id) return String(item.scrap_transaction_id);
-  if (item.bill_id) return String(item.bill_id);
-  if (item.purchase_bill_id) return String(item.purchase_bill_id);
-  if (item.drawer_id) return String(item.drawer_id);
-  if (item.cash_transaction_id) return String(item.cash_transaction_id);
-  if (item.cash_category_id) return String(item.cash_category_id);
-  if (item.customer_id) return String(item.customer_id);
-  if (item.loyalty_transaction_id) return String(item.loyalty_transaction_id);
-  if (item.source_id) return String(item.source_id);
-  if (item.payment_source_transaction_id) return String(item.payment_source_transaction_id);
-  if (item.combo_id) return String(item.combo_id);
-  if (item.quotation_id) return String(item.quotation_id);
-  if (item.return_id) return String(item.return_id);
-  if (item.warranty_id) return String(item.warranty_id);
-  for (const k of Object.keys(item)) {
-    if (k.endsWith('_id') && (typeof item[k] === 'string' || typeof item[k] === 'number')) {
-      return String(item[k]);
-    }
-  }
+  if (item.key) return String(item.key);
+  if (item.id) return String(item.id);
   return null;
 }
 

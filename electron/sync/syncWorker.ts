@@ -194,9 +194,8 @@ export function getSyncEndpoints(): SyncEndpoints {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (parsed.syncMode === 'LAN' && parsed.lanRole === 'PRIMARY') {
         return {
-          primaryUrl: `http://127.0.0.1:${parsed.lanPort || 3888}`,
-          primaryRoute: 'LAN',
-          disabled: true,
+          primaryUrl: defaultCloud,
+          primaryRoute: 'CLOUD',
         };
       }
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
@@ -1085,6 +1084,14 @@ function setMeta(key: string, value: string) {
 // cursor (or with identical timestamps) are re-fetched and reconciled idempotently.
 function replaySince(cursor: string | null): string | null {
   if (!cursor) return null;
+  try {
+    const raw = cursor.includes('Z') || cursor.includes('+') ? cursor : cursor.replace(' ', 'T') + 'Z';
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      d.setSeconds(d.getSeconds() - CURSOR_REPLAY_SECONDS);
+      return toSqliteDate(d);
+    }
+  } catch {}
   return cursor;
 }
 
