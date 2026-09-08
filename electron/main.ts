@@ -3713,18 +3713,23 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
   }
 });
 
+const HARDWARE_SETTING_KEYS = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
+
 ipcMain.removeHandler('settings:set');
 ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant_id: string; key: string; value: any }) => {
   try {
     const db = getDb();
+    const isHardwareKey = HARDWARE_SETTING_KEYS.includes(key);
+    const syncStatus = isHardwareKey ? 'LOCAL' : 'PENDING';
+
     db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
-      VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP) 
+      VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) 
       ON CONFLICT(tenant_id, key) DO UPDATE SET 
         value = EXCLUDED.value, 
-        sync_status = 'PENDING',
+        sync_status = EXCLUDED.sync_status,
         updated_at = CURRENT_TIMESTAMP
-    `).run(tenant_id || 'global', key, JSON.stringify(value));
+    `).run(tenant_id || 'global', key, JSON.stringify(value), syncStatus);
 
     if (key === 'network_sync_config' && value && typeof value === 'object') {
       const { startLocalHostServer, stopLocalHostServer } = await import('./sync/localHostServer.js');

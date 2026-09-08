@@ -180,6 +180,7 @@ export interface SyncEndpoints {
   fallbackUrl?: string;
   primaryRoute: 'LAN' | 'CLOUD';
   fallbackRoute?: 'CLOUD';
+  disabled?: boolean;
 }
 
 export function getSyncEndpoints(): SyncEndpoints {
@@ -191,6 +192,13 @@ export function getSyncEndpoints(): SyncEndpoints {
     const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (parsed.syncMode === 'LAN' && parsed.lanRole === 'PRIMARY') {
+        return {
+          primaryUrl: `http://127.0.0.1:${parsed.lanPort || 3888}`,
+          primaryRoute: 'LAN',
+          disabled: true,
+        };
+      }
       if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'SECONDARY' && parsed.lanHostIp) {
         const isHybrid = parsed.syncMode === 'HYBRID';
         return {
@@ -210,8 +218,35 @@ export function getSyncEndpoints(): SyncEndpoints {
   };
 }
 
+export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'LAN' | 'CLOUD' }> {
+  const endpoints = getSyncEndpoints();
+  if (endpoints.disabled) return { ok: false };
+  try {
+    const res = await fetch(endpoints.primaryUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(2000) });
+    if (res.ok) return { ok: true, route: endpoints.primaryRoute };
+  } catch {}
+
+  if (endpoints.fallbackUrl) {
+    try {
+      const res = await fetch(endpoints.fallbackUrl + '/health', { method: 'GET', signal: AbortSignal.timeout(3000) });
+      if (res.ok) return { ok: true, route: endpoints.fallbackRoute };
+    } catch {}
+  }
+  return { ok: false };
+}
+
 function getCloudApiBase() {
   return getSyncEndpoints().primaryUrl;
+}
+
+export function getSyncTargetLabel(): string {
+  return currentActiveRoute === 'LAN' ? 'Local Wi-Fi Host (LAN)' : 'Cloud API';
+}
+
+function getRouteTag(): string {
+  if (currentActiveRoute === 'LAN') return `[Local LAN Sync - ${localTimestamp()}]`;
+  if (currentActiveRoute === 'CLOUD') return `[Cloud API Sync - ${localTimestamp()}]`;
+  return `[Local Sync - ${localTimestamp()}]`;
 }
 
 async function fetchWithFallback(
@@ -406,6 +441,11 @@ export async function triggerUrgentInvoiceSync(): Promise<void> {
   const { jwt_token, tenant_id } = config;
   if (isJwtExpired(jwt_token)) return;
 
+  const conn = await checkSyncConnectivity();
+  if (!conn.ok) {
+    return;
+  }
+
   urgentInvoiceSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority invoice push/pull running...');
@@ -433,6 +473,11 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
   if (!config) return;
   const { jwt_token, tenant_id } = config;
   if (isJwtExpired(jwt_token)) return;
+
+  const conn = await checkSyncConnectivity();
+  if (!conn.ok) {
+    return;
+  }
 
   urgentQuotationSyncInProgress = true;
   try {
@@ -464,17 +509,24 @@ export async function triggerUrgentCashSync(): Promise<void> {
   const { jwt_token, tenant_id } = config;
   if (isJwtExpired(jwt_token)) return;
 
+  const conn = await checkSyncConnectivity();
+  if (!conn.ok) {
+    return;
+  }
+
   urgentCashSyncInProgress = true;
   try {
     console.log('[SyncWorker] Express priority cash push/pull running...');
     await syncCashDrawer(jwt_token, tenant_id);
     await syncCashTransactions(jwt_token, tenant_id);
+    await syncCashierAuditLog(jwt_token, tenant_id);
     await syncCashCategories(jwt_token, tenant_id);
     await syncPaymentSources(jwt_token, tenant_id);
     await syncPaymentSourceTransactions(jwt_token, tenant_id);
 
     await pullCashDrawer(jwt_token, tenant_id);
     await pullCashTransactions(jwt_token, tenant_id);
+    await pullCashierAuditLog(jwt_token, tenant_id);
     await pullCashCategories(jwt_token, tenant_id);
     await pullPaymentSources(jwt_token, tenant_id);
     await pullPaymentSourceTransactions(jwt_token, tenant_id);
@@ -605,6 +657,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(9, sender, undefined, totalRecords); await syncPurchaseBills(jwt_token, tenant_id);
         notifyProgress(10, sender, undefined, totalRecords); await syncCashDrawer(jwt_token, tenant_id);
         notifyProgress(11, sender, undefined, totalRecords); await syncCashTransactions(jwt_token, tenant_id);
+        notifyProgress(11.1, sender, undefined, totalRecords); await syncCashierAuditLog(jwt_token, tenant_id);
         notifyProgress(12, sender, undefined, totalRecords); await syncCashCategories(jwt_token, tenant_id);
         notifyProgress(12.1, sender, undefined, totalRecords); await syncReturns(jwt_token, tenant_id);
         notifyProgress(12.2, sender, undefined, totalRecords); await syncPaymentSources(jwt_token, tenant_id);
@@ -633,6 +686,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
           { run: () => pullPurchaseBills(jwt_token, tenant_id) },
           { run: () => pullCashDrawer(jwt_token, tenant_id) },
           { run: () => pullCashTransactions(jwt_token, tenant_id) },
+          { run: () => pullCashierAuditLog(jwt_token, tenant_id) },
           { run: () => pullCashCategories(jwt_token, tenant_id) },
           { run: () => pullReturns(jwt_token, tenant_id) },
           { run: () => pullPaymentSources(jwt_token, tenant_id) },
@@ -937,10 +991,17 @@ async function syncInvoices(token: string, tenantId: string) {
   console.log(`[SyncWorker] Pushed ${totalSynced} invoices to cloud.`);
 }
 
+const HARDWARE_SETTING_KEYS = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
+
 // ── Settings Sync (Edge → Cloud) ─────────────────────────────────────────────
 async function syncSettings(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  try {
+    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE tenant_id = ? AND key IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config') AND sync_status = 'PENDING'`).run(tenantId);
+  } catch (e) {}
+
+  const pending = (db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[])
+    .filter((row: any) => !HARDWARE_SETTING_KEYS.includes(row.key));
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} settings to cloud...`);
@@ -2288,15 +2349,12 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     'shop_name', 'shop_phone', 'shop_address', 'shop_gstin', 'shop_state',
     'upi_id', 'show_upi_qr', 'show_product_offers',
     'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
-    'price_coding', 'barcode_printer_config', 'receipt_printer_config',
-    'a4_printer_config', 'scale_config',
+    'price_coding',
     'print_format', 'label_code_type',
     'terminal_code', 'invoice_counter_config',
     'three_invoice_series', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
     'isDomainConfirmed',
   ];
-
-  const localStmt = db.prepare(`SELECT key, value FROM settings WHERE tenant_id = ? AND key = ?`);
 
   const upsert = db.prepare(`
     INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
@@ -2322,33 +2380,10 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
         for (const s of settings) {
           let valueToSave = s.value;
 
-          if (s.key === 'barcode_printer_config' || s.key === 'receipt_printer_config') {
-            const localData = localStmt.get(tenantId, s.key) as any;
-            if (localData && localData.value) {
-              try {
-                const localObj = JSON.parse(localData.value);
-                if (typeof valueToSave === 'string') {
-                  let cloudObj: any;
-                  try {
-                    cloudObj = JSON.parse(valueToSave);
-                  } catch {
-                    cloudObj = { type: valueToSave };
-                  }
-                  if (localObj.deviceName) cloudObj.deviceName = localObj.deviceName;
-                  valueToSave = JSON.stringify(cloudObj);
-                } else if (typeof valueToSave === 'object') {
-                  if (localObj.deviceName) valueToSave.deviceName = localObj.deviceName;
-                  valueToSave = JSON.stringify(valueToSave);
-                }
-              } catch(e) {}
-            } else {
-              if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
-            }
-          } else {
-            if (typeof valueToSave === 'object') valueToSave = JSON.stringify(valueToSave);
-            else if (s.key === 'label_code_type' && (valueToSave === 'barcode' || valueToSave === 'qrcode')) {
-              valueToSave = JSON.stringify(valueToSave);
-            }
+          if (typeof valueToSave === 'object') {
+            valueToSave = JSON.stringify(valueToSave);
+          } else if (s.key === 'label_code_type' && (valueToSave === 'barcode' || valueToSave === 'qrcode')) {
+            valueToSave = JSON.stringify(valueToSave);
           }
 
           if (typeof valueToSave !== 'string') valueToSave = String(valueToSave);
@@ -2614,6 +2649,29 @@ async function syncCashCategories(token: string, tenantId: string) {
   }
 }
 
+// ── Cashier Audit Log Sync (Edge → Cloud) ───────────────────────────────────────
+async function syncCashierAuditLog(token: string, tenantId: string) {
+  const db = getDb();
+  const pending = db.prepare(`SELECT * FROM cashier_audit_log WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+
+  if (pending.length === 0) return;
+  console.log(`[SyncWorker] Pushing ${pending.length} cashier audit log records to cloud...`);
+
+  const updateStmt = db.prepare(`UPDATE cashier_audit_log SET sync_status = 'SYNCED' WHERE audit_id = ? AND tenant_id = ?`);
+
+  for (let i = 0; i < pending.length; i += BATCH_SIZE) {
+    const batch = pending.slice(i, i + BATCH_SIZE);
+    const synced = await pushBatch(
+      `${getCloudApiBase()}/api/sync/cashier_audit_log`,
+      token, batch, 'cashier_audit_log', `Cashier Audit Log batch ${Math.floor(i / BATCH_SIZE) + 1}`,
+    );
+    if (synced.length > 0) {
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      tx(synced);
+    }
+  }
+}
+
 let lastCashDrawerHash = '';
 
 // ── Pull Cash Drawer (Cloud → Edge) ─────────────────────────────────────────────
@@ -2622,6 +2680,8 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
   let hasContentChanged = false;
 
   const selectExisting = db.prepare(`SELECT drawer_id, sync_status FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND business_date = ?)`);
+  const updateTxDrawerId = db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
+  const updateAuditDrawerId = db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
   const updateByDrawerId = db.prepare(`
     UPDATE cash_drawer SET
       opening_balance = @opening_balance, cash_sales = @cash_sales, cash_in = @cash_in, cash_out = @cash_out,
@@ -2681,10 +2741,14 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
           try {
+            const cleanDate = typeof r.business_date === 'string'
+              ? r.business_date.slice(0, 10)
+              : (r.business_date ? new Date(r.business_date).toISOString().slice(0, 10) : localDate());
+
             const drawerData = {
               drawer_id: r.drawer_id,
               tenant_id: tenantId,
-              business_date: r.business_date,
+              business_date: cleanDate,
               opening_balance: r.opening_balance ?? 0,
               cash_sales: r.cash_sales ?? 0,
               cash_in: r.cash_in ?? 0,
@@ -2704,11 +2768,13 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
               updated_at: toSqliteDate(r.updated_at),
             };
 
-            const existing = selectExisting.get(r.drawer_id, tenantId, r.business_date) as any;
+            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate) as any;
             if (existing) {
               if (existing.drawer_id === r.drawer_id) {
                 updateByDrawerId.run(drawerData);
               } else {
+                updateTxDrawerId.run(r.drawer_id, existing.drawer_id, tenantId);
+                updateAuditDrawerId.run(r.drawer_id, existing.drawer_id, tenantId);
                 updateByDate.run(drawerData);
               }
             } else {
@@ -2799,6 +2865,68 @@ async function pullCashTransactions(token: string, tenantId: string): Promise<bo
     console.log(`[SyncWorker] Pulled ${result.count} cash transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash transactions failed.');
+  }
+  return result.hasChanged && result.count > 0;
+}
+
+// ── Pull Cashier Audit Log (Cloud → Edge) ───────────────────────────────────────
+async function pullCashierAuditLog(token: string, tenantId: string): Promise<boolean> {
+  const db = getDb();
+
+  const upsert = db.prepare(`
+    INSERT INTO cashier_audit_log (
+      audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, performed_at, sync_status, created_at
+    ) VALUES (
+      @audit_id, @tenant_id, @drawer_id, @action, @details, @performed_by, @performed_by_name, @performed_at, 'SYNCED', @created_at
+    )
+    ON CONFLICT(audit_id) DO UPDATE SET
+      drawer_id = excluded.drawer_id,
+      action = excluded.action,
+      details = excluded.details,
+      performed_by = excluded.performed_by,
+      performed_by_name = excluded.performed_by_name,
+      performed_at = excluded.performed_at,
+      sync_status = 'SYNCED'
+    WHERE cashier_audit_log.sync_status != 'PENDING'
+  `);
+
+  const result = await pullPaginated({
+    token,
+    tenantId,
+    table: 'cashier_audit_log',
+    urlPath: '/api/sync/cashier_audit_log',
+    label: 'cashier audit log',
+    tsColumn: 'created_at',
+    onProgress: (fetched) => notifyPullProgress('cashier audit log', fetched),
+    processPage: (rows) => {
+      const tx = db.transaction((logs: any[]) => {
+        for (const l of logs) {
+          try {
+            upsert.run({
+              audit_id: l.audit_id,
+              tenant_id: tenantId,
+              drawer_id: l.drawer_id || null,
+              action: l.action,
+              details: l.details ? (typeof l.details === 'object' ? JSON.stringify(l.details) : l.details) : null,
+              performed_by: l.performed_by || null,
+              performed_by_name: l.performed_by_name || null,
+              performed_at: toSqliteDate(l.performed_at),
+              created_at: toSqliteDate(l.created_at),
+            });
+          } catch (e: any) {
+            console.error('[SyncWorker] Error pulling cashier audit log:', e.message);
+          }
+        }
+      });
+      tx(rows);
+      return reconcilePending(db, 'cashier_audit_log', 'audit_id', rows);
+    },
+  });
+
+  if (result.hasChanged && result.count > 0) {
+    console.log(`[SyncWorker] Pulled ${result.count} cashier audit log entries from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+  } else if (result.failed) {
+    console.error('[SyncWorker] Pull cashier audit log failed.');
   }
   return result.hasChanged && result.count > 0;
 }

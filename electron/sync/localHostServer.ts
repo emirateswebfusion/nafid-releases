@@ -1,6 +1,11 @@
 import http from 'node:http';
 import { getDb } from '../db/localDb.js';
 
+function localTimestamp(d: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
 let server: http.Server | null = null;
 let currentPort: number = 3888;
 
@@ -211,7 +216,11 @@ export function startLocalHostServer(port: number = 3888) {
         if (req.method === 'POST') {
           const body = await parseJsonBody(req);
           const key = body[endpointName] ? endpointName : (body[tableName] ? tableName : Object.keys(body)[0]);
-          const items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
+          let items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
+          if (tableName === 'settings') {
+            const hwKeys = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
+            items = items.filter((i: any) => !hwKeys.includes(i.key));
+          }
           const synced = upsertTableRows(db, tableName, items);
           return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
         }
@@ -230,6 +239,12 @@ export function startLocalHostServer(port: number = 3888) {
             }
           } else if (tableName === 'products') {
             query += ` WHERE is_deleted = 0`;
+            if (since && meta?.allCols.includes('updated_at')) {
+              query += ` AND updated_at > ?`;
+              params.push(since);
+            }
+          } else if (tableName === 'settings') {
+            query += ` WHERE key NOT IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config')`;
             if (since && meta?.allCols.includes('updated_at')) {
               query += ` AND updated_at > ?`;
               params.push(since);
@@ -288,11 +303,11 @@ export function startLocalHostServer(port: number = 3888) {
   });
 
   server.listen(port, '0.0.0.0', () => {
-    console.log(`[LocalHostServer] Local LAN Host Server running on http://0.0.0.0:${port}`);
+    console.log(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server active and listening on http://0.0.0.0:${port}`);
   });
 
   server.on('error', (err: any) => {
-    console.error(`[LocalHostServer] Server error:`, err.message);
+    console.error(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server error:`, err.message);
     if (server) {
       try { server.close(); } catch {}
       server = null;
@@ -304,6 +319,6 @@ export function stopLocalHostServer() {
   if (server) {
     server.close();
     server = null;
-    console.log('[LocalHostServer] Local LAN Host Server stopped.');
+    console.log(`[LocalHostServer] [${localTimestamp()}] [Local LAN Host] Server stopped.`);
   }
 }

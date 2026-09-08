@@ -91,6 +91,18 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    const refresh = () => { load(); };
+    const unsubscribeSync = (window.electronAPI as any)?.onSyncDataUpdated?.(refresh);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('checkout:completed', refresh);
+    return () => {
+      if (typeof unsubscribeSync === 'function') unsubscribeSync();
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('checkout:completed', refresh);
+    };
+  }, [load]);
+
   const handleCollectPayment = async (invoiceId: string) => {
     if (!tenantId || !userId) return;
     setCollectPaymentSaving(true);
