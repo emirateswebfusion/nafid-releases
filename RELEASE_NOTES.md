@@ -1,3 +1,10 @@
+# Vendora v1.5.50 Release Notes
+
+## What's Changed
+- Enhanced SQLite database transaction safety in `localDb`
+- Improved main process IPC event handling and background sync worker stability
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.49...v1.5.50
+
 # Vendora v1.5.49 Release Notes
 
 ## What's Changed
