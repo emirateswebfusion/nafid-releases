@@ -340,6 +340,28 @@ function App() {
     const handleOpenPurchaseBillManager = () => { if (canOpen('purchase_bills')) setShowPurchaseBillManager(true); };
     const handleOpenCustomersPage = () => { if (canOpen('customers')) setShowCustomersPage(true); };
     const handleOpenPaymentsPage = () => { if (canOpen('payments')) setShowPaymentsPage(true); };
+    const handleOpenNewQuotation = () => {
+      if (!canOpen('quotations')) return;
+      useCartStore.getState().setRole('BILLER');
+      setShowQuotationManager(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowSalesHistory(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowPaymentsPage(false);
+      setShowCashierSettlement(false);
+      setRestrictedActivePage('BILLING');
+    };
+
     const handleOpenQuotationEdit = () => {
       if (!canOpen('quotations')) return;
       useCartStore.getState().setRole('BILLER');
@@ -355,7 +377,11 @@ function App() {
       setShowScrapManager(false);
       setShowWarrantyManager(false);
       setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
       setShowPaymentsPage(false);
+      setShowCashierSettlement(false);
+      setRestrictedActivePage('BILLING');
     };
 
     // Close all overlays and navigate to BillingPage in return mode
@@ -378,6 +404,7 @@ function App() {
       setShowCustomersPage(false);
       setShowPaymentsPage(false);
       setShowCashierSettlement(false);
+      setRestrictedActivePage('BILLING');
     };
 
     // Close all overlays and navigate to BillingPage in scrap edit mode
@@ -403,6 +430,7 @@ function App() {
       setShowCustomersPage(false);
       setShowPaymentsPage(false);
       setShowCashierSettlement(false);
+      setRestrictedActivePage('BILLING');
     };
 
     const handleOpenEditBill = () => {
@@ -423,6 +451,7 @@ function App() {
       setShowCustomersPage(false);
       setShowPaymentsPage(false);
       setShowCashierSettlement(false);
+      setRestrictedActivePage('BILLING');
     };
 
     const handleOpenComboManager = () => setShowComboManager(true);
@@ -445,6 +474,7 @@ function App() {
     window.addEventListener('open-customers-page', handleOpenCustomersPage);
     window.addEventListener('open-payments-page', handleOpenPaymentsPage);
     window.addEventListener('open-cashier-settlement', handleOpenCashierSettlement);
+    window.addEventListener('open-new-quotation', handleOpenNewQuotation);
     window.addEventListener('open-quotation-edit', handleOpenQuotationEdit);
     window.addEventListener('open-return-mode', handleOpenReturnMode);
     window.addEventListener('edit-scrap-invoice', handleOpenScrapEdit);
@@ -483,6 +513,7 @@ function App() {
       window.removeEventListener('open-customers-page', handleOpenCustomersPage);
       window.removeEventListener('open-payments-page', handleOpenPaymentsPage);
       window.removeEventListener('open-cashier-settlement', handleOpenCashierSettlement);
+      window.removeEventListener('open-new-quotation', handleOpenNewQuotation);
       window.removeEventListener('open-quotation-edit', handleOpenQuotationEdit);
       window.removeEventListener('open-return-mode', handleOpenReturnMode);
       window.removeEventListener('edit-scrap-invoice', handleOpenScrapEdit);

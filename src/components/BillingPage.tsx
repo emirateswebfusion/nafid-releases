@@ -16,7 +16,7 @@ import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
-import { useTabStore } from '../store/tabStore';
+import { useTabStore, type TabSnapshot } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { loadFeatureFlags } from '../featureFlags';
@@ -700,10 +700,45 @@ export function BillingPage() {
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
+
+    const isPendingNewQuotation = localStorage.getItem('pendingNewQuotation') === 'true';
+    if (isPendingNewQuotation) {
+      localStorage.removeItem('pendingNewQuotation');
+    }
+    const editQ = localStorage.getItem('editQuotationData');
+    const isQActive = isPendingNewQuotation || isQuotationMode || Boolean(editQ);
+
     useTabStore.setState({ tabs: [], activeTabId: '' });
 
     tabCounter.current++;
-    addTab(undefined, `Bill ${tabCounter.current}`);
+    if (isQActive) {
+      useCartStore.getState().setQuotationMode(true);
+      const snapshot: TabSnapshot = {
+        items: [],
+        invoiceType: 'BILL_OF_SUPPLY',
+        discountType: 'FIXED',
+        discountValue: 0,
+        customerState: 'KL',
+        scrapDeduction: 0,
+        scrapInvoiceNumber: '',
+        returnDeduction: 0,
+        returnInvoiceNumber: '',
+        isQuotationMode: true,
+        isReturnMode: false,
+        isScrapMode: false,
+        returnRefundMethod: 'ADJUST_BILL',
+        editingQuotationId: null,
+        editingQuotationNumber: null,
+        editingInvoiceId: null,
+        editingInvoiceNumber: null,
+        editingInvoiceRole: null,
+        pendingScrapInvoiceToEdit: null,
+      };
+      addTab(snapshot, `New Quote`);
+      reserveQuotationNumberForTab(true);
+    } else {
+      addTab(undefined, `Bill ${tabCounter.current}`);
+    }
     useCartStore.getState().setEditingInvoice(null, null, null);
   }, []);
 
@@ -1004,6 +1039,9 @@ export function BillingPage() {
   // their mode via events fired after remount.
   useEffect(() => {
     return () => {
+      if (localStorage.getItem('pendingNewQuotation') === 'true' || localStorage.getItem('editQuotationData') || localStorage.getItem('editBillData')) {
+        return;
+      }
       useCartStore.getState().setReturnMode(false);
       useCartStore.getState().setQuotationMode(false);
     };
@@ -2277,6 +2315,7 @@ export function BillingPage() {
   // Listen for open-new-quotation event
   useEffect(() => {
     const handler = async () => {
+      localStorage.removeItem('pendingNewQuotation');
       clearCart();
       setReturnMode(false);
       setIsScrapMode(false);
@@ -2306,9 +2345,13 @@ export function BillingPage() {
       }, 100);
     };
 
+    if (localStorage.getItem('pendingNewQuotation') === 'true') {
+      handler();
+    }
+
     window.addEventListener('open-new-quotation', handler);
     return () => window.removeEventListener('open-new-quotation', handler);
-  }, [reserveQuotationNumberForTab]);
+  }, [clearCart, setReturnMode, setIsScrapMode, setEditingQuotation, setQuotationMode, updateActiveTab, syncActiveSnapshot, reserveQuotationNumberForTab]);
 
   // Past bill selection: load selected invoice into cart for editing
   const handleSelectPastBill = async (invoice: any) => {

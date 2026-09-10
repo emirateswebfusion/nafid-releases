@@ -116,7 +116,8 @@ function applySnapshotToCartStore(snapshot: TabSnapshot) {
   });
 }
 
-function resetCartStore() {
+function resetCartStore(preserveModes = false) {
+  const currentCartState = useCartStore.getState();
   useCartStore.setState({
     items: [],
     invoiceType: 'BILL_OF_SUPPLY',
@@ -127,9 +128,9 @@ function resetCartStore() {
     scrapInvoiceNumber: '',
     returnDeduction: 0,
     returnInvoiceNumber: '',
-    isQuotationMode: false,
-    isReturnMode: false,
-    isScrapMode: false,
+    isQuotationMode: preserveModes ? currentCartState.isQuotationMode : false,
+    isReturnMode: preserveModes ? currentCartState.isReturnMode : false,
+    isScrapMode: preserveModes ? currentCartState.isScrapMode : false,
     returnRefundMethod: 'ADJUST_BILL',
     editingQuotationId: null,
     editingQuotationNumber: null,
@@ -143,9 +144,13 @@ function resetCartStore() {
 function createDefaultTab(): Tab {
   const id = uuidv4();
   const activeTab = useTabStore?.getState?.()?.getActiveTab?.();
+  const currentCartState = useCartStore?.getState?.();
+  const isQuotationMode = currentCartState?.isQuotationMode || false;
+  const isReturnMode = currentCartState?.isReturnMode || false;
+  const isScrapMode = currentCartState?.isScrapMode || false;
   return {
     id,
-    title: 'New',
+    title: isQuotationMode ? 'New Quote' : isReturnMode ? 'Return' : isScrapMode ? 'Scrap' : 'New',
     snapshot: {
       items: [],
       invoiceType: 'BILL_OF_SUPPLY',
@@ -156,12 +161,12 @@ function createDefaultTab(): Tab {
       scrapInvoiceNumber: '',
       returnDeduction: 0,
       returnInvoiceNumber: '',
-      isQuotationMode: false,
-      isReturnMode: false,
-      isScrapMode: false,
+      isQuotationMode,
+      isReturnMode,
+      isScrapMode,
       returnRefundMethod: 'ADJUST_BILL',
-      editingQuotationId: null,
-      editingQuotationNumber: null,
+      editingQuotationId: currentCartState?.editingQuotationId || null,
+      editingQuotationNumber: currentCartState?.editingQuotationNumber || null,
       editingInvoiceId: null,
       editingInvoiceNumber: null,
       editingInvoiceRole: null,
@@ -208,7 +213,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     if (initialSnapshot) {
       tab.snapshot = initialSnapshot;
     } else {
-      resetCartStore();
+      resetCartStore(true);
     }
 
     set({ tabs: [...currentTabs, tab], activeTabId: tab.id });

@@ -108,6 +108,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     useCartStore.getState().setEditingQuotation(null, null);
     useCartStore.getState().setEditingInvoice(null, null, null);
     useCartStore.getState().setQuotationMode(true);
+    localStorage.setItem('pendingNewQuotation', 'true');
     useTabStore.getState().syncActiveSnapshot();
     window.dispatchEvent(new CustomEvent('open-new-quotation'));
     onClose();
