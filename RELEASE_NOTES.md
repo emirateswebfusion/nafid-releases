@@ -1,3 +1,10 @@
+# Vendora v1.5.53 Release Notes
+
+## What's Changed
+- Implemented session expiry modal, sync worker architecture, and related data management utilities
+- Enhanced application security, token validation, and multi-user session lifecycle handling
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.52...v1.5.53
+
 # Vendora v1.5.52 Release Notes
 
 ## What's Changed
