@@ -1,3 +1,10 @@
+# Vendora v1.5.54 Release Notes
+
+## What's Changed
+- Enhanced printer hardware integration and thermal print paper formatting in `printer.ts`
+- Optimized `localDb` SQLite query helpers and Electron main process IPC channels
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.53...v1.5.54
+
 # Vendora v1.5.53 Release Notes
 
 ## What's Changed
