@@ -745,8 +745,8 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       let dataUpdated = false;
       const db = getDb();
 
-      // One-time auto-heal: reset pull cursors so invalid local-time cursors are wiped and fresh UTC cursors take over
-      const healingKey = `utc_cursor_fix_v5:${tenant_id}`;
+      // One-time auto-heal: reset pull cursors so invalid local-time/truncated cursors are wiped and fresh exact-precision cursors take over
+      const healingKey = `utc_cursor_fix_v6:${tenant_id}`;
       if (!getMeta(healingKey)) {
         try {
           db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`).run(`pull_cursor:${tenant_id}:%`);
@@ -951,7 +951,7 @@ async function syncPricingTiers(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/pricing_tiers`,
+      '/api/sync/pricing_tiers',
       token,
       tiers,
       'pricing_tiers',
@@ -982,7 +982,7 @@ async function syncProductPricing(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/product_pricing`,
+      '/api/sync/product_pricing',
       token,
       pricing,
       'product_pricing',
@@ -1023,7 +1023,7 @@ async function syncProducts(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/products`,
+      '/api/sync/products',
       token,
       products,
       'products',
@@ -1092,7 +1092,7 @@ async function syncInvoices(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/invoices`,
+      '/api/sync/invoices',
       token,
       invoicesWithItems,
       'invoices',
@@ -1139,7 +1139,7 @@ async function syncSettings(token: string, tenantId: string) {
   console.log(`[SyncWorker] Pushing ${pending.length} settings to ${getSyncTargetLabel()}...`);
 
   const synced = await pushBatch(
-    '/api/sync/settings`,
+    '/api/sync/settings',
     token,
     pending,
     'settings',
@@ -1223,14 +1223,7 @@ function setMeta(key: string, value: string) {
 // cursor (or with identical timestamps) are re-fetched and reconciled idempotently.
 function replaySince(cursor: string | null): string | null {
   if (!cursor) return null;
-  try {
-    const raw = cursor.includes('Z') || cursor.includes('+') ? cursor : cursor.replace(' ', 'T') + 'Z';
-    const d = new Date(raw);
-    if (!isNaN(d.getTime())) {
-      return d.toISOString();
-    }
-  } catch {}
-  return cursor;
+  return cursor.trim();
 }
 
 // Shared progress context for the parallel pull phase (set by runSyncCycle).
@@ -1315,9 +1308,8 @@ async function pullPaginated(opts: {
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;
       if (ts) {
-        const d = new Date(ts);
-        const isoTs = !isNaN(d.getTime()) ? d.toISOString() : String(ts);
-        if (!maxTs || isoTs > maxTs) maxTs = isoTs;
+        const rawTs = String(ts).trim();
+        if (!maxTs || rawTs > maxTs) maxTs = rawTs;
       }
 
       // Create clean row signature (ignoring volatile server timestamps)
@@ -1337,15 +1329,16 @@ async function pullPaginated(opts: {
   console.log(`[SyncWorker][pull:${opts.table}] count=${count} reconciled=${reconciled} failed=${failed} since=${since || 'FULL'}`);
 
   if (count > 0) {
-    // ALWAYS treat any fetched rows as a change that warrants notifying the UI.
-    // The old hash-comparison logic was suppressing notifications when the same
-    // data was pulled twice, leaving the React UI stale even though the data IS
-    // in SQLite. The DB query is cheap; the render cost of a no-op re-fetch is
-    // negligible compared to missing data.
-    hasChanged = true;
     const combinedHash = fetchedRowSignatures.join('|');
-    tableContentHashes[opts.table] = combinedHash;
-    console.log(`[SyncWorker][pull:${opts.table}] ✅ ${count} rows fetched → marking hasChanged=true`);
+    const previousHash = tableContentHashes[opts.table];
+    if (previousHash && previousHash === combinedHash && reconciled === 0) {
+      console.log(`[SyncWorker][pull:${opts.table}] ℹ️ ${count} rows fetched, but content matches previous pull → no net change.`);
+      hasChanged = false;
+    } else {
+      hasChanged = true;
+      tableContentHashes[opts.table] = combinedHash;
+      console.log(`[SyncWorker][pull:${opts.table}] ✅ ${count} rows fetched → marking hasChanged=true`);
+    }
   } else {
     console.log(`[SyncWorker][pull:${opts.table}] ℹ️ 0 rows fetched (delta is empty or table fully up-to-date)`);
   }
@@ -1355,7 +1348,7 @@ async function pullPaginated(opts: {
     setMeta(cursorKey(opts.tenantId, opts.table), newCursor);
     console.log(`[SyncWorker][pull:${opts.table}] Cursor updated to: ${newCursor}`);
   }
-  return { count, reconciled, failed, hasChanged: (hasChanged || reconciled > 0 || count > 0) && !failed };
+  return { count, reconciled, failed, hasChanged: (hasChanged || reconciled > 0) && !failed };
 }
 
 // Progress reporter shared by all pull wrappers during the parallel phase.
@@ -2046,7 +2039,7 @@ async function syncParties(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/parties`,
+      '/api/sync/parties',
       token,
       parties,
       'parties',
@@ -2180,7 +2173,7 @@ async function syncPartyLedger(token: string, tenantId: string) {
   for (let i = 0; i < pendingEntries.length; i += BATCH_SIZE) {
     const batch = pendingEntries.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/party-ledger`,
+      '/api/sync/party-ledger',
       token,
       batch,
       'entries',
@@ -2319,7 +2312,7 @@ async function syncScrapCategories(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/scrap_categories`,
+      '/api/sync/scrap_categories',
       token,
       categories,
       'scrap_categories',
@@ -2345,7 +2338,7 @@ async function syncScrapTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/scrap_transactions`,
+      '/api/sync/scrap_transactions',
       token,
       batch,
       'scrap_transactions',
@@ -2587,7 +2580,7 @@ async function syncPurchaseBills(token: string, tenantId: string) {
       return { ...bill, items };
     });
     const synced = await pushBatch(
-      '/api/sync/purchase_bills`,
+      '/api/sync/purchase_bills',
       token,
       enriched,
       'purchase_bills',
@@ -2751,7 +2744,7 @@ async function syncCashDrawer(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/cash_drawer`,
+      '/api/sync/cash_drawer',
       token, batch, 'cash_drawer', `Cash Drawer batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2774,7 +2767,7 @@ async function syncCashTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/cash_transactions`,
+      '/api/sync/cash_transactions',
       token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2797,7 +2790,7 @@ async function syncCashCategories(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/cash_categories`,
+      '/api/sync/cash_categories',
       token, batch, 'cash_categories', `Cash Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2820,7 +2813,7 @@ async function syncCashierAuditLog(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/cashier_audit_log`,
+      '/api/sync/cashier_audit_log',
       token, batch, 'cashier_audit_log', `Cashier Audit Log batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3270,7 +3263,7 @@ async function syncReturns(token: string, tenantId: string) {
       return { ...r, items };
     });
     const synced = await pushBatch(
-      '/api/sync/returns`,
+      '/api/sync/returns',
       token, enriched, 'returns', `Returns batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3375,7 +3368,7 @@ async function syncPaymentSources(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/payment_sources`,
+      '/api/sync/payment_sources',
       token, batch, 'payment_sources', `Payment Sources batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3398,7 +3391,7 @@ async function syncPaymentSourceTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      '/api/sync/payment_source_transactions`,
+      '/api/sync/payment_source_transactions',
       token, batch, 'payment_source_transactions', `Payment Source Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3557,7 +3550,7 @@ async function syncComboOffers(token: string, tenantId: string) {
     });
 
     const synced = await pushBatch(
-      '/api/sync/combo_offers`,
+      '/api/sync/combo_offers',
       token,
       combos,
       'combo_offers',
@@ -3689,7 +3682,7 @@ async function syncQuotations(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      '/api/sync/quotations`,
+      '/api/sync/quotations',
       token,
       quotationsWithItems,
       'quotations',

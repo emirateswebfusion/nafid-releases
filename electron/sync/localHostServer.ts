@@ -366,42 +366,6 @@ export function startLocalHostServer(port: number = 3888) {
         }
       }
 
-          const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);
-          if (orderCol) {
-            query += ` ORDER BY ${orderCol} DESC`;
-          }
-          query += ` LIMIT 500`;
-
-          try {
-            const rows = db.prepare(query).all(...params) as any[];
-
-            // Attach nested items for header-detail records
-            if (tableName === 'invoices') {
-              for (const inv of rows) {
-                inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
-              }
-            } else if (tableName === 'purchase_bills') {
-              for (const bill of rows) {
-                bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
-              }
-            } else if (tableName === 'returns') {
-              for (const ret of rows) {
-                ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
-              }
-            } else if (tableName === 'quotations') {
-              for (const q of rows) {
-                q.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(q.quotation_id);
-              }
-            }
-
-            return sendJson(res, 200, { [endpointName]: rows, [tableName]: rows, data: rows });
-          } catch (err: any) {
-            console.error(`[LocalHostServer] Error querying ${tableName} (${endpointName}):`, err.message);
-            return sendJson(res, 200, { [endpointName]: [], [tableName]: [], data: [] });
-          }
-        }
-      }
-
       return sendJson(res, 200, { status: 'ok', synced: [], synced_count: 0, failed_count: 0 });
     } catch (err: any) {
       console.error('[LocalHostServer] Request error:', err.message);

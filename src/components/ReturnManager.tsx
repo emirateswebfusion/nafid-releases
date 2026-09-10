@@ -142,16 +142,19 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         invoiceNumber: r.return_number,
         invoiceType: 'RETURN',
         date: formatBillDateTime(r.return_date || r.created_at || Date.now()),
-        items: items.map(item => ({
-          name: item.name,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          total: item.total,
-          billing_type: item.billing_type,
-          pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
-          pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
-          unit: item.unit || item.uom,
-        })),
+        items: items.map(item => {
+          const itemAny = item as any;
+          return {
+            name: item.name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total: item.total,
+            billing_type: itemAny.billing_type,
+            pieces_sold: itemAny.pieces_sold != null ? Number(itemAny.pieces_sold) : undefined,
+            pieces_override: itemAny.pieces_override != null ? Number(itemAny.pieces_override) : undefined,
+            unit: itemAny.unit || itemAny.uom,
+          };
+        }),
         subtotal: r.subtotal,
         tax: r.tax_total,
         discount: 0,
