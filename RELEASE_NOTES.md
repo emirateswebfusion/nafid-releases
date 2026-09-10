@@ -1,3 +1,10 @@
+# Vendora v1.5.52 Release Notes
+
+## What's Changed
+- Implemented local LAN sync server with automated SQLite row upserting and return management integration
+- Enhanced synchronization worker routines and modular management components for POS operations
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.51...v1.5.52
+
 # Vendora v1.5.51 Release Notes
 
 ## What's Changed
