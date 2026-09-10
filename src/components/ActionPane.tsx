@@ -153,6 +153,11 @@ export function ActionPane() {
               unit_price: ratePerPiece,
               total: itemTotal,
               brand: item.brand_manufacturer || undefined,
+              billing_type: item.billing_type,
+              pieces_sold: item.pieces_override != null ? Number(item.pieces_override) : undefined,
+              pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
+              pieces_per_kg: item.pieces_per_kg,
+              unit: item.unit || item.uom,
             };
           }),
           subtotal,

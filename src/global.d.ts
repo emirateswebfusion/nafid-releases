@@ -77,9 +77,9 @@ export interface IElectronAPI {
   onUpdateInfo: (callback: (info: any) => void) => void;
   onBarcodeScanned: (callback: (code: string) => void) => () => void;
   onScaleWeight: (callback: (weight: number) => void) => () => void;
-  onSyncDataUpdated: (callback: () => void) => void;
-  onSyncCycleComplete: (callback: () => void) => void;
-  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => void;
+  onSyncDataUpdated: (callback: () => void) => (() => void);
+  onSyncCycleComplete: (callback: () => void) => (() => void);
+  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD' | 'NONE') => void) => (() => void);
   onSyncProgress: (callback: (progress: SyncProgress) => void) => void;
   onTokenExpired: (callback: () => void) => void;
   dbDebugDumpInvoices: () => Promise<{ success: boolean; rows?: any[]; error?: string }>;

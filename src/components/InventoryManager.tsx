@@ -209,10 +209,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
   // filter state is preserved even though this effect runs only once.
   useEffect(() => {
     if (window.electronAPI) {
-      window.electronAPI.onSyncDataUpdated(() => {
+      const unsub = window.electronAPI.onSyncDataUpdated(() => {
         console.log('[InventoryManager] Data updated via sync. Auto-refreshing...');
         loadProducts(true);
       });
+      return () => unsub?.();
     }
   }, []);
 

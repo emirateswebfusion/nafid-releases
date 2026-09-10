@@ -443,6 +443,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
         quantity: Number(tx.quantity).toFixed(3),
         unit_price: Number(tx.rate),
         total: Number(tx.total_amount),
+        billing_type: 'WEIGHT',
       }));
 
       const totalAmount = invoiceDetailTxs.reduce((sum: number, tx: any) => sum + Number(tx.total_amount), 0);

@@ -68,8 +68,9 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
   isWeightHidden: boolean;
 } {
   const showWeightDetails = bs?.showWeightDetails !== false;
-  const isWeightProduct = item.billing_type === 'WEIGHT' || 
-                          item.unit === 'KG' || item.unit === 'Kg' || item.unit === 'kg' || item.unit === 'KGS' || item.unit === 'Kgs' ||
+  const uomLower = (item.unit || '').trim().toLowerCase();
+  const isWeightUnit = ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
+  const isWeightProduct = item.billing_type === 'WEIGHT' || isWeightUnit ||
                           (item.pieces_sold != null && item.pieces_sold > 0 && Number(item.quantity) !== Number(item.pieces_sold)) ||
                           (item.pieces_override != null && item.pieces_override > 0 && Number(item.quantity) !== Number(item.pieces_override));
   const isWeightHidden = !showWeightDetails && isWeightProduct;
@@ -78,7 +79,9 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
   let rateVal = item.unit_price;
 
   if (isWeightHidden) {
-    let pcs = item.pieces_override ?? 1;
+    let pcs = (item.pieces_override != null && item.pieces_override > 0)
+      ? item.pieces_override
+      : ((item.pieces_sold != null && item.pieces_sold > 0) ? item.pieces_sold : 1);
     if (pcs > 0) {
       rateVal = item.total / pcs;
     }
@@ -88,7 +91,7 @@ export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
     const numQty = Number(item.quantity);
     let rawQtyStr = isNaN(numQty)
       ? String(item.quantity)
-      : (isWeightProduct ? numQty.toFixed(3).replace(/\.0+$/, '') : String(numQty));
+      : (isWeightProduct ? numQty.toFixed(3).replace(/(\.\d*?[1-9])0+$|\.0+$/, '$1') : String(numQty));
 
     if (bs?.showPcsUnit) {
       qtyStr = `${rawQtyStr} PCS`;

@@ -4,8 +4,9 @@ import {
   Search, Package, X, Trash, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save,
   Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List,
-  UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote, Check, Layers
+  UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote, Check, Layers, Printer
 } from 'lucide-react';
+import { generatePurchaseBillHtml } from '../utils/invoiceHtmlGenerator';
 import { Select } from './ui/Select';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -335,6 +336,65 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
       } else {
         setStatusMessage({ text: 'Delete failed: ' + (res.error || ''), type: 'error' });
       }
+      setTimeout(() => setStatusMessage(null), 3000);
+    }
+  };
+
+  const handlePrintBill = async (billToPrint: PurchaseBill, itemsToPrint?: PurchaseBillItem[]) => {
+    try {
+      let items = itemsToPrint;
+      if (!items || items.length === 0) {
+        if (window.electronAPI) {
+          items = await window.electronAPI.dbGetPurchaseBillItems(billToPrint.purchase_bill_id);
+        }
+      }
+      if (!items) items = [];
+
+      let shopName = useAuthStore.getState().shopName || 'NAFID POS';
+      let shopAddress = '';
+      let shopPhone = '';
+      let shopGstin = '';
+
+      if (window.electronAPI?.settingsGet) {
+        const [sName, sAddr, sPh, sGstin] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+        ]);
+        if (sName) shopName = sName;
+        if (sAddr) shopAddress = sAddr;
+        if (sPh) shopPhone = sPh;
+        if (sGstin) shopGstin = sGstin;
+      }
+
+      const htmlContent = generatePurchaseBillHtml(
+        { shopName, shopAddress, shopPhone, shopGstin },
+        billToPrint,
+        items
+      );
+
+      if (window.electronAPI?.printA4Html) {
+        const res = await window.electronAPI.printA4Html(tenantId || 'global', htmlContent);
+        if (!res?.success) {
+          const pw = window.open('', '_blank');
+          if (pw) {
+            pw.document.write(htmlContent);
+            pw.document.close();
+            setTimeout(() => pw.print(), 500);
+          }
+        }
+      } else {
+        const pw = window.open('', '_blank');
+        if (pw) {
+          pw.document.write(htmlContent);
+          pw.document.close();
+          setTimeout(() => pw.print(), 500);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to print purchase bill:', err);
+      setStatusMessage({ text: 'Failed to print purchase bill', type: 'error' });
       setTimeout(() => setStatusMessage(null), 3000);
     }
   };
@@ -774,27 +834,34 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                       <div className="col-span-1 text-right">
                         <span className="text-sm font-black text-foreground">₹{Number(bill.total_amount).toFixed(2)}</span>
                       </div>
-                      <div className="col-span-1 flex items-center justify-center gap-1.5">
+                      <div className="col-span-1 flex items-center justify-center gap-1">
+                        <button
+                          onClick={e => { e.stopPropagation(); handlePrintBill(bill); }}
+                          className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-emerald-500 hover:bg-emerald-500/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                          title="Print Bill"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
                         <button
                           onClick={e => { e.stopPropagation(); handleEditBill(bill); }}
-                          className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                          className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-amber-500 hover:bg-amber-500/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                           title="Edit Bill"
                         >
-                          <Pencil className="w-4 h-4" />
+                          <Pencil className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); handleDelete(bill); }}
-                          className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                          className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                           title="Delete Bill"
                         >
-                          <Trash className="w-4 h-4" />
+                          <Trash className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={e => { e.stopPropagation(); handleViewBill(bill); }}
-                          className="w-9 h-9 flex items-center justify-center text-muted-foreground/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
+                          className="w-8 h-8 flex items-center justify-center text-muted-foreground/40 hover:text-primary hover:bg-primary/10 rounded-xl transition-all duration-150 cursor-pointer opacity-0 group-hover:opacity-100 shrink-0"
                           title="View Bill Details"
                         >
-                          <Eye className="w-4 h-4" />
+                          <Eye className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -1044,6 +1111,13 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
                 </div>
               </div>
               <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePrintBill(viewingBill, viewingBillItems)}
+                className="w-9 h-9 flex items-center justify-center text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 rounded-xl transition-all duration-150 cursor-pointer shrink-0 border border-emerald-500/20"
+                title="Print Purchase Bill"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
               <button
                 onClick={() => {
                   const bill = viewingBill;
@@ -1313,7 +1387,20 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               </div>
             </div>
 
-
+            {/* Modal Footer / Action Bar */}
+            <div className="shrink-0 px-8 py-4 border-t border-border/60 bg-muted/20 flex items-center justify-between">
+              <span className="text-xs text-muted-foreground font-medium">Bill Number: <strong className="text-foreground">{viewingBill.bill_number}</strong></span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => handlePrintBill(viewingBill, viewingBillItems)}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground font-bold text-xs shadow-sm hover:bg-primary/95 transition-all duration-200 active:scale-95 cursor-pointer"
+                >
+                  <Printer className="w-4 h-4" />
+                  <span>Print Purchase Bill</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -99,8 +99,8 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
       window.electronAPI.dbGetParties(tenantId),
       window.electronAPI.dbPaymentGetSources ? window.electronAPI.dbPaymentGetSources(tenantId) : Promise.resolve([]),
     ]);
-    if (d && !d.error && d.status === 'CLOSED') { setDrawer(null); }
-    else if (d && !d.error) { setDrawer(d); }
+    if (d && !d.error) { setDrawer(d); }
+    else { setDrawer(null); }
     if (Array.isArray(txs)) setTransactions(txs);
     if (Array.isArray(invs)) setPendingInvoices(invs);
     if (Array.isArray(pts)) setParties(pts);
@@ -115,10 +115,12 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
     const unsubscribeSync = (window.electronAPI as any)?.onSyncDataUpdated?.(refresh);
     window.addEventListener('focus', refresh);
     window.addEventListener('checkout:completed', refresh);
+    window.addEventListener('cashier:closed', refresh);
     return () => {
       if (typeof unsubscribeSync === 'function') unsubscribeSync();
       window.removeEventListener('focus', refresh);
       window.removeEventListener('checkout:completed', refresh);
+      window.removeEventListener('cashier:closed', refresh);
     };
   }, [load]);
 
@@ -152,7 +154,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   };
 
   useEffect(() => {
-    if (!drawer || !drawer.opening_balance) {
+    if (!drawer) {
       const timer = setTimeout(() => { if (!drawer) setShowOpeningBal(true); }, 500);
       return () => clearTimeout(timer);
     }
@@ -204,7 +206,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
       user_id: userId, user_name: userName || undefined,
     });
     setCloseSubmitting(false);
-    if (r.success) { setCloseResult(r); await load(); }
+    if (r.success) { setCloseResult(r); await load(); window.dispatchEvent(new Event('cashier:closed')); }
   };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {

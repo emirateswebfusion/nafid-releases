@@ -543,14 +543,42 @@ ipcMain.handle('app:checkForUpdates', async () => {
   }
 });
 
+// ── DEBUG: Sync State Diagnostic (remove after fixing) ─────────────────────
+ipcMain.handle('db:debugSyncState', (event, tenant_id: string) => {
+  try {
+    const db = getDb();
+    const tables = ['products', 'invoices', 'cash_transactions', 'cash_drawer', 'cashier_audit_log'];
+    const counts: Record<string, any> = {};
+    for (const t of tables) {
+      try {
+        const row = db.prepare(`SELECT COUNT(*) as total, SUM(CASE WHEN sync_status='SYNCED' THEN 1 ELSE 0 END) as synced, SUM(CASE WHEN sync_status='PENDING' THEN 1 ELSE 0 END) as pending FROM ${t} WHERE tenant_id = ?`).get(tenant_id) as any;
+        counts[t] = row;
+      } catch (e: any) { counts[t] = { error: e.message }; }
+    }
+    const cursors = db.prepare(`SELECT key, value FROM sync_meta WHERE key LIKE ?`).all(`pull_cursor:${tenant_id}:%`) as any[];
+    const isSyncActive = db.prepare(`SELECT value FROM sync_meta WHERE key = ?`).get(`cash_drawer_conflict_fix_v2:${tenant_id}`) as any;
+    console.log('[db:debugSyncState] Table counts:', JSON.stringify(counts, null, 2));
+    console.log('[db:debugSyncState] Pull cursors:', JSON.stringify(cursors, null, 2));
+    return { counts, cursors, healingFlagSet: !!isSyncActive };
+  } catch (e: any) {
+    console.error('[db:debugSyncState] Error:', e.message);
+    return { error: e.message };
+  }
+});
+
 ipcMain.handle('db:getProducts', (event, arg: any) => {
   try {
     const db = getDb();
     const tenantId = typeof arg === 'string' ? arg : arg?.tenant_id;
-    if (!tenantId) return [];
+    if (!tenantId) {
+      console.warn('[db:getProducts] Called with no tenant_id — returning []');
+      return [];
+    }
+
+    console.log(`[db:getProducts] Called — tenantId=${tenantId} arg=${JSON.stringify(arg)}`);
 
     if (typeof arg === 'string' || (!arg.limit && !arg.search && !arg.barcode && !arg.sortBy && !arg.filterDate && !arg.isGst && !arg.dateField)) {
-      return db.prepare(`
+      const rows = db.prepare(`
         SELECT p.*, pg.rate as grade_rate, pg.purchase_price as grade_purchase_price,
           COALESCE((
             SELECT SUM(pbi.quantity) 
@@ -566,6 +594,8 @@ ipcMain.handle('db:getProducts', (event, arg: any) => {
         WHERE p.tenant_id = ? AND p.is_deleted = 0 
         ORDER BY p.name COLLATE NOCASE ASC, p.product_id ASC
       `).all(tenantId);
+      console.log(`[db:getProducts] Full list query → ${rows.length} rows returned for tenant ${tenantId}`);
+      return rows;
     }
 
     const { limit, offset, search, sortBy, barcode, filterDate, isGst, dateField } = arg;
@@ -1977,7 +2007,7 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       const pm = (invoice.payment_method || '').toUpperCase();
       if (netRefund > 0 && (pm === 'CASH' || pm === 'SPLIT')) {
         const todayDate = localDate();
-        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(invoice.tenant_id || 'global', todayDate) as any;
+        const drawer = getOpenCashDrawer(db, invoice.tenant_id || 'global', todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();
           db.prepare(`
@@ -2624,7 +2654,7 @@ ipcMain.handle('db:applyInvoiceDiscount', (event, { invoice_id, discount_type, d
   }
 });
 
-ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string }) => {
+ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; limit?: number; offset?: number; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; only_user_invoices?: boolean }) => {
   try {
     const db = getDb();
     const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd } = filters || {};
@@ -2645,8 +2675,8 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     `;
     const params: any[] = [tenant_id];
 
-    // If Biller: strictly filter by their ID within the tenant
-    if (role === 'BILLER' && user_id) {
+    // Only filter by user_id if explicitly requested (e.g. only_user_invoices flag)
+    if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
       params.push(user_id);
     }
@@ -2692,6 +2722,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     }
 
     const results = db.prepare(query).all(...params);
+    console.log(`[db:getInvoices] Returned ${results.length} invoices for tenant_id=${tenant_id} filterDate=${filterDate||'any'} offset=${offset||0}`);
     return results;
   } catch (error: any) {
     console.error('[db:getInvoices] Error fetching invoices:', error);
@@ -2699,7 +2730,7 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
   }
 });
 
-ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string }) => {
+ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; tenant_id?: string; role?: string; search?: string; payment_method?: string; invoice_type?: string; filterDate?: string; filterDateEnd?: string; only_user_invoices?: boolean }) => {
   try {
     const db = getDb();
     const { user_id, tenant_id, role, search, payment_method, invoice_type, filterDate, filterDateEnd } = filters || {};
@@ -2722,7 +2753,7 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     `;
     const params: any[] = [tenant_id];
 
-    if (role === 'BILLER' && user_id) {
+    if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
       params.push(user_id);
     }
@@ -3077,7 +3108,7 @@ ipcMain.handle('db:createReturn', safeHandler((event, payload: {
 
     if (returnData.refund_method === 'CASH' && Number(returnData.grand_total) > 0) {
       const todayDate = localDate();
-      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(returnData.tenant_id, todayDate) as any;
+      const drawer = getOpenCashDrawer(db, returnData.tenant_id, todayDate);
       if (drawer) {
         const existingTx = db.prepare(`SELECT transaction_id FROM cash_transactions WHERE drawer_id = ? AND category = 'RETURN_REFUND' AND notes LIKE ?`).get(drawer.drawer_id, `%${returnData.return_number}%`);
         if (!existingTx) {
@@ -3713,14 +3744,29 @@ ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; 
   }
 });
 
-const HARDWARE_SETTING_KEYS = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
+const LOCAL_DEVICE_SETTING_KEYS = [
+  'terminal_code',
+  'invoice_counter_config',
+  'gst_b2b_invoice_counter_config',
+  'gst_b2c_invoice_counter_config',
+  'gst_invoice_counter_config',
+  'return_counter',
+  'scrap_invoice_counter',
+  'quotation_counter',
+  'barcode_printer_config',
+  'receipt_printer_config',
+  'a4_printer_config',
+  'scale_config',
+  'printer_config',
+  'network_sync_config'
+];
 
 ipcMain.removeHandler('settings:set');
 ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant_id: string; key: string; value: any }) => {
   try {
     const db = getDb();
-    const isHardwareKey = HARDWARE_SETTING_KEYS.includes(key);
-    const syncStatus = isHardwareKey ? 'LOCAL' : 'PENDING';
+    const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
+    const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
 
     db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
@@ -3877,7 +3923,7 @@ function getOrInitTerminalCode(db: any): string {
   }
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const code = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run('global', 'terminal_code', JSON.stringify(code));
+  db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES (?, ?, ?, 'LOCAL', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP`).run('global', 'terminal_code', JSON.stringify(code));
   return code;
 }
 
@@ -4137,7 +4183,7 @@ ipcMain.handle('db:addScrapTransaction', safeHandler((event, t) => {
 
       if (t.type === 'PURCHASE' && (paymentStatus === 'CASH' || paymentStatus === 'PAID') && Number(t.total_amount) > 0) {
         const todayDate = localDate();
-        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(t.tenant_id || 'global', todayDate) as any;
+        const drawer = getOpenCashDrawer(db, t.tenant_id || 'global', todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();
           db.prepare(`
@@ -5113,7 +5159,7 @@ ipcMain.handle('db:addPurchaseBill', safeHandler((event, payload: {
       // If CASH payment, deduct cash from current cash drawer
       if (paymentType === 'CASH' && Number(bill.total_amount) > 0) {
         const todayDate = localDate();
-        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(bill.tenant_id, todayDate) as any;
+        const drawer = getOpenCashDrawer(db, bill.tenant_id, todayDate);
         if (drawer) {
           const txnId = crypto.randomUUID();
           db.prepare(`
@@ -5458,6 +5504,15 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
 
 // ── Cash Drawer Helpers ───────────────────────────────────────────────────────
 
+function getOpenCashDrawer(db: any, tenantId: string, dateStr?: string): any {
+  const date = dateStr ? (typeof dateStr === 'string' ? dateStr.slice(0, 10) : localDate(new Date(dateStr))) : localDate();
+  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?) AND status = 'OPEN'`).get(tenantId, date, date, `${date}%`) as any;
+  if (!drawer) {
+    drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenantId) as any;
+  }
+  return drawer || null;
+}
+
 function getCashAmountFromInvoice(inv: any): number {
   if (!inv) return 0;
   const pm = (inv.payment_method || '').toUpperCase();
@@ -5497,11 +5552,10 @@ function adjustCashDrawerForInvoice(
     } catch {}
   }
 
-  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenantId, businessDate) as any;
+  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenantId, businessDate, businessDate, `${businessDate}%`) as any;
 
   if (!drawer) {
-    const todayStr = localDate();
-    drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenantId, todayStr) as any;
+    drawer = getOpenCashDrawer(db, tenantId, businessDate);
   }
 
   if (drawer) {
@@ -5541,9 +5595,12 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
   try {
     const db = getDb();
     const date = business_date ? (typeof business_date === 'string' ? business_date.slice(0, 10) : localDate(new Date(business_date))) : localDate();
-    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
-    if (!drawer && !business_date) {
+    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
+    if (!drawer) {
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
+    }
+    if (!drawer && !business_date) {
+      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
     }
     return drawer || null;
   } catch (error: any) {
@@ -5698,7 +5755,7 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
 
       if (payment_method === 'CASH' || (payment_method === 'SPLIT' && split_details?.cash)) {
         const date = localDate();
-        const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+        const drawer = getOpenCashDrawer(db, tenant_id, date);
         if (drawer) {
           const scrapD = Number(invoice.scrap_deduction) || 0;
           const returnD = Number(invoice.return_deduction) || 0;
@@ -5783,7 +5840,7 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
   try {
     const tx = db.transaction(() => {
       const date = localDate();
-      const drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ? AND status = 'OPEN'`).get(tenant_id, date) as any;
+      const drawer = getOpenCashDrawer(db, tenant_id, date);
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
       
       const transaction_id = crypto.randomUUID();
@@ -5837,6 +5894,11 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
 }) => {
   const db = getDb();
   try {
+    let expected = 0;
+    let actual = 0;
+    let cash_short = 0;
+    let cash_excess = 0;
+
     const tx = db.transaction(() => {
       const date = business_date ? (typeof business_date === 'string' ? business_date.slice(0, 10) : localDate(new Date(business_date))) : localDate();
       let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
@@ -5845,16 +5907,42 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
       }
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
-      const expected = Number(drawer.expected_closing);
-      const actual = Number(actual_cash);
+      const txSums = db.prepare(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
+          COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
+        FROM cash_transactions 
+        WHERE tenant_id = ? AND drawer_id = ?
+      `).get(tenant_id, drawer.drawer_id) as any;
+
+      const cashIn = Number(txSums?.total_in || 0);
+      const cashOut = Number(txSums?.total_out || 0);
+      const openingBal = Number(drawer.opening_balance || 0);
+      const cashSales = Number(drawer.cash_sales || 0);
+
+      expected = openingBal + cashSales + cashIn - cashOut;
+      actual = Number(actual_cash);
       const variance = actual - expected;
-      const cash_short = variance < 0 ? Math.abs(variance) : 0;
-      const cash_excess = variance > 0 ? variance : 0;
+      cash_short = variance < 0 ? Math.abs(variance) : 0;
+      cash_excess = variance > 0 ? variance : 0;
       
       db.prepare(`
-        UPDATE cash_drawer SET actual_cash = ?, cash_short = ?, cash_excess = ?, closing_remarks = ?, status = 'CLOSED', closed_by = ?, closed_at = CURRENT_TIMESTAMP, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
+        UPDATE cash_drawer SET 
+          cash_in = ?, 
+          cash_out = ?, 
+          current_cash = ?, 
+          expected_closing = ?, 
+          actual_cash = ?, 
+          cash_short = ?, 
+          cash_excess = ?, 
+          closing_remarks = ?, 
+          status = 'CLOSED', 
+          closed_by = ?, 
+          closed_at = CURRENT_TIMESTAMP, 
+          sync_status = 'PENDING', 
+          updated_at = CURRENT_TIMESTAMP
         WHERE drawer_id = ?
-      `).run(actual, cash_short, cash_excess, closing_remarks || null, user_id, drawer.drawer_id);
+      `).run(cashIn, cashOut, expected, expected, actual, cash_short, cash_excess, closing_remarks || null, user_id, drawer.drawer_id);
       
       db.prepare(`
         INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
@@ -5870,7 +5958,7 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
-    return { success: true };
+    return { success: true, expected_closing: expected, actual_cash: actual, cash_short, cash_excess };
   } catch (error: any) {
     console.error('[db:cashier:dayClosing]', error);
     return { success: false, error: error.message || 'Operation failed' };
@@ -5881,15 +5969,17 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
   try {
     const db = getDb();
     const date = localDate();
-    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
-    if (!drawer) {
-      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
+    const dateLike = `${date}%`;
+    let drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, date, date, dateLike, date) as any[];
+    if (!drawers || drawers.length === 0) {
+      drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1`).all(tenant_id) as any[];
     }
-    if (!drawer) {
-      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, date, `${date}%`);
+    const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
+    if (drawerIds.length === 0) {
+      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, date, dateLike, date);
     }
-    
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id = ? OR date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, drawer.drawer_id, date, `${date}%`);
+    const placeholders = drawerIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, date, dateLike, date);
   } catch (error: any) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };
@@ -5921,7 +6011,7 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
 ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
   try {
     const db = getDb();
-    const cleanDate = business_date ? business_date.split('T')[0] : '';
+    const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
     return db.prepare(`
       SELECT i.*, u.name as biller_name
@@ -5931,10 +6021,10 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
         AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
-        AND (date(i.updated_at) = ? OR date(i.created_at) = ? OR i.updated_at LIKE ? OR i.created_at LIKE ?)
+        AND (date(i.updated_at) = ? OR date(i.created_at) = ? OR i.updated_at LIKE ? OR i.created_at LIKE ? OR substr(i.updated_at, 1, 10) = ? OR substr(i.created_at, 1, 10) = ?)
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY i.updated_at DESC
-    `).all(tenant_id, cleanDate, cleanDate, dateLike, dateLike);
+    `).all(tenant_id, cleanDate, cleanDate, dateLike, dateLike, cleanDate, cleanDate);
   } catch (error: any) {
     console.error('[db:cashier:getDaySettlements]', error);
     return { error: 'Operation failed' };
@@ -5944,15 +6034,15 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
 ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_date }: { tenant_id: string; business_date: string }) => {
   try {
     const db = getDb();
-    const cleanDate = business_date ? business_date.split('T')[0] : '';
+    const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
-    const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).all(tenant_id, cleanDate, cleanDate, dateLike) as any[];
-    if (!drawers || drawers.length === 0) {
-      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, cleanDate, dateLike);
+    const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as any[];
+    const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
+    if (drawerIds.length === 0) {
+      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, cleanDate, dateLike, cleanDate);
     }
-    const drawerIds = drawers.map(d => d.drawer_id);
     const placeholders = drawerIds.map(() => '?').join(',');
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, cleanDate, dateLike);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate);
   } catch (error: any) {
     console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };

@@ -511,10 +511,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       window.electronAPI.dbCashierGetPendingInvoices({ tenant_id: tenantId, search: searchQuery || undefined }),
       window.electronAPI.dbCashierGetTransactions({ tenant_id: tenantId }),
     ]);
-    // Ignore any closed drawer for today — user must set a fresh opening balance
-    if (d && !d.error && d.status === 'CLOSED') {
-      setDrawer(null);
-    } else if (d && !d.error) {
+    if (d && !d.error) {
       setDrawer(d);
     } else {
       setDrawer(null);
@@ -626,7 +623,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       business_date: closingDate || undefined,
     });
     setCloseSubmitting(false);
-    if (r.success) { setCloseResult(r); await load(); }
+    if (r.success) { 
+      setCloseResult(r); 
+      await load(); 
+      window.dispatchEvent(new Event('checkout:completed'));
+      window.dispatchEvent(new Event('cashier:closed'));
+    }
   };
 
   const handleFormKeyDown = (e: React.KeyboardEvent<HTMLElement>) => {
@@ -2619,6 +2621,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         originalRate: item.originalRate,
                         discountLabel: item.discountLabel,
                         brand: item.brand_manufacturer || undefined,
+                        billing_type: item.billing_type,
+                        pieces_sold: item.pieces_sold != null ? Number(item.pieces_sold) : undefined,
+                        pieces_override: item.pieces_override != null ? Number(item.pieces_override) : undefined,
+                        unit: item.unit || item.uom,
                         isCombo: item.isCombo,
                         combo_items: item.combo_items,
                       })),

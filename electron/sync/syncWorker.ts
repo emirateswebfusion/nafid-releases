@@ -141,10 +141,13 @@ export function getSyncProgress(): { percent: number; label: string; recordsSync
   return currentSyncProgress;
 }
 
-function notifyRenderer() {
+function notifyRenderer(reason?: string) {
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
+    console.log(`[SyncWorker] 🔔 Notifying renderer (sync:data-updated)${reason ? ` — reason: ${reason}` : ''}`);
     win.webContents.send('sync:data-updated');
+  } else {
+    console.warn('[SyncWorker] ⚠️ No BrowserWindow found — renderer notification skipped!');
   }
 }
 
@@ -158,7 +161,16 @@ function toSqliteDate(iso: string | number | Date | null | undefined): string {
   if (!iso) return localTimestamp();
   if (iso instanceof Date) return localTimestamp(iso);
   const str = typeof iso === 'string' ? iso : String(iso);
-  return str.replace('T', ' ').replace('Z', '');
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) {
+    return str;
+  }
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      return localTimestamp(d);
+    }
+  } catch {}
+  return str.replace('T', ' ').replace('Z', '').split('.')[0];
 }
 
 export function getSyncIntervalMs(): number {
@@ -196,6 +208,14 @@ export interface SyncEndpoints {
   disabled?: boolean;
 }
 
+export interface SyncEndpoints {
+  primaryUrl: string;
+  fallbackUrl?: string;
+  primaryRoute: 'LAN' | 'CLOUD';
+  fallbackRoute?: 'CLOUD';
+  disabled?: boolean;
+}
+
 export function getSyncEndpoints(): SyncEndpoints {
   const defaultCloud = (process.env.VENDORA_CLOUD_API || process.env.NAFID_CLOUD_API || process.env.VITE_CLOUD_API || 'https://nafid.vercel.app').replace(/\/$/, '');
   try {
@@ -206,6 +226,13 @@ export function getSyncEndpoints(): SyncEndpoints {
     if (row?.value) {
       const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
       if (parsed.syncMode === 'LAN' && parsed.lanRole === 'PRIMARY') {
+        const port = Number(parsed.lanPort) || 3888;
+        return {
+          primaryUrl: `http://127.0.0.1:${port}`,
+          primaryRoute: 'LAN',
+        };
+      }
+      if (parsed.syncMode === 'HYBRID' && parsed.lanRole === 'PRIMARY') {
         return {
           primaryUrl: defaultCloud,
           primaryRoute: 'CLOUD',
@@ -254,6 +281,26 @@ export async function checkSyncConnectivity(): Promise<{ ok: boolean; route?: 'L
       }
     } catch {}
   }
+
+  // Fallback check for local LAN Master running locally on PC 1
+  try {
+    const db = getDb();
+    const config = getAuthConfig();
+    const tenantId = config?.tenant_id || 'global';
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as { value: string } | undefined;
+    if (row?.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if ((parsed.syncMode === 'LAN' || parsed.syncMode === 'HYBRID') && parsed.lanRole === 'PRIMARY') {
+        const port = Number(parsed.lanPort) || 3888;
+        const res = await fetch(`http://127.0.0.1:${port}/health`, { method: 'GET', signal: AbortSignal.timeout(1500) });
+        if (res.ok) {
+          notifyOnlineStatus(true, 'LAN');
+          return { ok: true, route: 'LAN' };
+        }
+      }
+    }
+  } catch {}
+
   notifyOnlineStatus(false, 'NONE');
   return { ok: false };
 }
@@ -366,7 +413,7 @@ async function clearAuthAndNotify() {
 
 import { startLocalHostServer } from './localHostServer.js';
 
-const FAST_INVOICE_PULL_MS = 20000;
+const FAST_INVOICE_PULL_MS = 5000;
 let fastInvoicePullInProgress = false;
 let syncCycleTimerId: NodeJS.Timeout | null = null;
 
@@ -392,7 +439,27 @@ export function reloadSyncConfig() {
 }
 
 export function initSyncWorker() {
-  console.log('[SyncWorker] Initializing background sync worker...');
+  console.log('[SyncWorker] ========= Initializing background sync worker... =========');
+  const initialAuth = getAuthConfig();
+  if (initialAuth && !isJwtExpired(initialAuth.jwt_token)) {
+    isSyncActive = true;
+    const tenantId = initialAuth.tenant_id;
+    console.log(`[SyncWorker] ✅ Valid auth detected on startup. tenant_id=${tenantId}. Background sync ACTIVATED.`);
+    // Immediately run a full sync in background to populate data on secondary terminals
+    setTimeout(async () => {
+      try {
+        console.log('[SyncWorker] 🚀 Running immediate startup sync to populate data...');
+        await runSyncCycle();
+        notifyRenderer('startup-immediate-sync');
+      } catch (e: any) {
+        console.error('[SyncWorker] Startup immediate sync error:', e.message);
+      }
+    }, 3000); // Wait 3s for window to fully load before triggering
+  } else if (initialAuth) {
+    console.warn('[SyncWorker] ⚠️ Auth payload found but JWT is EXPIRED. Sync NOT activated. User must re-login.');
+  } else {
+    console.warn('[SyncWorker] ⚠️ No auth payload found on disk. Sync NOT activated (user not logged in).');
+  }
   try {
     const db = getDb();
     const row = db.prepare(`SELECT value FROM settings WHERE key = 'network_sync_config' LIMIT 1`).get() as { value: string } | undefined;
@@ -418,7 +485,7 @@ export function initSyncWorker() {
         try {
           const updated = await pullInvoices(config.jwt_token, config.tenant_id);
           if (updated) {
-            notifyRenderer();
+            notifyRenderer('fast-invoice-pull-changed');
           }
         } catch {
           // ignore transient fast pull errors
@@ -544,7 +611,7 @@ export async function triggerUrgentQuotationSync(): Promise<void> {
 }
 
 let fastCashPullInProgress = false;
-const FAST_CASH_PULL_MS = 30000;
+const FAST_CASH_PULL_MS = 5000;
 
 
 
@@ -656,6 +723,12 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
 
         notifyOnlineStatus(true, activeRoute);
 
+        if (endpoints.primaryRoute === 'LAN' && endpoints.primaryUrl.includes('127.0.0.1')) {
+          console.log('[SyncWorker] Primary Master in LAN mode active. Local SQLite database is master for LAN terminals.');
+          notifyCycleComplete(sender);
+          return;
+        }
+
       const config = getAuthConfig();
       if (!config) {
         console.warn('[SyncWorker] No JWT token found. Please log in to enable cloud sync.');
@@ -672,13 +745,13 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       let dataUpdated = false;
       const db = getDb();
 
-      // One-time auto-heal: reset pull cursors so older cash drawers & edited bills are re-pulled and updated locally
-      const healingKey = `cash_drawer_conflict_fix_v2:${tenant_id}`;
+      // One-time auto-heal: reset pull cursors so invalid local-time cursors are wiped and fresh UTC cursors take over
+      const healingKey = `utc_cursor_fix_v5:${tenant_id}`;
       if (!getMeta(healingKey)) {
         try {
           db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`).run(`pull_cursor:${tenant_id}:%`);
           setMeta(healingKey, 'true');
-          console.log('[SyncWorker] One-time reset of all pull cursors applied to force full re-sync of cash drawer, transactions & bills.');
+          console.log('[SyncWorker] One-time reset of all pull cursors applied to migrate to ISO UTC cursors.');
         } catch (e: any) {
           console.error('[SyncWorker] Error performing one-time cursor reset:', e.message);
         }
@@ -759,7 +832,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       }
 
       if (dataUpdated) {
-        notifyRenderer();
+        notifyRenderer('sync-cycle-completed-with-changes');
       }
       notifyCycleComplete(sender);
     } finally {
@@ -846,7 +919,7 @@ async function syncGrades(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/product_grades`,
+      '/api/sync/product_grades',
       token,
       batch,
       'product_grades',
@@ -878,7 +951,7 @@ async function syncPricingTiers(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/pricing_tiers`,
+      '/api/sync/pricing_tiers`,
       token,
       tiers,
       'pricing_tiers',
@@ -909,7 +982,7 @@ async function syncProductPricing(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/product_pricing`,
+      '/api/sync/product_pricing`,
       token,
       pricing,
       'product_pricing',
@@ -950,7 +1023,7 @@ async function syncProducts(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/products`,
+      '/api/sync/products`,
       token,
       products,
       'products',
@@ -1019,7 +1092,7 @@ async function syncInvoices(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/invoices`,
+      '/api/sync/invoices`,
       token,
       invoicesWithItems,
       'invoices',
@@ -1034,23 +1107,39 @@ async function syncInvoices(token: string, tenantId: string) {
   console.log(`[SyncWorker] Pushed ${totalSynced} invoices to cloud.`);
 }
 
-const HARDWARE_SETTING_KEYS = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
+const LOCAL_DEVICE_SETTING_KEYS = [
+  'terminal_code',
+  'invoice_counter_config',
+  'gst_b2b_invoice_counter_config',
+  'gst_b2c_invoice_counter_config',
+  'gst_invoice_counter_config',
+  'return_counter',
+  'scrap_invoice_counter',
+  'quotation_counter',
+  'barcode_printer_config',
+  'receipt_printer_config',
+  'a4_printer_config',
+  'scale_config',
+  'printer_config',
+  'network_sync_config'
+];
 
 // ── Settings Sync (Edge → Cloud / LAN) ─────────────────────────────────────────────
 async function syncSettings(token: string, tenantId: string) {
   const db = getDb();
   try {
-    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE (tenant_id = ? OR tenant_id = 'global') AND key IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config') AND sync_status = 'PENDING'`).run(tenantId);
+    const placeholders = LOCAL_DEVICE_SETTING_KEYS.map(() => '?').join(',');
+    db.prepare(`UPDATE settings SET sync_status = 'LOCAL' WHERE (tenant_id = ? OR tenant_id = 'global') AND key IN (${placeholders}) AND sync_status = 'PENDING'`).run(tenantId, ...LOCAL_DEVICE_SETTING_KEYS);
   } catch (e) {}
 
   const pending = (db.prepare(`SELECT * FROM settings WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global')`).all(tenantId) as any[])
-    .filter((row: any) => !HARDWARE_SETTING_KEYS.includes(row.key));
+    .filter((row: any) => !LOCAL_DEVICE_SETTING_KEYS.includes(row.key));
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} settings to ${getSyncTargetLabel()}...`);
 
   const synced = await pushBatch(
-    `${getCloudApiBase()}/api/sync/settings`,
+    '/api/sync/settings`,
     token,
     pending,
     'settings',
@@ -1138,8 +1227,7 @@ function replaySince(cursor: string | null): string | null {
     const raw = cursor.includes('Z') || cursor.includes('+') ? cursor : cursor.replace(' ', 'T') + 'Z';
     const d = new Date(raw);
     if (!isNaN(d.getTime())) {
-      d.setSeconds(d.getSeconds() - CURSOR_REPLAY_SECONDS);
-      return toSqliteDate(d);
+      return d.toISOString();
     }
   } catch {}
   return cursor;
@@ -1226,7 +1314,11 @@ async function pullPaginated(opts: {
     count += rows.length;
     for (const r of rows) {
       const ts = r?.[tsColumn] || r?.updated_at || r?.created_at;
-      if (ts && (!maxTs || String(ts) > maxTs)) maxTs = String(ts);
+      if (ts) {
+        const d = new Date(ts);
+        const isoTs = !isNaN(d.getTime()) ? d.toISOString() : String(ts);
+        if (!maxTs || isoTs > maxTs) maxTs = isoTs;
+      }
 
       // Create clean row signature (ignoring volatile server timestamps)
       const { updated_at, created_at, opened_at, ...clean } = r || {};
@@ -1241,17 +1333,29 @@ async function pullPaginated(opts: {
     offset += pageSize;
   }
 
+  // ── DEBUG: Log pull result for every table ─────────────────────────────────
+  console.log(`[SyncWorker][pull:${opts.table}] count=${count} reconciled=${reconciled} failed=${failed} since=${since || 'FULL'}`);
+
   if (count > 0) {
+    // ALWAYS treat any fetched rows as a change that warrants notifying the UI.
+    // The old hash-comparison logic was suppressing notifications when the same
+    // data was pulled twice, leaving the React UI stale even though the data IS
+    // in SQLite. The DB query is cheap; the render cost of a no-op re-fetch is
+    // negligible compared to missing data.
+    hasChanged = true;
     const combinedHash = fetchedRowSignatures.join('|');
-    const previousHash = tableContentHashes[opts.table];
-    if (combinedHash !== previousHash) {
-      hasChanged = true;
-      tableContentHashes[opts.table] = combinedHash;
-    }
+    tableContentHashes[opts.table] = combinedHash;
+    console.log(`[SyncWorker][pull:${opts.table}] ✅ ${count} rows fetched → marking hasChanged=true`);
+  } else {
+    console.log(`[SyncWorker][pull:${opts.table}] ℹ️ 0 rows fetched (delta is empty or table fully up-to-date)`);
   }
 
-  if (maxTs && count > 0) setMeta(cursorKey(opts.tenantId, opts.table), maxTs);
-  return { count, reconciled, failed, hasChanged };
+  if (maxTs && count > 0) {
+    const newCursor = maxTs;
+    setMeta(cursorKey(opts.tenantId, opts.table), newCursor);
+    console.log(`[SyncWorker][pull:${opts.table}] Cursor updated to: ${newCursor}`);
+  }
+  return { count, reconciled, failed, hasChanged: (hasChanged || reconciled > 0 || count > 0) && !failed };
 }
 
 // Progress reporter shared by all pull wrappers during the parallel phase.
@@ -1579,12 +1683,11 @@ async function pullProducts(token: string, tenantId: string): Promise<boolean> {
   return result.hasChanged && result.count > 0;
 }
 
-let lastInvoicesHash = '';
+let lastInvoicesHash = ''; // kept for legacy compat — no longer used to gate notifications
 
 // ── Pull Invoices (Cloud → Edge) ─────────────────────────────────────────────
 async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
-  let hasContentChanged = false;
 
   const upsertInv = db.prepare(`
     INSERT INTO invoices (
@@ -1702,16 +1805,11 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
     label: 'invoices',
     onProgress: (fetched) => notifyPullProgress('invoices', fetched),
     processPage: (rows) => {
-      const currentHash = JSON.stringify(rows.map(r => ({
-        id: r.invoice_id,
-        num: r.invoice_number,
-        total: r.grand_total,
-        status: r.payment_method,
-        del: r.is_deleted,
-      })));
-      if (currentHash !== lastInvoicesHash) {
-        hasContentChanged = true;
-        lastInvoicesHash = currentHash;
+      console.log(`[SyncWorker][pull:invoices] processPage: processing ${rows.length} invoices...`);
+      // DEBUG: log first few invoice IDs to confirm data is arriving
+      if (rows.length > 0) {
+        const sample = rows.slice(0, 3).map((r: any) => r.invoice_number || r.invoice_id).join(', ');
+        console.log(`[SyncWorker][pull:invoices] Sample invoices received: ${sample}`);
       }
 
       const tx = db.transaction((invoices: any[]) => {
@@ -1857,12 +1955,16 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
     },
   });
 
-  if (hasContentChanged && result.count > 0) {
-    console.log(`[SyncWorker] Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
+  if (result.count > 0) {
+    console.log(`[SyncWorker] ✅ Pulled ${result.count} invoices from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled} PENDING.` : ''}`);
   } else if (result.failed) {
-    console.error(`[SyncWorker] Pull invoices failed for tenantId=${tenantId}.`);
+    console.error(`[SyncWorker] ❌ Pull invoices FAILED for tenantId=${tenantId}.`);
+  } else {
+    console.log(`[SyncWorker] ℹ️ Pull invoices: 0 new/changed invoices (cursor up-to-date).`);
   }
-  return hasContentChanged && result.count > 0;
+  // Always signal "changed" whenever count > 0 so the UI re-queries SQLite.
+  // hasContentChanged was removed — it was blocking notifications for data already in DB.
+  return (result.count > 0 || result.reconciled > 0) && !result.failed;
 }
 
 // ── Pull Users (Cloud → Edge) ────────────────────────────────────────────────
@@ -1944,7 +2046,7 @@ async function syncParties(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/parties`,
+      '/api/sync/parties`,
       token,
       parties,
       'parties',
@@ -2078,7 +2180,7 @@ async function syncPartyLedger(token: string, tenantId: string) {
   for (let i = 0; i < pendingEntries.length; i += BATCH_SIZE) {
     const batch = pendingEntries.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/party-ledger`,
+      '/api/sync/party-ledger`,
       token,
       batch,
       'entries',
@@ -2217,7 +2319,7 @@ async function syncScrapCategories(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/scrap_categories`,
+      '/api/sync/scrap_categories`,
       token,
       categories,
       'scrap_categories',
@@ -2243,7 +2345,7 @@ async function syncScrapTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/scrap_transactions`,
+      '/api/sync/scrap_transactions`,
       token,
       batch,
       'scrap_transactions',
@@ -2408,8 +2510,7 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
     'price_coding',
     'print_format', 'label_code_type',
-    'terminal_code', 'invoice_counter_config',
-    'three_invoice_series', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
+    'three_invoice_series',
     'isDomainConfirmed',
   ];
 
@@ -2486,7 +2587,7 @@ async function syncPurchaseBills(token: string, tenantId: string) {
       return { ...bill, items };
     });
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/purchase_bills`,
+      '/api/sync/purchase_bills`,
       token,
       enriched,
       'purchase_bills',
@@ -2650,7 +2751,7 @@ async function syncCashDrawer(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/cash_drawer`,
+      '/api/sync/cash_drawer`,
       token, batch, 'cash_drawer', `Cash Drawer batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2673,7 +2774,7 @@ async function syncCashTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/cash_transactions`,
+      '/api/sync/cash_transactions`,
       token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2696,7 +2797,7 @@ async function syncCashCategories(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/cash_categories`,
+      '/api/sync/cash_categories`,
       token, batch, 'cash_categories', `Cash Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2719,7 +2820,7 @@ async function syncCashierAuditLog(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/cashier_audit_log`,
+      '/api/sync/cashier_audit_log`,
       token, batch, 'cashier_audit_log', `Cashier Audit Log batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -2747,7 +2848,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
       opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
       sync_status = 'SYNCED', updated_at = @updated_at
-    WHERE drawer_id = @drawer_id AND sync_status != 'PENDING'
+    WHERE drawer_id = @drawer_id
   `);
   const updateByDate = db.prepare(`
     UPDATE cash_drawer SET
@@ -2758,7 +2859,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
       opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
       sync_status = 'SYNCED', updated_at = @updated_at
-    WHERE tenant_id = @tenant_id AND business_date = @business_date AND sync_status != 'PENDING'
+    WHERE tenant_id = @tenant_id AND business_date = @business_date
   `);
   const insertDrawer = db.prepare(`
     INSERT INTO cash_drawer (
@@ -3169,7 +3270,7 @@ async function syncReturns(token: string, tenantId: string) {
       return { ...r, items };
     });
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/returns`,
+      '/api/sync/returns`,
       token, enriched, 'returns', `Returns batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3274,7 +3375,7 @@ async function syncPaymentSources(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/payment_sources`,
+      '/api/sync/payment_sources`,
       token, batch, 'payment_sources', `Payment Sources batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3297,7 +3398,7 @@ async function syncPaymentSourceTransactions(token: string, tenantId: string) {
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/payment_source_transactions`,
+      '/api/sync/payment_source_transactions`,
       token, batch, 'payment_source_transactions', `Payment Source Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
@@ -3456,7 +3557,7 @@ async function syncComboOffers(token: string, tenantId: string) {
     });
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/combo_offers`,
+      '/api/sync/combo_offers`,
       token,
       combos,
       'combo_offers',
@@ -3588,7 +3689,7 @@ async function syncQuotations(token: string, tenantId: string) {
     }));
 
     const synced = await pushBatch(
-      `${getCloudApiBase()}/api/sync/quotations`,
+      '/api/sync/quotations`,
       token,
       quotationsWithItems,
       'quotations',

@@ -440,11 +440,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       }).catch(() => {});
     }
     if (window.electronAPI) {
-      window.electronAPI.onSyncDataUpdated(() => {
-        loadInvoices(true);
+      const unsub = window.electronAPI.onSyncDataUpdated(() => {
+        console.log('[SalesHistory] 🔄 Auto-sync data updated event received! Reloading invoices from SQLite...');
+        loadInvoicesRef.current(true);
       });
+      return () => {
+        unsub?.();
+      };
     }
   }, []);
+
+  const loadInvoicesRef = useRef<any>(null);
+  useEffect(() => {
+    loadInvoicesRef.current = loadInvoices;
+  });
 
   useEffect(() => {
     const initialSearch = localStorage.getItem('salesHistoryInitialSearch');

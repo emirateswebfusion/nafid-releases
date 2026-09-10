@@ -3379,6 +3379,7 @@ export function BillingPage() {
           originalRate = mrpRate;
           discountLabel = 'Offer';
         }
+        const pcsVal = pcsSnapshot[item.product_id] ?? item.pieces_override;
         return {
           name: item.name,
           quantity: qty,
@@ -3388,9 +3389,10 @@ export function BillingPage() {
           discountLabel,
           brand: item.brand_manufacturer || undefined,
           billing_type: item.billing_type,
-          pieces_override: item.pieces_override,
+          pieces_sold: pcsVal != null ? Number(pcsVal) : undefined,
+          pieces_override: pcsVal != null ? Number(pcsVal) : undefined,
           pieces_per_kg: item.pieces_per_kg,
-          unit: item.unit,
+          unit: item.unit || item.uom,
           isCombo: item.isCombo,
           combo_items: item.combo_items,
         };

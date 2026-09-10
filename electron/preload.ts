@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appGetLocalIp: () => ipcRenderer.invoke('app:getLocalIp'),
   appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   appDownloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
+  dbDebugSyncState: (tenant_id: string) => ipcRenderer.invoke('db:debugSyncState', tenant_id),
   dbGetProducts: (params: any) => ipcRenderer.invoke('db:getProducts', params),
   dbGetProductsCount: (params: any) => ipcRenderer.invoke('db:getProductsCount', params),
   dbGetProductsByIds: (params: { tenant_id: string; product_ids: string[] }) => ipcRenderer.invoke('db:getProductsByIds', params),
@@ -99,9 +100,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('hardware:scaleWeight', listener);
     };
   },
-  onSyncDataUpdated: (callback: () => void) => ipcRenderer.on('sync:data-updated', () => callback()),
-  onSyncCycleComplete: (callback: () => void) => ipcRenderer.on('sync:cycle-complete', () => callback()),
-  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD') => void) => ipcRenderer.on('sync:online-status', (_event, online, route) => callback(online, route)),
+  onSyncDataUpdated: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('sync:data-updated', listener);
+    // Return unsubscribe function so components can clean up on unmount
+    return () => ipcRenderer.removeListener('sync:data-updated', listener);
+  },
+  onSyncCycleComplete: (callback: () => void) => {
+    const listener = () => callback();
+    ipcRenderer.on('sync:cycle-complete', listener);
+    return () => ipcRenderer.removeListener('sync:cycle-complete', listener);
+  },
+  onOnlineStatus: (callback: (online: boolean, route?: 'LAN' | 'CLOUD') => void) => {
+    const listener = (_event: any, online: boolean, route: any) => callback(online, route);
+    ipcRenderer.on('sync:online-status', listener);
+    return () => ipcRenderer.removeListener('sync:online-status', listener);
+  },
   onSyncProgress: (callback: (progress: { percent: number; label: string; recordsSynced: number; totalRecords: number }) => void) => {
     ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
   },

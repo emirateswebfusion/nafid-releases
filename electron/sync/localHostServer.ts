@@ -63,10 +63,19 @@ function extractItemId(item: any): string | null {
   if (item.warranty_id) return String(item.warranty_id);
   if (item.combo_id) return String(item.combo_id);
   if (item.grade_id) return String(item.grade_id);
-  if (item.tier_id) return String(item.tier_id);
-  if (item.pricing_id) return String(item.pricing_id);
+  if (item.tier_id || item.pricing_tier_id) return String(item.tier_id || item.pricing_tier_id);
+  if (item.pricing_id || item.product_pricing_id) return String(item.pricing_id || item.product_pricing_id);
+  if (item.ledger_id) return String(item.ledger_id);
+  if (item.scrap_category_id) return String(item.scrap_category_id);
+  if (item.item_id) return String(item.item_id);
   if (item.key) return String(item.key);
   if (item.id) return String(item.id);
+
+  for (const k of Object.keys(item)) {
+    if (k.endsWith('_id') && item[k] != null) {
+      return String(item[k]);
+    }
+  }
   return null;
 }
 
@@ -121,6 +130,10 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
       if (!rawRow || typeof rawRow !== 'object') continue;
 
       const itemId = extractItemId(rawRow);
+      const isNewInvoice = tableName === 'invoices' && itemId ? !db.prepare(`SELECT invoice_id FROM invoices WHERE invoice_id = ?`).get(itemId) : false;
+      const isNewReturn = tableName === 'returns' && itemId ? !db.prepare(`SELECT return_id FROM returns WHERE return_id = ?`).get(itemId) : false;
+      const isNewPurchaseBill = tableName === 'purchase_bills' && itemId ? !db.prepare(`SELECT purchase_bill_id FROM purchase_bills WHERE purchase_bill_id = ?`).get(itemId) : false;
+
       const paramObj: Record<string, any> = {};
 
       for (const col of allCols) {
@@ -142,10 +155,45 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
 
       if (tableName === 'invoices' && Array.isArray(rawRow.items)) {
         upsertTableRows(db, 'invoice_items', rawRow.items);
+        const isDeleted = rawRow.is_deleted === true || rawRow.is_deleted === 1 || rawRow.is_deleted === '1' || rawRow.is_deleted === 'true';
+        const isConversionCopy = !!(rawRow.converted_from_invoice_id || rawRow.converted_from_invoice_number);
+
+        if (isNewInvoice && !isDeleted && !isConversionCopy) {
+          for (const line of rawRow.items) {
+            if (line.product_id && Number(line.quantity) > 0 && !line.is_service_item) {
+              try {
+                db.prepare(`UPDATE products SET current_stock = current_stock - ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ? AND (is_service_item IS NULL OR is_service_item = 0)`).run(Number(line.quantity), line.product_id);
+              } catch {}
+            }
+          }
+        }
+        if (rawRow.scrap_invoice_number && Number(rawRow.scrap_deduction) > 0 && !isDeleted) {
+          try {
+            db.prepare(`UPDATE scrap_transactions SET payment_status = 'SETTLED', sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE scrap_invoice_number = ?`).run(rawRow.scrap_invoice_number);
+          } catch {}
+        }
       } else if (tableName === 'purchase_bills' && Array.isArray(rawRow.items)) {
         upsertTableRows(db, 'purchase_bill_items', rawRow.items);
+        if (isNewPurchaseBill) {
+          for (const line of rawRow.items) {
+            if (line.product_id && Number(line.quantity) > 0) {
+              try {
+                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
+              } catch {}
+            }
+          }
+        }
       } else if (tableName === 'returns' && Array.isArray(rawRow.items)) {
         upsertTableRows(db, 'return_items', rawRow.items);
+        if (isNewReturn) {
+          for (const line of rawRow.items) {
+            if (line.product_id && Number(line.quantity) > 0) {
+              try {
+                db.prepare(`UPDATE products SET current_stock = current_stock + ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE product_id = ?`).run(Number(line.quantity), line.product_id);
+              } catch {}
+            }
+          }
+        }
       } else if (tableName === 'quotations' && Array.isArray(rawRow.items)) {
         upsertTableRows(db, 'quotation_items', rawRow.items);
       }
@@ -213,46 +261,110 @@ export function startLocalHostServer(port: number = 3888) {
           const key = body[endpointName] ? endpointName : (body[tableName] ? tableName : Object.keys(body)[0]);
           let items = Array.isArray(body[key]) ? body[key] : (Array.isArray(body) ? body : []);
           if (tableName === 'settings') {
-            const hwKeys = ['barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'];
-            items = items.filter((i: any) => !hwKeys.includes(i.key));
+            const localDeviceKeys = [
+              'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
+              'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter',
+              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'
+            ];
+            items = items.filter((i: any) => !localDeviceKeys.includes(i.key));
           }
           const synced = upsertTableRows(db, tableName, items);
           return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
         }
 
         if (req.method === 'GET') {
-          const since = url.searchParams.get('since');
+          const rawSince = url.searchParams.get('since');
           const meta = getTableMeta(db, tableName);
           let query = `SELECT * FROM ${tableName}`;
           const params: any[] = [];
 
+          let sinceLocal: string | null = null;
+          let sinceIso: string | null = null;
+          if (rawSince) {
+            sinceIso = rawSince;
+            try {
+              const d = new Date(rawSince.includes('Z') || rawSince.includes('+') ? rawSince : rawSince.replace(' ', 'T') + 'Z');
+              if (!isNaN(d.getTime())) {
+                const pad = (n: number) => String(n).padStart(2, '0');
+                sinceLocal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+              } else {
+                sinceLocal = rawSince.replace('T', ' ').replace('Z', '').split('.')[0];
+              }
+            } catch {
+              sinceLocal = rawSince.replace('T', ' ').replace('Z', '').split('.')[0];
+            }
+          }
+
           if (tableName === 'invoices') {
             query += ` WHERE invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`;
-            if (since) {
-              query += ` AND (updated_at > ? OR created_at > ?)`;
-              params.push(since, since);
+            if (sinceLocal && sinceIso) {
+              query += ` AND (updated_at > ? OR updated_at > ? OR created_at > ? OR created_at > ?)`;
+              params.push(sinceLocal, sinceIso, sinceLocal, sinceIso);
             }
           } else if (tableName === 'products') {
             query += ` WHERE is_deleted = 0`;
-            if (since && meta?.allCols.includes('updated_at')) {
-              query += ` AND updated_at > ?`;
-              params.push(since);
+            if (sinceLocal && sinceIso && meta?.allCols.includes('updated_at')) {
+              query += ` AND (updated_at > ? OR updated_at > ?)`;
+              params.push(sinceLocal, sinceIso);
             }
           } else if (tableName === 'settings') {
-            query += ` WHERE key NOT IN ('barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config')`;
-            if (since && meta?.allCols.includes('updated_at')) {
-              query += ` AND updated_at > ?`;
-              params.push(since);
+            const excludedKeys = [
+              'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
+              'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter',
+              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'
+            ];
+            const placeholders = excludedKeys.map(() => '?').join(',');
+            query += ` WHERE key NOT IN (${placeholders})`;
+            params.push(...excludedKeys);
+            if (sinceLocal && sinceIso && meta?.allCols.includes('updated_at')) {
+              query += ` AND (updated_at > ? OR updated_at > ?)`;
+              params.push(sinceLocal, sinceIso);
             }
-          } else if (since && meta) {
+          } else if (sinceLocal && sinceIso && meta) {
             if (meta.allCols.includes('updated_at')) {
-              query += ` WHERE updated_at > ?`;
-              params.push(since);
+              query += ` WHERE (updated_at > ? OR updated_at > ?)`;
+              params.push(sinceLocal, sinceIso);
             } else if (meta.allCols.includes('created_at')) {
-              query += ` WHERE created_at > ?`;
-              params.push(since);
+              query += ` WHERE (created_at > ? OR created_at > ?)`;
+              params.push(sinceLocal, sinceIso);
             }
           }
+
+          const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);
+          if (orderCol) {
+            query += ` ORDER BY ${orderCol} DESC`;
+          }
+          query += ` LIMIT 500`;
+
+          try {
+            const rows = db.prepare(query).all(...params) as any[];
+
+            // Attach nested items for header-detail records
+            if (tableName === 'invoices') {
+              for (const inv of rows) {
+                inv.items = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ?`).all(inv.invoice_id);
+              }
+            } else if (tableName === 'purchase_bills') {
+              for (const bill of rows) {
+                bill.items = db.prepare(`SELECT * FROM purchase_bill_items WHERE purchase_bill_id = ?`).all(bill.purchase_bill_id);
+              }
+            } else if (tableName === 'returns') {
+              for (const ret of rows) {
+                ret.items = db.prepare(`SELECT * FROM return_items WHERE return_id = ?`).all(ret.return_id);
+              }
+            } else if (tableName === 'quotations') {
+              for (const q of rows) {
+                q.items = db.prepare(`SELECT * FROM quotation_items WHERE quotation_id = ?`).all(q.quotation_id);
+              }
+            }
+
+            return sendJson(res, 200, { [endpointName]: rows, [tableName]: rows, data: rows });
+          } catch (err: any) {
+            console.error(`[LocalHostServer] Error querying ${tableName} (${endpointName}):`, err.message);
+            return sendJson(res, 200, { [endpointName]: [], [tableName]: [], data: [] });
+          }
+        }
+      }
 
           const orderCol = meta?.allCols.includes('created_at') ? 'created_at' : (meta?.allCols.includes('updated_at') ? 'updated_at' : null);
           if (orderCol) {
