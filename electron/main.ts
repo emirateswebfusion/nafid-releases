@@ -3723,7 +3723,19 @@ ipcMain.removeHandler('settings:get');
 ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; key: string }) => {
   try {
     const db = getDb();
-    const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id || 'global', key);
+    const tid = tenant_id || 'global';
+    let row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, key);
+
+    // Fallback for hardware/local-device keys if not found for specific tenant
+    if (!row && LOCAL_DEVICE_SETTING_KEYS.includes(key)) {
+      if (tid !== 'global') {
+        row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+      }
+      if (!row) {
+        row = db.prepare("SELECT value FROM settings WHERE key = ? ORDER BY updated_at DESC LIMIT 1").get(key);
+      }
+    }
+
     if (row) {
       try {
         const parsed = JSON.parse(row.value);
@@ -3767,15 +3779,24 @@ ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant
     const db = getDb();
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
+    const tid = tenant_id || 'global';
+    const valString = typeof value === 'string' ? value : JSON.stringify(value);
 
-    db.prepare(`
+    const upsertStmt = db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
       VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP) 
       ON CONFLICT(tenant_id, key) DO UPDATE SET 
         value = EXCLUDED.value, 
         sync_status = EXCLUDED.sync_status,
         updated_at = CURRENT_TIMESTAMP
-    `).run(tenant_id || 'global', key, JSON.stringify(value), syncStatus);
+    `);
+
+    upsertStmt.run(tid, key, valString, syncStatus);
+
+    // For local device hardware keys, also mirror to 'global' so any tenant or startup cycle on this terminal machine retains access
+    if (isLocalDeviceKey && tid !== 'global') {
+      upsertStmt.run('global', key, valString, syncStatus);
+    }
 
     if (key === 'network_sync_config' && value && typeof value === 'object') {
       const { startLocalHostServer, stopLocalHostServer } = await import('./sync/localHostServer.js');
@@ -5602,6 +5623,41 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
     if (!drawer && !business_date) {
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
     }
+
+    if (drawer) {
+      const txSums = db.prepare(`
+        SELECT 
+          COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
+          COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
+        FROM cash_transactions 
+        WHERE tenant_id = ? AND drawer_id = ?
+      `).get(tenant_id, drawer.drawer_id) as any;
+
+      const calcIn = Number(txSums?.total_in || 0);
+      const calcOut = Number(txSums?.total_out || 0);
+      const curIn = Number(drawer.cash_in || 0);
+      const curOut = Number(drawer.cash_out || 0);
+
+      const openingBal = Number(drawer.opening_balance || 0);
+      const cashSales = Number(drawer.cash_sales || 0);
+      const expectedCash = openingBal + cashSales + calcIn - calcOut;
+
+      if (curIn !== calcIn || curOut !== calcOut || Number(drawer.current_cash) !== expectedCash || Number(drawer.expected_closing) !== expectedCash) {
+        drawer.cash_in = calcIn;
+        drawer.cash_out = calcOut;
+        drawer.current_cash = expectedCash;
+        drawer.expected_closing = expectedCash;
+
+        if (drawer.status === 'OPEN') {
+          db.prepare(`
+            UPDATE cash_drawer 
+            SET cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+            WHERE drawer_id = ?
+          `).run(calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
+        }
+      }
+    }
+
     return drawer || null;
   } catch (error: any) {
     console.error(`[Cashier] getDrawer error:`, error.message);

@@ -1329,18 +1329,27 @@ export function initDb() {
     console.warn('[DB Migration] Failed to update return_items schema:', e.message);
   }
 
+  // Clean up legacy dummy default printer_config ('192.168.1.100') if present so it doesn't override real printers
+  try {
+    db.exec("DELETE FROM settings WHERE key = 'printer_config' AND value LIKE '%192.168.1.100%'");
+  } catch (e: any) {
+    console.warn('[DB Migration] Dummy printer_config cleanup failed:', e.message);
+  }
+
   // Initialize hardware defaults if empty
   const hasPrinter = db.prepare("SELECT 1 FROM settings WHERE key = 'printer_config'").get();
   if (!hasPrinter) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+    db.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, ?, ?)").run(
+      'global',
       'printer_config', 
-      JSON.stringify({ type: 'network', ip: '192.168.1.100', port: 9100 })
+      JSON.stringify({ type: 'none' })
     );
   }
   
   const hasScale = db.prepare("SELECT 1 FROM settings WHERE key = 'scale_config'").get();
   if (!hasScale) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+    db.prepare("INSERT INTO settings (tenant_id, key, value) VALUES (?, ?, ?)").run(
+      'global',
       'scale_config', 
       JSON.stringify({ path: 'COM3', baudRate: 9600 })
     );

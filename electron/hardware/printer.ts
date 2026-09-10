@@ -34,12 +34,35 @@ function getPrinterConfig(tenantId: string, type: 'barcode' | 'receipt' = 'barco
   try {
     const db = getDb();
     const key = type === 'receipt' ? 'receipt_printer_config' : 'barcode_printer_config';
-    const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tenantId || 'global', key);
-    if (row) return JSON.parse(row.value);
+    const tid = tenantId || 'global';
+
+    let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = ?").get(tid, key);
+    if (!row && tid !== 'global') {
+      row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+    }
+    if (!row) {
+      row = db.prepare("SELECT value FROM settings WHERE key = ? ORDER BY updated_at DESC LIMIT 1").get(key);
+    }
+    if (row) {
+      try { return JSON.parse(row.value); } catch {}
+    }
     
     // Fallback to legacy printer_config
-    const legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tenantId || 'global');
-    return legacyRow ? JSON.parse(legacyRow.value) : { type: 'none' };
+    let legacyRow: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'printer_config'").get(tid);
+    if (!legacyRow && tid !== 'global') {
+      legacyRow = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'printer_config'").get();
+    }
+    if (!legacyRow) {
+      legacyRow = db.prepare("SELECT value FROM settings WHERE key = 'printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+    }
+    if (legacyRow) {
+      try {
+        const parsed = JSON.parse(legacyRow.value);
+        if (parsed && parsed.ip === '192.168.1.100') return { type: 'none' };
+        return parsed;
+      } catch {}
+    }
+    return { type: 'none' };
   } catch {
     return { type: 'none' };
   }
@@ -111,7 +134,14 @@ export function initPrinter() {
   ipcMain.handle('hardware:printA4Html', async (event, { tenant_id, htmlContent }: { tenant_id: string; htmlContent: string }) => {
     try {
       const db = getDb();
-      const row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tenant_id || 'global');
+      const tid = tenant_id || 'global';
+      let row: any = db.prepare("SELECT value FROM settings WHERE tenant_id = ? AND key = 'a4_printer_config'").get(tid);
+      if (!row && tid !== 'global') {
+        row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = 'a4_printer_config'").get();
+      }
+      if (!row) {
+        row = db.prepare("SELECT value FROM settings WHERE key = 'a4_printer_config' ORDER BY updated_at DESC LIMIT 1").get();
+      }
       let config = { deviceName: '' };
       if (row) {
         try {
