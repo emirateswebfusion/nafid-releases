@@ -1,3 +1,10 @@
+# Vendora v1.5.51 Release Notes
+
+## What's Changed
+- Integrated persist-enabled Zustand cart store for tab and session state management
+- Enhanced `BillingPage`, `QuotationManager`, multi-tab layout navigation, and dashboard components
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.50...v1.5.51
+
 # Vendora v1.5.50 Release Notes
 
 ## What's Changed
