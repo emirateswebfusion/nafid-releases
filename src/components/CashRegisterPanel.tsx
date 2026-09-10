@@ -480,11 +480,13 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
 
-          {!drawer || !drawer.opening_balance ? (
+          {!drawer || !drawer.opening_balance || drawer.status === 'CLOSED' ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
-              <Banknote className="w-10 h-10 text-muted-foreground/30" />
-              <p className="text-xs font-bold text-muted-foreground">No open drawer yet</p>
-              <p className="text-[10px] text-muted-foreground/60">Set opening balance to begin</p>
+              <CheckCircle2 className="w-10 h-10 text-emerald-500/60" />
+              <p className="text-sm font-extrabold text-foreground">Cash Register Closed</p>
+              <p className="text-xs text-muted-foreground max-w-[220px]">
+                Shift completed & archived in History. Set opening balance to start a new day.
+              </p>
             </div>
           ) : (
             <>

@@ -585,6 +585,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
   const handleAddTransaction = async () => {
     if (!tenantId || !userId || txnAmt <= 0) return;
+    if (drawer?.status === 'CLOSED') {
+      alert('Cash Register is closed for today. Entries are locked.');
+      return;
+    }
     setTxnSubmitting(true);
     const finalNotes = txnPartyName
       ? (txnNote ? `Party: ${txnPartyName} | ${txnNote}` : `Party: ${txnPartyName}`)
@@ -773,8 +777,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }
 
   // ── Derived summary values ────────────────────────────────────────────────
-  const totalIn  = transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0);
-  const totalOut = transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0);
+  const totalIn  = drawer?.status === 'CLOSED' ? 0 : transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0);
+  const totalOut = drawer?.status === 'CLOSED' ? 0 : transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0);
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;
@@ -1865,12 +1869,26 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   <Receipt className="w-4 h-4 text-blue-500" />
                 </div>
                 <div>
-                  <h2 className="text-sm font-extrabold text-foreground tracking-tight">Cash Register</h2>
-
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-extrabold text-foreground tracking-tight">Cash Register</h2>
+                    {drawer && (
+                      <span className={clsx(
+                        'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border',
+                        drawer.status === 'OPEN' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25' :
+                        drawer.status === 'CLOSED' ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25' :
+                        'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25'
+                      )}>
+                        <span className={clsx('w-1.5 h-1.5 rounded-full shrink-0', drawer.status === 'OPEN' ? 'bg-emerald-500 animate-pulse' : drawer.status === 'CLOSED' ? 'bg-rose-500' : 'bg-amber-500')} />
+                        {drawer.status === 'OPEN' ? 'Open' : drawer.status === 'CLOSED' ? 'Closed' : 'Not Started'}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button
+                disabled={drawer?.status === 'CLOSED'}
                 onClick={async () => {
+                  if (drawer?.status === 'CLOSED') return;
                   setTxnAmt(0); setTxnCat(''); setTxnNote('');
                   setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
                   setShowTxnModal(true);
@@ -1881,12 +1899,26 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId! });
                   if (Array.isArray(cats)) setCustomCategories(cats);
                 }}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-primary hover:bg-primary/10 border border-primary/20 transition-all duration-200 active:scale-95 cursor-pointer"
+                className={clsx(
+                  "flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95",
+                  drawer?.status === 'CLOSED'
+                    ? "opacity-40 cursor-not-allowed text-muted-foreground border border-border bg-muted/20"
+                    : "text-primary hover:bg-primary/10 border border-primary/20 cursor-pointer"
+                )}
+                title={drawer?.status === 'CLOSED' ? "Cash register is closed. Cannot add entries." : "Add Entry"}
               >
                 <Plus className="w-3.5 h-3.5" /> Add Entry
               </button>
             </div>
           </div>
+
+          {/* Closed drawer warning banner */}
+          {drawer?.status === 'CLOSED' && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-rose-500/10 border-b border-rose-500/20 text-rose-600 dark:text-rose-400 shrink-0 text-xs font-bold">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span>Cash Register is closed for this date. Entries are locked.</span>
+            </div>
+          )}
 
           {/* Mini stat cards */}
           <div className="grid grid-cols-2 gap-2 px-4 py-3 border-b border-border bg-muted/5 shrink-0">
@@ -1921,7 +1953,19 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
 
           {/* Transaction feed */}
           <div className="flex-1 overflow-y-auto">
-            {transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
+            {drawer?.status === 'CLOSED' ? (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 flex items-center justify-center shadow-inner border border-emerald-500/20">
+                  <CheckCircle2 className="w-7 h-7 text-emerald-500" />
+                </div>
+                <div className="text-center max-w-[250px]">
+                  <p className="text-sm font-extrabold text-foreground">Cash Register Closed</p>
+                  <p className="text-xs text-muted-foreground/80 mt-1 leading-relaxed">
+                    Shift completed & settled. All entries are safely archived in <strong>History</strong>.
+                  </p>
+                </div>
+              </div>
+            ) : transactions.length === 0 && (!drawer || drawer.opening_balance == null) ? (
               <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground p-8">
                 <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-muted to-muted/40 flex items-center justify-center shadow-inner">
                   <Banknote className="w-6 h-6 text-muted-foreground/40" />

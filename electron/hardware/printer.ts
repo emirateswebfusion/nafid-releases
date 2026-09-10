@@ -235,35 +235,25 @@ export function initPrinter() {
     const printFmt = getPrintFormatConfig(tenant_id);
     
     // Unified width: prefer print_format.width (mm) over receiptWidthCm (cm)
-    // This ensures the physical page size always matches the selected Bill Format
     const widthMm = printFmt?.width
       ? Number(printFmt.width)
       : (config.receiptWidthCm || 5.8) * 10;
 
     try {
-      // Gracefully skip if no printer configured
-      if (config.type === 'none' || !config.type) {
-        console.log('[Hardware] No receipt printer configured — skipping print');
-        return { success: true, skipped: true };
-      }
-
       const receiptText = textData + '\n\n\n\n\n';
       
       if (config.type === 'network') {
-        // ESC/POS network printers only understand ASCII-based code pages
         const asciiText = sanitizeForEscPos(receiptText);
         const textBuffer = Buffer.from(asciiText, 'ascii');
-        // Apply max print density + bold/emphasized mode for darker text visibility
         const finalBuffer = Buffer.concat([ESC_POS_HEADER, ESC_DENSITY, ESC_BOLD_ON, textBuffer, ESC_BOLD_OFF, ESC_CUT]);
         await sendToNetworkPrinter(config.ip, config.port || 9100, finalBuffer);
-      } else if (config.type === 'usb' && config.deviceName) {
-        currentReceiptText = receiptText;
-        await printReceiptUSB(config.deviceName, widthMm);
-      } else if (config.type === 'usb') {
-        throw new Error('No Printer Selected: USB printer enabled but no Printer Name configured. Select your printer in Settings → Hardware.');
-      } else {
-        throw new Error(`Unknown printer type: ${config.type}`);
+        return { success: true };
       }
+
+      // For USB / auto-detect: resolve configured printer or default system printer
+      const reqName = (config.type === 'usb' && config.deviceName) ? config.deviceName : 'default';
+      currentReceiptText = receiptText;
+      await printReceiptUSB(reqName, widthMm);
 
       return { success: true };
     } catch (error: any) {
@@ -396,10 +386,7 @@ function sendToNetworkPrinter(host: string, port: number, data: Buffer): Promise
 }
 
 function printBarcodeUSB(barcode: string, deviceName: string, price?: number, name?: string, quantity: number = 1, widthMm?: number, heightMm?: number, columns?: number, sp?: number, spType?: string, codeType?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Size the print window to the physical label size (CSS px @96dpi) so the
-    // label content renders 1:1 on the label instead of being shrink-to-fitted
-    // from a fixed 400px viewport (which made barcode text unreadably small).
+  return new Promise(async (resolve, reject) => {
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
     const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
@@ -416,6 +403,8 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
         sandbox: true,
       }
     });
+
+    const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
 
     const codeTypeParam = `&codeType=${codeType || 'barcode'}`;
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
@@ -432,37 +421,24 @@ function printBarcodeUSB(barcode: string, deviceName: string, price?: number, na
       }
     }, 20000);
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
-      printWindow.webContents.print({
-        silent: true,
-        deviceName: deviceName,
-        margins: { marginType: 'none' },
-        // Convert mm to microns (1 mm = 1000 microns). Default to 50x25mm (approx 2"x1")
-        pageSize: { width: labelW * 1000, height: labelH * 1000 }
-      }, (success, failureReason) => {
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+      try {
+        await executePrintWithFallback(printWindow, resolved.deviceName, labelW, labelH * 1000);
         clearTimeout(timer);
-        
-        // Delay window close to allow PDF software spoolers to finish writing to disk
-        setTimeout(() => {
-          if (!printWindow.isDestroyed()) printWindow.close();
-        }, 3000);
-        
-        if (success) {
-          resolve();
-        } else {
-          reject(new Error(`Print failed: ${failureReason}`));
-        }
-      });
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        resolve();
+      } catch (err: any) {
+        clearTimeout(timer);
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        reject(err);
+      }
     });
   });
 }
 
 function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number, heightMm?: number, columns?: number, codeType?: string): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     currentBulkPrintItems = items;
-    // Size the print window to the physical label size (CSS px @96dpi) so the
-    // label content renders 1:1 on the label instead of being shrink-to-fitted
-    // from a fixed 400px viewport (which made barcode text unreadably small).
     const labelW = Math.max(20, Math.round(widthMm || 50));
     const labelH = Math.max(12, Math.round(heightMm || 25));
     const windowWidth = Math.max(80, Math.round(labelW * 96 / 25.4));
@@ -480,6 +456,8 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
       }
     });
 
+    const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
+
     const sizeParams = `&labelWidthMm=${labelW}&labelHeightMm=${labelH}`;
     if (app.isPackaged) {
       printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: `/print-bulk-barcode?columns=${columns || 1}${sizeParams}&codeType=${codeType || 'barcode'}` });
@@ -488,8 +466,6 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
     }
 
     const timer = setTimeout(() => {
-      // Paper-out or slow spooler: keep the window alive so the OS print
-      // queue keeps the job; the print callback resolves once it completes.
       console.warn('[Hardware] USB bulk print still spooling after 60s — keeping job alive');
     }, 60000);
 
@@ -498,33 +474,27 @@ function printBulkBarcodeUSB(items: any[], deviceName: string, widthMm?: number,
         printWindow.close();
         reject(new Error('USB bulk print timeout'));
       }
-    }, 300000); // hard cap 5 min; print callback normally resolves long before
+    }, 300000);
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
-      printWindow.webContents.print({
-        silent: true,
-        deviceName: deviceName,
-        margins: { marginType: 'none' },
-        pageSize: { width: labelW * 1000, height: labelH * 1000 }
-      }, (success, failureReason) => {
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+      try {
+        await executePrintWithFallback(printWindow, resolved.deviceName, labelW, labelH * 1000);
         clearTimeout(timer);
         clearTimeout(watchdog);
-        setTimeout(() => {
-          if (!printWindow.isDestroyed()) printWindow.close();
-        }, 3000);
-        
-        if (success) {
-          resolve();
-        } else {
-          reject(new Error(`Print failed: ${failureReason}`));
-        }
-      });
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        resolve();
+      } catch (err: any) {
+        clearTimeout(timer);
+        clearTimeout(watchdog);
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        reject(err);
+      }
     });
   });
 }
 
 function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: boolean = false): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
       width: 800,
@@ -536,6 +506,8 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
         sandbox: true,
       }
     });
+
+    const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
 
     if (app.isPackaged) {
       printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-a4' });
@@ -550,42 +522,151 @@ function printA4USB(deviceName: string, pageSize: string = 'A4', landscape: bool
       }
     }, 30000);
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
-      const printOptions: any = {
-        silent: Boolean(deviceName),
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
+      try {
+        await executePrintWithFallback(printWindow, resolved.deviceName, undefined, undefined, pageSize, landscape);
+        clearTimeout(timer);
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        resolve();
+      } catch (err: any) {
+        clearTimeout(timer);
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        reject(err);
+      }
+    });
+  });
+}
+
+async function resolvePrinterDeviceName(win: BrowserWindow, requestedName?: string): Promise<{ deviceName: string | undefined; actualNameUsed: string }> {
+  try {
+    const printers = await win.webContents.getPrintersAsync();
+    console.log('[Printer] System printers detected:', printers.map((p: any) => `"${p.name}" (default:${Boolean(p.isDefault)})`).join(', '));
+
+    if (!printers || printers.length === 0) {
+      return { deviceName: undefined, actualNameUsed: 'System Default' };
+    }
+
+    if (!requestedName || requestedName.trim() === '' || requestedName.toLowerCase() === 'default') {
+      const defaultPrinter = printers.find((p: any) => p.isDefault) || printers[0];
+      return {
+        deviceName: defaultPrinter ? defaultPrinter.name : undefined,
+        actualNameUsed: defaultPrinter ? defaultPrinter.name : 'System Default'
+      };
+    }
+
+    const cleanReq = requestedName.trim().toLowerCase();
+
+    // 1. Exact match (case-insensitive)
+    const exact = printers.find((p: any) => p.name.toLowerCase() === cleanReq || (p.displayName && String(p.displayName).toLowerCase() === cleanReq));
+    if (exact) return { deviceName: exact.name, actualNameUsed: exact.name };
+
+    // 2. Partial match (e.g. "POS80" matches "POSPrinter POS80")
+    const partial = printers.find((p: any) => p.name.toLowerCase().includes(cleanReq) || cleanReq.includes(p.name.toLowerCase()));
+    if (partial) {
+      console.log(`[Printer] Resolved requested "${requestedName}" -> "${partial.name}" via partial match`);
+      return { deviceName: partial.name, actualNameUsed: partial.name };
+    }
+
+    // 3. Thermal printer auto-detection if requested name failed
+    const thermalKeywords = ['pos', 'rp', 'thermal', 'receipt', '80', '58', 'epson', 'xprinter', 'tspl', 'zjiang', 'sewoo'];
+    const thermalPrinter = printers.find((p: any) => thermalKeywords.some(k => p.name.toLowerCase().includes(k)));
+    if (thermalPrinter) {
+      console.warn(`[Printer] Requested "${requestedName}" not found. Auto-detected thermal printer: "${thermalPrinter.name}"`);
+      return { deviceName: thermalPrinter.name, actualNameUsed: `${thermalPrinter.name} (Auto-detected)` };
+    }
+
+    // 4. Fallback to OS default printer
+    const defaultPrinter = printers.find((p: any) => p.isDefault) || printers[0];
+    console.warn(`[Printer] Requested "${requestedName}" not found. Falling back to "${defaultPrinter?.name || 'System Default'}"`);
+    return {
+      deviceName: defaultPrinter ? defaultPrinter.name : undefined,
+      actualNameUsed: defaultPrinter ? `${defaultPrinter.name} (Fallback)` : 'System Default'
+    };
+  } catch (e: any) {
+    console.warn('[Printer] Failed to enumerate printers:', e.message);
+    if (requestedName && requestedName.toLowerCase() !== 'default') {
+      return { deviceName: requestedName, actualNameUsed: requestedName };
+    }
+    return { deviceName: undefined, actualNameUsed: 'System Default' };
+  }
+}
+
+function executePrintWithFallback(
+  printWindow: BrowserWindow,
+  deviceName: string | undefined,
+  widthMm?: number,
+  heightMicrons?: number,
+  pageSizeName?: string,
+  landscape: boolean = false
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const primaryOptions: Electron.WebContentsPrintOptions = {
+      silent: true,
+      margins: { marginType: 'none' },
+      landscape,
+      printBackground: true,
+    };
+
+    if (deviceName) {
+      primaryOptions.deviceName = deviceName;
+    }
+    if (pageSizeName) {
+      (primaryOptions as any).pageSize = pageSizeName;
+    } else if (widthMm && heightMicrons) {
+      primaryOptions.pageSize = { width: widthMm * 1000, height: heightMicrons };
+    }
+
+    // Attempt 1: Print with primary options
+    printWindow.webContents.print(primaryOptions, (success1, failureReason1) => {
+      if (success1) {
+        return resolve();
+      }
+
+      console.warn(`[Printer] Print attempt 1 failed (${failureReason1}). Retrying attempt 2 without custom pageSize...`);
+
+      // Attempt 2: Retry without custom pageSize (lets driver use native roll/page size)
+      const fallbackOptions2: Electron.WebContentsPrintOptions = {
+        silent: true,
         margins: { marginType: 'none' },
-        pageSize: pageSize as any,
-        landscape: landscape,
+        landscape,
         printBackground: true,
       };
       if (deviceName) {
-        printOptions.deviceName = deviceName;
+        fallbackOptions2.deviceName = deviceName;
       }
-      printWindow.webContents.print(printOptions, (success, failureReason) => {
-        clearTimeout(timer);
-        setTimeout(() => {
-          if (!printWindow.isDestroyed()) printWindow.close();
-        }, 3000);
 
-        if (success) {
-          resolve();
-        } else {
-          const reason = failureReason || 'Spooler error';
-          if (reason.toLowerCase().includes('invalid devicename') || reason.toLowerCase().includes('invalid')) {
-            reject(new Error(`Printer "${deviceName || 'Default'}" not found. Check if printer is ON/connected, or re-select in Settings.`));
-          } else if (reason.toLowerCase() === 'print failed') {
-            reject(new Error(`Could not print to "${deviceName || 'Default'}". Check printer status, USB cable, and paper.`));
-          } else {
-            reject(new Error(`A4 Print failed: ${reason}`));
-          }
+      printWindow.webContents.print(fallbackOptions2, (success2, failureReason2) => {
+        if (success2) {
+          console.log('[Printer] Print attempt 2 (native driver page size) succeeded!');
+          return resolve();
         }
+
+        console.warn(`[Printer] Print attempt 2 failed (${failureReason2}). Retrying attempt 3 on System Default Printer...`);
+
+        // Attempt 3: Retry without deviceName on OS Default Printer
+        const fallbackOptions3: Electron.WebContentsPrintOptions = {
+          silent: true,
+          margins: { marginType: 'none' },
+          landscape,
+          printBackground: true,
+        };
+
+        printWindow.webContents.print(fallbackOptions3, (success3, failureReason3) => {
+          if (success3) {
+            console.log('[Printer] Print attempt 3 (OS Default Printer) succeeded!');
+            return resolve();
+          }
+
+          const reason = failureReason3 || failureReason2 || failureReason1 || 'Spooler error';
+          reject(new Error(`Could not print to printer "${deviceName || 'Default'}": ${reason}. Check printer power, USB cable, and paper.`));
+        });
       });
     });
   });
 }
 
 function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void> {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     const printWindow = new BrowserWindow({
       show: false,
       width: 400,
@@ -598,7 +679,9 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
       }
     });
 
-    // Pass data via global variable to avoid URL length limits
+    const resolved = await resolvePrinterDeviceName(printWindow, deviceName);
+    console.log(`[Printer] Resolved receipt printer "${deviceName}" -> "${resolved.actualNameUsed}"`);
+
     if (app.isPackaged) {
       printWindow.loadFile(path.join(__dirname, '../../dist/index.html'), { hash: '/print-receipt' });
     } else {
@@ -608,45 +691,28 @@ function printReceiptUSB(deviceName: string, widthMm: number = 80): Promise<void
     const timer = setTimeout(() => {
       if (!printWindow.isDestroyed()) {
         printWindow.close();
-        reject(new Error(`Printer Timeout: Printer "${deviceName}" did not respond after 20s. Check power & USB cable.`));
+        reject(new Error(`Printer Timeout: Printer "${resolved.actualNameUsed}" did not respond after 20s. Check power & USB cable.`));
       }
     }, 20000);
 
-    ipcMain.once(`print-ready-${printWindow.webContents.id}`, () => {
-      // Convert measured content height (CSS px at 96dpi) to physical microns.
-      // 1 CSS px = 1/96 inch; 1 inch = 25400 microns.
-      // Add 8px top + 8px bottom margin (= 16px) then convert, with a 15mm safety buffer.
+    ipcMain.once(`print-ready-${printWindow.webContents.id}`, async () => {
       const safetyMm = 15;
       const measuredMm = pendingReceiptHeightPx > 0
         ? Math.ceil((pendingReceiptHeightPx + 16) * (25.4 / 96)) + safetyMm
-        : 200;  // fallback: 200mm if height was not measured
+        : 200;
       const pageHeightMicrons = Math.max(80, measuredMm) * 1000;
-      pendingReceiptHeightPx = 0; // reset for next print
+      pendingReceiptHeightPx = 0;
 
-      printWindow.webContents.print({
-        silent: true,
-        deviceName: deviceName,
-        margins: { marginType: 'none' },
-        pageSize: { width: widthMm * 1000, height: pageHeightMicrons }
-      }, (success, failureReason) => {
+      try {
+        await executePrintWithFallback(printWindow, resolved.deviceName, widthMm, pageHeightMicrons);
         clearTimeout(timer);
-        setTimeout(() => {
-          if (!printWindow.isDestroyed()) printWindow.close();
-        }, 3000);
-        
-        if (success) {
-          resolve();
-        } else {
-          const reason = failureReason || 'Spooler error';
-          if (reason.toLowerCase().includes('invalid devicename') || reason.toLowerCase().includes('invalid')) {
-            reject(new Error(`Printer "${deviceName}" not found. Check if printer is ON/connected, or re-select in Settings.`));
-          } else if (reason.toLowerCase() === 'print failed') {
-            reject(new Error(`Could not print to "${deviceName}". Check printer status, USB cable, and paper.`));
-          } else {
-            reject(new Error(`Print failed: ${reason}`));
-          }
-        }
-      });
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        resolve();
+      } catch (err: any) {
+        clearTimeout(timer);
+        setTimeout(() => { if (!printWindow.isDestroyed()) printWindow.close(); }, 2000);
+        reject(err);
+      }
     });
   });
 }

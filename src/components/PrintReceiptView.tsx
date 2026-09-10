@@ -116,16 +116,24 @@ export function PrintReceiptView({ text }: { text: string }) {
   }, []);
 
   useEffect(() => {
-    if (!receiptText || !isQrReady) return;
-    const timer = setTimeout(() => {
-      if (window.electronAPI && window.electronAPI.printReady) {
-        // Measure the actual rendered content height so printer.ts can set
-        // an exact page height — eliminates the large blank gap at the bottom.
+    if (!receiptText) return;
+    let fired = false;
+    const fireReady = () => {
+      if (fired) return;
+      fired = true;
+      if (window.electronAPI?.printReady) {
         const contentHeight = document.documentElement.scrollHeight || document.body.scrollHeight || 0;
         window.electronAPI.printReady(contentHeight);
       }
-    }, 200); // 200ms: enough for fonts + barcodes to fully paint
-    return () => clearTimeout(timer);
+    };
+
+    if (isQrReady) {
+      const timer = setTimeout(fireReady, 150);
+      return () => clearTimeout(timer);
+    } else {
+      const fallbackTimer = setTimeout(fireReady, 800);
+      return () => clearTimeout(fallbackTimer);
+    }
   }, [receiptText, isQrReady]);
 
   useEffect(() => {

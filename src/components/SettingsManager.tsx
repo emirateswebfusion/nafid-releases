@@ -597,7 +597,27 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       }
     }
 
-    try { const pr = await window.electronAPI.getPrinters(); setOsPrinters(pr || []); } catch (err) { console.error('Failed to get printers', err); }
+    try {
+      const pr = await window.electronAPI.getPrinters();
+      const printerList = Array.isArray(pr) ? pr : [];
+      setOsPrinters(printerList);
+
+      if (printerList.length > 0) {
+        const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
+        if (defPr && defPr.name) {
+          setReceiptPrinter((prev: any) => ({
+            ...prev,
+            type: prev.type || 'usb',
+            deviceName: prev.deviceName || defPr.name
+          }));
+          setBarcodePrinter((prev: any) => ({
+            ...prev,
+            type: prev.type || 'usb',
+            deviceName: prev.deviceName || defPr.name
+          }));
+        }
+      }
+    } catch (err) { console.error('Failed to get printers', err); }
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
 
     try {
@@ -634,8 +654,23 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (!res.success) throw new Error(res.error);
       }
 
-      const formattedBarcodePrinter = { ...barcodePrinter, port: Number(barcodePrinter.port) || 9100, labelWidthMm: Number(barcodePrinter.labelWidthMm) || 50, labelHeightMm: Number(barcodePrinter.labelHeightMm) || 25, labelColumns: Number(barcodePrinter.labelColumns) || 1 };
-      const formattedReceiptPrinter = { ...receiptPrinter, port: Number(receiptPrinter.port) || 9100, receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8 };
+      const defaultSystemPrinter = osPrinters.find((p: any) => p.isDefault)?.name || osPrinters[0]?.name || '';
+      const formattedBarcodePrinter = {
+        ...barcodePrinter,
+        type: barcodePrinter.type || 'usb',
+        deviceName: barcodePrinter.deviceName || defaultSystemPrinter,
+        port: Number(barcodePrinter.port) || 9100,
+        labelWidthMm: Number(barcodePrinter.labelWidthMm) || 50,
+        labelHeightMm: Number(barcodePrinter.labelHeightMm) || 25,
+        labelColumns: Number(barcodePrinter.labelColumns) || 1
+      };
+      const formattedReceiptPrinter = {
+        ...receiptPrinter,
+        type: receiptPrinter.type || 'usb',
+        deviceName: receiptPrinter.deviceName || defaultSystemPrinter,
+        port: Number(receiptPrinter.port) || 9100,
+        receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8
+      };
 
       const checks: { promise: Promise<any>; name: string }[] = [
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
