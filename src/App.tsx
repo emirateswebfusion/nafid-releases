@@ -58,6 +58,7 @@ import { StockReport } from './components/StockReport';
 import { FinancialReport } from './components/FinancialReport';
 import { PurchaseBillManager } from './components/PurchaseBillManager';
 import { CustomersPage } from './components/CustomersPage';
+import { SessionExpiredModal } from './components/SessionExpiredModal';
 import { DEFAULT_CODE_TYPE, type CodeType } from './labelCodeTypes';
 import { loadFeatureFlags, type FeatureKey, type FeatureFlags } from './featureFlags';
 
@@ -142,6 +143,7 @@ function App() {
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncChecked, setSyncChecked] = useState(false);
   const [syncProgress, setSyncProgress] = useState<{ percent: number; label: string; recordsSynced: number; totalRecords: number } | null>(null);
@@ -483,8 +485,8 @@ function App() {
     let unsubscribeScale: (() => void) | undefined;
     if (window.electronAPI) {
       window.electronAPI.onTokenExpired(() => {
-        console.log('[App] Token expired event received. Logging out...');
-        useAuthStore.getState().logout();
+        console.warn('[App] Cloud session expired or unauthorized. Showing session expired modal...');
+        setShowSessionExpiredModal(true);
       });
 
       unsubscribeScale = window.electronAPI.onScaleWeight((weight) => {
@@ -721,6 +723,13 @@ function App() {
       ) : (
         <BillingPage />
       )}
+      <SessionExpiredModal
+        isOpen={showSessionExpiredModal}
+        onConfirm={() => {
+          setShowSessionExpiredModal(false);
+          useAuthStore.getState().logout();
+        }}
+      />
     </div>
   );
 }

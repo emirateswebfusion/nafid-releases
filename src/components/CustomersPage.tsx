@@ -8,6 +8,7 @@ import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
 
 interface Customer {
   customer_id: string;
@@ -72,12 +73,12 @@ function formatCurrency(amount: number): string {
 
 function formatDate(d: string) {
   if (!d) return '—';
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return parseUTCDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatDateTime(d: string) {
   if (!d) return '—';
-  return new Date(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 function getInitials(name: string): string {

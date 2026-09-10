@@ -399,6 +399,10 @@ function isJwtExpired(token: string): boolean {
 
 async function clearAuthAndNotify() {
   isSyncActive = false;
+  if (syncCycleTimerId) {
+    clearTimeout(syncCycleTimerId);
+    syncCycleTimerId = null;
+  }
   const paths = [getConfigPath(), getEncryptedPath()];
   for (const p of paths) {
     if (fs.existsSync(p)) {
@@ -407,6 +411,7 @@ async function clearAuthAndNotify() {
   }
   const win = BrowserWindow.getAllWindows()[0];
   if (win) {
+    console.warn('[SyncWorker] ⚠️ Auth token expired or unauthorized. Cleared disk credentials and notifying UI to re-login.');
     win.webContents.send('auth:token-expired');
   }
 }
@@ -1271,6 +1276,11 @@ async function pullPaginated(opts: {
           signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         });
         if (!response.ok) {
+          if (response.status === 401) {
+            console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...`);
+            await clearAuthAndNotify();
+            return null;
+          }
           console.error(`[SyncWorker] Pull ${opts.label} failed: HTTP ${response.status}`);
           return null;
         }
@@ -1974,6 +1984,11 @@ async function pullUsers(token: string, tenantId: string): Promise<boolean> {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        console.error('[SyncWorker] Pull users failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+        await clearAuthAndNotify();
+        return false;
+      }
       console.error(`[SyncWorker] Pull users failed: HTTP ${response.status}`);
       return false;
     }
@@ -2064,7 +2079,13 @@ async function pushCustomers(token: string, tenantId: string): Promise<boolean> 
       body: JSON.stringify({ customers: pending }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error('[SyncWorker] Push customers failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+        await clearAuthAndNotify();
+      }
+      return false;
+    }
     const result = await response.json();
     if (Array.isArray(result.synced) && result.synced.length > 0) {
       const markSynced = getDb().prepare(`UPDATE customers SET sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ?`);
@@ -2199,7 +2220,13 @@ async function pushLoyaltyTransactions(token: string, tenantId: string): Promise
       body: JSON.stringify({ loyalty_transactions: pending }),
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
-    if (!response.ok) return false;
+    if (!response.ok) {
+      if (response.status === 401) {
+        console.error('[SyncWorker] Push loyalty transactions failed: HTTP 401 (token expired/unauthorized). Clearing auth and notifying user to re-login...');
+        await clearAuthAndNotify();
+      }
+      return false;
+    }
     const result = await response.json();
     if (Array.isArray(result.synced) && result.synced.length > 0) {
       const markSynced = db.prepare("UPDATE loyalty_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?");

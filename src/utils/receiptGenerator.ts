@@ -123,18 +123,23 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   if (dateInput instanceof Date) return dateInput;
   if (typeof dateInput === 'number') return new Date(dateInput);
 
-  const dateStr = String(dateInput);
+  const dateStr = String(dateInput).trim();
+  if (!dateStr) return new Date();
+
   if (dateStr.includes('Z') || dateStr.includes('+') || /-\d{2}:\d{2}$/.test(dateStr)) {
-    return new Date(dateStr);
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? new Date() : d;
   }
   let formatted = dateStr;
-  if (dateStr.includes(' ')) {
-    formatted = dateStr.replace(' ', 'T');
+  if (formatted.includes(' ')) {
+    formatted = formatted.replace(' ', 'T');
   }
-  if (!formatted.includes('T')) {
-    return new Date(formatted);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(formatted)) {
+    const [y, m, d] = formatted.split('-').map(Number);
+    return new Date(y, m - 1, d);
   }
-  return new Date(formatted + 'Z');
+  const parsed = new Date(formatted);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
 }
 
 export function formatBillDateTime(date: Date | string | number): string {
