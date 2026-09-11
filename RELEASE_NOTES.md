@@ -1,3 +1,10 @@
+# Vendora v1.5.56 Release Notes
+
+## What's Changed
+- Enhanced `CashierSettlement` component for daily drawer reconciliation and cashier settlements
+- Improved Electron main process IPC handlers for cash register transaction audits
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.55...v1.5.56
+
 # Vendora v1.5.55 Release Notes
 
 ## What's Changed
