@@ -265,7 +265,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       }).catch(() => {});
     }
     if (window.electronAPI?.getCloudAccessState) {
-      window.electronAPI.getCloudAccessState(tenantId).then((state: any) => {
+      window.electronAPI.getCloudAccessState().then((state: any) => {
         if (state) setEffectiveCloudState(state);
       }).catch(() => {});
     }
@@ -284,10 +284,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     if (!window.electronAPI?.drainPendingCloudQueue) return;
     setDrainingQueue(true);
     try {
-      const res = await window.electronAPI.drainPendingCloudQueue(tenantId);
-      setMessage({ type: 'success', text: res.message || 'Queue drain completed' });
-      const newState = await window.electronAPI.getCloudAccessState(tenantId);
-      if (newState) setEffectiveCloudState(newState);
+      const res = await window.electronAPI.drainPendingCloudQueue();
+      if (res.success) {
+        setMessage({ type: 'success', text: 'Queue drain completed' });
+      } else {
+        setMessage({ type: 'error', text: `Queue drain error: ${res.error || 'Failed'}` });
+      }
+      if (window.electronAPI?.getCloudAccessState) {
+        const newState = await window.electronAPI.getCloudAccessState();
+        if (newState) setEffectiveCloudState(newState);
+      }
     } catch (err: any) {
       setMessage({ type: 'error', text: `Queue drain error: ${err.message}` });
     } finally {

@@ -3394,22 +3394,6 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
   const nextCounter = Math.max(counter, maxUsed + 1);
   return { success: true, returnNumber: `${prefix}${String(nextCounter).padStart(3, '0')}` };
 }));
-      prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
-      counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
-    } catch {
-      // Invalid JSON — use defaults
-    }
-  }
-  const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
-  let maxUsed = 0;
-  for (const row of usedRows) {
-    const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);
-    if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
-  }
-  const nextCounter = Math.max(counter, maxUsed + 1);
-  const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
-  return { success: true, returnNumber };
-}));
 
 ipcMain.handle('db:convertBosToGst', (event, payload: {
   invoice_ids: string[];
