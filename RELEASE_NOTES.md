@@ -1,3 +1,10 @@
+# Vendora v1.5.55 Release Notes
+
+## What's Changed
+- Added cashier management module with transaction, settlement, and printer integration support
+- Enhanced daily settlement tracking, cashier audit logs, and hardware device status checks
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.54...v1.5.55
+
 # Vendora v1.5.54 Release Notes
 
 ## What's Changed
