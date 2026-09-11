@@ -553,17 +553,18 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     };
   }, []);
 
-  // When drawer is null (no auto-open), check if yesterday was not closed
+  // When drawer is null (no auto-open), check if any previous shift was not closed
   useEffect(() => {
     if (!drawer && tenantId && !loading) {
-      window.electronAPI?.dbCashierGetHistory({ tenant_id: tenantId, limit: 2 }).then(history => {
-        const yesterday = new Date();
-        yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-        const entry = Array.isArray(history) ? history.find(h => h.business_date === yesterdayStr) : null;
-        if (entry && entry.status === 'OPEN') {
+      window.electronAPI?.dbCashierGetHistory({ tenant_id: tenantId, limit: 10 }).then(history => {
+        const today = new Date().toLocaleDateString('en-CA');
+        const entry = Array.isArray(history) ? history.find(h => h.status === 'OPEN' && h.business_date < today) : null;
+        if (entry) {
           setYesterdayNotClosed(true);
           setYesterdayDrawer(entry);
+        } else {
+          setYesterdayNotClosed(false);
+          setYesterdayDrawer(null);
         }
       });
     } else {
@@ -923,7 +924,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       )}
 
       {/* ══════════════════════════════════════════════════════════════════════
-          WARNING: Yesterday not closed
+          WARNING / INFO BANNERS
       ══════════════════════════════════════════════════════════════════════ */}
       {yesterdayNotClosed && !showHist && (
         <div className="shrink-0 bg-amber-500/10 border-b border-amber-500/25 px-6 py-3 flex items-center gap-3 flex-wrap">
@@ -932,11 +933,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-extrabold text-amber-700 dark:text-amber-300">
-              Yesterday's cash drawer was not closed
+              Previous cash drawer from {yesterdayDrawer?.business_date} was not closed
             </p>
             <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70 font-medium mt-0.5">
-              {yesterdayDrawer?.business_date} &middot; Expected closing: {formatCurrency(yesterdayDrawer?.expected_closing || 0)}
-              &nbsp;&middot; Close it first or manually set today's opening balance to continue.
+              Expected closing: {formatCurrency(yesterdayDrawer?.expected_closing || 0)}
+              &nbsp;&middot; Close previous shift first to unlock opening balance for today.
             </p>
           </div>
           <button
@@ -948,7 +949,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-amber-700 dark:text-amber-300 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
           >
-            <CheckCircle2 className="w-3.5 h-3.5" /> Close Yesterday
+            <CheckCircle2 className="w-3.5 h-3.5" /> Close Previous Shift ({yesterdayDrawer?.business_date})
           </button>
           <button
             onClick={() => {
@@ -958,7 +959,35 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             }}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-primary bg-primary/10 hover:bg-primary/20 border border-primary/30 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
           >
-            <DollarSign className="w-3.5 h-3.5" /> Set Opening Balance
+            <DollarSign className="w-3.5 h-3.5" /> Set Today's Opening Balance
+          </button>
+        </div>
+      )}
+
+      {!drawer && !yesterdayNotClosed && !showHist && (
+        <div className="shrink-0 bg-blue-500/10 border-b border-blue-500/25 px-6 py-3 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-full bg-blue-500/20 shrink-0">
+              <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs font-extrabold text-blue-700 dark:text-blue-300">
+                Today's Cash Register is Not Started ({formatBusinessDate(todayStr())})
+              </p>
+              <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70 font-medium mt-0.5">
+                Set an opening balance to open today's drawer session and manage cash entries.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setOpeningBalInput(0);
+              setOpeningBalError('');
+              setShowOpeningBal(true);
+            }}
+            className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black text-white bg-blue-600 hover:bg-blue-500 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+          >
+            <Plus className="w-3.5 h-3.5" /> Set Opening Balance
           </button>
         </div>
       )}

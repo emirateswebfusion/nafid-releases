@@ -5620,9 +5620,6 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
     if (!drawer) {
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
     }
-    if (!drawer && !business_date) {
-      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
-    }
 
     if (drawer) {
       const txSums = db.prepare(`
@@ -5670,14 +5667,12 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
     const db = getDb();
     const date = localDate();
 
-    // Block setting opening balance if yesterday is still open
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = localDate(yesterday);
-    const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, yesterdayStr) as any;
-    if (prevDrawer && prevDrawer.status === 'OPEN') {
-      console.log(`[Cashier] setOpeningBalance BLOCKED: yesterday ${yesterdayStr} is still OPEN`);
-      return { success: false, error: 'Yesterday\'s cash drawer is not closed. Close it first before setting today\'s opening balance.' };
+    // Block setting opening balance if any previous shift is still open
+    const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' AND (business_date < ? OR date(business_date) < ?)`).get(tenant_id, date, date) as any;
+    if (prevDrawer) {
+      const prevDate = prevDrawer.business_date ? String(prevDrawer.business_date).split('T')[0] : 'a previous shift';
+      console.log(`[Cashier] setOpeningBalance BLOCKED: previous shift ${prevDate} is still OPEN`);
+      return { success: false, error: `Previous cash drawer (${prevDate}) is still open. Close it first before setting today's opening balance.` };
     }
 
     const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
@@ -6028,14 +6023,14 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
     const dateLike = `${date}%`;
     let drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, date, date, dateLike, date) as any[];
     if (!drawers || drawers.length === 0) {
-      drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? ORDER BY created_at DESC LIMIT 1`).all(tenant_id) as any[];
+      drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).all(tenant_id) as any[];
     }
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
       return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, date, dateLike, date);
     }
     const placeholders = drawerIds.map(() => '?').join(',');
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, date, dateLike, date);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND drawer_id IN (${placeholders}) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds);
   } catch (error: any) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };
