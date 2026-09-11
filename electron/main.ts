@@ -3338,7 +3338,10 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
     } else if (confRow) {
       try {
         const cfg = JSON.parse(confRow.value);
-        const rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+        let rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+        if (rawPrefix.includes('-RTN-')) {
+          rawPrefix = `${terminalCode}-RTN-`;
+        }
         prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
       } catch {
@@ -3372,7 +3375,25 @@ ipcMain.handle('db:peekNextReturnNumber', safeHandler((event, payload: { tenant_
   } else if (confRow) {
     try {
       const cfg = JSON.parse(confRow.value);
-      const rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+      let rawPrefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : defaultPrefix;
+      if (rawPrefix.includes('-RTN-')) {
+        rawPrefix = `${terminalCode}-RTN-`;
+      }
+      prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
+      counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+    } catch {
+      // Invalid JSON — use defaults
+    }
+  }
+  const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
+  let maxUsed = 0;
+  for (const row of usedRows) {
+    const usedNum = parseInt(String(row.return_number).slice(prefix.length), 10);
+    if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
+  }
+  const nextCounter = Math.max(counter, maxUsed + 1);
+  return { success: true, returnNumber: `${prefix}${String(nextCounter).padStart(3, '0')}` };
+}));
       prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
       counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
     } catch {
@@ -4044,7 +4065,9 @@ function getGuaranteedNextInvoiceNumber(
     try {
       const parsed = JSON.parse(row.value);
       counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
-      if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+      if (configKey === 'invoice_counter_config') {
+        prefix = defaultPrefix;
+      } else if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
         prefix = parsed.prefix;
       }
     } catch {
@@ -4063,10 +4086,10 @@ function getGuaranteedNextInvoiceNumber(
   const nextConfig = { prefix, counter: counter + 1 };
   db.prepare(`
     INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-    VALUES ('global', ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+    VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
     ON CONFLICT(tenant_id, key) DO UPDATE SET
       value = EXCLUDED.value,
-      sync_status = 'PENDING',
+      sync_status = 'LOCAL',
       updated_at = CURRENT_TIMESTAMP
   `).run(configKey, JSON.stringify(nextConfig));
 
@@ -4090,7 +4113,9 @@ function peekGuaranteedNextInvoiceNumber(
     try {
       const parsed = JSON.parse(row.value);
       counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
-      if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+      if (configKey === 'invoice_counter_config') {
+        prefix = defaultPrefix;
+      } else if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
         prefix = parsed.prefix;
       }
     } catch {
@@ -4307,7 +4332,10 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
         try {
           const parsed = JSON.parse(row.value);
           counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
-          const rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-SCR-`;
+          let rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-SCR-`;
+          if (rawPrefix.includes('-SCR-')) {
+            rawPrefix = `${terminalCode}-SCR-`;
+          }
           config = { prefix: rawPrefix, counter };
         } catch {
           counter = 1;
@@ -4320,12 +4348,12 @@ ipcMain.handle('db:getNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_i
       config.counter = counter + 1;
       db.prepare(`
         INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
         ON CONFLICT(tenant_id, key) DO UPDATE SET
           value = EXCLUDED.value,
-          sync_status = 'PENDING',
+          sync_status = 'LOCAL',
           updated_at = CURRENT_TIMESTAMP
-      `).run('global', configKey, JSON.stringify(config));
+      `).run(configKey, JSON.stringify(config));
 
       return { success: true, invoiceNumber, counter };
     })();
@@ -4347,8 +4375,10 @@ ipcMain.handle('db:peekNextScrapInvoiceNumber', (event, { tenant_id }: { tenant_
     if (row) {
       try {
         const config = JSON.parse(row.value);
-        // Validate prefix — must contain at least one alphanumeric character
-        const rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        let rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        if (rawPrefix.includes('-SCR-')) {
+          rawPrefix = `${terminalCode}-SCR-`;
+        }
         const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         return { success: true, invoiceNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
       } catch {
@@ -4845,7 +4875,10 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: 
         try {
           const parsed = JSON.parse(row.value);
           counter = (typeof parsed.counter === 'number' ? parsed.counter : 1);
-          const rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-QTN-`;
+          let rawPrefix = parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix) ? parsed.prefix : `${terminalCode}-QTN-`;
+          if (rawPrefix.includes('-QTN-')) {
+            rawPrefix = `${terminalCode}-QTN-`;
+          }
           config = { prefix: rawPrefix, counter };
         } catch {
           counter = 1;
@@ -4858,12 +4891,12 @@ ipcMain.handle('db:getNextQuotationNumber', (event, { tenant_id }: { tenant_id: 
       config.counter = counter + 1;
       db.prepare(`
         INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-        VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
+        VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
         ON CONFLICT(tenant_id, key) DO UPDATE SET
           value = EXCLUDED.value,
-          sync_status = 'PENDING',
+          sync_status = 'LOCAL',
           updated_at = CURRENT_TIMESTAMP
-      `).run('global', configKey, JSON.stringify(config));
+      `).run(configKey, JSON.stringify(config));
 
       return { success: true, quotationNumber, counter };
     })();
@@ -4885,8 +4918,10 @@ ipcMain.handle('db:peekNextQuotationNumber', (event, { tenant_id }: { tenant_id:
     if (row) {
       try {
         const config = JSON.parse(row.value);
-        // Validate prefix — must contain at least one alphanumeric character
-        const rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        let rawPrefix = config.prefix && /[A-Z0-9]/i.test(config.prefix) ? config.prefix : defaultPrefix;
+        if (rawPrefix.includes('-QTN-')) {
+          rawPrefix = `${terminalCode}-QTN-`;
+        }
         const prefix = rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || defaultPrefix;
         return { success: true, quotationNumber: `${prefix}${String(config.counter || 1).padStart(3, '0')}` };
       } catch {

@@ -5,8 +5,9 @@ import { useThemeStore } from '../store/themeStore';
 import { 
   Plus, LogOut, Database, CheckCircle2, XCircle, Edit, RefreshCw, Loader2, KeyRound, Globe, User, 
   ShieldAlert, Eye, EyeOff, Copy, Check, Search, Filter, ArrowUpDown, Store, Activity, 
-  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Clock, Trash2, Lock, Unlock, Shield
+  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Clock, Trash2, Lock, Unlock, Shield, Save
 } from 'lucide-react';
+import clsx from 'clsx';
 
 interface TenantAdmin {
   tenant_id: string;

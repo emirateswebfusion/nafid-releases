@@ -3,7 +3,7 @@ import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi,
-  Smartphone, X, RotateCcw, Maximize2, Eye,
+  Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen
 } from 'lucide-react';
@@ -192,6 +192,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [downloadProgress, setDownloadProgress] = useState<{ percent: number; bytesPerSecond: number; transferred: number; total: number } | null>(null);
   const [localDomain] = useState(shopDomain || 'GENERAL');
   const [pass, setPass] = useState({ old: '', new: '', confirm: '' });
+  const [showOldPass, setShowOldPass] = useState(false);
+  const [showNewPass, setShowNewPass] = useState(false);
+  const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
   const [appVersion, setAppVersion] = useState('v1.0.0');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
@@ -2337,13 +2340,26 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <h3 className="font-bold text-foreground text-sm">Change Password</h3>
                   <p className="text-xs text-muted-foreground/75 mt-1 leading-relaxed">Update your account password regularly to keep your shop secure.</p>
                 </div>
-                <div className="relative">
-                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/50" />
-                  <Input type="password" placeholder="Current Password" className="pl-11 bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" value={pass.old} onChange={(e) => setPass({ ...pass, old: e.target.value })} />
+                <div className="relative flex items-center">
+                  <Key className="absolute left-4 top-1/2 -translate-y-1/2 w-4.5 h-4.5 text-muted-foreground/50 pointer-events-none" />
+                  <Input type={showOldPass ? "text" : "password"} placeholder="Current Password" className="pl-11 pr-11 bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" value={pass.old} onChange={(e) => setPass({ ...pass, old: e.target.value })} />
+                  <button type="button" onClick={() => setShowOldPass(p => !p)} className="absolute right-3.5 p-1 text-muted-foreground hover:text-foreground transition-colors focus:outline-none" title={showOldPass ? "Hide password" : "View password"}>
+                    {showOldPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <Input type="password" placeholder="New Password" value={pass.new} onChange={(e) => setPass({ ...pass, new: e.target.value })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
-                  <Input type="password" placeholder="Confirm New Password" value={pass.confirm} onChange={(e) => setPass({ ...pass, confirm: e.target.value })} className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  <div className="relative flex items-center">
+                    <Input type={showNewPass ? "text" : "password"} placeholder="New Password" value={pass.new} onChange={(e) => setPass({ ...pass, new: e.target.value })} className="pr-10 bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 w-full" />
+                    <button type="button" onClick={() => setShowNewPass(p => !p)} className="absolute right-3 p-1 text-muted-foreground hover:text-foreground transition-colors focus:outline-none" title={showNewPass ? "Hide password" : "View password"}>
+                      {showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <div className="relative flex items-center">
+                    <Input type={showConfirmPass ? "text" : "password"} placeholder="Confirm New Password" value={pass.confirm} onChange={(e) => setPass({ ...pass, confirm: e.target.value })} className="pr-10 bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 w-full" />
+                    <button type="button" onClick={() => setShowConfirmPass(p => !p)} className="absolute right-3 p-1 text-muted-foreground hover:text-foreground transition-colors focus:outline-none" title={showConfirmPass ? "Hide password" : "View password"}>
+                      {showConfirmPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
                 <button type="button" disabled={changingPass} onClick={handleChangePassword}
                   className="w-full flex items-center justify-center gap-2 px-5 py-3 text-xs font-bold bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed border border-primary/20 hover:border-primary shadow-sm">

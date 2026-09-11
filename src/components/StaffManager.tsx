@@ -3,7 +3,7 @@ import { useAuthStore } from '../store/authStore';
 import { 
   Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
   Search, SlidersHorizontal, User, CheckCircle2, Check,
-  AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, DollarSign,
+  AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, EyeOff, DollarSign,
   Percent, Trash2, Tag, ShieldAlert, FileText
 } from 'lucide-react';
 import clsx from 'clsx';
@@ -106,6 +106,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     if (statusMessage) {
@@ -408,15 +409,22 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       {/* Main Workspace */}
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-muted/10 p-6 space-y-6">
         
-        {/* Status Alert Overlay */}
+        {/* Floating Status Toast */}
         {statusMessage && (
-          <div className="max-w-7xl mx-auto w-full">
-            <div className={clsx(
-              "px-4 py-3 rounded-2xl border text-xs font-bold flex items-center gap-2 shadow-sm animate-in fade-in duration-200",
-              statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-            )}>
-              {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-500" /> : <AlertCircle className="w-4 h-4 shrink-0 text-destructive" />}
-              <span className="flex-1 font-semibold">{statusMessage.text}</span>
+          <div className="fixed bottom-6 right-6 z-[9999] flex flex-col items-end gap-2 w-full max-w-md pointer-events-none">
+            <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
+              <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
+                {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+              </div>
+              <div className="flex-1 min-w-0 leading-snug">
+                <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
+                  {statusMessage.type === 'success' ? 'STAFF MANAGEMENT' : 'STAFF ALERT'}
+                </span>
+                <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
+              </div>
+              <button onClick={() => setStatusMessage(null)} className="p-1 text-slate-400 hover:text-white rounded-lg transition-colors cursor-pointer shrink-0">
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
         )}
@@ -715,14 +723,24 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                         {view === 'edit' ? 'Reset Password (Optional)' : 'Temporary Password *'}
                       </label>
-                      <input 
-                        required={view === 'add'}
-                        type="password" 
-                        value={formData.password}
-                        onChange={e => setFormData({...formData, password: e.target.value})}
-                        placeholder={view === 'edit' ? 'Leave blank to keep current' : '••••••••'}
-                        className="w-full bg-background border border-border/80 rounded-xl p-3 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" 
-                      />
+                      <div className="relative flex items-center">
+                        <input 
+                          required={view === 'add'}
+                          type={showPassword ? 'text' : 'password'} 
+                          value={formData.password}
+                          onChange={e => setFormData({...formData, password: e.target.value})}
+                          placeholder={view === 'edit' ? 'Leave blank to keep current' : '••••••••'}
+                          className="w-full bg-background border border-border/80 rounded-xl p-3 pr-10 text-foreground focus:border-primary focus:ring-2 focus:ring-primary/10 focus:outline-none transition-all shadow-sm text-sm" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(p => !p)}
+                          className="absolute right-3 p-1 text-muted-foreground hover:text-foreground transition-colors focus:outline-none"
+                          title={showPassword ? 'Hide password' : 'View password'}
+                        >
+                          {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </section>

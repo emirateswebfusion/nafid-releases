@@ -9,6 +9,7 @@ interface ModalProps {
   title?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  size?: string;
   fullScreen?: boolean;
   closeButton?: React.ReactNode;
   overlayClassName?: string;
