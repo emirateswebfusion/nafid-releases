@@ -52,6 +52,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runInitialSync: () => ipcRenderer.invoke('sync:runInitial'),
   forceResyncInvoices: () => ipcRenderer.invoke('sync:forceResyncInvoices'),
   getSyncProgress: () => ipcRenderer.invoke('sync:getProgress'),
+  getCloudAccessState: (tenant_id?: string) => ipcRenderer.invoke('sync:getCloudAccessState', tenant_id),
+  updateCloudAccessConfig: (payload: { config: any; tenant_id?: string }) => ipcRenderer.invoke('sync:updateCloudAccessConfig', payload),
+  drainPendingCloudQueue: (tenant_id?: string) => ipcRenderer.invoke('sync:drainPendingCloudQueue', tenant_id),
   testNetworkConnection: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => ipcRenderer.invoke('sync:testConnection', payload),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
@@ -115,6 +118,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     const listener = (_event: any, online: boolean, route: any) => callback(online, route);
     ipcRenderer.on('sync:online-status', listener);
     return () => ipcRenderer.removeListener('sync:online-status', listener);
+  },
+  onCloudStateChanged: (callback: (state: any) => void) => {
+    const listener = (_event: any, state: any) => callback(state);
+    ipcRenderer.on('sync:cloud-state-changed', listener);
+    return () => ipcRenderer.removeListener('sync:cloud-state-changed', listener);
   },
   onSyncProgress: (callback: (progress: { percent: number; label: string; recordsSynced: number; totalRecords: number }) => void) => {
     ipcRenderer.on('sync:progress', (_event, progress) => callback(progress));
@@ -248,4 +256,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Diagnostic sync helpers
   syncClearPending: (payload: { tenant_id: string; type: 'invoices' | 'products' | 'all'; records?: string[] }) => ipcRenderer.invoke('sync:clearPending', payload),
   syncGetPending: (payload: { tenant_id: string }) => ipcRenderer.invoke('sync:getPending', payload),
+  setPageContext: (payload: { page: string; active: boolean }) => ipcRenderer.invoke('sync:setPageContext', payload),
 });

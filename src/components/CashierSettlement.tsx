@@ -135,6 +135,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [loading, setLoading] = useState(true);
   const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
 
+  useEffect(() => {
+    if (window.electronAPI?.setPageContext) {
+      window.electronAPI.setPageContext({ page: 'cash_settlement', active: true });
+    }
+    return () => {
+      if (window.electronAPI?.setPageContext) {
+        window.electronAPI.setPageContext({ page: 'cash_settlement', active: false });
+      }
+    };
+  }, []);
+
   const [upiPageConfig, setUpiPageConfig] = useState<UpiPageConfig>(DEFAULT_UPI_PAGE_CONFIG);
   const [upiSources, setUpiSources] = useState<any[]>([]);
   const [selectedUpiSourceId, setSelectedUpiSourceId] = useState<string>('');

@@ -5,7 +5,7 @@ import {
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi,
   Smartphone, X, RotateCcw, Maximize2, Eye,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
-  Clock, Power
+  Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen
 } from 'lucide-react';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
@@ -14,6 +14,7 @@ import { useAuthStore } from '../store/authStore';
 import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
+import { Modal } from './ui/Modal';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
@@ -166,7 +167,7 @@ function DefaultStockReportViewSelector({ value, onChange }: { value: string; on
 
 export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
-  const { role, updateDomain, tenantId: _tenantId } = useAuthStore();
+  const { role, updateDomain, tenantId } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
@@ -250,6 +251,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [lanPort, setLanPort] = useState<number>(3888);
   const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
   const [testingNetwork, setTestingNetwork] = useState(false);
+  const [effectiveCloudState, setEffectiveCloudState] = useState<any>(null);
+  const [drainingQueue, setDrainingQueue] = useState(false);
   const initialSnapshot = useRef<string>('');
 
   useEffect(() => {
@@ -258,7 +261,36 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (ip) setDetectedLocalIp(ip);
       }).catch(() => {});
     }
-  }, []);
+    if (window.electronAPI?.getCloudAccessState) {
+      window.electronAPI.getCloudAccessState(tenantId).then((state: any) => {
+        if (state) setEffectiveCloudState(state);
+      }).catch(() => {});
+    }
+    if (window.electronAPI?.onCloudStateChanged) {
+      const unsub = window.electronAPI.onCloudStateChanged((state: any) => {
+        if (state) setEffectiveCloudState(state);
+      });
+      return unsub;
+    }
+  }, [tenantId]);
+
+  const [showLanHelpModal, setShowLanHelpModal] = useState(false);
+  const [copiedFirewallCmd, setCopiedFirewallCmd] = useState(false);
+
+  const handleManualQueueDrain = async () => {
+    if (!window.electronAPI?.drainPendingCloudQueue) return;
+    setDrainingQueue(true);
+    try {
+      const res = await window.electronAPI.drainPendingCloudQueue(tenantId);
+      setMessage({ type: 'success', text: res.message || 'Queue drain completed' });
+      const newState = await window.electronAPI.getCloudAccessState(tenantId);
+      if (newState) setEffectiveCloudState(newState);
+    } catch (err: any) {
+      setMessage({ type: 'error', text: `Queue drain error: ${err.message}` });
+    } finally {
+      setDrainingQueue(false);
+    }
+  };
 
   const handleTestNetworkConnection = async () => {
     setTestingNetwork(true);
@@ -341,13 +373,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 } catch {
                   setMessage({
                     type: 'error',
-                    text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+                    text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
                   });
                 }
               } else {
                 setMessage({
                   type: 'error',
-                  text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+                  text: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
                 });
               }
             }
@@ -417,12 +449,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     window.electronAPI.appCheckForUpdates().then(() => setLastChecked(new Date())).catch(() => {});
   }, []);
 
-  useEffect(() => {
-    if (!loading) {
-      initialSnapshot.current = getSettingsSnapshot();
-    }
-  }, [loading]);
-
   const loadSettings = async () => {
     if (!window.electronAPI) return;
     const { tenantId } = useAuthStore.getState();
@@ -442,158 +468,213 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
     const labelType = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' });
 
+    let finalBarcode = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' };
     if (pBarcode && typeof pBarcode === 'object' && !Array.isArray(pBarcode)) {
       const cleanBarcode = { ...pBarcode };
       for (let i = 0; i <= 20; i++) delete cleanBarcode[String(i)];
-      setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...cleanBarcode });
+      finalBarcode = { ...finalBarcode, ...cleanBarcode };
     } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
       const cleanLegacy = { ...pLegacy };
       for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
-      setBarcodePrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', ...cleanLegacy });
+      finalBarcode = { ...finalBarcode, ...cleanLegacy };
     }
 
+    let finalReceipt = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
     if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
       const cleanReceipt = { ...pReceipt };
       for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
-      setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...cleanReceipt });
+      finalReceipt = { ...finalReceipt, ...cleanReceipt };
     } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
       const cleanLegacy = { ...pLegacy };
       for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
-      setReceiptPrinter({ type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8, ...cleanLegacy });
+      finalReceipt = { ...finalReceipt, ...cleanLegacy };
     }
 
+    let finalA4 = { deviceName: '' };
     if (pA4 && typeof pA4 === 'object' && !Array.isArray(pA4)) {
       const cleanA4 = { ...pA4 };
       for (let i = 0; i <= 20; i++) delete cleanA4[String(i)];
-      setA4Printer(cleanA4);
+      finalA4 = cleanA4;
     }
-    if (s && typeof s === 'object' && !Array.isArray(s)) setScale(s);
-    if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) setPriceCoding(pCoding);
 
-    setShopGstin(typeof gstinVal === 'string' ? gstinVal : '');
-    setShopState(typeof stateVal === 'string' ? stateVal : '');
+    let finalScaleObj = { path: 'COM3', baudRate: 9600 };
+    if (s && typeof s === 'object' && !Array.isArray(s)) finalScaleObj = s;
+
+    let finalCoding = { '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '' };
+    if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) finalCoding = pCoding;
+
+    const finalGstin = typeof gstinVal === 'string' ? gstinVal : '';
+    const finalState = typeof stateVal === 'string' ? stateVal : '';
+    const finalName = typeof nameVal === 'string' ? nameVal : '';
+    const finalAddress = typeof addressVal === 'string' ? addressVal : '';
+    const finalPhone = typeof phoneVal === 'string' ? phoneVal : '';
+    const finalUpi = typeof upiVal === 'string' ? upiVal : '';
+    const finalShowQr = showQrVal !== null && showQrVal !== undefined ? Boolean(showQrVal) : true;
+
+    let finalSyncMode: 'CLOUD' | 'LAN' | 'HYBRID' = 'HYBRID';
+    let finalLanRole: 'PRIMARY' | 'SECONDARY' = 'PRIMARY';
+    let finalLanHostIp = '192.168.1.100';
+    let finalLanPort = 3888;
+    let finalSyncFreq: 'NORMAL' | 'BALANCED' | 'HIGH' = 'NORMAL';
 
     const netSync = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'network_sync_config' });
     if (netSync && typeof netSync === 'object') {
-      if (netSync.syncMode) setSyncMode(netSync.syncMode);
-      if (netSync.lanRole) setLanRole(netSync.lanRole);
-      if (netSync.lanHostIp) setLanHostIp(netSync.lanHostIp);
-      if (netSync.lanPort) setLanPort(Number(netSync.lanPort) || 3888);
-      if (netSync.syncFrequency) setSyncFrequency(netSync.syncFrequency);
+      if (netSync.syncMode) finalSyncMode = netSync.syncMode;
+      if (netSync.lanRole) finalLanRole = netSync.lanRole;
+      if (netSync.lanHostIp) finalLanHostIp = netSync.lanHostIp;
+      if (netSync.lanPort) finalLanPort = Number(netSync.lanPort) || 3888;
+      if (netSync.syncFrequency) finalSyncFreq = netSync.syncFrequency;
     }
-    setShopNameLocal(typeof nameVal === 'string' ? nameVal : '');
-    setShopAddress(typeof addressVal === 'string' ? addressVal : '');
-    setShopPhone(typeof phoneVal === 'string' ? phoneVal : '');
-    setUpiId(typeof upiVal === 'string' ? upiVal : '');
-    if (showQrVal !== null && showQrVal !== undefined) setShowUpiQr(Boolean(showQrVal));
-    const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
-    if (scrapEnabled !== null && scrapEnabled !== undefined) setEnableScrap(Boolean(scrapEnabled));
 
+    let finalScrap = false;
+    const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
+    if (scrapEnabled !== null && scrapEnabled !== undefined) finalScrap = Boolean(scrapEnabled);
+
+    let finalCashReg = false;
     const cashReg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' });
-    if (cashReg !== null && cashReg !== undefined) setShowCashRegister(Boolean(cashReg));
+    if (cashReg !== null && cashReg !== undefined) finalCashReg = Boolean(cashReg);
 
     const flags = await loadFeatureFlags(tenantId || 'global');
-    setFeatureFlags({ ...flags });
+    let finalFlags = { ...flags };
     if (wereFeatureFlagsStored()) {
-      setEnableScrap(flags.scrap);
-      setShowCashRegister(flags.cash_register);
+      finalScrap = flags.scrap;
+      finalCashReg = flags.cash_register;
     }
 
+    let finalAutoBarcode = true;
     const autoBarcode = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' });
-    if (autoBarcode !== null && autoBarcode !== undefined) setAutoPrintBarcode(Boolean(autoBarcode));
+    if (autoBarcode !== null && autoBarcode !== undefined) finalAutoBarcode = Boolean(autoBarcode);
 
+    let finalLoyaltyEnabled = false;
+    let finalLoyaltyEarningRate = 100;
+    let finalLoyaltyRedemptionRate = 1;
     const loyaltyCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' });
     if (loyaltyCfg) {
-      setLoyaltyEnabled(Boolean(loyaltyCfg.enabled));
-      if (loyaltyCfg.earningRate) setLoyaltyEarningRate(Number(loyaltyCfg.earningRate));
-      if (loyaltyCfg.redemptionRate) setLoyaltyRedemptionRate(Number(loyaltyCfg.redemptionRate));
+      finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled);
+      if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate);
+      if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate);
     }
-    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType])     setLabelCodeType(labelType as CodeType);
-    const labelShowName = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' });
-    if (labelShowName !== null && labelShowName !== undefined) setLabelShowShopName(Boolean(labelShowName));
-    const srdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' });
-    if (srdv === 'estimate' || srdv === 'gst' || srdv === 'combined') setStockReportDefaultView(srdv);
-    const invdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' });
-    if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') setInventoryDefaultView(invdv);
 
+    let finalLabelType: CodeType = DEFAULT_CODE_TYPE;
+    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) finalLabelType = labelType as CodeType;
+
+    let finalLabelShowName = true;
+    const labelShowName = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' });
+    if (labelShowName !== null && labelShowName !== undefined) finalLabelShowName = Boolean(labelShowName);
+
+    let finalSrdv = 'combined';
+    const srdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' });
+    if (srdv === 'estimate' || srdv === 'gst' || srdv === 'combined') finalSrdv = srdv;
+
+    let finalInvdv = 'combined';
+    const invdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' });
+    if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') finalInvdv = invdv;
+
+    let finalTimeFmt: '12h' | '24h' = '12h';
     const timeFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'time_format' });
     if (timeFmt === '24h' || timeFmt === '12h') {
-      setTimeFormat(timeFmt);
+      finalTimeFmt = timeFmt;
       setAppTimeFormat(timeFmt);
     } else {
-      setTimeFormat('12h');
       setAppTimeFormat('12h');
     }
+
+    let finalPrintFmt: 'thermal' | 'a4' | 'half-a4' = 'thermal';
+    let finalPrintWidth = 58;
+    let finalThermalStyle: any = 'standard';
+    let finalA4Style: any = 'standard';
+    let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
+    let finalShowOffers = true;
+    let finalOpenCashDrawer = false;
+    let finalReceiptFont = 'courier';
+    let finalBillSettings = { ...DEFAULT_BILL_SETTINGS };
+    let finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS };
+
     if (printFmt) {
       if (printFmt.format === 'a4') {
-        setPrintFormat('a4');
-        if (printFmt.style) setA4Style(printFmt.style);
+        finalPrintFmt = 'a4';
+        if (printFmt.style) finalA4Style = printFmt.style;
       } else if (printFmt.format === 'half-a4') {
-        setPrintFormat('half-a4');
+        finalPrintFmt = 'half-a4';
         if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
-          setA5Orientation(printFmt.a5Orientation);
+          finalA5Orientation = printFmt.a5Orientation;
         }
       } else {
-        setPrintFormat('thermal');
-        setPrintWidth(Number(printFmt.width) || 58);
-        if (printFmt.style) setThermalStyle(printFmt.style);
+        finalPrintFmt = 'thermal';
+        finalPrintWidth = Number(printFmt.width) || 58;
+        if (printFmt.style) finalThermalStyle = printFmt.style;
       }
-      if (printFmt.showProductOffers !== undefined) setShowProductOffers(Boolean(printFmt.showProductOffers));
-      if (printFmt.openCashDrawerOnPending !== undefined) setOpenCashDrawerOnPending(Boolean(printFmt.openCashDrawerOnPending));
-      if (printFmt.receiptFont) setReceiptFont(printFmt.receiptFont);
-      if (printFmt.billSettings) setBillSettings({ ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings });
-      if (printFmt.scrapBillSettings) setScrapBillSettings({ ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings });
+      if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
+      if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
+      if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
+      if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
+      if (printFmt.scrapBillSettings) finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings };
     }
 
     let termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
-    if (!termCode || !/^[A-Z0-9]+$/i.test(termCode)) {
-      // Auto-generate a unique terminal code like a new user — same charset as POS backend's getOrInitTerminalCode()
+    if (typeof termCode === 'string') {
+      termCode = termCode.trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    }
+    if (!termCode || termCode.length === 0) {
       const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
       termCode = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
       await window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: termCode });
     }
-    setTerminalCode(termCode);
+    const finalTermCode = termCode;
 
+    let finalInvoiceStart: number | string = 1;
     const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
-    if (invCfg) { setInvoiceStartNumber(invCfg.counter || 1); }
+    if (invCfg && invCfg.counter) finalInvoiceStart = invCfg.counter;
 
+    let finalGstProfit = 30;
     const gstProfitPct = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage' });
-    if (gstProfitPct !== null && gstProfitPct !== undefined) setGstProfitPercentage(Number(gstProfitPct));
+    if (gstProfitPct !== null && gstProfitPct !== undefined) finalGstProfit = Number(gstProfitPct);
 
+    let finalReturnPrefix = '';
+    let finalReturnStart: number | string = 1;
     const returnCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'return_counter' });
     if (returnCfg) {
-      if (returnCfg.prefix) setReturnPrefix(returnCfg.prefix.replace(/-$/, ''));
-      if (returnCfg.counter) setReturnStartNumber(returnCfg.counter);
+      if (returnCfg.prefix) finalReturnPrefix = returnCfg.prefix.replace(/-$/, '');
+      if (returnCfg.counter) finalReturnStart = returnCfg.counter;
     }
 
+    let finalScrapPrefix = '';
+    let finalScrapStart: number | string = 1;
     const scrapCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'scrap_invoice_counter' });
     if (scrapCfg) {
-      if (scrapCfg.prefix) setScrapPrefix(scrapCfg.prefix.replace(/-$/, ''));
-      if (scrapCfg.counter) setScrapStartNumber(scrapCfg.counter);
+      if (scrapCfg.prefix) finalScrapPrefix = scrapCfg.prefix.replace(/-$/, '');
+      if (scrapCfg.counter) finalScrapStart = scrapCfg.counter;
     }
 
+    let finalQuotationPrefix = '';
+    let finalQuotationStart: number | string = 1;
     const quotationCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'quotation_counter' });
     if (quotationCfg) {
-      if (quotationCfg.prefix) setQuotationPrefix(quotationCfg.prefix.replace(/-$/, ''));
-      if (quotationCfg.counter) setQuotationStartNumber(quotationCfg.counter);
+      if (quotationCfg.prefix) finalQuotationPrefix = quotationCfg.prefix.replace(/-$/, '');
+      if (quotationCfg.counter) finalQuotationStart = quotationCfg.counter;
     }
+
+    let finalTripleSeries = false;
+    let finalB2bPrefix = '';
+    let finalB2bStart: number | string = 1;
+    let finalB2cPrefix = '';
+    let finalB2cStart: number | string = 1;
 
     const tripleSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' });
     if (tripleSeries) {
-      setEnableThreeInvoiceSeries(Boolean(tripleSeries.enabled));
-      if (tripleSeries.b2bPrefix) setB2bPrefix(tripleSeries.b2bPrefix);
-      if (tripleSeries.b2bStartNumber) setB2bStartNumber(tripleSeries.b2bStartNumber);
-      if (tripleSeries.b2cPrefix) setB2cPrefix(tripleSeries.b2cPrefix);
-      if (tripleSeries.b2cStartNumber) setB2cStartNumber(tripleSeries.b2cStartNumber);
+      finalTripleSeries = Boolean(tripleSeries.enabled);
+      if (tripleSeries.b2bPrefix) finalB2bPrefix = tripleSeries.b2bPrefix;
+      if (tripleSeries.b2bStartNumber) finalB2bStart = tripleSeries.b2bStartNumber;
+      if (tripleSeries.b2cPrefix) finalB2cPrefix = tripleSeries.b2cPrefix;
+      if (tripleSeries.b2cStartNumber) finalB2cStart = tripleSeries.b2cStartNumber;
     } else {
-      // Migrate from old dual_invoice_series
       const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
       if (dualSeries && dualSeries.enabled) {
-        setEnableThreeInvoiceSeries(true);
-        setB2bPrefix(dualSeries.gstTerminalCode || 'B2B');
-        setB2bStartNumber(dualSeries.gstStartNumber || 1);
-        setB2cPrefix(dualSeries.gstTerminalCode || 'B2C');
-        setB2cStartNumber(dualSeries.gstStartNumber || 1);
+        finalTripleSeries = true;
+        finalB2bPrefix = dualSeries.gstTerminalCode || 'B2B';
+        finalB2bStart = dualSeries.gstStartNumber || 1;
+        finalB2cPrefix = dualSeries.gstTerminalCode || 'B2C';
+        finalB2cStart = dualSeries.gstStartNumber || 1;
       }
     }
 
@@ -605,23 +686,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       if (printerList.length > 0) {
         const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
         if (defPr && defPr.name) {
-          setReceiptPrinter((prev: any) => ({
-            ...prev,
-            type: prev.type || 'usb',
-            deviceName: prev.deviceName || defPr.name
-          }));
-          setBarcodePrinter((prev: any) => ({
-            ...prev,
-            type: prev.type || 'usb',
-            deviceName: prev.deviceName || defPr.name
-          }));
+          if (!finalReceipt.deviceName) finalReceipt.deviceName = defPr.name;
+          if (!finalBarcode.deviceName) finalBarcode.deviceName = defPr.name;
         }
       }
     } catch (err) { console.error('Failed to get printers', err); }
+
     try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
 
+    let finalServiceBarcode = '';
     try {
-      // Make sure the single canonical Service Charge row exists (dedupes legacy duplicates)
       await window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' });
       const svcProducts = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: 'Service Charge' });
       const svcProd = Array.isArray(svcProducts)
@@ -634,13 +708,124 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         : null;
       if (svcProd) {
         setServiceChargeProduct(svcProd);
-        setServiceChargeBarcode(svcProd.sku_barcode || '99');
+        finalServiceBarcode = svcProd.sku_barcode || '99';
       }
     } catch (err) {
       console.error('Failed to load Service Charge settings', err);
     }
 
-    initialSnapshot.current = getSettingsSnapshot();
+    setBarcodePrinter(finalBarcode);
+    setReceiptPrinter(finalReceipt);
+    setA4Printer(finalA4);
+    setScale(finalScaleObj);
+    setPriceCoding(finalCoding);
+    setShopGstin(finalGstin);
+    setShopState(finalState);
+    setShopNameLocal(finalName);
+    setShopAddress(finalAddress);
+    setShopPhone(finalPhone);
+    setUpiId(finalUpi);
+    setShowUpiQr(finalShowQr);
+    setSyncMode(finalSyncMode);
+    setLanRole(finalLanRole);
+    setLanHostIp(finalLanHostIp);
+    setLanPort(finalLanPort);
+    setSyncFrequency(finalSyncFreq);
+    setEnableScrap(finalScrap);
+    setShowCashRegister(finalCashReg);
+    setFeatureFlags(finalFlags);
+    setAutoPrintBarcode(finalAutoBarcode);
+    setLoyaltyEnabled(finalLoyaltyEnabled);
+    setLoyaltyEarningRate(finalLoyaltyEarningRate);
+    setLoyaltyRedemptionRate(finalLoyaltyRedemptionRate);
+    setLabelCodeType(finalLabelType);
+    setLabelShowShopName(finalLabelShowName);
+    setStockReportDefaultView(finalSrdv);
+    setInventoryDefaultView(finalInvdv);
+    setTimeFormat(finalTimeFmt);
+    setPrintFormat(finalPrintFmt);
+    setPrintWidth(finalPrintWidth);
+    setThermalStyle(finalThermalStyle);
+    setA4Style(finalA4Style);
+    setA5Orientation(finalA5Orientation);
+    setShowProductOffers(finalShowOffers);
+    setOpenCashDrawerOnPending(finalOpenCashDrawer);
+    setReceiptFont(finalReceiptFont);
+    setBillSettings(finalBillSettings);
+    setScrapBillSettings(finalScrapBillSettings);
+    setTerminalCode(finalTermCode);
+    setInvoiceStartNumber(finalInvoiceStart);
+    setGstProfitPercentage(finalGstProfit);
+    setReturnPrefix(finalReturnPrefix);
+    setReturnStartNumber(finalReturnStart);
+    setScrapPrefix(finalScrapPrefix);
+    setScrapStartNumber(finalScrapStart);
+    setQuotationPrefix(finalQuotationPrefix);
+    setQuotationStartNumber(finalQuotationStart);
+    setEnableThreeInvoiceSeries(finalTripleSeries);
+    setB2bPrefix(finalB2bPrefix);
+    setB2bStartNumber(finalB2bStart);
+    setB2cPrefix(finalB2cPrefix);
+    setB2cStartNumber(finalB2cStart);
+    setServiceChargeBarcode(finalServiceBarcode);
+
+    initialSnapshot.current = JSON.stringify({
+      barcodePrinter: finalBarcode,
+      receiptPrinter: finalReceipt,
+      a4Printer: finalA4,
+      scale: finalScaleObj,
+      priceCoding: finalCoding,
+      shopGstin: finalGstin,
+      shopState: finalState,
+      shopNameLocal: finalName,
+      shopAddress: finalAddress,
+      shopPhone: finalPhone,
+      upiId: finalUpi,
+      showUpiQr: finalShowQr,
+      showProductOffers: finalShowOffers,
+      openCashDrawerOnPending: finalOpenCashDrawer,
+      receiptFont: finalReceiptFont,
+      printFormat: finalPrintFmt,
+      a5Orientation: finalA5Orientation,
+      printWidth: finalPrintWidth,
+      thermalStyle: finalThermalStyle,
+      a4Style: finalA4Style,
+      terminalCode: finalTermCode,
+      invoiceStartNumber: finalInvoiceStart,
+      enableThreeInvoiceSeries: finalTripleSeries,
+      b2bPrefix: finalTripleSeries ? finalB2bPrefix : '',
+      b2bStartNumber: finalTripleSeries ? finalB2bStart : '',
+      b2cPrefix: finalTripleSeries ? finalB2cPrefix : '',
+      b2cStartNumber: finalTripleSeries ? finalB2cStart : '',
+      labelCodeType: finalLabelType,
+      labelShowShopName: finalLabelShowName,
+      enableScrap: finalScrap,
+      showCashRegister: finalCashReg,
+      autoPrintBarcode: finalAutoBarcode,
+      loyaltyEnabled: finalLoyaltyEnabled,
+      loyaltyEarningRate: finalLoyaltyEarningRate,
+      loyaltyRedemptionRate: finalLoyaltyRedemptionRate,
+      billSettings: finalBillSettings,
+      scrapBillSettings: finalScrapBillSettings,
+      gstProfitPercentage: finalGstProfit,
+      returnPrefix: finalReturnPrefix,
+      returnStartNumber: finalReturnStart,
+      scrapPrefix: finalScrapPrefix,
+      scrapStartNumber: finalScrapStart,
+      quotationPrefix: finalQuotationPrefix,
+      quotationStartNumber: finalQuotationStart,
+      stockReportDefaultView: finalSrdv,
+      inventoryDefaultView: finalInvdv,
+      serviceChargeBarcode: finalServiceBarcode,
+      timeFormat: finalTimeFmt,
+      syncMode: finalSyncMode,
+      lanRole: finalLanRole,
+      lanHostIp: finalLanHostIp,
+      lanPort: finalLanPort,
+      syncFrequency: finalSyncFreq,
+      features: JSON.stringify(finalFlags)
+    });
+
     setLoading(false);
   };
 
@@ -672,6 +857,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         receiptWidthCm: Number(receiptPrinter.receiptWidthCm) || 5.8
       };
 
+      const liveInvCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
+      const liveReturnCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'return_counter' });
+      const liveScrapCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'scrap_invoice_counter' });
+      const liveQuotationCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'quotation_counter' });
+      const liveB2bCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config' });
+      const liveB2cCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config' });
+
+      const finalInvCounter = Math.max((liveInvCfg && typeof liveInvCfg.counter === 'number') ? liveInvCfg.counter : 1, Number(invoiceStartNumber) || 1);
+      const finalReturnCounter = Math.max((liveReturnCfg && typeof liveReturnCfg.counter === 'number') ? liveReturnCfg.counter : 1, Number(returnStartNumber) || 1);
+      const finalScrapCounter = Math.max((liveScrapCfg && typeof liveScrapCfg.counter === 'number') ? liveScrapCfg.counter : 1, Number(scrapStartNumber) || 1);
+      const finalQuotationCounter = Math.max((liveQuotationCfg && typeof liveQuotationCfg.counter === 'number') ? liveQuotationCfg.counter : 1, Number(quotationStartNumber) || 1);
+      const finalB2bCounter = Math.max((liveB2bCfg && typeof liveB2bCfg.counter === 'number') ? liveB2bCfg.counter : 1, Number(b2bStartNumber) || 1);
+      const finalB2cCounter = Math.max((liveB2cCfg && typeof liveB2cCfg.counter === 'number') ? liveB2cCfg.counter : 1, Number(b2cStartNumber) || 1);
+
+      const cleanCode = String(terminalCode || 'POS1').trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase() || 'POS1';
+
       const checks: { promise: Promise<any>; name: string }[] = [
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config', value: formattedReceiptPrinter }), name: 'receipt' },
@@ -694,15 +895,15 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: terminalCode }), name: 'terminal_code' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${terminalCode || 'POS1'}-`, counter: Number(invoiceStartNumber) || 1 } }), name: 'invoice' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${terminalCode || 'POS1'}-RTN`}-`, counter: Number(returnStartNumber) || 1 } }), name: 'return_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${scrapPrefix || `${terminalCode || 'POS1'}-SCR`}-`, counter: Number(scrapStartNumber) || 1 } }), name: 'scrap_invoice_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${quotationPrefix || `${terminalCode || 'POS1'}-QTN`}-`, counter: Number(quotationStartNumber) || 1 } }), name: 'quotation_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? Number(b2bStartNumber) || 1 : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? Number(b2cStartNumber) || 1 : 1 } }), name: 'three_invoice_series' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${cleanCode}-RTN`}-`, counter: finalReturnCounter } }), name: 'return_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${scrapPrefix || `${cleanCode}-SCR`}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${quotationPrefix || `${cleanCode}-QTN`}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? finalB2bCounter : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? finalB2cCounter : 1 } }), name: 'three_invoice_series' },
         ...(enableThreeInvoiceSeries ? [
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: Number(b2bStartNumber) || 1 } }), name: 'gst_b2b_invoice' },
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: Number(b2cStartNumber) || 1 } }), name: 'gst_b2c_invoice' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: finalB2bCounter } }), name: 'gst_b2b_invoice' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2c_invoice_counter_config', value: { prefix: `${b2cPrefix}-`, counter: finalB2cCounter } }), name: 'gst_b2c_invoice' },
         ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
@@ -728,6 +929,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         setServiceChargeProduct(updatedProduct);
       }
 
+      setBarcodePrinter(formattedBarcodePrinter);
+      setReceiptPrinter(formattedReceiptPrinter);
       setAppTimeFormat(timeFormat);
       useCartStore.setState({ shopState });
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
@@ -736,7 +939,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
         : 'Cloud Sync Active (Connected to Cloud API)';
       setMessage({ type: 'success', text: `Settings saved successfully! ${syncStatusToast}` });
-      initialSnapshot.current = getSettingsSnapshot();
+      initialSnapshot.current = JSON.stringify({
+        barcodePrinter: formattedBarcodePrinter,
+        receiptPrinter: formattedReceiptPrinter,
+        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
+        b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '',
+        b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '',
+        b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '',
+        b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '',
+        labelCodeType, labelShowShopName, enableScrap: Boolean(featureFlags.scrap), showCashRegister: featureFlags.cash_register, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency,
+        features: JSON.stringify(featureFlags)
+      });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
     } catch (err: any) {
@@ -2349,15 +2562,105 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
-                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                  <Wifi className="w-4.5 h-4.5" />
+              <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-border">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                    <Wifi className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-foreground uppercase tracking-widest block">Network & Connectivity Mode</span>
+                    <span className="text-[11px] text-muted-foreground font-medium">Choose how POS terminals sync all store data (Products, Invoices, Stock, Customers & Parties)</span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-xs font-black text-foreground uppercase tracking-widest block">Network & Connectivity Mode</span>
-                  <span className="text-[11px] text-muted-foreground font-medium">Choose how POS terminals sync all store data (Products, Invoices, Stock, Customers & Parties)</span>
+
+                {/* Question Mark (?) Help Button with Hover Tooltip */}
+                <div className="relative group shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowLanHelpModal(true)}
+                    className="p-2.5 rounded-2xl bg-primary/10 hover:bg-primary text-primary hover:text-primary-foreground border border-primary/20 transition-all duration-200 cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5"
+                    title="View Wi-Fi / LAN Sync Setup Manual"
+                  >
+                    <HelpCircle className="w-4.5 h-4.5" />
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider hidden sm:inline">Setup Manual</span>
+                  </button>
+
+                  {/* Hover Tooltip Card */}
+                  <div className="absolute right-0 top-12 w-72 p-4 bg-popover border border-border rounded-2xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none group-hover:pointer-events-auto z-40 space-y-2 text-left backdrop-blur-md">
+                    <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                      <BookOpen className="w-4 h-4 text-primary shrink-0" />
+                      <span>Wi-Fi / LAN Setup Manual</span>
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      Step-by-step guide to connect Primary Host &amp; Secondary Billing Terminals over Wi-Fi, setup firewall rules, and fix connection issues.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowLanHelpModal(true)}
+                      className="w-full py-2 px-3 bg-primary hover:bg-primary/90 text-primary-foreground text-[10px] font-extrabold rounded-xl uppercase tracking-wider transition cursor-pointer flex items-center justify-center gap-1 mt-1 shadow-sm"
+                    >
+                      <span>Open Complete Guide</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {/* Effective Cloud Access Status Banner */}
+              {effectiveCloudState && (
+                <div className="mb-6 p-4 rounded-2xl border bg-muted/20 border-border space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className={clsx(
+                        "p-2 rounded-xl text-white font-bold shrink-0",
+                        effectiveCloudState.stateName === 'LOCAL_PLUS_CLOUD' ? "bg-emerald-500" :
+                        effectiveCloudState.stateName === 'LOCAL_WITH_PENDING_CLOUD_QUEUE' ? "bg-amber-500" : "bg-slate-600"
+                      )}>
+                        <Cloud className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-foreground">
+                            {effectiveCloudState.stateName === 'LOCAL_PLUS_CLOUD' && 'Cloud Sync Allowed & Active'}
+                            {effectiveCloudState.stateName === 'LOCAL_WITH_PENDING_CLOUD_QUEUE' && 'Cloud Sync Paused — Local DB & LAN Sync Active'}
+                            {effectiveCloudState.stateName === 'LOCAL_ONLY' && 'Local-Only Operational Mode'}
+                          </h4>
+                          <span className={clsx(
+                            "px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wide",
+                            effectiveCloudState.stateName === 'LOCAL_PLUS_CLOUD' ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20" :
+                            effectiveCloudState.stateName === 'LOCAL_WITH_PENDING_CLOUD_QUEUE' ? "bg-amber-500/10 text-amber-600 border border-amber-500/20 animate-pulse" :
+                            "bg-slate-500/10 text-slate-600 border border-slate-500/20"
+                          )}>
+                            {effectiveCloudState.stateName}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {effectiveCloudState.activeReason} • Outbox Pending: <strong>{effectiveCloudState.pendingCount}</strong> records
+                        </p>
+                      </div>
+                    </div>
+
+                    {effectiveCloudState.isCloudAllowed && effectiveCloudState.pendingCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleManualQueueDrain}
+                        disabled={drainingQueue}
+                        className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={clsx("w-3.5 h-3.5", drainingQueue && "animate-spin")} />
+                        {drainingQueue ? 'Draining Queue...' : `Drain Queue (${effectiveCloudState.pendingCount})`}
+                      </button>
+                    )}
+                  </div>
+
+                  {effectiveCloudState.config?.cloud_access_enabled === false && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2 text-xs text-red-600 dark:text-red-400 font-medium">
+                      <Lock className="w-4 h-4 shrink-0" />
+                      <span>Cloud Sync Access is disabled by Super Admin for this store. Local database operations and LAN synchronization remain fully available.</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Mode Selector Cards */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -2477,10 +2780,15 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       </p>
                     </div>
                   ) : (
-                    <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl flex items-center gap-2.5">
-                      <span className="text-xs shrink-0">💡</span>
-                      <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
-                        Enter the exact IP address displayed on Primary PC 1 (Settings → Network & Connectivity).
+                    <div className="p-3 bg-primary/5 border border-primary/15 rounded-xl flex flex-col gap-1.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-xs shrink-0">💡</span>
+                        <p className="text-[11px] text-muted-foreground font-medium leading-relaxed">
+                          Enter the exact IP address displayed on Primary PC 1 (Settings → Network & Connectivity).
+                        </p>
+                      </div>
+                      <p className="text-[10px] text-amber-600 dark:text-amber-400 font-medium pl-6">
+                        If Wi-Fi test fails: Ensure Windows Firewall on PC 1 allows Port 3888, Wi-Fi profile is set to Private, or select <strong>Hybrid Smart Mode</strong>.
                       </p>
                     </div>
                   )}
@@ -2716,6 +3024,169 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         billSettings={billSettings}
         a5Orientation={a5Orientation}
       />
+
+      {/* LAN / Wi-Fi Sync Help Modal — Fully Redesigned Step-by-Step Wizard */}
+      <Modal
+        isOpen={showLanHelpModal}
+        onClose={() => setShowLanHelpModal(false)}
+        title="📖 Wi-Fi / LAN Sync — Easy Step-by-Step Setup Guide"
+        size="lg"
+      >
+        <div className="space-y-4 text-left text-foreground py-1">
+          {/* Top Banner */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-sm shrink-0">
+              <Wifi className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-primary">Simple Wi-Fi Sync Guide (A to Z)</h4>
+              <p className="text-xs text-muted-foreground mt-0.5 font-medium leading-relaxed">
+                Follow these 5 simple steps one by one to connect all your store billing computers over Wi-Fi.
+              </p>
+            </div>
+          </div>
+
+          {/* 1st Step Card */}
+          <div className="p-4.5 rounded-2xl border border-blue-500/25 bg-blue-500/[0.03] space-y-3 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-blue-500/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-blue-500 text-white text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                  1st Step
+                </span>
+                <h5 className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Monitor className="w-4 h-4 text-blue-500 shrink-0" />
+                  Set Up Computer A (Main Host PC)
+                </h5>
+              </div>
+              <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">PRIMARY HOST</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4 font-medium leading-relaxed">
+              <li>Open <strong>Nafid POS</strong> on Computer A → Go to <strong>Settings ⚙️ → Network &amp; Sync Settings</strong>.</li>
+              <li>Set <strong>Sync Mode</strong> to <strong>`HYBRID`</strong> <em>(Recommended)</em> or <strong>`LAN`</strong>.</li>
+              <li>Set <strong>LAN Role</strong> to <strong>`PRIMARY (Master Server)`</strong>.</li>
+              <li>Note down Computer A's <strong>Local IP Address</strong> displayed on screen (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">192.168.1.100</span>).</li>
+              <li>Click <strong>Save Settings</strong>.</li>
+            </ol>
+          </div>
+
+          {/* 2nd Step Card */}
+          <div className="p-4.5 rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.03] space-y-3 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-emerald-500/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-emerald-500 text-white text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                  2nd Step
+                </span>
+                <h5 className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Smartphone className="w-4 h-4 text-emerald-500 shrink-0" />
+                  Set Up Computer B (Secondary Billing PC)
+                </h5>
+              </div>
+              <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">CLIENT TERMINAL</span>
+            </div>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4 font-medium leading-relaxed">
+              <li>Open <strong>Nafid POS</strong> on Computer B → Go to <strong>Settings ⚙️ → Network &amp; Sync Settings</strong>.</li>
+              <li>Set <strong>Sync Mode</strong> to <strong>`HYBRID`</strong> or <strong>`LAN`</strong>.</li>
+              <li>Set <strong>LAN Role</strong> to <strong>`SECONDARY (Client Terminal)`</strong>.</li>
+              <li>In the <strong>Primary Host IP</strong> field, type Computer A's IP address (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">192.168.1.100</span>).</li>
+              <li>Click <strong>Test Connection</strong>. When it shows green success, click <strong>Save Settings</strong>.</li>
+            </ol>
+          </div>
+
+          {/* 3rd Step Card */}
+          <div className="p-4.5 rounded-2xl border border-amber-500/25 bg-amber-500/[0.03] space-y-3 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-amber-500/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                  3rd Step
+                </span>
+                <h5 className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Shield className="w-4 h-4 text-amber-500 shrink-0" />
+                  Run Firewall Rule on ALL PCs (EVERY Computer)
+                </h5>
+              </div>
+              <span className="text-[10px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">PORT 3888</span>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+              Run this command in <strong>PowerShell as Administrator</strong> on <strong>EVERY computer</strong> using local sync so Windows Firewall allows communication:
+            </p>
+            <div className="p-3 bg-zinc-950 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest">PowerShell Command</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const cmd = 'New-NetFirewallRule -DisplayName "Nafid POS Local Sync (Port 3888)" -Direction Inbound -LocalPort 3888 -Protocol TCP -Action Allow -Profile Any';
+                    navigator.clipboard.writeText(cmd);
+                    setCopiedFirewallCmd(true);
+                    setTimeout(() => setCopiedFirewallCmd(false), 2500);
+                  }}
+                  className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-zinc-950 font-bold text-[10px] rounded-lg transition flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 shadow-sm"
+                >
+                  {copiedFirewallCmd ? <Check className="w-3.5 h-3.5 text-zinc-950" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{copiedFirewallCmd ? 'Copied to Clipboard!' : 'Copy'}</span>
+                </button>
+              </div>
+              <code className="block text-emerald-400 font-mono text-[11px] overflow-x-auto select-all leading-relaxed">
+                New-NetFirewallRule -DisplayName "Nafid POS Local Sync (Port 3888)" -Direction Inbound -LocalPort 3888 -Protocol TCP -Action Allow -Profile Any
+              </code>
+            </div>
+          </div>
+
+          {/* 4th Step Card */}
+          <div className="p-4.5 rounded-2xl border border-purple-500/25 bg-purple-500/[0.03] space-y-3 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-purple-500/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-purple-600 text-white text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                  4th Step
+                </span>
+                <h5 className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock className="w-4 h-4 text-purple-500 shrink-0" />
+                  Lock Computer A's IP in Windows (30 Seconds)
+                </h5>
+              </div>
+              <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full border border-purple-500/20">NO ROUTER NEEDED</span>
+            </div>
+            <p className="text-xs text-muted-foreground font-medium leading-relaxed">
+              Lock Computer A's IP address directly inside Windows Settings so it never changes when router reboots:
+            </p>
+            <ol className="text-xs text-muted-foreground space-y-2 list-decimal pl-4 font-medium leading-relaxed">
+              <li>On <strong>Computer A</strong>, open <strong>Windows Settings</strong> (press <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">Win + I</kbd>) → <strong>Network &amp; Internet</strong> → <strong>Wi-Fi</strong>.</li>
+              <li>Click your Wi-Fi Network Name → Scroll down to <strong>IP assignment</strong> → Click <strong>Edit</strong>.</li>
+              <li>Change from <strong>Automatic (DHCP)</strong> to <strong>Manual</strong> → Turn <strong>ON IPv4</strong>.</li>
+              <li>Fill in:
+                <div className="mt-1.5 p-3 rounded-xl bg-card border border-border/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                  <div><span className="text-muted-foreground">IP address:</span> <strong className="text-purple-600 dark:text-purple-400">192.168.1.100</strong></div>
+                  <div><span className="text-muted-foreground">Subnet prefix:</span> <strong className="text-purple-600 dark:text-purple-400">24</strong></div>
+                  <div><span className="text-muted-foreground">Gateway:</span> <strong className="text-purple-600 dark:text-purple-400">192.168.1.1</strong></div>
+                  <div><span className="text-muted-foreground">Preferred DNS:</span> <strong className="text-purple-600 dark:text-purple-400">8.8.8.8</strong></div>
+                </div>
+              </li>
+              <li>Click <strong>Save</strong>. Computer A's IP address is now permanently locked!</li>
+            </ol>
+          </div>
+
+          {/* 5th Step Card */}
+          <div className="p-4.5 rounded-2xl border border-sky-500/25 bg-sky-500/[0.03] space-y-3 relative overflow-hidden">
+            <div className="flex items-center justify-between gap-2 border-b border-sky-500/15 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-lg bg-sky-500 text-white text-[11px] font-black uppercase tracking-wider shrink-0 shadow-sm">
+                  5th Step
+                </span>
+                <h5 className="text-xs font-black text-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-sky-500 shrink-0" />
+                  Test &amp; Start Billing!
+                </h5>
+              </div>
+              <span className="text-[10px] font-bold text-sky-600 dark:text-sky-400 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">READY</span>
+            </div>
+            <ul className="text-xs text-muted-foreground space-y-1.5 list-disc pl-4 font-medium leading-relaxed">
+              <li>Print a test bill on Computer A or Computer B. It will appear on both screens instantly!</li>
+              <li>Click the <strong>Syncing</strong> button at the top-right header anytime to force an immediate manual refresh.</li>
+              <li>Ensure your Wi-Fi network profile is set to <strong>Private Network</strong> on both PCs.</li>
+            </ul>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

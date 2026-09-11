@@ -43,6 +43,17 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName } = useAuthStore();
 
+  useEffect(() => {
+    if (window.electronAPI?.setPageContext) {
+      window.electronAPI.setPageContext({ page: 'cash_drawer', active: true });
+    }
+    return () => {
+      if (window.electronAPI?.setPageContext) {
+        window.electronAPI.setPageContext({ page: 'cash_drawer', active: false });
+      }
+    };
+  }, []);
+
   const [drawer, setDrawer] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);

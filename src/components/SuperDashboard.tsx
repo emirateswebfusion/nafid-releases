@@ -5,7 +5,7 @@ import { useThemeStore } from '../store/themeStore';
 import { 
   Plus, LogOut, Database, CheckCircle2, XCircle, Edit, RefreshCw, Loader2, KeyRound, Globe, User, 
   ShieldAlert, Eye, EyeOff, Copy, Check, Search, Filter, ArrowUpDown, Store, Activity, 
-  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon
+  Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Clock, Trash2, Lock, Unlock, Shield
 } from 'lucide-react';
 
 interface TenantAdmin {
@@ -72,6 +72,81 @@ export default function SuperDashboard() {
   const [provisionStatus, setProvisionStatus] = useState<'idle' | 'provisioning' | 'success' | 'failed'>('idle');
   const [provisionLogs, setProvisionLogs] = useState<string[]>([]);
   const [provisionProgress, setProvisionProgress] = useState(0);
+
+  // Cloud Access modal state
+  const [cloudModalOpen, setCloudModalOpen] = useState(false);
+  const [selectedCloudTenant, setSelectedCloudTenant] = useState<TenantAdmin | null>(null);
+  const [cloudAccessEnabled, setCloudAccessEnabled] = useState(true);
+  const [cloudScheduleEnabled, setCloudScheduleEnabled] = useState(false);
+  const [cloudManualOverride, setCloudManualOverride] = useState<'AUTO' | 'FORCE_ON' | 'FORCE_OFF'>('AUTO');
+  const [cloudSchedules, setCloudSchedules] = useState<Array<{ id: string; startTime: string; endTime: string; daysOfWeek?: number[]; enabled: boolean }>>([]);
+  const [savingCloudAccess, setSavingCloudAccess] = useState(false);
+  const [cloudAccessMsg, setCloudAccessMsg] = useState('');
+
+  const handleOpenCloudAccessModal = async (admin: TenantAdmin) => {
+    setSelectedCloudTenant(admin);
+    setSavingCloudAccess(false);
+    setCloudAccessMsg('');
+    setCloudModalOpen(true);
+    try {
+      const data = await fetchApi(`/super-admin/cloud-access/${admin.tenant_id}`);
+      if (data) {
+        setCloudAccessEnabled(data.cloud_access_enabled !== false);
+        setCloudScheduleEnabled(!!data.cloud_schedule_enabled);
+        setCloudManualOverride(data.cloud_manual_override || 'AUTO');
+        setCloudSchedules(Array.isArray(data.cloud_schedules) ? data.cloud_schedules : []);
+      }
+    } catch (err) {
+      console.error('Failed to fetch tenant cloud access config:', err);
+    }
+  };
+
+  const handleAddScheduleWindow = () => {
+    if (cloudSchedules.length >= 24) return;
+    const newWindow = {
+      id: String(Date.now()),
+      startTime: '09:00',
+      endTime: '17:00',
+      daysOfWeek: [],
+      enabled: true,
+    };
+    setCloudSchedules([...cloudSchedules, newWindow]);
+  };
+
+  const handleRemoveScheduleWindow = (id: string) => {
+    setCloudSchedules(cloudSchedules.filter(w => w.id !== id));
+  };
+
+  const handleUpdateScheduleWindow = (id: string, field: string, value: any) => {
+    setCloudSchedules(cloudSchedules.map(w => w.id === id ? { ...w, [field]: value } : w));
+  };
+
+  const handleSaveCloudAccess = async () => {
+    if (!selectedCloudTenant) return;
+    setSavingCloudAccess(true);
+    setCloudAccessMsg('');
+    try {
+      const payload = {
+        cloud_access_enabled: cloudAccessEnabled,
+        cloud_schedule_enabled: cloudScheduleEnabled,
+        cloud_manual_override: cloudManualOverride,
+        cloud_schedules: cloudSchedules,
+      };
+      await fetchApi(`/super-admin/cloud-access/${selectedCloudTenant.tenant_id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload)
+      });
+      if (window.electronAPI?.updateCloudAccessConfig) {
+        await window.electronAPI.updateCloudAccessConfig({ config: payload, tenant_id: selectedCloudTenant.tenant_id });
+      }
+      setCloudAccessMsg('Cloud Access Configuration saved successfully!');
+      setTimeout(() => setCloudModalOpen(false), 1200);
+    } catch (err: any) {
+      setCloudAccessMsg(`Error: ${err.message || 'Save failed'}`);
+    } finally {
+      setSavingCloudAccess(false);
+    }
+  };
 
   useEffect(() => {
     fetchAdmins();
@@ -876,8 +951,14 @@ export default function SuperDashboard() {
                           )}
                         </td>
 
-                        {/* Column 6: Edit button */}
-                        <td className="px-6 py-4 text-right whitespace-nowrap">
+                        {/* Column 6: Edit & Cloud Access buttons */}
+                        <td className="px-6 py-4 text-right whitespace-nowrap space-x-2">
+                          <button
+                            onClick={() => handleOpenCloudAccessModal(admin)}
+                            className="inline-flex items-center gap-1.5 text-xs text-primary hover:text-primary/90 font-semibold bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg border border-primary/20 transition cursor-pointer"
+                          >
+                            <Cloud className="h-3.5 w-3.5" /> Cloud Access
+                          </button>
                           <button
                             onClick={() => handleOpenEditModal(admin)}
                             className="inline-flex items-center gap-1.5 text-xs text-foreground hover:text-amber-550 font-semibold bg-muted hover:bg-amber-500/10 px-3 py-1.5 rounded-lg border border-border hover:border-amber-500/20 transition cursor-pointer"
@@ -1277,6 +1358,177 @@ export default function SuperDashboard() {
                   <span className="text-[10px] text-muted-foreground">Revealing credentials...</span>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Super Admin Cloud Access & Schedule Control Modal */}
+      {cloudModalOpen && selectedCloudTenant && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-card border border-border w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-border bg-muted/40 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Cloud className="h-4 w-4 text-primary" />
+                Super Admin Cloud Access & Schedule Control — {selectedCloudTenant.name}
+              </h3>
+              <button
+                onClick={() => setCloudModalOpen(false)}
+                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+              {/* Permission Toggle */}
+              <div className="p-4 bg-muted/30 border border-border rounded-xl flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-foreground block">Grant Cloud Access Permission</label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    When disabled, Cloud API requests and polling stop. Local DB operation & Local LAN Sync continue normally.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCloudAccessEnabled(!cloudAccessEnabled)}
+                  className={clsx(
+                    "relative w-12 h-6 rounded-full transition-colors cursor-pointer shrink-0",
+                    cloudAccessEnabled ? "bg-emerald-500" : "bg-muted-foreground/30"
+                  )}
+                >
+                  <span className={clsx("absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white transition-transform", cloudAccessEnabled ? "translate-x-6" : "translate-x-0")} />
+                </button>
+              </div>
+
+              {/* Manual Override Option */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground uppercase tracking-wider block">Manual Override Mode</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'AUTO', label: 'AUTO (Schedules)', desc: 'Follows time windows if enabled' },
+                    { id: 'FORCE_ON', label: 'FORCE ON', desc: 'Keep Cloud Sync ON 24/7' },
+                    { id: 'FORCE_OFF', label: 'FORCE OFF', desc: 'Force Cloud Sync OFF (Queue changes)' },
+                  ].map(opt => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setCloudManualOverride(opt.id as any)}
+                      className={clsx(
+                        "p-3 rounded-xl border text-left cursor-pointer transition",
+                        cloudManualOverride === opt.id
+                          ? "border-primary bg-primary/10 text-primary font-bold shadow-xs"
+                          : "border-border bg-background hover:border-primary/30 text-muted-foreground"
+                      )}
+                    >
+                      <span className="text-xs font-bold block">{opt.label}</span>
+                      <span className="text-[10px] opacity-75 mt-0.5 block">{opt.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Schedule Windows Management */}
+              <div className="space-y-3 pt-4 border-t border-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider">Cloud Access Schedules (Up to 24 windows/day)</h4>
+                    <p className="text-[11px] text-muted-foreground">Configure specific daily time windows when Cloud Sync is permitted.</p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-bold text-foreground cursor-pointer flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={cloudScheduleEnabled}
+                        onChange={(e) => setCloudScheduleEnabled(e.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                      />
+                      Enable Schedules
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAddScheduleWindow}
+                      disabled={cloudSchedules.length >= 24}
+                      className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Add Window ({cloudSchedules.length}/24)
+                    </button>
+                  </div>
+                </div>
+
+                {cloudSchedules.length === 0 ? (
+                  <div className="p-4 bg-muted/20 border border-border rounded-xl text-center text-xs text-muted-foreground">
+                    No schedule windows configured. Cloud sync operates 24/7 when Cloud Access permission is ON.
+                  </div>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {cloudSchedules.map((win, idx) => (
+                      <div key={win.id || idx} className="p-3 bg-muted/30 border border-border rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={win.enabled}
+                            onChange={(e) => handleUpdateScheduleWindow(win.id, 'enabled', e.target.checked)}
+                            className="rounded border-border text-primary focus:ring-primary cursor-pointer"
+                            title="Toggle Schedule Window Active"
+                          />
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Start:</span>
+                            <input
+                              type="time"
+                              value={win.startTime}
+                              onChange={(e) => handleUpdateScheduleWindow(win.id, 'startTime', e.target.value)}
+                              className="bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">End:</span>
+                            <input
+                              type="time"
+                              value={win.endTime}
+                              onChange={(e) => handleUpdateScheduleWindow(win.id, 'endTime', e.target.value)}
+                              className="bg-background border border-border rounded px-2 py-1 text-xs font-mono text-foreground focus:outline-none focus:border-primary"
+                            />
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveScheduleWindow(win.id)}
+                          className="text-destructive hover:bg-destructive/10 p-1.5 rounded-lg border border-destructive/20 transition cursor-pointer"
+                          title="Delete Schedule Window"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {cloudAccessMsg && (
+                <div className={clsx("p-3 rounded-xl text-xs font-bold border", cloudAccessMsg.startsWith('Error') ? "bg-red-500/10 border-red-500/20 text-red-600" : "bg-emerald-500/10 border-emerald-500/20 text-emerald-600")}>
+                  {cloudAccessMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setCloudModalOpen(false)}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCloudAccess}
+                disabled={savingCloudAccess}
+                className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-955 dark:text-zinc-955 font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+              >
+                {savingCloudAccess ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                <span>Save Configuration</span>
+              </button>
             </div>
           </div>
         </div>

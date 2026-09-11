@@ -204,6 +204,8 @@ export interface IElectronAPI {
   dbSaveComboOffer: (combo: any) => Promise<{ success: boolean; error?: string }>;
   dbDeleteComboOffer: (params: { combo_id: string; tenant_id: string }) => Promise<{ success: boolean; error?: string }>;
   dbToggleComboOfferActive: (params: { combo_id: string; tenant_id: string; is_active: boolean }) => Promise<{ success: boolean; error?: string }>;
+
+  setPageContext: (payload: { page: string; active: boolean }) => Promise<{ success: boolean; error?: string }>;
 }
 
 declare global {

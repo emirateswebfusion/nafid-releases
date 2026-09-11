@@ -247,6 +247,85 @@ export function startLocalHostServer(port: number = 3888) {
         }
       }
 
+      // ── Invoice & Return Sequence Number Endpoints for LAN ──────────────
+      if (pathname === '/api/invoices/next-number' && req.method === 'GET') {
+        const terminalCode = url.searchParams.get('terminal_code') || 'POS1';
+        const series = url.searchParams.get('series') || undefined;
+        const reqPrefix = url.searchParams.get('prefix') || `${terminalCode}-`;
+
+        const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+
+        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+        let counter = 1;
+        let prefix = reqPrefix;
+
+        if (row) {
+          try {
+            const parsed = JSON.parse(row.value);
+            counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
+            if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
+              prefix = parsed.prefix;
+            }
+          } catch {
+            counter = 1;
+          }
+        }
+
+        const checkStmt = db.prepare('SELECT 1 FROM invoices WHERE tenant_id = ? AND invoice_number = ? LIMIT 1');
+        let candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+
+        while (checkStmt.get('global', candidate)) {
+          counter++;
+          candidate = `${prefix}${String(counter).padStart(3, '0')}`;
+        }
+
+        const nextConfig = { prefix, counter: counter + 1 };
+        db.prepare(`
+          INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+          VALUES ('global', ?, ?, 'LOCAL', CURRENT_TIMESTAMP)
+          ON CONFLICT(tenant_id, key) DO UPDATE SET
+            value = EXCLUDED.value,
+            sync_status = 'LOCAL',
+            updated_at = CURRENT_TIMESTAMP
+        `).run(configKey, JSON.stringify(nextConfig));
+
+        return sendJson(res, 200, { invoiceNumber: candidate });
+      }
+
+      if (pathname === '/api/returns/next-number' && req.method === 'GET') {
+        const reqPrefix = url.searchParams.get('prefix');
+        const confRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'return_counter');
+        let prefix = 'RTN-';
+        let counter = 1;
+        if (reqPrefix) {
+          prefix = reqPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20) || 'RTN-';
+        } else if (confRow) {
+          try {
+            const cfg = JSON.parse(confRow.value);
+            prefix = cfg.prefix && /[A-Z0-9]/i.test(cfg.prefix) ? cfg.prefix : 'RTN-';
+            counter = typeof cfg.counter === 'number' ? cfg.counter : 1;
+          } catch {}
+        }
+        const usedRows: any[] = db.prepare('SELECT return_number FROM returns WHERE return_number LIKE ?').all(`${prefix}%`);
+        let maxUsed = 0;
+        for (const r of usedRows) {
+          const usedNum = parseInt(String(r.return_number).slice(prefix.length), 10);
+          if (!isNaN(usedNum) && usedNum > maxUsed) maxUsed = usedNum;
+        }
+        const nextCounter = Math.max(counter, maxUsed + 1);
+        const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
+        db.prepare(`
+          INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
+          VALUES ('global', 'return_counter', ?, 'LOCAL', CURRENT_TIMESTAMP)
+          ON CONFLICT(tenant_id, key) DO UPDATE SET
+            value = EXCLUDED.value,
+            sync_status = 'LOCAL',
+            updated_at = CURRENT_TIMESTAMP
+        `).run(JSON.stringify({ prefix, counter: nextCounter + 1 }));
+
+        return sendJson(res, 200, { returnNumber });
+      }
+
       // ── Generic & Explicit Sync Endpoints for LAN ────────────────────────
       if (pathname.startsWith('/api/sync/')) {
         const endpointName = pathname.replace('/api/sync/', '');
@@ -302,9 +381,8 @@ export function startLocalHostServer(port: number = 3888) {
               params.push(sinceLocal, sinceIso, sinceLocal, sinceIso);
             }
           } else if (tableName === 'products') {
-            query += ` WHERE is_deleted = 0`;
             if (sinceLocal && sinceIso && meta?.allCols.includes('updated_at')) {
-              query += ` AND (updated_at > ? OR updated_at > ?)`;
+              query += ` WHERE (updated_at > ? OR updated_at > ?)`;
               params.push(sinceLocal, sinceIso);
             }
           } else if (tableName === 'settings') {

@@ -3353,7 +3353,7 @@ ipcMain.handle('db:getNextReturnNumber', safeHandler((event, payload: { tenant_i
     }
     const nextCounter = Math.max(counter, maxUsed + 1);
     const returnNumber = `${prefix}${String(nextCounter).padStart(3, '0')}`;
-    db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES ('global', 'return_counter', ?, 'PENDING', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP`).run(JSON.stringify({ prefix, counter: nextCounter + 1 }));
+    db.prepare(`INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) VALUES ('global', 'return_counter', ?, 'LOCAL', CURRENT_TIMESTAMP) ON CONFLICT(tenant_id, key) DO UPDATE SET value = EXCLUDED.value, sync_status = 'LOCAL', updated_at = CURRENT_TIMESTAMP`).run(JSON.stringify({ prefix, counter: nextCounter + 1 }));
     return { success: true, returnNumber };
   })();
   return result;
@@ -3434,63 +3434,26 @@ ipcMain.handle('db:convertBosToGst', (event, payload: {
 
           const oldInvoiceNumber = inv.invoice_number;
 
-          // Get the next GST invoice number
-          const terminalCode: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
-          const tc = terminalCode ? (parseSetting(terminalCode) || 'POS1') : 'POS1';
-
           // Check if three invoice series is enabled
           const tripleSeriesRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'three_invoice_series');
           const tripleSeries = tripleSeriesRow ? parseSetting(tripleSeriesRow) : null;
 
           let configKey = 'invoice_counter_config';
-          let defaultPrefix = `${tc}-`;
 
           if (tripleSeries && tripleSeries.enabled) {
             const isB2B = inv.customer_gstin && inv.customer_gstin.trim() !== '';
             configKey = isB2B ? 'gst_b2b_invoice_counter_config' : 'gst_b2c_invoice_counter_config';
-            defaultPrefix = isB2B ? `${tripleSeries.b2bPrefix || 'B2B'}-` : `${tripleSeries.b2cPrefix || 'B2C'}-`;
           } else {
             // Fallback to old dual series check
             const dualSeriesRow2: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'dual_invoice_series');
             const dualSeries2 = dualSeriesRow2 ? parseSetting(dualSeriesRow2) : null;
             if (dualSeries2 && dualSeries2.enabled) {
               configKey = 'gst_invoice_counter_config';
-              defaultPrefix = `${dualSeries2.gstTerminalCode || 'GST'}-`;
             }
           }
 
-          const counterRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
-          let counter = 1;
-          let config: { prefix: string; counter: number } = {
-            prefix: defaultPrefix,
-            counter: 1
-          };
+          const { invoiceNumber: newInvoiceNumber } = getGuaranteedNextInvoiceNumber(db, payload.tenant_id, configKey);
 
-          if (counterRow) {
-            try {
-              config = JSON.parse(counterRow.value);
-              counter = typeof config.counter === 'number' ? config.counter : 1;
-            } catch {
-              counter = 1;
-            }
-          }
-
-          if (!config.prefix) {
-            config.prefix = defaultPrefix;
-          }
-
-          const newInvoiceNumber = `${config.prefix}${String(counter).padStart(3, '0')}`;
-
-          // Increment the counter
-          config.counter = counter + 1;
-          db.prepare(`
-            INSERT INTO settings (tenant_id, key, value, sync_status, updated_at)
-            VALUES (?, ?, ?, 'PENDING', CURRENT_TIMESTAMP)
-            ON CONFLICT(tenant_id, key) DO UPDATE SET
-              value = EXCLUDED.value,
-              sync_status = 'PENDING',
-              updated_at = CURRENT_TIMESTAMP
-          `).run('global', configKey, JSON.stringify(config));
           // Get invoice items
           const items: any[] = db.prepare('SELECT * FROM invoice_items WHERE invoice_id = ?').all(invoice_id);
 
@@ -3723,30 +3686,34 @@ ipcMain.removeHandler('settings:get');
 ipcMain.handle('settings:get', (event, { tenant_id, key }: { tenant_id: string; key: string }) => {
   try {
     const db = getDb();
-    const tid = tenant_id || 'global';
-    let row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, key);
+    const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
 
-    // Fallback for hardware/local-device keys if not found for specific tenant
-    if (!row && LOCAL_DEVICE_SETTING_KEYS.includes(key)) {
-      if (tid !== 'global') {
-        row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+    let row: any = null;
+    if (isLocalDeviceKey) {
+      row = db.prepare("SELECT value FROM settings WHERE tenant_id = 'global' AND key = ?").get(key);
+      if (!row && tenant_id && tenant_id !== 'global') {
+        row = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tenant_id, key);
       }
       if (!row) {
         row = db.prepare("SELECT value FROM settings WHERE key = ? ORDER BY updated_at DESC LIMIT 1").get(key);
       }
+    } else {
+      const tid = tenant_id || 'global';
+      row = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get(tid, key);
     }
 
-    if (row) {
+    if (row && row.value !== undefined) {
       try {
-        const parsed = JSON.parse(row.value);
+        let parsed = JSON.parse(row.value);
+        if (typeof parsed === 'string') {
+          parsed = parsed.trim().replace(/^["']|["']$/g, '');
+        }
         if (parsed && typeof parsed === 'object' && (parsed.error === 'Operation failed' || parsed.success === false)) {
           return null;
         }
         return parsed;
       } catch {
-        // Value is a raw (non-JSON) string — return it as-is instead of {}
-        // so text fields don't display "[object Object]" in the UI
-        return row.value;
+        return String(row.value).trim().replace(/^["']|["']$/g, '');
       }
     }
     return null;
@@ -3780,7 +3747,7 @@ ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant
     const isLocalDeviceKey = LOCAL_DEVICE_SETTING_KEYS.includes(key);
     const syncStatus = isLocalDeviceKey ? 'LOCAL' : 'PENDING';
     const tid = tenant_id || 'global';
-    const valString = typeof value === 'string' ? value : JSON.stringify(value);
+    const valString = typeof value === 'string' ? JSON.stringify(value) : JSON.stringify(value);
 
     const upsertStmt = db.prepare(`
       INSERT INTO settings (tenant_id, key, value, sync_status, updated_at) 
@@ -3818,6 +3785,47 @@ ipcMain.handle('settings:set', async (event, { tenant_id, key, value }: { tenant
 ipcMain.handle('sync:runInitial', async (event) => {
   const { runInitialSync } = await import('./sync/syncWorker.js');
   return runInitialSync(event.sender);
+});
+
+ipcMain.handle('sync:getCloudAccessState', async (_event, tenantId?: string) => {
+  try {
+    const { calculateEffectiveCloudAccess } = await import('./sync/syncWorker.js');
+    return calculateEffectiveCloudAccess(tenantId);
+  } catch (err: any) {
+    console.error('[Main] sync:getCloudAccessState error:', err.message);
+    return null;
+  }
+});
+
+ipcMain.handle('sync:updateCloudAccessConfig', async (_event, payload: { config: any; tenant_id?: string }) => {
+  try {
+    const { updateCloudAccessConfig } = await import('./sync/syncWorker.js');
+    return updateCloudAccessConfig(payload.config, payload.tenant_id);
+  } catch (err: any) {
+    console.error('[Main] sync:updateCloudAccessConfig error:', err.message);
+    return null;
+  }
+});
+
+ipcMain.handle('sync:drainPendingCloudQueue', async (event) => {
+  try {
+    const { drainPendingCloudQueue } = await import('./sync/syncWorker.js');
+    return drainPendingCloudQueue(event.sender);
+  } catch (err: any) {
+    console.error('[Main] sync:drainPendingCloudQueue error:', err.message);
+    return { success: false, drainedCount: 0, message: err.message };
+  }
+});
+
+ipcMain.handle('sync:setPageContext', async (_event, payload: { page: string; active: boolean }) => {
+  try {
+    const { setPageContext } = await import('./sync/syncWorker.js');
+    setPageContext(payload?.page || null, !!payload?.active);
+    return { success: true };
+  } catch (err: any) {
+    console.error('[Main] sync:setPageContext error:', err.message);
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('sync:forceResyncInvoices', async (event) => {
@@ -3903,7 +3911,7 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
       }
       return {
         ok: false,
-        error: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on & POS is open.`
+        error: `Sync Inactive — Could not connect to Master Server at ${host}:${port}. Ensure PC 1 is on, POS is open & Windows Firewall allows Port 3888.`
       };
     }
   } else {
@@ -3930,16 +3938,25 @@ ipcMain.handle('sync:testConnection', async (_event, payload: { syncMode?: strin
 
 
 function getOrInitTerminalCode(db: any): string {
-  const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', 'terminal_code');
-  if (row) {
+  const row: any = db.prepare("SELECT value FROM settings WHERE (tenant_id = 'global' OR tenant_id != '') AND key = ? ORDER BY (CASE WHEN tenant_id = 'global' THEN 1 ELSE 2 END) ASC, updated_at DESC LIMIT 1").get('terminal_code');
+  if (row && row.value) {
     try {
-      const code = JSON.parse(row.value);
-      // Validate the stored terminal code — regenerate if corrupted or invalid
-      if (typeof code === 'string' && /^[A-Z0-9]+$/i.test(code)) {
-        return code;
+      let code = row.value;
+      if (typeof code === 'string') {
+        code = code.trim().replace(/^["']|["']$/g, '');
+        if ((code.startsWith('"') && code.endsWith('"')) || (code.startsWith("'") && code.endsWith("'"))) {
+          try { code = JSON.parse(code); } catch {}
+        }
+      }
+      const clean = String(code).trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (clean.length > 0) {
+        return clean;
       }
     } catch {
-      // JSON parse failed — corrupted value, will regenerate below
+      const raw = String(row.value).trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
+      if (raw.length > 0) {
+        return raw;
+      }
     }
   }
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -3968,7 +3985,9 @@ ipcMain.handle('db:getNextServerInvoiceNumber', async (event, { tenant_id, serie
     const token = config.jwt_token;
     if (!token) return { success: false, error: 'No auth token', offline: true };
 
-    const apiUrl = process.env.VENDORA_CLOUD_API || 'http://localhost:3001';
+    const { getSyncEndpoints } = await import('./sync/syncWorker.js');
+    const endpoints = getSyncEndpoints();
+    const apiUrl = (endpoints.primaryUrl || process.env.VENDORA_CLOUD_API || 'http://localhost:3001').replace(/\/$/, '');
     const url = `${apiUrl}/api/invoices/next-number?terminal_code=${encodeURIComponent(terminalCode)}${series ? `&series=${encodeURIComponent(series)}` : ''}&prefix=${encodeURIComponent(prefix)}`;
     const response = await fetch(url, {
       headers: { Authorization: `Bearer ${token}` },
