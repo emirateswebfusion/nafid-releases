@@ -1,3 +1,10 @@
+# Vendora v1.5.57 Release Notes
+
+## What's Changed
+- Enhanced `StaffManager`, `SuperDashboard`, `SettingsManager`, and reusable `Modal` UI components
+- Implemented cashier settlement module with split payment and cash management support
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.56...v1.5.57
+
 # Vendora v1.5.56 Release Notes
 
 ## What's Changed
