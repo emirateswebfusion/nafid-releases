@@ -4232,9 +4232,13 @@ export function BillingPage() {
       <header className="shrink-0 z-30 border-b border-border bg-card shadow-sm">
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-xl bg-primary/10 text-primary shadow-inner shrink-0">
+            <button
+              onClick={() => setRole('OWNER')}
+              className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
+              title="Return to Dashboard"
+            >
               <Store className="w-4 h-4" />
-            </div>
+            </button>
             <div className="min-w-0 leading-tight">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
@@ -4436,11 +4440,11 @@ export function BillingPage() {
           </button>
           <span className="w-px h-5 bg-border/40" />
           <button
-            onClick={authRole === 'OWNER' ? () => setRole('OWNER') : logout}
+            onClick={() => setRole('OWNER')}
             className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-            title={authRole === 'OWNER' ? 'Dashboard' : 'Logout'}
+            title="Dashboard"
           >
-            {authRole === 'OWNER' ? <X className="w-4 h-4 text-destructive" /> : <LogOut className="w-4 h-4 text-destructive" />}
+            <X className="w-4 h-4 text-destructive" />
           </button>
         </div>
         </div>

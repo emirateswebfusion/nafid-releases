@@ -45,7 +45,7 @@ export interface CartItem {
 }
 
 export type InvoiceType = 'GST' | 'BILL_OF_SUPPLY';
-export type UserRole = 'OWNER' | 'BILLER' | 'SUPER_ADMIN';
+export type UserRole = 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | 'SUPER_ADMIN';
 export type ShopDomain = 'GENERAL' | 'HARDWARE' | 'JEWELRY' | 'GROCERY';
 
 interface CartState {
@@ -70,7 +70,7 @@ interface CartState {
   editingQuotationNumber: string | null;
   editingInvoiceId: string | null;
   editingInvoiceNumber: string | null;
-  editingInvoiceRole: 'OWNER' | 'BILLER' | null;
+  editingInvoiceRole: 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | null;
   pendingScrapInvoiceToEdit: string | null;
 
   lastAddedProductId: string | null;

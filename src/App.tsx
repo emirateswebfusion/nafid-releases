@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import UpdateBanner from './components/UpdateBanner';
+import { PermissionGuard } from './components/PermissionGuard';
 
 const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   BILLING: { label: 'Billing / POS', icon: ShoppingCart },
@@ -558,116 +559,6 @@ function App() {
     return <SuperDashboard />;
   }
 
-  if (restrictedPage) {
-    const allowedPages = restrictedPage.split(',').filter(p => Boolean(p) && !p.startsWith('OPT_'));
-    const activePage = restrictedActivePage || allowedPages[0] || '';
-
-    const renderRestrictedPage = () => {
-      switch (activePage) {
-        case 'BILLING':
-          return <BillingPage />;
-        case 'SALES_HISTORY':
-          return <SalesHistory onClose={() => {}} isRestricted={true} />;
-        case 'CASHIER_SETTLEMENT':
-          return <CashierSettlement onClose={() => {}} isRestricted={true} />;
-        case 'QUOTATIONS':
-          return <QuotationManager onClose={() => {}} isRestricted={true} />;
-        case 'RETURNS':
-          return <ReturnManager onClose={() => {}} isRestricted={true} />;
-        case 'WARRANTIES':
-          return <WarrantyManager onClose={() => {}} isRestricted={true} />;
-        case 'CUSTOMERS':
-          return <CustomersPage onClose={() => {}} isRestricted={true} />;
-        case 'PARTIES':
-          return <PartyManager onClose={() => {}} />;
-        case 'INVENTORY':
-          return <InventoryManager onClose={() => {}} isRestricted={true} />;
-        case 'STOCK_REPORT':
-          return <StockReport onClose={() => {}} isRestricted={true} />;
-        case 'PURCHASE_BILLS':
-          return <PurchaseBillManager onClose={() => {}} isRestricted={true} />;
-        case 'COMBO_OFFERS':
-          return <ComboManager onClose={() => {}} />;
-        case 'SCRAP_MANAGER':
-          return <ScrapManager onClose={() => {}} isRestricted={true} />;
-        case 'FINANCIAL_REPORT':
-          return <FinancialReport onClose={() => {}} isRestricted={true} />;
-        case 'GRADES':
-          return <SettingsGrades onClose={() => {}} isRestricted={true} />;
-        case 'PRICING_TIERS':
-          return <SettingsPricingTiers onClose={() => {}} />;
-        case 'PAYMENT_METHODS':
-          return <PaymentMethods onClose={() => {}} />;
-        case 'SETTINGS':
-          return <SettingsManager onClose={() => {}} isRestricted={true} />;
-        default:
-          return <BillingPage />;
-      }
-    };
-
-    return (
-      <div className="flex h-screen w-screen bg-background text-foreground overflow-hidden font-sans">
-        {/* Left Sidebar */}
-        <aside className="w-64 bg-card border-r border-border flex flex-col shrink-0 shadow-sm">
-          {/* Logo / Header */}
-          <div className="p-6 border-b border-border flex items-center gap-3">
-            <div className="p-2 bg-primary/10 text-primary rounded-xl">
-              <Store className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-bold text-sm tracking-wide">{shopName || 'Nafid'}</h2>
-              <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Staff Access</p>
-            </div>
-          </div>
-          
-          {/* Navigation Items */}
-          <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-            {allowedPages.map((pageKey) => {
-              const meta = PAGE_METADATA[pageKey];
-              if (!meta) return null;
-              const Icon = meta.icon;
-              const isActive = activePage === pageKey;
-              
-              return (
-                <button
-                  key={pageKey}
-                  onClick={() => setRestrictedActivePage(pageKey)}
-                  className={clsx(
-                    "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer",
-                    isActive 
-                      ? "bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                  )}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span>{meta.label}</span>
-                </button>
-              );
-            })}
-          </nav>
-          
-          {/* Footer with Logout */}
-          <div className="p-4 border-t border-border shrink-0">
-            <button
-              onClick={() => logout()}
-              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-bold text-destructive hover:bg-destructive/10 transition-all active:scale-95 cursor-pointer"
-            >
-              <LogOut className="w-4 h-4 shrink-0" />
-              <span>Sign Out</span>
-            </button>
-          </div>
-        </aside>
-        
-        {/* Main Content Area */}
-        <main className="flex-1 min-w-0 h-full relative overflow-hidden bg-background">
-          <div className="absolute top-0 left-0 right-0 z-40">
-            <UpdateBanner onOpenSettings={() => {}} />
-          </div>
-          {renderRestrictedPage()}
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="relative flex h-screen w-screen overflow-hidden bg-background font-sans text-foreground">
@@ -676,42 +567,82 @@ function App() {
       </div>
 
       {showComboManager ? (
-        <ComboManager onClose={() => setShowComboManager(false)} />
+        <PermissionGuard permission="combos.view" onBack={() => setShowComboManager(false)}>
+          <ComboManager onClose={() => setShowComboManager(false)} />
+        </PermissionGuard>
       ) : showPartyManager ? (
-        <PartyManager onClose={() => setShowPartyManager(false)} />
+        <PermissionGuard permission="customers.view" onBack={() => setShowPartyManager(false)}>
+          <PartyManager onClose={() => setShowPartyManager(false)} />
+        </PermissionGuard>
       ) : showCashierSettlement ? (
-        <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
+        <PermissionGuard permission="cash_register.view" onBack={() => setShowCashierSettlement(false)}>
+          <CashierSettlement onClose={() => setShowCashierSettlement(false)} />
+        </PermissionGuard>
       ) : showScrapManager ? (
-        <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
+        <PermissionGuard permission="scrap.view" onBack={() => setShowScrapManager(false)}>
+          <ScrapManager onClose={() => { setShowScrapManager(false); setScrapManagerInitialView('list'); }} initialView={scrapManagerInitialView as any} />
+        </PermissionGuard>
       ) : showQuotationManager ? (
-        <QuotationManager onClose={() => setShowQuotationManager(false)} />
+        <PermissionGuard permission="quotations.view" onBack={() => setShowQuotationManager(false)}>
+          <QuotationManager onClose={() => setShowQuotationManager(false)} />
+        </PermissionGuard>
       ) : showReturnManager ? (
-        <ReturnManager onClose={() => setShowReturnManager(false)} />
+        <PermissionGuard permission="sales.refund" onBack={() => setShowReturnManager(false)}>
+          <ReturnManager onClose={() => setShowReturnManager(false)} />
+        </PermissionGuard>
       ) : showWarrantyManager ? (
-        <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
+        <PermissionGuard permission="warranties.view" onBack={() => setShowWarrantyManager(false)}>
+          <WarrantyManager onClose={() => setShowWarrantyManager(false)} />
+        </PermissionGuard>
       ) : showPurchaseBillManager ? (
-        <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
+        <PermissionGuard permission="purchases.view" onBack={() => setShowPurchaseBillManager(false)}>
+          <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
+        </PermissionGuard>
       ) : showCustomersPage ? (
-        <CustomersPage onClose={() => setShowCustomersPage(false)} />
+        <PermissionGuard permission="customers.view" onBack={() => setShowCustomersPage(false)}>
+          <CustomersPage onClose={() => setShowCustomersPage(false)} />
+        </PermissionGuard>
       ) : showPaymentsPage ? (
-        <PaymentMethods onClose={() => setShowPaymentsPage(false)} />
+        <PermissionGuard permission="settings.view" onBack={() => setShowPaymentsPage(false)}>
+          <PaymentMethods onClose={() => setShowPaymentsPage(false)} />
+        </PermissionGuard>
       ) : showStaffManager ? (
-        <StaffManager onClose={() => setShowStaffManager(false)} />
+        <PermissionGuard permission="users.view" onBack={() => setShowStaffManager(false)}>
+          <StaffManager onClose={() => setShowStaffManager(false)} />
+        </PermissionGuard>
       ) : showSettingsManager ? (
-        <SettingsManager onClose={() => setShowSettingsManager(false)} />
+        <PermissionGuard permission="settings.view" onBack={() => setShowSettingsManager(false)}>
+          <SettingsManager onClose={() => setShowSettingsManager(false)} />
+        </PermissionGuard>
       ) : showSettingsGrades ? (
-        <SettingsGrades onClose={() => setShowSettingsGrades(false)} />
+        <PermissionGuard permission="products.view" onBack={() => setShowSettingsGrades(false)}>
+          <SettingsGrades onClose={() => setShowSettingsGrades(false)} />
+        </PermissionGuard>
       ) : showSettingsPricingTiers ? (
-        <SettingsPricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
+        <PermissionGuard permission="combos.view" onBack={() => setShowSettingsPricingTiers(false)}>
+          <SettingsPricingTiers onClose={() => setShowSettingsPricingTiers(false)} />
+        </PermissionGuard>
       ) : showSalesHistory ? (
-        <SalesHistory onClose={() => setShowSalesHistory(false)} />
+        <PermissionGuard permission="sales.view" onBack={() => setShowSalesHistory(false)}>
+          <SalesHistory onClose={() => setShowSalesHistory(false)} />
+        </PermissionGuard>
       ) : showInventoryManager ? (
-        <InventoryManager onClose={() => setShowInventoryManager(false)} />
+        <PermissionGuard permission="products.view" onBack={() => setShowInventoryManager(false)}>
+          <InventoryManager onClose={() => setShowInventoryManager(false)} />
+        </PermissionGuard>
       ) : showStockReport ? (
-        <StockReport onClose={() => setShowStockReport(false)} />
+        <PermissionGuard permission="reports.view" onBack={() => setShowStockReport(false)}>
+          <StockReport onClose={() => setShowStockReport(false)} />
+        </PermissionGuard>
       ) : showFinancialReport ? (
-        <FinancialReport onClose={() => setShowFinancialReport(false)} />
-      ) : currentUserRole === 'OWNER' ? (
+        <PermissionGuard permission="reports.financial" onBack={() => setShowFinancialReport(false)}>
+          <FinancialReport onClose={() => setShowFinancialReport(false)} />
+        </PermissionGuard>
+      ) : restrictedActivePage === 'BILLING' ? (
+        <PermissionGuard permission="sales.create" onBack={() => setRestrictedActivePage('')}>
+          <BillingPage />
+        </PermissionGuard>
+      ) : (
         <OwnerDashboard
           isSyncing={isSyncing}
           syncProgress={syncProgress}
@@ -720,8 +651,6 @@ function App() {
           quoteIndex={quoteIndex}
           QUOTES={QUOTES}
         />
-      ) : (
-        <BillingPage />
       )}
       <SessionExpiredModal
         isOpen={showSessionExpiredModal}

@@ -10,12 +10,15 @@ import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
+import { PermissionSelector } from './PermissionSelector';
+import { convertLegacyRestrictedPageToPermissions, ALL_PERMISSION_KEYS } from '../utils/permissions';
 
 interface StaffMember {
   user_id: string;
   name: string;
   email: string;
-  role: 'OWNER' | 'BILLER';
+  role: 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER';
+  permissions?: string[] | null;
   restricted_page?: string | null;
   created_at: string;
 }
@@ -23,67 +26,9 @@ interface StaffMember {
 const CLOUD_API = import.meta.env.VITE_CLOUD_API || 'http://localhost:3001';
 const STAFF_CACHE_KEY = 'nafid_staff_cache';
 
-const OPERATIONAL_CONTROLS = [
-  { key: 'OPT_VIEW_GST', label: 'View GST & Estimate Products', desc: 'Allow staff to view both GST & Estimate products in inventory/stock list (disabling restricts viewing to GST products only; does not affect billing)', icon: Tag },
-  { key: 'OPT_VIEW_GST_INVOICES_ONLY', label: 'View GST Invoices Only', desc: 'Restrict staff to viewing GST invoices only in Sales History (disabling allows viewing all invoices including Estimate/Bill of Supply)', icon: FileText },
-  { key: 'OPT_VIEW_COST', label: 'View Purchase Prices & Margins', desc: 'Allow staff to view purchase cost & profit margins in inventory', icon: Eye },
-  { key: 'OPT_APPLY_DISCOUNT', label: 'Apply Manual Discounts', desc: 'Allow staff to apply line-item or bill-level discounts on checkout', icon: Percent },
-  { key: 'OPT_DELETE_INVOICE', label: 'Delete & Void Invoices', desc: 'Allow staff to delete completed invoices & transaction records', icon: Trash2 },
-  { key: 'OPT_EDIT_PRICE', label: 'Override Cart Unit Prices', desc: 'Allow staff to edit product unit prices during billing checkout', icon: DollarSign },
-];
-
-const PERMISSION_GROUPS = [
-  {
-    title: 'Sales & Billing Operations',
-    desc: 'Front-facing checkout, sales receipts, customer directory & warranty tracking',
-    color: 'from-blue-500 to-indigo-500',
-    pages: [
-      { key: 'BILLING', label: 'Billing / POS Checkout' },
-      { key: 'SALES_HISTORY', label: 'Sales History & Invoices' },
-      { key: 'CASHIER_SETTLEMENT', label: 'Cashier Settlement' },
-      { key: 'QUOTATIONS', label: 'Quotations Management' },
-      { key: 'RETURNS', label: 'Returns Tracking' },
-      { key: 'WARRANTIES', label: 'Warranties Tracking' },
-      { key: 'CUSTOMERS', label: 'Customers Directory' }
-    ]
-  },
-  {
-    title: 'Inventory & Purchasing',
-    desc: 'Stock management, purchase bills, suppliers & combo offers',
-    color: 'from-emerald-500 to-teal-500',
-    pages: [
-      { key: 'INVENTORY', label: 'Inventory Manager' },
-      { key: 'STOCK_REPORT', label: 'Stock Reports' },
-      { key: 'PURCHASE_BILLS', label: 'Purchase Bills / GST' },
-      { key: 'PARTIES', label: 'Suppliers & Parties Directory' },
-      { key: 'COMBO_OFFERS', label: 'Combo Offers' },
-      { key: 'SCRAP_MANAGER', label: 'Scrap Metal Manager' }
-    ]
-  },
-  {
-    title: 'Financials & Business Intelligence',
-    desc: 'Revenue, profit margins, tax reports & business analytics',
-    color: 'from-amber-500 to-orange-500',
-    pages: [
-      { key: 'FINANCIAL_REPORT', label: 'Financial & Profit Reports' }
-    ]
-  },
-  {
-    title: 'Store Setup & Configuration',
-    desc: 'Pricing tiers, categories, payment methods & system preferences',
-    color: 'from-purple-500 to-pink-500',
-    pages: [
-      { key: 'GRADES', label: 'Categories & Metal Grades' },
-      { key: 'PRICING_TIERS', label: 'Pricing Tiers & Custom Rates' },
-      { key: 'PAYMENT_METHODS', label: 'Payment Methods' },
-      { key: 'SETTINGS', label: 'System Settings' }
-    ]
-  }
-];
-
 // Helper to generate elegant username gradients
 function getAvatarGradient(name: string, role: string) {
-  if (role === 'OWNER') {
+  if (role === 'OWNER' || role === 'ADMIN') {
     return 'bg-gradient-to-tr from-indigo-500 via-purple-500 to-pink-500 text-white';
   }
   const charCodeSum = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -117,20 +62,19 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'OWNER' | 'BILLER'>('ALL');
-  const [selectedPages, setSelectedPages] = useState<string[]>([]);
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'OWNER' | 'STAFF'>('ALL');
+  const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'BILLER' as 'OWNER' | 'BILLER',
+    role: 'STAFF' as 'OWNER' | 'STAFF',
   });
 
   // Fetch Staff List with Offline Local Cache Fallback
   const fetchStaff = useCallback(async () => {
     setFetching(true);
-    // Load from cache first for instant UI response
     const cached = localStorage.getItem(STAFF_CACHE_KEY);
     if (cached) {
       try {
@@ -154,7 +98,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       if (!cached) {
         setStatusMessage({ text: 'Operating offline - showing local staff cache', type: 'error' });
       }
-    } finally {
+    } fontFinally: {
       setFetching(false);
     }
   }, [token]);
@@ -198,34 +142,37 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
   // Start Editing Staff Member
   const handleStartEdit = (member: StaffMember) => {
     setEditingStaffId(member.user_id);
+    const memberRole = member.role === 'OWNER' || member.role === 'ADMIN' ? 'OWNER' : 'STAFF';
     setFormData({
       name: member.name,
       email: member.email,
       password: '', // Leave blank unless updating
-      role: member.role,
+      role: memberRole,
     });
-    setSelectedPages(member.restricted_page ? member.restricted_page.split(',').filter(Boolean) : []);
-    setView('edit');
-  };
 
-  const handlePageToggle = (key: string) => {
-    setSelectedPages(prev =>
-      prev.includes(key)
-        ? prev.filter(p => p !== key)
-        : [...prev, key]
-    );
+    let perms: string[] = [];
+    if (Array.isArray(member.permissions) && member.permissions.length > 0) {
+      perms = member.permissions;
+    } else {
+      perms = convertLegacyRestrictedPageToPermissions(member.restricted_page);
+    }
+    setSelectedPermissions(perms);
+    setView('edit');
   };
 
   // Save / Update Staff Member
   const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const permissionsStr = formData.role === 'BILLER' ? selectedPages.join(',') : '';
+    const permsPayload = formData.role === 'OWNER' ? ['*'] : selectedPermissions;
 
     if (view === 'add') {
       const payload = {
-        ...formData,
-        restricted_page: permissionsStr,
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        permissions: permsPayload,
       };
       try {
         const res = await fetch(`${CLOUD_API}/auth/staff`, {
@@ -243,15 +190,15 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
             name: formData.name || formData.email,
             email: formData.email,
             role: formData.role,
-            restricted_page: permissionsStr || null,
+            permissions: permsPayload,
             created_at: new Date().toISOString()
           };
           const updated = [...staff, newMember];
           setStaff(updated);
           localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
           setView('list');
-          setFormData({ name: '', email: '', password: '', role: 'BILLER' });
-          setSelectedPages([]);
+          setFormData({ name: '', email: '', password: '', role: 'STAFF' });
+          setSelectedPermissions([]);
           setStatusMessage({ text: `Staff account "${formData.name}" created successfully!`, type: 'success' });
         } else {
           setStatusMessage({ text: data.error || 'Failed to add staff member', type: 'error' });
@@ -263,15 +210,15 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           name: formData.name || formData.email,
           email: formData.email,
           role: formData.role,
-          restricted_page: permissionsStr || null,
+          permissions: permsPayload,
           created_at: new Date().toISOString()
         };
         const updated = [...staff, newMember];
         setStaff(updated);
         localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
         setView('list');
-        setFormData({ name: '', email: '', password: '', role: 'BILLER' });
-        setSelectedPages([]);
+        setFormData({ name: '', email: '', password: '', role: 'STAFF' });
+        setSelectedPermissions([]);
         setStatusMessage({ text: 'Saved staff account locally (Offline Mode)', type: 'success' });
       } finally {
         setLoading(false);
@@ -280,7 +227,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       const payload = {
         name: formData.name,
         role: formData.role,
-        restricted_page: permissionsStr,
+        permissions: permsPayload,
         ...(formData.password ? { password: formData.password } : {})
       };
       try {
@@ -297,7 +244,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
             ...s,
             name: formData.name,
             role: formData.role,
-            restricted_page: permissionsStr || null
+            permissions: permsPayload
           } : s);
           setStaff(updated);
           localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
@@ -314,7 +261,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           ...s,
           name: formData.name,
           role: formData.role,
-          restricted_page: permissionsStr || null
+          permissions: permsPayload
         } : s);
         setStaff(updated);
         localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
@@ -556,9 +503,12 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {filteredStaff.map((member) => {
                     const avatarGrad = getAvatarGradient(member.name || 'Staff', member.role);
-                    const permissionsList = member.restricted_page ? member.restricted_page.split(',').filter(Boolean) : [];
-                    const allowedPages = permissionsList.filter(p => !p.startsWith('OPT_'));
-                    const operationalOpts = permissionsList.filter(p => p.startsWith('OPT_'));
+                    const isOwnerRole = member.role === 'OWNER' || member.role === 'ADMIN';
+                    const permsList: string[] = isOwnerRole 
+                      ? ['*']
+                      : Array.isArray(member.permissions) && member.permissions.length > 0
+                      ? member.permissions
+                      : convertLegacyRestrictedPageToPermissions(member.restricted_page);
                     
                     return (
                       <div 
@@ -569,9 +519,9 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                         <div className="absolute top-4 right-4">
                           <span className={clsx(
                             "text-[9px] font-black px-2.5 py-1 rounded-lg uppercase tracking-wider",
-                            member.role === 'OWNER' ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            isOwnerRole ? "bg-indigo-500/10 text-indigo-500 border border-indigo-500/20" : "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
                           )}>
-                            {member.role === 'OWNER' ? 'OWNER' : 'STAFF'}
+                            {isOwnerRole ? 'OWNER' : 'STAFF'}
                           </span>
                         </div>
 
@@ -595,50 +545,35 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                         {/* Divider */}
                         <div className="h-px bg-border/60 my-4" />
 
-                        {/* Permission & Operational Pills */}
+                        {/* Permission Pills */}
                         <div className="flex-1 flex flex-col justify-between space-y-4">
                           <div className="space-y-3">
                             <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1.5">Operational Privileges</p>
+                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1.5">Granted Privileges</p>
                               <div className="flex flex-wrap gap-1.5">
-                                {member.role === 'OWNER' ? (
+                                {isOwnerRole ? (
                                   <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-indigo-500/5 text-indigo-500 border border-indigo-500/20">
-                                    Full Unrestricted Privileges
+                                    Full Unrestricted Access
                                   </span>
-                                ) : operationalOpts.length > 0 ? (
-                                  operationalOpts.map(optKey => {
-                                    const opt = OPERATIONAL_CONTROLS.find(o => o.key === optKey);
-                                    return (
-                                      <span key={optKey} className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 flex items-center gap-1">
-                                        <Check className="w-3 h-3 text-emerald-500" />
-                                        {opt ? opt.label : optKey}
+                                ) : permsList.includes('*') ? (
+                                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                                    All Permissions Granted
+                                  </span>
+                                ) : permsList.length > 0 ? (
+                                  permsList.slice(0, 4).map(perm => (
+                                    <span key={perm} className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                      {perm}
+                                    </span>
+                                  )).concat(
+                                    permsList.length > 4 ? [
+                                      <span key="more" className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                                        +{permsList.length - 4} more
                                       </span>
-                                    );
-                                  })
+                                    ] : []
+                                  )
                                 ) : (
                                   <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                                    Standard Operational Rules
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            <div>
-                              <p className="text-[10px] text-muted-foreground uppercase font-black tracking-wider mb-1.5">Allowed Pages</p>
-                              <div className="flex flex-wrap gap-1.5">
-                                {member.role === 'OWNER' ? (
-                                  <span className="text-[10px] font-black px-2.5 py-1 rounded-full bg-indigo-500/5 text-indigo-500 border border-indigo-500/20">
-                                    All Application Pages
-                                  </span>
-                                ) : allowedPages.length > 0 ? (
-                                  allowedPages.map(pageKey => (
-                                    <span key={pageKey} className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-600 border border-blue-500/20">
-                                      {pageKey.replace(/_/g, ' ')}
-                                    </span>
-                                  ))
-                                ) : (
-                                  <span className="text-[10px] font-extrabold px-2.5 py-1 rounded-full bg-emerald-500/5 text-emerald-600 border border-emerald-500/20">
-                                    All Pages Enabled
+                                    No Permissions Assigned
                                   </span>
                                 )}
                               </div>
@@ -756,25 +691,25 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button
                       type="button"
-                      onClick={() => setFormData({...formData, role: 'BILLER'})}
+                      onClick={() => setFormData({...formData, role: 'STAFF'})}
                       className={clsx(
                         "flex items-center gap-4 p-4 rounded-2xl border text-left transition-all cursor-pointer relative overflow-hidden select-none",
-                        formData.role === 'BILLER' 
+                        formData.role === 'STAFF' 
                           ? "bg-primary/5 border-primary shadow-sm" 
                           : "bg-background border-border hover:bg-muted/50"
                       )}
                     >
                       <div className={clsx(
                         "p-2.5 rounded-xl shrink-0",
-                        formData.role === 'BILLER' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                        formData.role === 'STAFF' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       )}>
                         <Users className="w-5 h-5" />
                       </div>
                       <div>
-                        <h4 className={clsx("text-xs font-bold", formData.role === 'BILLER' ? "text-primary" : "text-foreground")}>STAFF ACCOUNT</h4>
-                        <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Standard operator with custom feature & page permissions set by Owner</p>
+                        <h4 className={clsx("text-xs font-bold", formData.role === 'STAFF' ? "text-primary" : "text-foreground")}>STAFF ACCOUNT</h4>
+                        <p className="text-[10px] text-muted-foreground mt-0.5 font-medium">Standard operator with granular permission control set by Owner</p>
                       </div>
-                      {formData.role === 'BILLER' && (
+                      {formData.role === 'STAFF' && (
                         <div className="absolute right-4 top-1/2 -translate-y-1/2 text-primary">
                           <Check className="w-4 h-4" />
                         </div>
@@ -810,104 +745,13 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                   </div>
                 </section>
 
-                {/* Section 3: Operational & Privacy Controls (Set by Owner) */}
-                {formData.role === 'BILLER' && (
-                  <section className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4">
-                    <div className="flex items-center gap-2 pb-3 border-b border-border/60">
-                      <div className="p-1.5 rounded-lg bg-amber-500/10 text-amber-500">
-                        <ShieldAlert className="w-4 h-4" />
-                      </div>
-                      <span className="text-xs font-black text-amber-500 uppercase tracking-wider">3. Operational & Privacy Controls (Set by Owner)</span>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {OPERATIONAL_CONTROLS.map((opt) => {
-                        const Icon = opt.icon;
-                        const isEnabled = selectedPages.includes(opt.key);
-                        return (
-                          <label
-                            key={opt.key}
-                            className={clsx(
-                              "flex items-start gap-3.5 p-4 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none active:scale-98",
-                              isEnabled
-                                ? "bg-emerald-500/5 border-emerald-500/40 text-foreground shadow-sm"
-                                : "bg-background border-border hover:bg-muted"
-                            )}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={isEnabled}
-                              onChange={() => handlePageToggle(opt.key)}
-                              className="w-4 h-4 mt-0.5 rounded border-border text-emerald-500 focus:ring-emerald-500 cursor-pointer shrink-0"
-                            />
-                            <div className="space-y-1 min-w-0">
-                              <div className="flex items-center gap-2 font-bold text-foreground">
-                                <Icon className="w-4 h-4 text-emerald-500 shrink-0" />
-                                <span>{opt.label}</span>
-                              </div>
-                              <p className="text-[10px] text-muted-foreground font-normal leading-relaxed">{opt.desc}</p>
-                            </div>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </section>
-                )}
-
-                {/* Section 4: Allowed Application Pages */}
-                {formData.role === 'BILLER' && (
-                  <section className="bg-card border border-border/80 rounded-2xl p-5 shadow-sm space-y-4">
-                    <div className="flex items-center justify-between pb-3 border-b border-border/60">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-lg bg-blue-500/10 text-blue-500">
-                          <SlidersHorizontal className="w-4 h-4" />
-                        </div>
-                        <span className="text-xs font-black text-blue-500 uppercase tracking-wider">4. Allowed Application Pages</span>
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-muted-foreground font-medium leading-relaxed">
-                      Select which application pages this staff account is allowed to open. Leaving all options unchecked grants access to all standard POS screens.
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      {PERMISSION_GROUPS.map((group) => (
-                        <div key={group.title} className="bg-card border border-border/60 rounded-2xl p-4 space-y-3 flex flex-col">
-                          <div className="shrink-0 pb-2 border-b border-border/40">
-                            <h4 className="text-xs font-extrabold text-foreground flex items-center gap-2">
-                              <span className={clsx("w-2 h-2 rounded-full bg-gradient-to-r", group.color)} />
-                              {group.title}
-                            </h4>
-                            <p className="text-[10px] text-muted-foreground mt-0.5 font-medium leading-tight">{group.desc}</p>
-                          </div>
-                          
-                          <div className="flex-grow space-y-1.5">
-                            {group.pages.map((page) => {
-                              const isChecked = selectedPages.includes(page.key);
-                              return (
-                                <label
-                                  key={page.key}
-                                  className={clsx(
-                                    "flex items-center gap-2.5 p-2.5 rounded-xl border text-[11px] font-bold transition-all cursor-pointer select-none active:scale-98",
-                                    isChecked 
-                                      ? "bg-primary/5 border-primary text-primary shadow-sm" 
-                                      : "bg-background border-border hover:bg-muted"
-                                  )}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isChecked}
-                                    onChange={() => handlePageToggle(page.key)}
-                                    className="w-4 h-4 rounded border-border text-primary focus:ring-primary cursor-pointer shrink-0"
-                                  />
-                                  <span className="truncate">{page.label}</span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                {/* Section 3: Permission Configuration */}
+                {formData.role === 'STAFF' && (
+                  <section className="space-y-2">
+                    <PermissionSelector
+                      selectedPermissions={selectedPermissions}
+                      onChange={setSelectedPermissions}
+                    />
                   </section>
                 )}
               </div>

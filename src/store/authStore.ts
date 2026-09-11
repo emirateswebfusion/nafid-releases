@@ -1,12 +1,14 @@
 import { create } from 'zustand';
 import { useCartStore } from './cartStore';
+import { convertLegacyRestrictedPageToPermissions } from '../utils/permissions';
 
 export interface AuthState {
   isAuthenticated: boolean;
   token: string | null;
   tenantId: string | null;
   userId: string | null;
-  role: 'OWNER' | 'BILLER' | 'SUPER_ADMIN' | null;
+  role: 'OWNER' | 'ADMIN' | 'STAFF' | 'BILLER' | 'SUPER_ADMIN' | null;
+  permissions: string[];
   userName: string | null;
   shopName: string | null;
   isLoading: boolean;
@@ -35,6 +37,17 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+function parsePermissionsFromToken(token: string): string[] {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    if (Array.isArray(payload.permissions)) return payload.permissions;
+    if (payload.role === 'OWNER' || payload.role === 'ADMIN' || payload.role === 'SUPER_ADMIN') return ['*'];
+    return convertLegacyRestrictedPageToPermissions(payload.restricted_page);
+  } catch {
+    return [];
+  }
+}
+
 function formatError(err: any, fallback: string): string {
   if (!err) return fallback;
   if (typeof err === 'string') return err;
@@ -56,6 +69,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   tenantId: null,
   userId: null,
   role: null,
+  permissions: [],
   userName: null,
   shopName: null,
   isLoading: true,
@@ -75,20 +89,25 @@ export const useAuthStore = create<AuthState>()((set) => ({
         if (stored?.jwt_token) {
           if (isTokenExpired(stored.jwt_token)) {
             if (window.electronAPI) await window.electronAPI.authClearToken();
-            set({ isAuthenticated: false });
+            set({ isAuthenticated: false, permissions: [] });
             return;
           }
+          const perms = parsePermissionsFromToken(stored.jwt_token);
+          let rawRole = (stored.role || '') as any;
+          if (['BILLER', 'CASHIER'].includes(rawRole)) rawRole = 'STAFF';
+
           set({
             isAuthenticated: true,
             token: stored.jwt_token,
             tenantId: stored.tenant_id,
             userId: stored.user_id,
-            role: stored.role as 'OWNER' | 'BILLER' | 'SUPER_ADMIN',
+            role: rawRole,
+            permissions: perms,
             userName: stored.user_name || null,
             shopName: stored.shop_name,
             restrictedPage: stored.restricted_page || null,
           });
-          useCartStore.getState().setRole(stored.role as 'OWNER' | 'BILLER' | 'SUPER_ADMIN');
+          useCartStore.getState().setRole(rawRole);
           if (stored.domain_type) {
             useCartStore.getState().setDomain(stored.domain_type as any);
             // Check local DB for confirmation if offline/restarting
@@ -101,11 +120,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
             }
           }
         } else {
-          set({ isAuthenticated: false });
+          set({ isAuthenticated: false, permissions: [] });
         }
       } else {
         // Browser dev fallback
-        set({ isAuthenticated: false });
+        set({ isAuthenticated: false, permissions: [] });
       }
     } finally {
       set({ isLoading: false });
@@ -127,13 +146,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
 
       if (!res.ok) return { success: false, error: formatError(data?.error || data, 'Login failed') };
 
+      let roleVal = (data.role || '') as any;
+      if (['BILLER', 'CASHIER'].includes(roleVal)) roleVal = 'STAFF';
+      const perms = parsePermissionsFromToken(data.token);
+
       // Persist to disk via IPC
       if (window.electronAPI) {
         await window.electronAPI.authSaveToken({
           jwt_token: data.token,
           tenant_id: data.tenant_id,
           user_id: data.user_id,
-          role: data.role,
+          role: roleVal,
           user_name: data.user_name,
           shop_name: data.shop_name || email,
           domain_type: data.domain_type,
@@ -146,12 +169,13 @@ export const useAuthStore = create<AuthState>()((set) => ({
         token: data.token,
         tenantId: data.tenant_id,
         userId: data.user_id,
-        role: data.role,
+        role: roleVal,
+        permissions: perms,
         userName: data.user_name || null,
         shopName: data.shop_name || email,
         restrictedPage: data.restricted_page || null,
       });
-      useCartStore.getState().setRole(data.role);
+      useCartStore.getState().setRole(roleVal);
       if (data.domain_type) {
         useCartStore.getState().setDomain(data.domain_type);
         // If it's coming from the cloud, it's already an existing preference
@@ -176,7 +200,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
   logout: async () => {
     if (window.electronAPI) await window.electronAPI.authClearToken();
     useCartStore.getState().clearCart();
-    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, userName: null, shopName: null, restrictedPage: null });
+    set({ isAuthenticated: false, token: null, tenantId: null, userId: null, role: null, permissions: [], userName: null, shopName: null, restrictedPage: null });
   },
 
   updateDomain: async (domain: string) => {

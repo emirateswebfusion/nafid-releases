@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
 import { useThemeStore } from '../store/themeStore';
 import { loadFeatureFlags, cashierPageTitle, type FeatureFlags, type FeatureKey } from '../featureFlags';
+import { hasPermission } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 
@@ -36,7 +37,7 @@ interface OwnerDashboardProps {
 }
 
 export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffledQuotes, quoteIndex, QUOTES }: OwnerDashboardProps) {
-    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId } = useAuthStore();
+    const { shopName, userName, lastSyncTime, setLastSyncTime, tenantId, role, permissions } = useAuthStore();
     const { setRole } = useCartStore();
     const { theme, toggleTheme } = useThemeStore();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -151,8 +152,9 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             icon: ShoppingCart,
             color: 'text-emerald-500',
             bgColor: 'bg-emerald-500/10',
-            action: () => setRole('BILLER'),
-            shortcut: 'F1'
+            action: () => setRole('STAFF'),
+            shortcut: 'F1',
+            perm: 'sales.create'
         },
         {
             id: 'cashier',
@@ -162,6 +164,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-yellow-500',
             bgColor: 'bg-yellow-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-cashier-settlement')),
+            perm: 'cash_register.view'
         },
         {
             id: 'inventory',
@@ -171,6 +174,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-cyan-500',
             bgColor: 'bg-cyan-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-inventory-manager')),
+            perm: 'products.view'
         },
         {
             id: 'grades',
@@ -180,6 +184,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-indigo-500',
             bgColor: 'bg-indigo-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-grades')),
+            perm: 'products.view'
         },
         {
             id: 'pricing-tiers',
@@ -189,6 +194,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-violet-500',
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-settings-pricing-tiers')),
+            perm: 'combos.view'
         },
         {
             id: 'financial-report',
@@ -198,6 +204,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-emerald-500',
             bgColor: 'bg-emerald-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-financial-report')),
+            perm: 'reports.financial'
         },
         {
             id: 'stock-print',
@@ -207,6 +214,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-teal-500',
             bgColor: 'bg-teal-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-stock-report')),
+            perm: 'reports.view'
         },
         {
             id: 'quotations',
@@ -216,6 +224,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-blue-500',
             bgColor: 'bg-blue-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-quotation-manager')),
+            perm: 'quotations.view'
         },
         {
             id: 'purchase-bills',
@@ -225,6 +234,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-pink-500',
             bgColor: 'bg-pink-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-purchase-bills')),
+            perm: 'purchases.view'
         },
         {
             id: 'warranties',
@@ -234,6 +244,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-violet-500',
             bgColor: 'bg-violet-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-warranty-manager')),
+            perm: 'warranties.view'
         },
         {
             id: 'returns',
@@ -243,6 +254,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-orange-500',
             bgColor: 'bg-orange-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-returns-manager')),
+            perm: 'sales.refund'
         },
         ...(enableScrap ? [{
             id: 'scrap',
@@ -252,6 +264,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-orange-500',
             bgColor: 'bg-orange-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-scrap-manager')),
+            perm: 'scrap.view'
         }] : []),
         {
             id: 'parties',
@@ -261,6 +274,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-rose-500',
             bgColor: 'bg-rose-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-parties-manager')),
+            perm: 'customers.view'
         },
         {
             id: 'payments',
@@ -270,6 +284,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-teal-500',
             bgColor: 'bg-teal-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-payments-page')),
+            perm: 'settings.view'
         },
         {
             id: 'customers',
@@ -279,6 +294,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-purple-500',
             bgColor: 'bg-purple-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-customers-page')),
+            perm: 'customers.view'
         },
         {
             id: 'staff',
@@ -288,6 +304,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-indigo-500',
             bgColor: 'bg-indigo-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-staff-manager')),
+            perm: 'users.view'
         },
         {
             id: 'combo-offers',
@@ -297,6 +314,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-purple-500',
             bgColor: 'bg-purple-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-combo-manager')),
+            perm: 'combos.view'
         },
         {
             id: 'history',
@@ -306,6 +324,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             color: 'text-amber-500',
             bgColor: 'bg-amber-500/10',
             action: () => window.dispatchEvent(new CustomEvent('open-sales-history')),
+            perm: 'sales.view'
         },
     ];
 
@@ -328,11 +347,24 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         staff: 'staff',
         history: 'sales_history',
     };
-    const visibleCards = featureFlags ? cards.filter(c => {
-        if (c.id === 'cashier') return featureFlags.cash_settlement || featureFlags.cash_register;
-        const f = FEATURE_BY_CARD[c.id];
-        return !f || featureFlags[f];
-    }) : cards;
+
+    const visibleCards = cards.filter(c => {
+        // 1. Feature Flag check
+        if (featureFlags) {
+            if (c.id === 'cashier' && !(featureFlags.cash_settlement || featureFlags.cash_register)) return false;
+            const f = FEATURE_BY_CARD[c.id];
+            if (f && !featureFlags[f]) return false;
+        }
+
+        // 2. Permission check
+        if (c.perm && !hasPermission({ role, permissions }, c.perm)) {
+            return false;
+        }
+
+        return true;
+    });
+
+    const canOpenSettings = hasPermission({ role, permissions }, 'settings.view');
 
     return (
         <div className="fixed inset-0 z-40 flex flex-col bg-background">
@@ -344,7 +376,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                     <div>
                         <div className="flex items-center gap-2">
                             <h1 className="text-sm font-bold text-foreground truncate">
-                                Welcome back, <span className="text-primary">{shopName || 'Admin'}</span>
+                                Welcome back, <span className="text-primary">{userName || shopName || (role === 'OWNER' ? 'Admin' : 'Staff')}</span>
                             </h1>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                         </div>
@@ -377,13 +409,15 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                         >
                             {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
                         </button>
-                        <button
-                            onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
-                            className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
-                            title="Settings"
-                        >
-                            <Settings className="w-4 h-4" />
-                        </button>
+                        {canOpenSettings && (
+                            <button
+                                onClick={() => window.dispatchEvent(new CustomEvent('open-settings-manager'))}
+                                className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted border border-border transition-all duration-200 active:scale-95 cursor-pointer"
+                                title="Settings"
+                            >
+                                <Settings className="w-4 h-4" />
+                            </button>
+                        )}
                         <div className="relative" ref={menuRef}>
                             <button
                                 onClick={() => setMenuOpen(!menuOpen)}
@@ -395,10 +429,10 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             {menuOpen && (
                                 <div className="absolute right-0 top-[calc(100%+8px)] w-56 bg-card border border-border rounded-xl shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
                                     <div className="p-4 border-b border-border bg-gradient-to-r from-primary/5 to-transparent">
-                                        <p className="text-sm font-bold text-foreground truncate">{userName || shopName || 'Admin'}</p>
+                                        <p className="text-sm font-bold text-foreground truncate">{userName || shopName || (role === 'OWNER' ? 'Admin' : 'Staff')}</p>
                                         <p className="text-[10px] text-muted-foreground uppercase mt-1 tracking-widest font-semibold flex items-center gap-1.5">
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                            Owner
+                                            {role === 'OWNER' ? 'Owner' : 'Staff'}
                                         </p>
                                     </div>
                                     <div className="p-1.5">
