@@ -1,3 +1,9 @@
+# Vendora v1.5.61 Release Notes
+
+## What's Changed
+- Enhanced LAN sync local host server, IPC handlers, and SettingsManager sync controls
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.60...v1.5.61
+
 # Vendora v1.5.60 Release Notes
 
 ## What's Changed
