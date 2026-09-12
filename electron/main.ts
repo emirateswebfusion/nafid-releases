@@ -5637,14 +5637,11 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
         AND (is_held IS NULL OR is_held = 0)
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
         AND (
-          substr(updated_at, 1, 10) = ? 
-          OR substr(created_at, 1, 10) = ? 
-          OR date(updated_at) = ? 
+          substr(created_at, 1, 10) = ? 
           OR date(created_at) = ?
-          OR updated_at LIKE ?
           OR created_at LIKE ?
         )
-    `).get(tenantId, cleanDate, cleanDate, cleanDate, cleanDate, dateLike, dateLike) as any;
+    `).get(tenantId, cleanDate, cleanDate, dateLike) as any;
 
     const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
 
@@ -6125,8 +6122,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.updated_at) = date(cd.business_date) OR date(i.created_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%') AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.updated_at) = date(cd.business_date) OR date(i.created_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%') AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.created_at) = date(cd.business_date) OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(i.created_at, 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(i.created_at) = date(cd.business_date) OR i.created_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(i.created_at, 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -6158,10 +6155,10 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
         AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
-        AND (date(i.updated_at) = ? OR date(i.created_at) = ? OR i.updated_at LIKE ? OR i.created_at LIKE ? OR substr(i.updated_at, 1, 10) = ? OR substr(i.created_at, 1, 10) = ?)
+        AND (date(i.created_at) = ? OR i.created_at LIKE ? OR substr(i.created_at, 1, 10) = ?)
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
-      ORDER BY i.updated_at DESC
-    `).all(tenant_id, cleanDate, cleanDate, dateLike, dateLike, cleanDate, cleanDate);
+      ORDER BY i.created_at DESC
+    `).all(tenant_id, cleanDate, dateLike, cleanDate);
   } catch (error: any) {
     console.error('[db:cashier:getDaySettlements]', error);
     return { error: 'Operation failed' };
