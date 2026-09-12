@@ -5736,14 +5736,18 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
 
     const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
 
-    // Calculate Cash In and Cash Out sums
+    // Calculate Cash In and Cash Out sums across all drawers / transactions for this business date
     const txSums = db.prepare(`
       SELECT 
         COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
         COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
       FROM cash_transactions 
-      WHERE tenant_id = ? AND drawer_id = ?
-    `).get(tenantId, drawer.drawer_id) as any;
+      WHERE tenant_id = ? AND (
+        drawer_id = ? 
+        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?))
+        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?
+      )
+    `).get(tenantId, drawer.drawer_id, tenantId, cleanDate, cleanDate, dateLike, cleanDate, cleanDate, dateLike, cleanDate) as any;
 
     const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
     const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
@@ -6198,7 +6202,7 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
       return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, date, dateLike, date);
     }
     const placeholders = drawerIds.map(() => '?').join(',');
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND drawer_id IN (${placeholders}) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, date, dateLike, date);
   } catch (error: any) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };

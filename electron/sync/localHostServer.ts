@@ -169,6 +169,22 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         paramObj['sync_status'] = rawRow.sync_status || 'PENDING';
       }
 
+      if (allCols.includes('updated_at')) {
+        paramObj['updated_at'] = localTimestamp();
+      }
+
+      if (tableName === 'cash_transactions' && rawRow.drawer_id && rawRow.tenant_id) {
+        const txDate = rawRow.transaction_date ? parseCleanDate(rawRow.transaction_date) : parseCleanDate(null);
+        const existingDrawer = db.prepare(`
+          SELECT drawer_id FROM cash_drawer
+          WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
+          LIMIT 1
+        `).get(rawRow.drawer_id, rawRow.tenant_id, txDate, txDate, `${txDate}%`) as any;
+        if (existingDrawer && existingDrawer.drawer_id) {
+          paramObj['drawer_id'] = existingDrawer.drawer_id;
+        }
+      }
+
       if (tableName === 'cash_drawer') {
         const cleanDate = parseCleanDate(rawRow.business_date);
         const existingDrawer = db.prepare(`

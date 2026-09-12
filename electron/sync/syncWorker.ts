@@ -3258,10 +3258,14 @@ async function pullCashTransactions(token: string, tenantId: string): Promise<bo
       const tx = db.transaction((transactions: any[]) => {
         for (const t of transactions) {
           try {
+            const txDate = parseCleanDate(t.transaction_date);
+            const localDrawer = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)) LIMIT 1`).get(t.drawer_id, tenantId, txDate, txDate, `${txDate}%`) as any;
+            const targetDrawerId = localDrawer?.drawer_id || t.drawer_id;
+
             upsert.run({
               transaction_id: t.transaction_id,
               tenant_id: tenantId,
-              drawer_id: t.drawer_id,
+              drawer_id: targetDrawerId,
               type: t.type,
               amount: t.amount ?? 0,
               category: t.category || null,
@@ -3285,6 +3289,10 @@ async function pullCashTransactions(token: string, tenantId: string): Promise<bo
 
   if (result.hasChanged && result.count > 0) {
     console.log(`[SyncWorker] Pulled ${result.count} cash transactions from cloud.${result.reconciled > 0 ? ` Reconciled ${result.reconciled}.` : ''}`);
+    try {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win && !win.isDestroyed()) win.webContents.send('sync:data-updated');
+    } catch {}
   } else if (result.failed) {
     console.error('[SyncWorker] Pull cash transactions failed.');
   }
