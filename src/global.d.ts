@@ -55,6 +55,8 @@ export interface IElectronAPI {
   authSaveToken: (payload: { jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string }) => Promise<{ success: boolean; error?: string }>;
   authGetToken: () => Promise<{ jwt_token: string; tenant_id: string; role: string; user_id: string; user_name?: string; shop_name: string; domain_type?: string; restricted_page?: string } | null>;
   authClearToken: () => Promise<{ success: boolean; error?: string }>;
+  appGetLocalIp?: () => Promise<string>;
+  appGetNetworkDetails?: () => Promise<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>;
   getCloudAccessState?: () => Promise<any>;
   onCloudStateChanged?: (callback: (state: any) => void) => () => void;
   drainPendingCloudQueue?: () => Promise<{ success: boolean; error?: string }>;

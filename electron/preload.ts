@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   appCheckForUpdates: () => ipcRenderer.invoke('app:checkForUpdates'),
   appGetVersion: () => ipcRenderer.invoke('app:getVersion'),
   appGetLocalIp: () => ipcRenderer.invoke('app:getLocalIp'),
+  appGetNetworkDetails: () => ipcRenderer.invoke('app:getNetworkDetails'),
   appInstallUpdate: () => ipcRenderer.invoke('app:installUpdate'),
   appDownloadUpdate: () => ipcRenderer.invoke('app:downloadUpdate'),
   dbDebugSyncState: (tenant_id: string) => ipcRenderer.invoke('db:debugSyncState', tenant_id),

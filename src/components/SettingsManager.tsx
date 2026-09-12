@@ -252,6 +252,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [lanRole, setLanRole] = useState<'PRIMARY' | 'SECONDARY'>('PRIMARY');
   const [lanHostIp, setLanHostIp] = useState('192.168.1.100');
   const [detectedLocalIp, setDetectedLocalIp] = useState('');
+  const [networkDetails, setNetworkDetails] = useState<{ ip: string; subnetPrefix: string; gateway: string; dns: string }>({
+    ip: '',
+    subnetPrefix: '24',
+    gateway: '',
+    dns: '8.8.8.8'
+  });
   const [lanPort, setLanPort] = useState<number>(3888);
   const [syncFrequency, setSyncFrequency] = useState<'NORMAL' | 'BALANCED' | 'HIGH'>('NORMAL');
   const [testingNetwork, setTestingNetwork] = useState(false);
@@ -260,9 +266,25 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const initialSnapshot = useRef<string>('');
 
   useEffect(() => {
-    if (window.electronAPI?.appGetLocalIp) {
+    if (window.electronAPI?.appGetNetworkDetails) {
+      window.electronAPI.appGetNetworkDetails().then((details) => {
+        if (details && details.ip) {
+          setNetworkDetails(details);
+          if (details.ip && details.ip !== '192.168.1.100') {
+            setDetectedLocalIp(details.ip);
+          }
+        }
+      }).catch(() => {});
+    } else if (window.electronAPI?.appGetLocalIp) {
       window.electronAPI.appGetLocalIp().then((ip) => {
-        if (ip) setDetectedLocalIp(ip);
+        if (ip) {
+          setDetectedLocalIp(ip);
+          setNetworkDetails(prev => ({
+            ...prev,
+            ip: ip,
+            gateway: ip.replace(/\.\d+$/, '.1')
+          }));
+        }
       }).catch(() => {});
     }
     if (window.electronAPI?.getCloudAccessState) {
@@ -3123,7 +3145,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               <li>Open <strong>Nafid POS</strong> on Computer A → Go to <strong>Settings ⚙️ → Network &amp; Sync Settings</strong>.</li>
               <li>Set <strong>Sync Mode</strong> to <strong>`HYBRID`</strong> <em>(Recommended)</em> or <strong>`LAN`</strong>.</li>
               <li>Set <strong>LAN Role</strong> to <strong>`PRIMARY (Master Server)`</strong>.</li>
-              <li>Note down Computer A's <strong>Local IP Address</strong> displayed on screen (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">192.168.1.100</span>).</li>
+              <li>Note down Computer A's <strong>Local IP Address</strong> displayed on screen (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">{networkDetails.ip || detectedLocalIp || '192.168.1.100'}</span>).</li>
               <li>Click <strong>Save Settings</strong>.</li>
             </ol>
           </div>
@@ -3146,7 +3168,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               <li>Open <strong>Nafid POS</strong> on Computer B → Go to <strong>Settings ⚙️ → Network &amp; Sync Settings</strong>.</li>
               <li>Set <strong>Sync Mode</strong> to <strong>`HYBRID`</strong> or <strong>`LAN`</strong>.</li>
               <li>Set <strong>LAN Role</strong> to <strong>`SECONDARY (Client Terminal)`</strong>.</li>
-              <li>In the <strong>Primary Host IP</strong> field, type Computer A's IP address (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">192.168.1.100</span>).</li>
+              <li>In the <strong>Primary Host IP</strong> field, type Computer A's IP address (e.g. <span className="font-mono text-foreground font-bold px-1 py-0.5 bg-muted rounded">{networkDetails.ip || detectedLocalIp || '192.168.1.100'}</span>).</li>
               <li>Click <strong>Test Connection</strong>. When it shows green success, click <strong>Save Settings</strong>.</li>
             </ol>
           </div>
@@ -3212,12 +3234,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               <li>On <strong>Computer A</strong>, open <strong>Windows Settings</strong> (press <kbd className="px-1.5 py-0.5 bg-muted border border-border rounded text-[10px] font-mono">Win + I</kbd>) → <strong>Network &amp; Internet</strong> → <strong>Wi-Fi</strong>.</li>
               <li>Click your Wi-Fi Network Name → Scroll down to <strong>IP assignment</strong> → Click <strong>Edit</strong>.</li>
               <li>Change from <strong>Automatic (DHCP)</strong> to <strong>Manual</strong> → Turn <strong>ON IPv4</strong>.</li>
-              <li>Fill in:
+              <li>Fill in the real network details auto-detected for this computer:
                 <div className="mt-1.5 p-3 rounded-xl bg-card border border-border/80 grid grid-cols-2 gap-2 text-[11px] font-mono">
-                  <div><span className="text-muted-foreground">IP address:</span> <strong className="text-purple-600 dark:text-purple-400">192.168.1.100</strong></div>
-                  <div><span className="text-muted-foreground">Subnet prefix:</span> <strong className="text-purple-600 dark:text-purple-400">24</strong></div>
-                  <div><span className="text-muted-foreground">Gateway:</span> <strong className="text-purple-600 dark:text-purple-400">192.168.1.1</strong></div>
-                  <div><span className="text-muted-foreground">Preferred DNS:</span> <strong className="text-purple-600 dark:text-purple-400">8.8.8.8</strong></div>
+                  <div><span className="text-muted-foreground">IP address:</span> <strong className="text-purple-600 dark:text-purple-400">{networkDetails.ip || detectedLocalIp || '192.168.1.100'}</strong></div>
+                  <div><span className="text-muted-foreground">Subnet mask:</span> <strong className="text-purple-600 dark:text-purple-400">{networkDetails.netmask || '255.255.255.0'}</strong> <span className="text-[10px] text-muted-foreground">(or Prefix: {networkDetails.subnetPrefix || '24'})</span></div>
+                  <div><span className="text-muted-foreground">Gateway (Router IP):</span> <strong className="text-purple-600 dark:text-purple-400">{networkDetails.gateway || '192.168.1.1'}</strong></div>
+                  <div><span className="text-muted-foreground">Preferred DNS:</span> <strong className="text-purple-600 dark:text-purple-400">{networkDetails.dns || '8.8.8.8'}</strong></div>
                 </div>
               </li>
               <li>Click <strong>Save</strong>. Computer A's IP address is now permanently locked!</li>

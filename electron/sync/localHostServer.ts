@@ -438,33 +438,50 @@ export function startLocalHostServer(port: number = 3888) {
           let query = `SELECT * FROM ${tableName}`;
           const params: any[] = [];
 
-          let sinceLocal: string | null = null;
-          let sinceIso: string | null = null;
+          let sinceCandidates: string[] = [];
           if (rawSince) {
-            sinceIso = rawSince;
+            const set = new Set<string>();
+            const clean = rawSince.trim();
+            set.add(clean);
+            set.add(clean.replace('T', ' ').replace('Z', '').split('.')[0]);
+            set.add(clean.replace(' ', 'T').split('.')[0]);
+
             try {
-              const d = new Date(rawSince.includes('Z') || rawSince.includes('+') ? rawSince : rawSince.replace(' ', 'T') + 'Z');
+              const d = new Date(clean.includes('Z') || clean.includes('+') ? clean : clean.replace(' ', 'T') + 'Z');
               if (!isNaN(d.getTime())) {
                 const pad = (n: number) => String(n).padStart(2, '0');
-                sinceLocal = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-              } else {
-                sinceLocal = rawSince.replace('T', ' ').replace('Z', '').split('.')[0];
+                // UTC Space format (matches SQLite CURRENT_TIMESTAMP: "YYYY-MM-DD HH:MM:SS")
+                const utcSpace = `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`;
+                set.add(utcSpace);
+                set.add(d.toISOString());
+                set.add(d.toISOString().slice(0, 19).replace('T', ' '));
+
+                // Local Space format
+                const localSpace = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+                set.add(localSpace);
               }
-            } catch {
-              sinceLocal = rawSince.replace('T', ' ').replace('Z', '').split('.')[0];
-            }
+            } catch {}
+
+            sinceCandidates = Array.from(set).filter(Boolean);
           }
+
+          const buildSinceCond = (colName: string): string => {
+            if (sinceCandidates.length === 0) return '';
+            const clauses = sinceCandidates.map(() => `${colName} > ?`);
+            params.push(...sinceCandidates);
+            return `(${clauses.join(' OR ')})`;
+          };
 
           if (tableName === 'invoices') {
             query += ` WHERE invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`;
-            if (sinceLocal && sinceIso) {
-              query += ` AND (updated_at > ? OR updated_at > ? OR created_at > ? OR created_at > ?)`;
-              params.push(sinceLocal, sinceIso, sinceLocal, sinceIso);
+            if (sinceCandidates.length > 0) {
+              const uCond = buildSinceCond('updated_at');
+              const cCond = buildSinceCond('created_at');
+              query += ` AND (${uCond} OR ${cCond})`;
             }
           } else if (tableName === 'products') {
-            if (sinceLocal && sinceIso && meta?.allCols.includes('updated_at')) {
-              query += ` WHERE (updated_at > ? OR updated_at > ?)`;
-              params.push(sinceLocal, sinceIso);
+            if (sinceCandidates.length > 0 && meta?.allCols.includes('updated_at')) {
+              query += ` WHERE ${buildSinceCond('updated_at')}`;
             }
           } else if (tableName === 'settings') {
             const excludedKeys = [
@@ -475,17 +492,20 @@ export function startLocalHostServer(port: number = 3888) {
             const placeholders = excludedKeys.map(() => '?').join(',');
             query += ` WHERE key NOT IN (${placeholders})`;
             params.push(...excludedKeys);
-            if (sinceLocal && sinceIso && meta?.allCols.includes('updated_at')) {
-              query += ` AND (updated_at > ? OR updated_at > ?)`;
-              params.push(sinceLocal, sinceIso);
+            if (sinceCandidates.length > 0 && meta?.allCols.includes('updated_at')) {
+              query += ` AND ${buildSinceCond('updated_at')}`;
             }
-          } else if (sinceLocal && sinceIso && meta) {
-            if (meta.allCols.includes('updated_at')) {
-              query += ` WHERE (updated_at > ? OR updated_at > ?)`;
-              params.push(sinceLocal, sinceIso);
-            } else if (meta.allCols.includes('created_at')) {
-              query += ` WHERE (created_at > ? OR created_at > ?)`;
-              params.push(sinceLocal, sinceIso);
+          } else if (sinceCandidates.length > 0 && meta) {
+            const hasUpdated = meta.allCols.includes('updated_at');
+            const hasCreated = meta.allCols.includes('created_at');
+            if (hasUpdated && hasCreated) {
+              const uCond = buildSinceCond('updated_at');
+              const cCond = buildSinceCond('created_at');
+              query += ` WHERE (${uCond} OR ${cCond})`;
+            } else if (hasUpdated) {
+              query += ` WHERE ${buildSinceCond('updated_at')}`;
+            } else if (hasCreated) {
+              query += ` WHERE ${buildSinceCond('created_at')}`;
             }
           }
 
