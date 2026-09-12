@@ -1,6 +1,7 @@
 export interface UserPermissions {
   role?: string | null;
   permissions?: string[] | null;
+  restrictedPage?: string | null;
 }
 
 export interface PermissionDefinition {
@@ -20,28 +21,38 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     id: 'sales',
     name: 'Sales & POS Billing',
-    description: 'Billing, invoicing, discounts, and sales history',
+    description: 'Billing, invoicing, GST vs. Estimate separation, discounts, and pricing controls',
     permissions: [
-      { key: 'sales.view', label: 'View Sales History', description: 'Can view past sales and invoice list' },
-      { key: 'sales.create', label: 'Create Bill / Invoice', description: 'Can issue new sales invoices' },
-      { key: 'sales.edit', label: 'Edit Bill', description: 'Can edit active or existing bills' },
-      { key: 'sales.delete', label: 'Delete Bill', description: 'Can delete invoices' },
-      { key: 'sales.cancel', label: 'Cancel Bill', description: 'Can cancel or void invoices' },
+      { key: 'sales.view', label: 'View All Sales History', description: 'Can view both GST and Estimate sales history' },
+      { key: 'sales.view_gst', label: 'View GST Sales Invoices', description: 'Can view GST tax invoices in sales history' },
+      { key: 'sales.view_estimate', label: 'View Estimate / BoS Invoices', description: 'Can view Non-GST / Estimate / Bill of Supply invoices in sales history' },
+      { key: 'sales.create', label: 'Create Any Bill / Invoice', description: 'Can issue both GST and Estimate invoices' },
+      { key: 'sales.create_gst', label: 'Create GST Invoices', description: 'Can issue GST tax invoices during checkout' },
+      { key: 'sales.create_estimate', label: 'Create Estimate / BoS Invoices', description: 'Can issue Non-GST / Estimate / Bill of Supply invoices' },
+      { key: 'sales.edit_price', label: 'Override Unit Price', description: 'Can manually edit item unit price during checkout' },
       { key: 'sales.discount', label: 'Apply Discount', description: 'Can apply flat or percentage discounts on bills' },
+      { key: 'sales.edit', label: 'Edit Bill', description: 'Can edit active or existing bills' },
+      { key: 'sales.delete', label: 'Delete Bill', description: 'Can delete sales invoices' },
+      { key: 'sales.cancel', label: 'Cancel Bill', description: 'Can cancel or void sales invoices' },
       { key: 'sales.refund', label: 'Issue Refund / Returns', description: 'Can process customer returns and refunds' },
-      { key: 'sales.reprint', label: 'Reprint Receipts', description: 'Can reprint existing receipts' },
+      { key: 'sales.reprint', label: 'Reprint Receipts', description: 'Can reprint existing thermal receipts' },
     ],
   },
   {
     id: 'products',
     name: 'Products & Inventory',
-    description: 'Catalog management and stock control',
+    description: 'Catalog management, GST separation, purchase costs, and stock control',
     permissions: [
-      { key: 'products.view', label: 'View Catalog', description: 'Can view products and inventory items' },
+      { key: 'products.view', label: 'View All Products', description: 'Can view all items in inventory catalog' },
+      { key: 'products.view_gst', label: 'View GST Products', description: 'Can view GST applicable products in catalog' },
+      { key: 'products.view_estimate', label: 'View Estimate / Non-GST Products', description: 'Can view Non-GST / Estimate products in catalog' },
+      { key: 'products.view_cost', label: 'View Purchase Cost & Margins', description: 'Can view product purchase costs and profit margins' },
       { key: 'products.create', label: 'Create Product', description: 'Can add new products to inventory' },
-      { key: 'products.edit', label: 'Edit Product', description: 'Can edit product details and pricing' },
+      { key: 'products.create_gst', label: 'Create GST Products', description: 'Can create products marked as GST applicable' },
+      { key: 'products.create_estimate', label: 'Create Estimate / Non-GST Products', description: 'Can create products marked as Non-GST / Estimate' },
+      { key: 'products.edit', label: 'Edit Product', description: 'Can edit product details and selling prices' },
       { key: 'products.delete', label: 'Delete Product', description: 'Can remove products from inventory' },
-      { key: 'products.stock_adjust', label: 'Adjust Stock', description: 'Can perform stock level adjustments' },
+      { key: 'products.stock_adjust', label: 'Adjust Stock Levels', description: 'Can perform manual stock level adjustments' },
     ],
   },
   {
@@ -59,9 +70,11 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   {
     id: 'purchases',
     name: 'Purchase Bills & Expenses',
-    description: 'Supplier purchases and business expenses',
+    description: 'Supplier purchases, GST separation, and business expenses',
     permissions: [
-      { key: 'purchases.view', label: 'View Purchases', description: 'Can view purchase bills and expenses' },
+      { key: 'purchases.view', label: 'View All Purchases', description: 'Can view all purchase bills and expenses' },
+      { key: 'purchases.view_gst', label: 'View GST Purchase Bills', description: 'Can view GST supplier purchase bills' },
+      { key: 'purchases.view_estimate', label: 'View Estimate Purchase Bills', description: 'Can view Estimate / Non-GST purchase bills' },
       { key: 'purchases.create', label: 'Create Purchase Bill', description: 'Can enter new purchase bills' },
       { key: 'purchases.edit', label: 'Edit Purchase Bill', description: 'Can update purchase bill entries' },
       { key: 'purchases.delete', label: 'Delete Purchase Bill', description: 'Can remove purchase bills' },
@@ -170,10 +183,14 @@ export function convertLegacyRestrictedPageToPermissions(restrictedPage?: string
 
   const mapModuleToPerms: Record<string, string[]> = {
     'DASHBOARD': ['dashboard.view'],
-    'BILLING': ['sales.view', 'sales.create', 'sales.edit', 'sales.discount', 'sales.refund', 'sales.reprint', 'bills.view', 'bills.create', 'bills.edit'],
-    'INVENTORY': ['products.view', 'products.create', 'products.edit', 'products.stock_adjust'],
+    'BILLING': [
+      'sales.view', 'sales.view_gst', 'sales.view_estimate',
+      'sales.create', 'sales.create_gst', 'sales.create_estimate',
+      'sales.edit', 'sales.discount', 'sales.refund', 'sales.reprint'
+    ],
+    'INVENTORY': ['products.view', 'products.view_gst', 'products.view_estimate', 'products.create', 'products.create_gst', 'products.create_estimate', 'products.edit', 'products.stock_adjust'],
     'CUSTOMERS': ['customers.view', 'customers.create', 'customers.edit', 'customers.ledger'],
-    'PURCHASES': ['purchases.view', 'purchases.create', 'purchases.edit'],
+    'PURCHASES': ['purchases.view', 'purchases.view_gst', 'purchases.view_estimate', 'purchases.create', 'purchases.edit'],
     'CASH_REGISTER': ['cash_register.view', 'cash_register.cash_in', 'cash_register.cash_out', 'cash_register.settlement'],
     'QUOTATIONS': ['quotations.view', 'quotations.create', 'quotations.edit'],
     'SCRAP': ['scrap.view', 'scrap.create', 'scrap.edit'],
@@ -189,7 +206,24 @@ export function convertLegacyRestrictedPageToPermissions(restrictedPage?: string
     }
   });
 
-  return allowedPermissions;
+  // Handle legacy operational control flags
+  if (restrictedList.includes('OPT_VIEW_GST')) {
+    allowedPermissions.push('products.view_gst', 'sales.view_gst', 'purchases.view_gst');
+  }
+  if (restrictedList.includes('OPT_VIEW_COST')) {
+    allowedPermissions.push('products.view_cost');
+  }
+  if (restrictedList.includes('OPT_EDIT_PRICE')) {
+    allowedPermissions.push('sales.edit_price');
+  }
+  if (restrictedList.includes('OPT_APPLY_DISCOUNT')) {
+    allowedPermissions.push('sales.discount');
+  }
+  if (restrictedList.includes('OPT_DELETE_INVOICE')) {
+    allowedPermissions.push('sales.delete');
+  }
+
+  return Array.from(new Set(allowedPermissions));
 }
 
 /**
@@ -208,7 +242,35 @@ export function hasPermission(user: UserPermissions | null | undefined, permissi
   if (role === 'STAFF' || role === 'BILLER' || role === 'CASHIER') {
     const userPerms = user.permissions || [];
     if (userPerms.includes('*')) return true;
-    return userPerms.includes(permissionKey);
+
+    // Direct check
+    if (userPerms.includes(permissionKey)) return true;
+
+    // Check parent permission fallbacks for granular keys
+    if (permissionKey === 'sales.view_gst' || permissionKey === 'sales.view_estimate') {
+      if (userPerms.includes('sales.view')) return true;
+    }
+    if (permissionKey === 'sales.create_gst' || permissionKey === 'sales.create_estimate') {
+      if (userPerms.includes('sales.create')) return true;
+    }
+    if (permissionKey === 'products.view_gst' || permissionKey === 'products.view_estimate') {
+      if (userPerms.includes('products.view')) return true;
+    }
+    if (permissionKey === 'products.create_gst' || permissionKey === 'products.create_estimate') {
+      if (userPerms.includes('products.create')) return true;
+    }
+    if (permissionKey === 'purchases.view_gst' || permissionKey === 'purchases.view_estimate') {
+      if (userPerms.includes('purchases.view')) return true;
+    }
+
+    // Legacy fallback check from restrictedPage string if present
+    if (user.restrictedPage) {
+      const legacyPerms = convertLegacyRestrictedPageToPermissions(user.restrictedPage);
+      if (legacyPerms.includes(permissionKey)) return true;
+    }
+
+    return false;
   }
   return false;
 }
+

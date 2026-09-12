@@ -133,6 +133,21 @@ function localDate(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
+function parseCleanDate(dStr: any): string {
+  if (!dStr) return localDate();
+  const str = String(dStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (ddmmyyyy) {
+    return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  }
+  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
+    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
+    if (!isNaN(d.getTime())) return localDate(d);
+  }
+  return str.slice(0, 10);
+}
+
 import { initDb, getDb, upsertCustomerRecord } from './db/localDb.js';
 import { initPrinter } from './hardware/printer.js';
 import { initWeighingScale } from './hardware/weighingScale.js';
@@ -5591,6 +5606,127 @@ function getCashAmountFromInvoice(inv: any): number {
   return 0;
 }
 
+function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
+  if (!drawer || !tenantId) return drawer;
+  try {
+    const cleanDate = parseCleanDate(drawer.business_date);
+    const dateLike = `${cleanDate}%`;
+
+    // Calculate total cash sales from settled cash invoices & cash portion of split invoices for this business date
+    const salesRow = db.prepare(`
+      SELECT 
+        COALESCE(SUM(
+          CASE 
+            WHEN payment_method = 'CASH' THEN (
+              CASE WHEN received_amount > 0 THEN received_amount ELSE (CASE WHEN grand_total > 0 THEN grand_total ELSE 0 END) END
+            )
+            WHEN payment_method = 'SPLIT' AND split_details IS NOT NULL THEN (
+              CASE 
+                WHEN json_extract(split_details, '$.cash') IS NOT NULL 
+                THEN CAST(json_extract(split_details, '$.cash') AS REAL)
+                ELSE 0 
+              END
+            )
+            ELSE 0 
+          END
+        ), 0) AS total_cash_sales
+      FROM invoices
+      WHERE tenant_id = ?
+        AND payment_method IN ('CASH', 'SPLIT')
+        AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (is_held IS NULL OR is_held = 0)
+        AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
+        AND (
+          substr(updated_at, 1, 10) = ? 
+          OR substr(created_at, 1, 10) = ? 
+          OR date(updated_at) = ? 
+          OR date(created_at) = ?
+          OR updated_at LIKE ?
+          OR created_at LIKE ?
+        )
+    `).get(tenantId, cleanDate, cleanDate, cleanDate, cleanDate, dateLike, dateLike) as any;
+
+    const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
+
+    // Calculate Cash In and Cash Out sums
+    const txSums = db.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
+        COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
+      FROM cash_transactions 
+      WHERE tenant_id = ? AND drawer_id = ?
+    `).get(tenantId, drawer.drawer_id) as any;
+
+    const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
+    const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
+
+    const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
+    const expectedCash = Math.round((openingBal + calcSales + calcIn - calcOut) * 100) / 100;
+
+    drawer.cash_sales = calcSales;
+    drawer.cash_in = calcIn;
+    drawer.cash_out = calcOut;
+    drawer.current_cash = expectedCash;
+    drawer.expected_closing = expectedCash;
+
+    if (drawer.status === 'CLOSED' && drawer.actual_cash !== null && drawer.actual_cash !== undefined) {
+      const actual = Math.round(Number(drawer.actual_cash) * 100) / 100;
+      const variance = Math.round((actual - expectedCash) * 100) / 100;
+      drawer.cash_short = variance < 0 ? Math.abs(variance) : 0;
+      drawer.cash_excess = variance > 0 ? variance : 0;
+      db.prepare(`
+        UPDATE cash_drawer 
+        SET cash_sales = ?, cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, cash_short = ?, cash_excess = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+        WHERE drawer_id = ?
+      `).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.cash_short, drawer.cash_excess, drawer.drawer_id);
+    } else {
+      db.prepare(`
+        UPDATE cash_drawer 
+        SET cash_sales = ?, cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
+        WHERE drawer_id = ?
+      `).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
+    }
+  } catch (err: any) {
+    console.error('[Cashier] reconcileCashDrawer error:', err.message);
+  }
+  return drawer;
+}
+
+function autoClosePastOpenDrawers(db: any, tenantId: string) {
+  if (!tenantId) return;
+  try {
+    const today = localDate();
+    const openDrawers = db.prepare(`
+      SELECT * FROM cash_drawer
+      WHERE tenant_id = ? AND status = 'OPEN'
+    `).all(tenantId) as any[];
+
+    if (Array.isArray(openDrawers) && openDrawers.length > 0) {
+      for (const d of openDrawers) {
+        const cleanDate = parseCleanDate(d.business_date);
+        if (cleanDate < today) {
+          reconcileCashDrawer(db, tenantId, d);
+          const exp = Number(d.expected_closing || 0);
+          db.prepare(`
+            UPDATE cash_drawer SET
+              status = 'CLOSED',
+              actual_cash = COALESCE(actual_cash, ?),
+              cash_short = 0,
+              cash_excess = 0,
+              closed_at = COALESCE(closed_at, CURRENT_TIMESTAMP),
+              closing_remarks = COALESCE(closing_remarks, 'Auto-closed past shift on date transition'),
+              sync_status = 'PENDING',
+              updated_at = CURRENT_TIMESTAMP
+            WHERE drawer_id = ?
+          `).run(exp, d.drawer_id);
+        }
+      }
+    }
+  } catch (err: any) {
+    console.error('[Cashier] autoClosePastOpenDrawers error:', err.message);
+  }
+}
+
 function adjustCashDrawerForInvoice(
   db: any,
   tenantId: string,
@@ -5618,33 +5754,7 @@ function adjustCashDrawerForInvoice(
   }
 
   if (drawer) {
-    const newCashSales = Math.max(0, Number(drawer.cash_sales || 0) + diff);
-    const newCurrentCash = Number(drawer.opening_balance || 0) + newCashSales + Number(drawer.cash_in || 0) - Number(drawer.cash_out || 0);
-    const newExpectedClosing = newCurrentCash;
-
-    let actualCashUpdate = '';
-    const params: any[] = [newCashSales, newCurrentCash, newExpectedClosing];
-
-    if (drawer.status === 'CLOSED' && drawer.actual_cash !== null && drawer.actual_cash !== undefined) {
-      const actual = Number(drawer.actual_cash);
-      const cashShort = actual < newExpectedClosing ? newExpectedClosing - actual : 0;
-      const cashExcess = actual > newExpectedClosing ? actual - newExpectedClosing : 0;
-      actualCashUpdate = `, cash_short = ?, cash_excess = ?`;
-      params.push(cashShort, cashExcess);
-    }
-
-    params.push(drawer.drawer_id);
-
-    db.prepare(`
-      UPDATE cash_drawer 
-      SET cash_sales = ?, 
-          current_cash = ?, 
-          expected_closing = ?
-          ${actualCashUpdate},
-          sync_status = 'PENDING', 
-          updated_at = CURRENT_TIMESTAMP 
-      WHERE drawer_id = ?
-    `).run(...params);
+    reconcileCashDrawer(db, tenantId, drawer);
   }
 }
 
@@ -5653,44 +5763,15 @@ function adjustCashDrawerForInvoice(
 ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { tenant_id: string; business_date?: string }) => {
   try {
     const db = getDb();
-    const date = business_date ? (typeof business_date === 'string' ? business_date.slice(0, 10) : localDate(new Date(business_date))) : localDate();
+    autoClosePastOpenDrawers(db, tenant_id);
+    const date = business_date ? parseCleanDate(business_date) : localDate();
     let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
     if (!drawer) {
       drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
     }
 
     if (drawer) {
-      const txSums = db.prepare(`
-        SELECT 
-          COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
-          COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
-        FROM cash_transactions 
-        WHERE tenant_id = ? AND drawer_id = ?
-      `).get(tenant_id, drawer.drawer_id) as any;
-
-      const calcIn = Number(txSums?.total_in || 0);
-      const calcOut = Number(txSums?.total_out || 0);
-      const curIn = Number(drawer.cash_in || 0);
-      const curOut = Number(drawer.cash_out || 0);
-
-      const openingBal = Number(drawer.opening_balance || 0);
-      const cashSales = Number(drawer.cash_sales || 0);
-      const expectedCash = openingBal + cashSales + calcIn - calcOut;
-
-      if (curIn !== calcIn || curOut !== calcOut || Number(drawer.current_cash) !== expectedCash || Number(drawer.expected_closing) !== expectedCash) {
-        drawer.cash_in = calcIn;
-        drawer.cash_out = calcOut;
-        drawer.current_cash = expectedCash;
-        drawer.expected_closing = expectedCash;
-
-        if (drawer.status === 'OPEN') {
-          db.prepare(`
-            UPDATE cash_drawer 
-            SET cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP 
-            WHERE drawer_id = ?
-          `).run(calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
-        }
-      }
+      drawer = reconcileCashDrawer(db, tenant_id, drawer);
     }
 
     return drawer || null;
@@ -5703,15 +5784,8 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
 ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, opening_balance, user_id, user_name }: { tenant_id: string; opening_balance: number; user_id: string; user_name?: string }) => {
   try {
     const db = getDb();
+    autoClosePastOpenDrawers(db, tenant_id);
     const date = localDate();
-
-    // Block setting opening balance if any previous shift is still open
-    const prevDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' AND (business_date < ? OR date(business_date) < ?)`).get(tenant_id, date, date) as any;
-    if (prevDrawer) {
-      const prevDate = prevDrawer.business_date ? String(prevDrawer.business_date).split('T')[0] : 'a previous shift';
-      console.log(`[Cashier] setOpeningBalance BLOCKED: previous shift ${prevDate} is still OPEN`);
-      return { success: false, error: `Previous cash drawer (${prevDate}) is still open. Close it first before setting today's opening balance.` };
-    }
 
     const existing = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
     
@@ -5755,6 +5829,8 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
     `).run(crypto.randomUUID(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
     
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
     import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
@@ -5836,12 +5912,6 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
         WHERE invoice_id = ? AND tenant_id = ?
       `).run(payment_method, split_details ? (typeof split_details === 'object' ? JSON.stringify(split_details) : split_details) : null, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id, tenant_id);
       
-      const splitCashAmount = payment_method === 'CASH' 
-        ? received 
-        : payment_method === 'SPLIT' && split_details?.cash 
-        ? Number(split_details.cash) 
-        : 0;
-
       if (payment_method === 'CASH' || (payment_method === 'SPLIT' && split_details?.cash)) {
         const date = localDate();
         const drawer = getOpenCashDrawer(db, tenant_id, date);
@@ -5857,26 +5927,15 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           const calculatedRefund = totalDeductions > preDeductionTotal ? totalDeductions - preDeductionTotal : 0;
           const actualRefund = received < 0 ? Math.abs(received) : (calculatedRefund > 0 ? calculatedRefund : 0);
 
-          const cashInAmt = splitCashAmount > 0 ? splitCashAmount : 0;
-          const newCashSales = Number(drawer.cash_sales) + cashInAmt;
-          let newCashOut = Number(drawer.cash_out);
-          let newCurrentCash = Number(drawer.current_cash) + cashInAmt;
-
           if (actualRefund > 0) {
             const transaction_id = crypto.randomUUID();
             db.prepare(`
               INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
             `).run(transaction_id, tenant_id, drawer.drawer_id, 'CASH_OUT', actualRefund, 'CREDIT_REFUND', `Refund leftover credits for settled invoice ${invoice.invoice_number}`, user_id, user_name || null);
-
-            newCashOut += actualRefund;
-            newCurrentCash -= actualRefund;
           }
 
-          const newExpectedClosing = Number(drawer.opening_balance) + newCashSales + Number(drawer.cash_in) - newCashOut;
-          db.prepare(`
-            UPDATE cash_drawer SET cash_sales = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE drawer_id = ?
-          `).run(newCashSales, newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+          reconcileCashDrawer(db, tenant_id, drawer);
         }
       } else if (payment_source_id) {
         // Non-cash payment against a configured bank / card / UPI source
@@ -5907,7 +5966,8 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
     });
     
     tx();
-    // Trigger immediate background sync so settled status updates on cloud & other terminals instantly
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
     import('./sync/syncWorker.js').then(({ triggerUrgentInvoiceSync, triggerUrgentCashSync }) => {
       triggerUrgentInvoiceSync().catch(e => console.error('[Main] Immediate urgent sync error:', e));
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
@@ -5938,24 +5998,7 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
       `).run(transaction_id, tenant_id, drawer.drawer_id, type, amount, category || null, notes || null, user_id, user_name || null);
       
-      let newCashIn = Number(drawer.cash_in);
-      let newCashOut = Number(drawer.cash_out);
-      let newCurrentCash = Number(drawer.current_cash);
-      
-      if (type === 'CASH_IN') {
-        newCashIn += Number(amount);
-        newCurrentCash += Number(amount);
-      } else {
-        newCashOut += Number(amount);
-        newCurrentCash -= Number(amount);
-      }
-      
-      const newExpectedClosing = Number(drawer.opening_balance) + Number(drawer.cash_sales) + newCashIn - newCashOut;
-      
-      db.prepare(`
-        UPDATE cash_drawer SET cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP
-        WHERE drawer_id = ?
-      `).run(newCashIn, newCashOut, newCurrentCash, newExpectedClosing, drawer.drawer_id);
+      reconcileCashDrawer(db, tenant_id, drawer);
       
       db.prepare(`
         INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
@@ -5968,6 +6011,8 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
     });
     
     tx();
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
     import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
@@ -5996,27 +6041,22 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
       }
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
-      const txSums = db.prepare(`
-        SELECT 
-          COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
-          COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
-        FROM cash_transactions 
-        WHERE tenant_id = ? AND drawer_id = ?
-      `).get(tenant_id, drawer.drawer_id) as any;
+      drawer = reconcileCashDrawer(db, tenant_id, drawer);
 
-      const cashIn = Number(txSums?.total_in || 0);
-      const cashOut = Number(txSums?.total_out || 0);
-      const openingBal = Number(drawer.opening_balance || 0);
-      const cashSales = Number(drawer.cash_sales || 0);
+      const cashIn = Math.round(Number(drawer.cash_in || 0) * 100) / 100;
+      const cashOut = Math.round(Number(drawer.cash_out || 0) * 100) / 100;
+      const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
+      const cashSales = Math.round(Number(drawer.cash_sales || 0) * 100) / 100;
 
-      expected = openingBal + cashSales + cashIn - cashOut;
-      actual = Number(actual_cash);
-      const variance = actual - expected;
+      expected = Math.round(Number(drawer.expected_closing || (openingBal + cashSales + cashIn - cashOut)) * 100) / 100;
+      actual = Math.round(Number(actual_cash) * 100) / 100;
+      const variance = Math.round((actual - expected) * 100) / 100;
       cash_short = variance < 0 ? Math.abs(variance) : 0;
       cash_excess = variance > 0 ? variance : 0;
       
       db.prepare(`
         UPDATE cash_drawer SET 
+          cash_sales = ?,
           cash_in = ?, 
           cash_out = ?, 
           current_cash = ?, 
@@ -6031,7 +6071,7 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
           sync_status = 'PENDING', 
           updated_at = CURRENT_TIMESTAMP
         WHERE drawer_id = ?
-      `).run(cashIn, cashOut, expected, expected, actual, cash_short, cash_excess, closing_remarks || null, user_id, drawer.drawer_id);
+      `).run(cashSales, cashIn, cashOut, expected, expected, actual, cash_short, cash_excess, closing_remarks || null, user_id, drawer.drawer_id);
       
       db.prepare(`
         INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
@@ -6044,6 +6084,8 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     });
     
     tx();
+    const win = BrowserWindow.getAllWindows()[0];
+    if (win) win.webContents.send('sync:data-updated');
     import('./sync/syncWorker.js').then(({ triggerUrgentCashSync }) => {
       triggerUrgentCashSync().catch(e => console.error('[Main] Immediate urgent cash sync error:', e));
     }).catch(e => console.error('[Main] Failed to load syncWorker:', e));
@@ -6078,7 +6120,8 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
 ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) => {
   try {
     const db = getDb();
-    return db.prepare(`
+    autoClosePastOpenDrawers(db, tenant_id);
+    const rows = db.prepare(`
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
@@ -6090,7 +6133,12 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       WHERE cd.tenant_id = ?
       ORDER BY cd.business_date DESC
       LIMIT ? OFFSET ?
-    `).all(tenant_id, limit, offset);
+    `).all(tenant_id, limit, offset) as any[];
+
+    if (Array.isArray(rows)) {
+      rows.forEach(r => reconcileCashDrawer(db, tenant_id, r));
+    }
+    return rows;
   } catch (error: any) {
     console.error('[db:cashier:getHistory]', error);
     return { error: 'Operation failed' };

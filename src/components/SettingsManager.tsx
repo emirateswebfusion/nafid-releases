@@ -882,6 +882,17 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       const cleanCode = String(terminalCode || 'POS1').trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase() || 'POS1';
 
+      // Always re-derive prefixes from cleanCode if they match standard patterns or contain old code
+      const computedReturnPrefix = (returnPrefix && /[A-Z0-9]/i.test(returnPrefix) && !returnPrefix.includes('RTN'))
+        ? returnPrefix.replace(/-$/, '')
+        : `${cleanCode}-RTN`;
+      const computedScrapPrefix = (scrapPrefix && /[A-Z0-9]/i.test(scrapPrefix) && !scrapPrefix.includes('SCR'))
+        ? scrapPrefix.replace(/-$/, '')
+        : `${cleanCode}-SCR`;
+      const computedQuotationPrefix = (quotationPrefix && /[A-Z0-9]/i.test(quotationPrefix) && !quotationPrefix.includes('QTN'))
+        ? quotationPrefix.replace(/-$/, '')
+        : `${cleanCode}-QTN`;
+
       const checks: { promise: Promise<any>; name: string }[] = [
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config', value: formattedBarcodePrinter }), name: 'barcode' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config', value: formattedReceiptPrinter }), name: 'receipt' },
@@ -906,9 +917,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${returnPrefix || `${cleanCode}-RTN`}-`, counter: finalReturnCounter } }), name: 'return_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${scrapPrefix || `${cleanCode}-SCR`}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${quotationPrefix || `${cleanCode}-QTN`}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'scrap_invoice_counter', value: { prefix: `${computedScrapPrefix}-`, counter: finalScrapCounter } }), name: 'scrap_invoice_counter' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'quotation_counter', value: { prefix: `${computedQuotationPrefix}-`, counter: finalQuotationCounter } }), name: 'quotation_counter' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'three_invoice_series', value: { enabled: enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? finalB2bCounter : 1, b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? finalB2cCounter : 1 } }), name: 'three_invoice_series' },
         ...(enableThreeInvoiceSeries ? [
           { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'gst_b2b_invoice_counter_config', value: { prefix: `${b2bPrefix}-`, counter: finalB2bCounter } }), name: 'gst_b2b_invoice' },
@@ -924,6 +935,23 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         const res = await promise;
         if (!res.success) throw new Error(`${name}: ${res.error}`);
       }
+
+      // Notify application and invalidate stale tab reservations
+      try {
+        window.dispatchEvent(new CustomEvent('settings:updated', { detail: { terminalCode: cleanCode } }));
+      } catch {}
+      try {
+        const { tabs } = useTabStore.getState();
+        useTabStore.setState({
+          tabs: tabs.map(t => ({
+            ...t,
+            reservedInvoiceNumber: undefined,
+            reservedScrapInvoiceNumber: undefined,
+            reservedQuotationNumber: undefined,
+            reservedReturnNumber: undefined,
+          }))
+        });
+      } catch {}
 
       if (serviceChargeProduct && serviceChargeBarcode && serviceChargeBarcode !== serviceChargeProduct.sku_barcode) {
         const updatedProduct = {
@@ -1186,7 +1214,15 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <span>Terminal Code</span>
                     <span className="text-[8px] font-bold text-amber-600 dark:text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">Per computer</span>
                   </label>
-                  <Input type="text" value={terminalCode} onChange={(e) => setTerminalCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" maxLength={6} />
+                  <Input type="text" value={terminalCode} onChange={(e) => {
+                    const newCode = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+                    setTerminalCode(newCode);
+                    if (newCode) {
+                      setScrapPrefix(`${newCode}-SCR`);
+                      setQuotationPrefix(`${newCode}-QTN`);
+                      setReturnPrefix(`${newCode}-RTN`);
+                    }
+                  }} placeholder="Auto-generated" className="font-mono font-bold uppercase tracking-wider bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" maxLength={6} />
                   <p className="text-[10px] text-muted-foreground/70 mt-1">Format: <span className="font-mono text-foreground/80">{terminalCode || 'POS1'}-XXX</span></p>
                 </div>
                 <div className="space-y-2">

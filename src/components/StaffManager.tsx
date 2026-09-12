@@ -62,14 +62,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
   // Search and Filter States
   const [searchQuery, setSearchQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<'ALL' | 'OWNER' | 'STAFF'>('ALL');
+  const [roleFilter, setRoleFilter] = useState<'ALL' | 'OWNER' | 'STAFF' | 'BILLER'>('ALL');
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'STAFF' as 'OWNER' | 'STAFF',
+    role: 'STAFF' as 'OWNER' | 'STAFF' | 'BILLER',
   });
 
   // Fetch Staff List with Offline Local Cache Fallback
@@ -337,7 +337,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         
         <div className="flex items-center gap-2">
           {view !== 'list' ? (
-            <button onClick={() => { setView('list'); setSelectedPages([]); setEditingStaffId(null); }}
+            <button onClick={() => { setView('list'); setSelectedPermissions([]); setEditingStaffId(null); }}
               className="p-2 text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center shadow-xs"
               title="Back to list">
               <X className="w-4 h-4 text-destructive" />
@@ -468,7 +468,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
                 onClick={() => {
                   setView('add');
                   setFormData({ name: '', email: '', password: '', role: 'BILLER' });
-                  setSelectedPages(['OPT_VIEW_GST', 'OPT_APPLY_DISCOUNT', 'BILLING']);
+                  setSelectedPermissions(['OPT_VIEW_GST', 'OPT_APPLY_DISCOUNT', 'BILLING']);
                 }}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold w-full md:w-auto justify-center bg-gradient-to-r from-primary to-indigo-600 hover:from-primary/95 hover:to-indigo-600/95 shadow-sm"
               >
@@ -760,7 +760,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
               <div className="border-t border-border/50 bg-background px-6 py-4 shrink-0 flex items-center justify-end gap-3">
                 <button
                   type="button" 
-                  onClick={() => { setView('list'); setSelectedPages([]); setEditingStaffId(null); }}
+                  onClick={() => { setView('list'); setSelectedPermissions([]); setEditingStaffId(null); }}
                   className="px-5 py-2.5 bg-muted hover:bg-muted/80 border border-border/80 text-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm"
                 >
                   Cancel

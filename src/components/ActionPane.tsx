@@ -68,9 +68,14 @@ export function ActionPane() {
         } else {
           // Offline fallback: use local counter
           const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global' });
+          let fallbackTermCode = 'POS1';
+          try {
+            const rawCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
+            if (typeof rawCode === 'string' && rawCode.trim()) fallbackTermCode = rawCode.trim().replace(/^["']|["']$/g, '').toUpperCase();
+          } catch {}
           invoice_number = localResult.success && localResult.invoiceNumber
             ? localResult.invoiceNumber
-            : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+            : `${fallbackTermCode}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
         }
 
         const lineItems = items.map((item) => {

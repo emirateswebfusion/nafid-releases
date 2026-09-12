@@ -1134,6 +1134,37 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add bill_type to purchase_bills:', e.message);
   }
 
+  // Migration: Normalize business_date in cash_drawer to pure YYYY-MM-DD
+  try {
+    const drawers = db.prepare(`SELECT drawer_id, business_date FROM cash_drawer WHERE business_date IS NOT NULL`).all() as any[];
+    if (Array.isArray(drawers) && drawers.length > 0) {
+      const upd = db.prepare(`UPDATE cash_drawer SET business_date = ? WHERE drawer_id = ?`);
+      for (const d of drawers) {
+        if (d.business_date) {
+          let str = String(d.business_date).trim();
+          let clean = str;
+          if (/^\d{2}[-/]\d{2}[-/]\d{4}$/.test(str)) {
+            const parts = str.split(/[-/]/);
+            clean = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          } else if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
+            const dt = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
+            if (!isNaN(dt.getTime())) {
+              const pad = (n: number) => String(n).padStart(2, '0');
+              clean = `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+            } else {
+              clean = str.slice(0, 10);
+            }
+          }
+          if (clean !== d.business_date && /^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+            upd.run(clean, d.drawer_id);
+          }
+        }
+      }
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to normalize business_date in cash_drawer:', e.message);
+  }
+
   // Migration: Add invoice_number column to purchase_bills
   try {
     const pbCols3 = db.prepare(`PRAGMA table_info(purchase_bills)`).all().map((c: any) => c.name);

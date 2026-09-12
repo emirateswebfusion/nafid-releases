@@ -445,7 +445,7 @@ export function BillingPage() {
   const [returnProcessing, setReturnProcessing] = useState(false);
   const [returnProcessed, setReturnProcessed] = useState(false);
 
-  const receivedInputRef = useRef<HTMLInputElement>(null);
+  const [terminalCodeState, setTerminalCodeState] = useState('POS1');
   const [shopNameState, setShopNameState] = useState('');
   const [shopGstin, setShopGstin] = useState('');
   const [shopAddress, setShopAddress] = useState('');
@@ -751,6 +751,11 @@ export function BillingPage() {
   useEffect(() => {
     if (!window.electronAPI) return;
     window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' }).catch(() => {});
+    window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+      if (typeof v === 'string' && v.trim()) {
+        setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
+      }
+    });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
       setShopNameState(typeof v === 'string' ? v : '');
     });
@@ -833,6 +838,28 @@ export function BillingPage() {
       })
       .catch(console.error);
   }, [tenantId]);
+
+  // Listen for settings updates to immediately refresh Computer Code display and tab bill numbers
+  useEffect(() => {
+    const handleSettingsUpdated = (e: any) => {
+      const newCode = e?.detail?.terminalCode;
+      if (newCode) {
+        setTerminalCodeState(newCode);
+      } else if (window.electronAPI) {
+        window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' }).then((v: any) => {
+          if (typeof v === 'string' && v.trim()) {
+            setTerminalCodeState(v.trim().replace(/^["']|["']$/g, '').toUpperCase());
+          }
+        });
+      }
+      reserveInvoiceNumberForTab(true);
+      if (isScrapMode) reserveScrapInvoiceNumberForTab(true);
+      if (isQuotationMode) reserveQuotationNumberForTab(true);
+      if (isReturnMode) reserveReturnNumberForTab(true);
+    };
+    window.addEventListener('settings:updated', handleSettingsUpdated);
+    return () => window.removeEventListener('settings:updated', handleSettingsUpdated);
+  }, [reserveInvoiceNumberForTab, reserveScrapInvoiceNumberForTab, reserveQuotationNumberForTab, reserveReturnNumberForTab, isScrapMode, isQuotationMode, isReturnMode]);
 
   // Re-peek invoice number when customer GSTIN goes empty ↔ filled (B2C ↔ B2B switch)
   const prevHasGstin = useRef(false);
@@ -3248,7 +3275,7 @@ export function BillingPage() {
           const localResult = await window.electronAPI.dbGetNextInvoiceNumber({ tenant_id: tenantId || 'global', series });
           invoice_number = localResult.success && localResult.invoiceNumber
             ? localResult.invoiceNumber
-            : `${tenantId?.substring(0, 4).toUpperCase() || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
+            : `${terminalCodeState || 'POS1'}-${Date.now()}-${invoice_id.substring(0, 4).toUpperCase()}`;
         }
       }
 
@@ -4243,6 +4270,10 @@ export function BillingPage() {
               <div className="flex items-center gap-2">
                 <span className="text-sm font-bold text-foreground truncate block">{shopName || 'Billing Terminal'}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                <span className="text-[10px] font-bold font-mono px-2 py-0.5 rounded-md border border-border/80 bg-muted/60 text-muted-foreground shrink-0 flex items-center gap-1 shadow-xs" title="Assigned Computer Code">
+                  <span className="text-[9px] uppercase font-bold text-muted-foreground/70 tracking-wider">Code:</span>
+                  <span className="text-primary font-black">{terminalCodeState || 'POS1'}</span>
+                </span>
               </div>
             <div className="flex items-center gap-2 mt-0.5">
               <span className={clsx(

@@ -1,9 +1,28 @@
 import http from 'node:http';
+import { BrowserWindow } from 'electron';
 import { getDb } from '../db/localDb.js';
 
 function localTimestamp(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function parseCleanDate(dStr: any): string {
+  if (!dStr) {
+    const d = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+  const str = String(dStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
+    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
+    if (!isNaN(d.getTime())) {
+      const pad = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+  }
+  return str.slice(0, 10);
 }
 
 let server: http.Server | null = null;
@@ -150,6 +169,47 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         paramObj['sync_status'] = rawRow.sync_status || 'PENDING';
       }
 
+      if (tableName === 'cash_drawer') {
+        const cleanDate = parseCleanDate(rawRow.business_date);
+        const existingDrawer = db.prepare(`
+          SELECT drawer_id FROM cash_drawer
+          WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
+          LIMIT 1
+        `).get(rawRow.drawer_id, rawRow.tenant_id, cleanDate, cleanDate, `${cleanDate}%`) as any;
+
+        if (existingDrawer) {
+          const targetDrawerId = existingDrawer.drawer_id;
+          db.prepare(`
+            UPDATE cash_drawer SET
+              opening_balance = ?, cash_sales = ?, cash_in = ?, cash_out = ?,
+              current_cash = ?, expected_closing = ?, actual_cash = ?,
+              cash_short = ?, cash_excess = ?, closing_remarks = ?,
+              status = ?, opened_by = COALESCE(opened_by, ?), closed_by = ?,
+              opened_at = COALESCE(opened_at, ?), closed_at = ?,
+              sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP
+            WHERE drawer_id = ?
+          `).run(
+            Number(rawRow.opening_balance || 0), Number(rawRow.cash_sales || 0),
+            Number(rawRow.cash_in || 0), Number(rawRow.cash_out || 0),
+            Number(rawRow.current_cash || 0), Number(rawRow.expected_closing || 0),
+            rawRow.actual_cash != null ? Number(rawRow.actual_cash) : null,
+            Number(rawRow.cash_short || 0), Number(rawRow.cash_excess || 0),
+            rawRow.closing_remarks || null, rawRow.status || 'OPEN',
+            rawRow.opened_by || null, rawRow.closed_by || null,
+            rawRow.opened_at || null, rawRow.closed_at || null,
+            targetDrawerId
+          );
+          if (targetDrawerId !== rawRow.drawer_id) {
+            try {
+              db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id);
+              db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id);
+            } catch {}
+          }
+          if (itemId) syncedIds.push(itemId);
+          continue;
+        }
+      }
+
       stmt.run(paramObj);
       if (itemId) syncedIds.push(itemId);
 
@@ -249,25 +309,38 @@ export function startLocalHostServer(port: number = 3888) {
 
       // ── Invoice & Return Sequence Number Endpoints for LAN ──────────────
       if (pathname === '/api/invoices/next-number' && req.method === 'GET') {
-        const terminalCode = url.searchParams.get('terminal_code') || 'POS1';
+        const rawTerminalCode = url.searchParams.get('terminal_code') || 'POS1';
+        const terminalCode = rawTerminalCode.trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase() || 'POS1';
         const series = url.searchParams.get('series') || undefined;
-        const reqPrefix = url.searchParams.get('prefix') || `${terminalCode}-`;
+        const rawPrefix = url.searchParams.get('prefix');
+        const prefix = rawPrefix
+          ? rawPrefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 20)
+          : `${terminalCode}-`;
 
-        const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
-
-        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+        // Key counter per terminal prefix & series to keep sequence counters isolated across computers
+        const terminalCounterKey = `terminal_counter_${series || 'normal'}_${prefix}`;
+        const row: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', terminalCounterKey);
+        
         let counter = 1;
-        let prefix = reqPrefix;
-
         if (row) {
           try {
             const parsed = JSON.parse(row.value);
             counter = typeof parsed.counter === 'number' && parsed.counter > 0 ? parsed.counter : 1;
-            if (parsed.prefix && /[A-Z0-9]/i.test(parsed.prefix)) {
-              prefix = parsed.prefix;
-            }
           } catch {
             counter = 1;
+          }
+        } else {
+          // Fallback to global configKey counter if no terminal-specific counter exists yet
+          const configKey = series === 'gst_b2b' ? 'gst_b2b_invoice_counter_config' : series === 'gst_b2c' ? 'gst_b2c_invoice_counter_config' : series === 'gst' ? 'gst_invoice_counter_config' : 'invoice_counter_config';
+          const globalRow: any = db.prepare('SELECT value FROM settings WHERE tenant_id = ? AND key = ?').get('global', configKey);
+          if (globalRow) {
+            try {
+              const gParsed = JSON.parse(globalRow.value);
+              // Only adopt global counter if prefix matches
+              if (!gParsed.prefix || gParsed.prefix === prefix) {
+                counter = typeof gParsed.counter === 'number' && gParsed.counter > 0 ? gParsed.counter : 1;
+              }
+            } catch {}
           }
         }
 
@@ -287,7 +360,7 @@ export function startLocalHostServer(port: number = 3888) {
             value = EXCLUDED.value,
             sync_status = 'LOCAL',
             updated_at = CURRENT_TIMESTAMP
-        `).run(configKey, JSON.stringify(nextConfig));
+        `).run(terminalCounterKey, JSON.stringify(nextConfig));
 
         return sendJson(res, 200, { invoiceNumber: candidate });
       }
@@ -348,6 +421,14 @@ export function startLocalHostServer(port: number = 3888) {
             items = items.filter((i: any) => !localDeviceKeys.includes(i.key));
           }
           const synced = upsertTableRows(db, tableName, items);
+          if (synced && synced.length > 0) {
+            try {
+              const win = BrowserWindow.getAllWindows()[0];
+              if (win && !win.isDestroyed()) {
+                win.webContents.send('sync:data-updated');
+              }
+            } catch {}
+          }
           return sendJson(res, 200, { synced, synced_count: synced.length, failed_count: 0 });
         }
 

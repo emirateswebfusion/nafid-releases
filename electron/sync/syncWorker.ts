@@ -13,6 +13,21 @@ function localDate(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
+function parseCleanDate(dStr: any): string {
+  if (!dStr) return localDate();
+  const str = String(dStr).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+  if (ddmmyyyy) {
+    return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  }
+  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
+    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
+    if (!isNaN(d.getTime())) return localDate(d);
+  }
+  return str.slice(0, 10);
+}
+
 const getConfigPath = () => path.join(app.getPath('userData'), 'config.json');
 const getEncryptedPath = () => path.join(app.getPath('userData'), 'auth.enc');
 
@@ -3099,20 +3114,10 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
   const db = getDb();
   let hasContentChanged = false;
 
-  const selectExisting = db.prepare(`SELECT drawer_id, sync_status FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND business_date = ?)`);
+  const selectExisting = db.prepare(`SELECT drawer_id, sync_status FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)) LIMIT 1`);
   const updateTxDrawerId = db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
   const updateAuditDrawerId = db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
-  const updateByDrawerId = db.prepare(`
-    UPDATE cash_drawer SET
-      opening_balance = @opening_balance, cash_sales = @cash_sales, cash_in = @cash_in, cash_out = @cash_out,
-      current_cash = @current_cash, expected_closing = @expected_closing, actual_cash = @actual_cash,
-      cash_short = @cash_short, cash_excess = @cash_excess, closing_remarks = @closing_remarks,
-      status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
-      opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
-      sync_status = 'SYNCED', updated_at = @updated_at
-    WHERE drawer_id = @drawer_id
-  `);
-  const updateByDate = db.prepare(`
+  const updateMatchedDrawer = db.prepare(`
     UPDATE cash_drawer SET
       drawer_id = @drawer_id,
       opening_balance = @opening_balance, cash_sales = @cash_sales, cash_in = @cash_in, cash_out = @cash_out,
@@ -3121,7 +3126,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       status = @status, opened_by = COALESCE(opened_by, @opened_by), closed_by = @closed_by,
       opened_at = COALESCE(opened_at, @opened_at), closed_at = @closed_at,
       sync_status = 'SYNCED', updated_at = @updated_at
-    WHERE tenant_id = @tenant_id AND business_date = @business_date
+    WHERE drawer_id = @target_id
   `);
   const insertDrawer = db.prepare(`
     INSERT INTO cash_drawer (
@@ -3161,9 +3166,7 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
       const tx = db.transaction((rows: any[]) => {
         for (const r of rows) {
           try {
-            const cleanDate = typeof r.business_date === 'string'
-              ? r.business_date.slice(0, 10)
-              : (r.business_date ? new Date(r.business_date).toISOString().slice(0, 10) : localDate());
+            const cleanDate = parseCleanDate(r.business_date);
 
             const drawerData = {
               drawer_id: r.drawer_id,
@@ -3188,14 +3191,13 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
               updated_at: toSqliteDate(r.updated_at),
             };
 
-            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate) as any;
+            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, cleanDate, `${cleanDate}%`) as any;
             if (existing) {
-              if (existing.drawer_id === r.drawer_id) {
-                updateByDrawerId.run(drawerData);
-              } else {
-                updateTxDrawerId.run(r.drawer_id, existing.drawer_id, tenantId);
-                updateAuditDrawerId.run(r.drawer_id, existing.drawer_id, tenantId);
-                updateByDate.run(drawerData);
+              const targetId = existing.drawer_id;
+              updateMatchedDrawer.run({ ...drawerData, target_id: targetId });
+              if (targetId !== r.drawer_id) {
+                updateTxDrawerId.run(r.drawer_id, targetId, tenantId);
+                updateAuditDrawerId.run(r.drawer_id, targetId, tenantId);
               }
             } else {
               insertDrawer.run(drawerData);
