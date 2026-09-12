@@ -21,6 +21,7 @@ import { PaperPreviewModal } from './PaperPreviewModal';
 import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../utils/receiptGenerator';
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, type FeatureFlags } from '../featureFlags';
+import { useTabStore } from '../store/tabStore';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -945,10 +946,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         useTabStore.setState({
           tabs: tabs.map(t => ({
             ...t,
-            reservedInvoiceNumber: undefined,
-            reservedScrapInvoiceNumber: undefined,
-            reservedQuotationNumber: undefined,
-            reservedReturnNumber: undefined,
+            reservedInvoiceNumber: '',
+            reservedScrapInvoiceNumber: '',
+            reservedQuotationNumber: '',
+            reservedReturnNumber: '',
           }))
         });
       } catch {}

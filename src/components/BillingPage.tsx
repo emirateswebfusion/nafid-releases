@@ -115,6 +115,7 @@ export function BillingPage() {
   } = useCartStore();
 
   const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const receivedInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (lastAddedProductId && itemRefs.current[lastAddedProductId]) {
