@@ -1,3 +1,9 @@
+# Vendora v1.5.59 Release Notes
+
+## What's Changed
+- Enhanced App routing, BillingPage, and OwnerDashboard components
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.58...v1.5.59
+
 # Vendora v1.5.58 Release Notes
 
 ## What's Changed
