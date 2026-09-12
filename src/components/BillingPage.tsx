@@ -4261,7 +4261,10 @@ export function BillingPage() {
         <div className="flex items-center justify-between gap-4 px-5 py-3">
           <div className="flex items-center gap-3 min-w-0">
             <button
-              onClick={() => setRole('OWNER')}
+              onClick={() => {
+                if (authRole === 'OWNER') setRole('OWNER');
+                window.dispatchEvent(new CustomEvent('open-dashboard'));
+              }}
               className="p-2 rounded-xl bg-primary/10 text-primary hover:bg-primary/20 transition-all duration-200 active:scale-95 cursor-pointer shrink-0"
               title="Return to Dashboard"
             >
@@ -4472,7 +4475,10 @@ export function BillingPage() {
           </button>
           <span className="w-px h-5 bg-border/40" />
           <button
-            onClick={() => setRole('OWNER')}
+            onClick={() => {
+              if (authRole === 'OWNER') setRole('OWNER');
+              window.dispatchEvent(new CustomEvent('open-dashboard'));
+            }}
             className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
             title="Dashboard"
           >

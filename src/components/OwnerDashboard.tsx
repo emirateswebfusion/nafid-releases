@@ -7,6 +7,7 @@ import { loadFeatureFlags, cashierPageTitle, type FeatureFlags, type FeatureKey 
 import { hasPermission } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
+import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 
 function timeAgo(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -144,6 +145,12 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         return () => clearInterval(interval);
     }, [lastSyncTime]);
 
+    useKeyboardShortcuts({
+        'F1': () => {
+            window.dispatchEvent(new CustomEvent('open-billing-page'));
+        }
+    });
+
     const cards = [
         {
             id: 'billing',
@@ -152,7 +159,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
             icon: ShoppingCart,
             color: 'text-emerald-500',
             bgColor: 'bg-emerald-500/10',
-            action: () => setRole('STAFF'),
+            action: () => window.dispatchEvent(new CustomEvent('open-billing-page')),
             shortcut: 'F1',
             perm: 'sales.create'
         },

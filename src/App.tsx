@@ -457,8 +457,58 @@ function App() {
       setRestrictedActivePage('BILLING');
     };
 
+    const handleOpenBilling = () => {
+      if (!canOpen('billing')) return;
+      if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) {
+        useCartStore.getState().setRole('BILLER');
+      }
+      setShowQuotationManager(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowSalesHistory(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowPaymentsPage(false);
+      setShowCashierSettlement(false);
+      setShowComboManager(false);
+      setShowFinancialReport(false);
+      setRestrictedActivePage('BILLING');
+    };
+
+    const handleOpenDashboard = () => {
+      setShowQuotationManager(false);
+      setShowInventoryManager(false);
+      setShowStockReport(false);
+      setShowSalesHistory(false);
+      setShowStaffManager(false);
+      setShowSettingsManager(false);
+      setShowSettingsGrades(false);
+      setShowSettingsPricingTiers(false);
+      setShowPartyManager(false);
+      setShowScrapManager(false);
+      setShowWarrantyManager(false);
+      setShowReturnManager(false);
+      setShowPurchaseBillManager(false);
+      setShowCustomersPage(false);
+      setShowPaymentsPage(false);
+      setShowCashierSettlement(false);
+      setShowComboManager(false);
+      setShowFinancialReport(false);
+      setRestrictedActivePage('');
+    };
+
     const handleOpenComboManager = () => setShowComboManager(true);
     const handleOpenFinancialReport = () => setShowFinancialReport(true);
+    window.addEventListener('open-billing-page', handleOpenBilling);
+    window.addEventListener('open-dashboard', handleOpenDashboard);
     window.addEventListener('open-inventory-manager', handleOpenInv);
     window.addEventListener('open-combo-manager', handleOpenComboManager);
     window.addEventListener('open-financial-report', handleOpenFinancialReport);
@@ -499,6 +549,8 @@ function App() {
       if (unsubscribeScale) {
         unsubscribeScale();
       }
+      window.removeEventListener('open-billing-page', handleOpenBilling);
+      window.removeEventListener('open-dashboard', handleOpenDashboard);
       window.removeEventListener('open-inventory-manager', handleOpenInv);
       window.removeEventListener('open-combo-manager', handleOpenComboManager);
       window.removeEventListener('open-stock-report', handleOpenStockReport);
