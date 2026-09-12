@@ -1,3 +1,9 @@
+# Vendora v1.5.60 Release Notes
+
+## What's Changed
+- Updated Electron main process IPC handlers and performance improvements
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.59...v1.5.60
+
 # Vendora v1.5.59 Release Notes
 
 ## What's Changed
