@@ -1,3 +1,9 @@
+# Vendora v1.5.62 Release Notes
+
+## What's Changed
+- Enhanced sync worker reliability, local host server endpoints, and main process IPC handlers
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.61...v1.5.62
+
 # Vendora v1.5.61 Release Notes
 
 ## What's Changed
