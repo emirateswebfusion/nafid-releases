@@ -1,3 +1,9 @@
+# Vendora v1.5.58 Release Notes
+
+## What's Changed
+- Maintenance release with stability improvements and bug fixes
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.57...v1.5.58
+
 # Vendora v1.5.57 Release Notes
 
 ## What's Changed
