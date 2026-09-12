@@ -252,9 +252,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [lanRole, setLanRole] = useState<'PRIMARY' | 'SECONDARY'>('PRIMARY');
   const [lanHostIp, setLanHostIp] = useState('192.168.1.100');
   const [detectedLocalIp, setDetectedLocalIp] = useState('');
-  const [networkDetails, setNetworkDetails] = useState<{ ip: string; subnetPrefix: string; gateway: string; dns: string }>({
+  const [networkDetails, setNetworkDetails] = useState<{ ip: string; subnetPrefix: string; netmask: string; gateway: string; dns: string }>({
     ip: '',
     subnetPrefix: '24',
+    netmask: '255.255.255.0',
     gateway: '',
     dns: '8.8.8.8'
   });

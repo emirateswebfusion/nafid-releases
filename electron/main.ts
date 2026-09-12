@@ -102,7 +102,7 @@ ipcMain.handle('app:getNetworkDetails', () => {
             else if (ip.startsWith('10.')) score += 15;
             else if (/^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip)) score += 10;
           }
-          candidates.push({ address: ip, netmask: iface.netmask, cidr: iface.cidr, score });
+          candidates.push({ address: ip, netmask: iface.netmask, cidr: iface.cidr || undefined, score });
         }
       }
     }
