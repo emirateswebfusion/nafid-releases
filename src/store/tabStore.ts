@@ -44,6 +44,15 @@ export interface Tab {
   customerPhone: string;
   customerGstin: string;
   customerAddress: string;
+  transporterName?: string;
+  vehicleNumber?: string;
+  transporterDocNo?: string;
+  transporterDocDate?: string;
+  ewayBillNo?: string;
+  ewayBillDate?: string;
+  shippingName?: string;
+  shippingAddress?: string;
+  shippingGstin?: string;
   paymentMethod: PaymentMethod;
   splitDetails?: SplitDetails;
   receivedAmount: number;

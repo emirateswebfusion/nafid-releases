@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
-  Key, Tags, Building, Receipt, Usb,
+  Key, Tags, Building, Receipt, Usb, Landmark,
   CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
@@ -219,9 +219,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [labelShowShopName, setLabelShowShopName] = useState(true);
   const [printWidth, setPrintWidth] = useState<number>(58);
   const [thermalStyle, setThermalStyle] = useState<'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed'>('standard');
-  const [a4Style, setA4Style] = useState<'standard' | 'modern' | 'classic'>('standard');
+  const [a4Style, setA4Style] = useState<'standard' | 'boxed' | 'modern' | 'classic'>('standard');
   const [previewFormat, setPreviewFormat] = useState<'thermal' | 'a4' | 'half-a4' | null>(null);
   const [previewStyle, setPreviewStyle] = useState<string | null>(null);
+  const [bankName, setBankName] = useState('');
+  const [bankAccount, setBankAccount] = useState('');
+  const [bankIfsc, setBankIfsc] = useState('');
+  const [bankBranch, setBankBranch] = useState('');
   const [enableScrap, setEnableScrap] = useState(false);
   const [showCashRegister, setShowCashRegister] = useState(false);
   const [featureFlags, setFeatureFlags] = useState<FeatureFlags>({ ...DEFAULT_FEATURE_FLAGS });
@@ -445,12 +449,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     }
   };
 
-  const getSettingsSnapshot = () => JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
+  const getSettingsSnapshot = () => JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -672,6 +676,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate) || 1;
       }
 
+      let finalBankName = '';
+      const bName = allSettings['bank_name'];
+      if (bName) finalBankName = typeof bName === 'string' ? bName : (bName.value || '');
+
+      let finalBankAccount = '';
+      const bAcc = allSettings['bank_account_number'] || allSettings['bank_account'];
+      if (bAcc) finalBankAccount = typeof bAcc === 'string' ? bAcc : (bAcc.value || '');
+
+      let finalBankIfsc = '';
+      const bIfsc = allSettings['bank_ifsc'];
+      if (bIfsc) finalBankIfsc = typeof bIfsc === 'string' ? bIfsc : (bIfsc.value || '');
+
+      let finalBankBranch = '';
+      const bBranch = allSettings['bank_branch'];
+      if (bBranch) finalBankBranch = typeof bBranch === 'string' ? bBranch : (bBranch.value || '');
+
       let finalLabelType: CodeType = DEFAULT_CODE_TYPE;
       if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) finalLabelType = labelType as CodeType;
 
@@ -718,9 +738,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           }
         } else {
           finalPrintFmt = 'thermal';
-          finalPrintWidth = Number(printFmt.width) || 58;
+          finalPrintWidth = Number(printFmt.width) || Math.round((Number(finalReceipt.receiptWidthCm) || 5.8) * 10);
           if (printFmt.style) finalThermalStyle = printFmt.style;
         }
+        finalReceipt.receiptWidthCm = finalPrintWidth / 10;
         if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
         if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
         if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
@@ -851,6 +872,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setB2bStartNumber(finalB2bStart);
       setB2cPrefix(finalB2cPrefix);
       setB2cStartNumber(finalB2cStart);
+      setBankName(finalBankName);
+      setBankAccount(finalBankAccount);
+      setBankIfsc(finalBankIfsc);
+      setBankBranch(finalBankBranch);
 
       initialSnapshot.current = JSON.stringify({
         barcodePrinter: finalBarcode,
@@ -865,6 +890,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         shopPhone: finalPhone,
         upiId: finalUpi,
         showUpiQr: finalShowQr,
+        bankName: finalBankName,
+        bankAccount: finalBankAccount,
+        bankIfsc: finalBankIfsc,
+        bankBranch: finalBankBranch,
         showProductOffers: finalShowOffers,
         openCashDrawerOnPending: finalOpenCashDrawer,
         receiptFont: finalReceiptFont,
@@ -1043,6 +1072,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_name', value: bankName }), name: 'bank_name' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_account_number', value: bankAccount }), name: 'bank_account_number' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_ifsc', value: bankIfsc }), name: 'bank_ifsc' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_branch', value: bankBranch }), name: 'bank_branch' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'enable_scrap', value: Boolean(featureFlags.scrap) }), name: 'enable_scrap' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_cash_register', value: featureFlags.cash_register }), name: 'show_cash_register' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'feature_flags', value: { ...featureFlags } }), name: 'feature_flags' },
@@ -1117,7 +1150,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       initialSnapshot.current = JSON.stringify({
         barcodePrinter: formattedBarcodePrinter,
         receiptPrinter: formattedReceiptPrinter,
-        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
+        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
         b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '',
         b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '',
         b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '',
@@ -1248,6 +1281,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const activeItem = (SIDEBAR_GROUPS || []).flatMap(g => g?.items || []).find(i => i?.id === activeSection);
 
   const renderSectionContent = (sectionId: string) => {
+    const productTabs = [
+      { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
+      { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
+    ].filter(t => !t.ownerOnly || role === 'OWNER');
+
     switch (sectionId) {
       case 'store':
         return (
@@ -1337,6 +1375,37 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     </div>
                   </div>
                 </div>
+              </div>
+            {/* Card 2.5: Bank Account Details */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-indigo-500/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-indigo-500/10 text-indigo-500 shadow-[0_4px_12px_rgba(99,102,241,0.1)] dark:shadow-[0_4px_12px_rgba(99,102,241,0.05)] shrink-0">
+                  <Landmark className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-indigo-500 uppercase tracking-widest">Bank Account Details</span>
+              </div>
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Bank Name</label>
+                    <Input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} placeholder="e.g. ICICI Bank / State Bank of India" className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Account Number</label>
+                    <Input type="text" value={bankAccount} onChange={(e) => setBankAccount(e.target.value)} placeholder="e.g. 5010023456789" className="font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">IFSC Code</label>
+                    <Input type="text" value={bankIfsc} onChange={(e) => setBankIfsc(e.target.value.toUpperCase())} placeholder="e.g. ICIC0001234" className="uppercase font-mono font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Branch</label>
+                    <Input type="text" value={bankBranch} onChange={(e) => setBankBranch(e.target.value)} placeholder="e.g. Main Branch, MG Road" className="font-semibold bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                  </div>
+                </div>
+                <p className="text-[10px] text-muted-foreground/70 mt-1">Bank details are printed on tax invoices and A4 GST bills for customer wire transfers.</p>
               </div>
             </div>
 
@@ -1586,7 +1655,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               </div>
             </div>
           </div>
-        );
+        </div>
+      );
       case 'hardware':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
@@ -1657,9 +1727,46 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       </div>
                     )}
                     <div className="col-span-2 space-y-2">
-                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Receipt Width (cm)</label>
-                      <Input type="text" inputMode="decimal" value={receiptPrinter.receiptWidthCm ?? 5.8} onChange={(e) => setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: e.target.value === '' ? '' : e.target.value.replace(/[^\d.]/g, '') })} placeholder="e.g. 5.8 or 8.0" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono" />
-                      <p className="text-[10px] text-muted-foreground/70 mt-1">Standard sizes: 5.8cm (58mm) and 8.0cm (80mm).</p>
+                      <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1 block">Paper Width (mm)</label>
+                      <div className="flex gap-3">
+                        <div className="flex-1">
+                          <Select
+                            value={[58, 80, 76, 112].includes(Number(printWidth)) ? String(printWidth) : 'custom'}
+                            onChange={(v) => {
+                              if (v !== 'custom') {
+                                const num = Number(v);
+                                setPrintWidth(num);
+                                setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: (num / 10).toString() });
+                              }
+                            }}
+                            options={[
+                              { value: '58', label: '58mm (2" Standard Small Thermal)' },
+                              { value: '80', label: '80mm (3" Standard Wide Thermal)' },
+                              { value: '76', label: '76mm (3" Impact / Dot Matrix Roll)' },
+                              { value: '112', label: '112mm (4" Wide Desktop Thermal)' },
+                              { value: 'custom', label: 'Custom Width (mm)...' }
+                            ]}
+                          />
+                        </div>
+                        {![58, 80, 76, 112].includes(Number(printWidth)) && (
+                          <div className="w-36">
+                            <Input
+                              type="text"
+                              inputMode="numeric"
+                              value={printWidth ?? 58}
+                              onChange={(e) => {
+                                const val = e.target.value.replace(/\D/g, '');
+                                const num = val === '' ? 58 : Number(val);
+                                setPrintWidth(num);
+                                setReceiptPrinter({ ...receiptPrinter, receiptWidthCm: (num / 10).toString() });
+                              }}
+                              placeholder="e.g. 58"
+                              className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5 font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Standard thermal roll sizes are 58mm (5.8cm) and 80mm (8.0cm).</p>
                     </div>
                   </div>
                 </div>
@@ -1756,11 +1863,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
         );
       case 'products':
-        const productTabs = [
-          { id: 'coding', label: 'Price Coding', icon: Key, ownerOnly: true },
-          { id: 'bulk', label: 'Bulk Import', icon: Upload, ownerOnly: true },
-        ].filter(t => !t.ownerOnly || role === 'OWNER');
-
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
             {/* Top Sub-tabs (only show if role is OWNER, since cashier only sees Grades) */}
@@ -2005,14 +2107,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 {/* Format Specific Options: Style Selectors */}
                 {printFormat === 'thermal' && (
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider">Paper Width</span>
-                      <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-muted/30 rounded-xl border border-border">
-                        <button type="button" onClick={() => setPrintWidth(58)}
-                          className={clsx("px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95", printWidth === 58 ? "bg-background shadow-sm text-foreground font-extrabold" : "text-muted-foreground hover:text-foreground")}>58mm</button>
-                        <button type="button" onClick={() => setPrintWidth(80)}
-                          className={clsx("px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-200 cursor-pointer active:scale-95", printWidth === 80 ? "bg-background shadow-sm text-foreground font-extrabold" : "text-muted-foreground hover:text-foreground")}>80mm</button>
-                      </div>
+                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/40 rounded-xl border border-border/60 text-xs">
+                      <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+                        Paper Width: <strong className="text-foreground font-bold">{printWidth}mm</strong>
+                      </span>
+                      <button type="button" onClick={() => setActiveSection('hardware')} className="text-primary hover:underline text-[11px] font-bold cursor-pointer">
+                        Configure in Devices & Hardware &rarr;
+                      </button>
                     </div>
 
                     <div>
@@ -2150,9 +2251,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
                     <div>
                       <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Invoice Style</span>
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-2 gap-4">
                         {[
                           { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
+                          { id: 'boxed', name: 'GST Boxed', color: 'from-emerald-500/10 to-emerald-500/5' },
                           { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
                           { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
                         ].map((style) => {
@@ -2213,6 +2315,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     </button>
                   </div>
 
+                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                    <div className="flex-1">
+                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))}>Show Transporter &amp; E-Way Bill Details Section</label>
+                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the Transporter &amp; E-Way Bill Details section will appear on printed invoices and preview.</p>
+                    </div>
+                    <button type="button" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.showTransporterDetails !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.showTransporterDetails !== false ? 'translate-x-5' : 'translate-x-0')} />
+                    </button>
+                  </div>
+
                   <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                     <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
                     <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
@@ -2229,6 +2341,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         { key: 'showCustomerAddress', label: 'Customer Address' },
                         { key: 'showCustomerGstin', label: 'Customer GSTIN' },
                         { key: 'showCustomerState', label: 'Customer State' },
+                        { key: 'showTransporterDetails', label: 'Transporter & E-Way Bill Details' },
                         { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
                         { key: 'printFullName', label: 'Full Product Name' },
                         { key: 'showBrandName', label: 'Product Brand Name' },
@@ -3280,6 +3393,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         shopPhone={shopPhone || undefined}
         shopGstin={shopGstin || undefined}
         shopState={shopState || undefined}
+        bankName={bankName || undefined}
+        bankAccount={bankAccount || undefined}
+        bankIfsc={bankIfsc || undefined}
+        bankBranch={bankBranch || undefined}
       />
 
       {/* LAN / Wi-Fi Sync Help Modal — Fully Redesigned Step-by-Step Wizard */}

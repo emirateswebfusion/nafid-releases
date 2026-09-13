@@ -41,6 +41,7 @@ export interface BillSettings {
   showPcsForWeightProducts?: boolean;
   showPcsUnit?: boolean;
   showCreditBalance?: boolean;
+  showTransporterDetails?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -69,6 +70,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showPcsForWeightProducts: true,
   showPcsUnit: false,
   showCreditBalance: true,
+  showTransporterDetails: true,
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
@@ -148,8 +150,13 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
     const [y, m, d] = formatted.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
-  const parsed = new Date(formatted);
-  return isNaN(parsed.getTime()) ? new Date() : parsed;
+  const utcStr = formatted.endsWith('Z') ? formatted : `${formatted}Z`;
+  const parsed = new Date(utcStr);
+  if (!isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  const fallback = new Date(formatted);
+  return isNaN(fallback.getTime()) ? new Date() : fallback;
 }
 
 export function formatBillDateTime(date: Date | string | number): string {
@@ -200,6 +207,15 @@ export interface ReceiptData {
   customerGstin?: string;
   customerState?: string;
   customerAddress?: string;
+  transporterName?: string;
+  vehicleNumber?: string;
+  transporterDocNo?: string;
+  transporterDocDate?: string;
+  ewayBillNo?: string;
+  ewayBillDate?: string;
+  shippingName?: string;
+  shippingAddress?: string;
+  shippingGstin?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
   returnDeduction?: number;
@@ -217,6 +233,10 @@ export interface ReceiptData {
   remainingPointsBalance?: number;
   extraBonus?: number;
   a5Orientation?: 'horizontal' | 'vertical';
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
 }
 
 /**
@@ -263,15 +283,15 @@ export function numberToIndianWords(amount: number): string {
 }
 
 function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
-  if (isB2B) return 'TAX INVOICE (B2B)';
+  if (isB2B) return 'TAX INVOICE';
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   switch (invoiceType) {
-    case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
+    case 'GST': return 'TAX INVOICE';
     case 'SCRAP': return 'SCRAP BILL';
     case 'BILL_OF_SUPPLY': return nonGstTitle;
     case 'ESTIMATE': return nonGstTitle;
     case 'RETURN': return 'RETURN INVOICE';
-    default: return isB2B ? 'TAX INVOICE (B2B)' : nonGstTitle;
+    default: return isB2B ? 'TAX INVOICE' : nonGstTitle;
   }
 }
 
@@ -434,6 +454,10 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       if (showCustAddress) text += `  ${data.customerAddress}\n`;
       if (showCustGstin) text += `  GSTIN: ${data.customerGstin}\n`;
       if (showCustState) text += `  State: ${data.customerState}\n`;
+    }
+    if (data.transporterName || data.vehicleNumber || data.ewayBillNo) {
+      text += `  Transport: ${[data.transporterName, data.vehicleNumber ? `Veh:${data.vehicleNumber}` : ''].filter(Boolean).join(' ')}\n`;
+      if (data.ewayBillNo) text += `  E-Way Bill: ${data.ewayBillNo}\n`;
     }
 
     text += LIGHT + '\n';

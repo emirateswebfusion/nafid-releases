@@ -449,7 +449,7 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
               </div>
 
               {/* Action & Points Badges */}
-              <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
+              <div className="flex items-stretch gap-3 w-full md:w-auto flex-wrap">
                 {/* Party Ledger Outstanding Balance Box */}
                 {(() => {
                   const bal = matchedParty?.balance || 0;
@@ -481,29 +481,31 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
                       };
 
                   return (
-                    <div className={clsx("rounded-2xl p-4 min-w-[200px] shadow-xs border transition-all", colorStyles.box)}>
-                      <div className={clsx("flex items-center justify-between text-[10px] font-black uppercase tracking-wider mb-1", colorStyles.title)}>
-                        <span>Party Ledger Balance</span>
-                        <Building2 className="w-3.5 h-3.5" />
-                      </div>
-                      <p className={clsx("text-2xl font-black font-mono tracking-tight", colorStyles.amount)}>
-                        {matchedParty
-                          ? (isReceivable ? `+${formatCurrency(bal)} (Rec)` : isPayable ? `-${formatCurrency(Math.abs(bal))} (Pay)` : `₹0.00 (Settled)`)
-                          : 'No Party Record'}
-                      </p>
-                      {matchedParty?.credit_limit != null && Number(matchedParty.credit_limit) > 0 && (
-                        <div className={clsx("mt-1.5 pt-1.5 border-t text-[11px] font-bold flex items-center justify-between", colorStyles.limit)}>
-                          <span>Limit: {formatCurrency(matchedParty.credit_limit)}</span>
-                          {bal >= matchedParty.credit_limit ? (
-                            <span className="text-red-500 font-extrabold text-[10px]">Over Limit</span>
-                          ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Avail: {formatCurrency(Math.max(0, matchedParty.credit_limit - Math.max(0, bal)))}</span>
-                          )}
+                    <div className={clsx("rounded-2xl p-4 w-[210px] shrink-0 shadow-xs border flex flex-col justify-between transition-all", colorStyles.box)}>
+                      <div>
+                        <div className={clsx("flex items-center justify-between text-[10px] font-black uppercase tracking-wider mb-1", colorStyles.title)}>
+                          <span>Party Ledger Balance</span>
+                          <Building2 className="w-3.5 h-3.5" />
                         </div>
-                      )}
+                        <p className={clsx("text-xl font-black font-mono tracking-tight", colorStyles.amount)}>
+                          {matchedParty
+                            ? (isReceivable ? `+${formatCurrency(bal)} (Rec)` : isPayable ? `-${formatCurrency(Math.abs(bal))} (Pay)` : `₹0.00 (Settled)`)
+                            : 'No Party Record'}
+                        </p>
+                        {matchedParty?.credit_limit != null && Number(matchedParty.credit_limit) > 0 && (
+                          <div className={clsx("mt-1.5 pt-1.5 border-t text-[11px] font-bold flex items-center justify-between", colorStyles.limit)}>
+                            <span>Limit: {formatCurrency(matchedParty.credit_limit)}</span>
+                            {bal >= matchedParty.credit_limit ? (
+                              <span className="text-red-500 font-extrabold text-[10px]">Over Limit</span>
+                            ) : (
+                              <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Avail: {formatCurrency(Math.max(0, matchedParty.credit_limit - Math.max(0, bal)))}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       <button
                         onClick={handleNavigateToParty}
-                        className={clsx("mt-2 w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border active:scale-95", colorStyles.button)}
+                        className={clsx("mt-3 w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border active:scale-95 shrink-0", colorStyles.button)}
                       >
                         <span>View Party Ledger</span>
                         <ExternalLink className="w-3 h-3" />
@@ -513,17 +515,19 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
                 })()}
 
                 {/* Available Points Badge Box */}
-                <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4 min-w-[180px] text-left shadow-xs">
-                  <div className="flex items-center justify-between text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
-                    <span>Available Points</span>
-                    <Sparkles className="w-3.5 h-3.5" />
+                <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4 w-[210px] shrink-0 text-left shadow-xs flex flex-col justify-between transition-all">
+                  <div>
+                    <div className="flex items-center justify-between text-[10px] font-black text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">
+                      <span>Available Points</span>
+                      <Sparkles className="w-3.5 h-3.5" />
+                    </div>
+                    <p className="text-xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
+                      {(selectedCustomer.current_points_balance || 0).toFixed(0)} pts
+                    </p>
                   </div>
-                  <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">
-                    {(selectedCustomer.current_points_balance || 0).toFixed(0)} pts
-                  </p>
-                  <p className="text-[10px] text-muted-foreground/80 font-bold mt-2">
-                    Total Earned: {(selectedCustomer.total_points_earned || 0).toFixed(0)} pts
-                  </p>
+                  <div className="mt-3 w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 shrink-0">
+                    <span className="text-[11px]">Total Earned: {(selectedCustomer.total_points_earned || 0).toFixed(0)} pts</span>
+                  </div>
                 </div>
               </div>
             </div>

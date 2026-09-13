@@ -104,7 +104,7 @@ export function ActionPane() {
           };
         });
 
-        const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+        const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, bName, bAcc, bIfsc, bBranch] = await Promise.all([
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
@@ -112,6 +112,10 @@ export function ActionPane() {
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_name' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }),
         ]);
 
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
@@ -139,6 +143,10 @@ export function ActionPane() {
           shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
           shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
           shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
+          bankName: bName || undefined,
+          bankAccount: bAcc || undefined,
+          bankIfsc: bIfsc || undefined,
+          bankBranch: bBranch || undefined,
           upiId: activeTab?.selectedUpiId || upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -181,6 +189,15 @@ export function ActionPane() {
           customerGstin: customerGstin.trim() || undefined,
           customerAddress: customerAddress || undefined,
           customerState: customerState || undefined,
+          transporterName: activeTab?.transporterName || undefined,
+          vehicleNumber: activeTab?.vehicleNumber || undefined,
+          transporterDocNo: activeTab?.transporterDocNo || undefined,
+          transporterDocDate: activeTab?.transporterDocDate || undefined,
+          ewayBillNo: activeTab?.ewayBillNo || undefined,
+          ewayBillDate: activeTab?.ewayBillDate || undefined,
+          shippingName: activeTab?.shippingName || undefined,
+          shippingAddress: activeTab?.shippingAddress || undefined,
+          shippingGstin: activeTab?.shippingGstin || undefined,
           isB2B,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
@@ -230,10 +247,7 @@ export function ActionPane() {
           }
         }
 
-        const drawerResult = await window.electronAPI.openCashDrawer(tenantId || 'global');
-        if (!drawerResult.success) {
-          setHardwareError(`Hardware connection issue: ${drawerResult.error || 'Check drawer'}`);
-        }
+        window.electronAPI.openCashDrawer(tenantId || 'global').catch(() => {});
 
         try {
           window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: confirmedNum } }));

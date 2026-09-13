@@ -432,7 +432,8 @@ export function startLocalHostServer(port: number = 3888) {
             const localDeviceKeys = [
               'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
               'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter',
-              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'
+              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config',
+              'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name'
             ];
             items = items.filter((i: any) => !localDeviceKeys.includes(i.key));
           }
@@ -503,7 +504,8 @@ export function startLocalHostServer(port: number = 3888) {
             const excludedKeys = [
               'terminal_code', 'invoice_counter_config', 'gst_b2b_invoice_counter_config', 'gst_b2c_invoice_counter_config',
               'gst_invoice_counter_config', 'return_counter', 'scrap_invoice_counter', 'quotation_counter',
-              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config'
+              'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'scale_config', 'printer_config', 'network_sync_config',
+              'auto_print_barcode', 'print_format', 'label_code_type', 'label_show_shop_name'
             ];
             const placeholders = excludedKeys.map(() => '?').join(',');
             query += ` WHERE key NOT IN (${placeholders})`;

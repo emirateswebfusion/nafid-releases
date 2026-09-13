@@ -12,6 +12,11 @@ export interface InvoiceItemDisplay {
   pieces_override?: number;
   pieces_per_kg?: number;
   unit?: string;
+  hsn?: string;
+  hsn_code?: string;
+  tax_rate_percent?: number;
+  gst_percent?: number;
+  discountAmount?: number;
   isCombo?: boolean;
   combo_items?: Array<{ product_id: string; quantity: number; product_name?: string }>;
 }
@@ -19,13 +24,30 @@ export interface InvoiceItemDisplay {
 export interface InvoiceData {
   shopName: string;
   shopGstin?: string;
+  shopPan?: string;
   shopState?: string;
   shopAddress?: string;
   shopPhone?: string;
+  shopEmail?: string;
+  logoUrl?: string;
   upiId?: string;
   invoiceNumber: string;
   date: string;
+  dueDate?: string;
   billerName?: string;
+  transporterName?: string;
+  vehicleNumber?: string;
+  transporterDocNo?: string;
+  transporterDocDate?: string;
+  ewayBillNo?: string;
+  ewayBillDate?: string;
+  irn?: string;
+  ackNo?: string;
+  ackDate?: string;
+  bankAccount?: string;
+  bankName?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
   items: InvoiceItemDisplay[];
   subtotal: number;
   tax: number;
@@ -48,6 +70,9 @@ export interface InvoiceData {
   customerGstin?: string;
   customerState?: string;
   customerAddress?: string;
+  shippingName?: string;
+  shippingAddress?: string;
+  shippingGstin?: string;
   scrapDeduction?: number;
   scrapInvoiceNumber?: string;
   returnDeduction?: number;
@@ -62,10 +87,10 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   let baseTitle = '';
   if (isB2B) {
-    baseTitle = 'TAX INVOICE (B2B)';
+    baseTitle = 'TAX INVOICE';
   } else {
     switch (invoiceType) {
-      case 'GST': baseTitle = 'TAX INVOICE (B2C)'; break;
+      case 'GST': baseTitle = 'TAX INVOICE'; break;
       case 'SCRAP': baseTitle = 'SCRAP BILL'; break;
       case 'RETURN':
       case 'SALES_RETURN':
@@ -88,12 +113,13 @@ function formatItemNameForBill(name: string, isCombo?: boolean): string {
   return formatted;
 }
 
-export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'modern' | 'classic' | 'half-a4' = 'standard'): string {
+export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4' = 'standard'): string {
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
   const title = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B, bs?.nonGstBillTitle);
 
   if (style === 'half-a4') return generateHalfA4Html(data, title);
+  if (style === 'boxed') return generateBoxedHtml(data, title);
   if (style === 'modern') return generateModernHtml(data, title);
   if (style === 'classic') return generateClassicHtml(data, title);
   return generateStandardHtml(data, title);
@@ -102,6 +128,7 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'mode
 export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
+  const isGstBill = data.invoiceType === 'GST' || isB2B;
   const title = titleStr || getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B, bs?.nonGstBillTitle);
   const grandTotal = Number(data.grandTotal) || 0;
   const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
@@ -152,7 +179,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       }
     }
     body {
-      font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       font-size: 11px;
       color: #000;
       margin: 0;
@@ -160,6 +187,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       box-sizing: border-box;
       background: #fff;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
       width: 148mm;
       max-width: 148mm;
     }
@@ -175,8 +204,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     }
   ` : `
     @page {
-      size: A4 portrait;
-      margin: 3mm 5mm;
+      size: 210mm 148mm;
+      margin: 3mm 4mm;
     }
     @media print {
       html, body {
@@ -188,27 +217,29 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         print-color-adjust: exact;
       }
       .bill-container {
-        min-height: 134mm !important;
+        min-height: 136mm !important;
         page-break-after: avoid;
         break-after: avoid;
       }
     }
     body {
-      font-family: Arial, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      font-size: 11.5px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
       color: #000;
       margin: 0;
-      padding: 3mm 5mm;
+      padding: 3mm 4mm;
       box-sizing: border-box;
       background: #fff;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
       width: 210mm;
       max-width: 210mm;
     }
     .bill-container {
       width: 100%;
       max-width: 198mm;
-      min-height: 134mm;
+      min-height: 136mm;
       box-sizing: border-box;
       margin: 0 auto;
       display: flex;
@@ -221,9 +252,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="page-size" content="${isVertical ? 'A5' : 'half-a4'}">
-  <meta name="page-orientation" content="portrait">
-  <title>${title}${data.shopName ? ` - ${data.shopName}` : ''}</title>
+  <title>${title} - ${data.invoiceNumber}</title>
   <style>
     * { box-sizing: border-box; }
     ${pageCss}
@@ -306,14 +335,14 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   <div class="bill-container">
     <div class="main-content" style="flex: 1 1 auto;">
       <!-- Shop Info at Top -->
-      ${((data.billSettings?.showShopName !== false && data.shopName) || (data.billSettings?.showShopAddress !== false && data.shopAddress) || (data.billSettings?.showPhone !== false && data.shopPhone) || (data.billSettings?.showShopGstin !== false && data.shopGstin) || (data.billSettings?.showShopState !== false && data.shopState)) ? `
+      ${((isGstBill || bs?.showShopName !== false) && data.shopName || (isGstBill || bs?.showShopAddress !== false) && data.shopAddress || (isGstBill || bs?.showPhone !== false) && data.shopPhone || (isGstBill || bs?.showShopGstin !== false) && data.shopGstin || (isGstBill || bs?.showShopState !== false) && data.shopState) ? `
       <div class="shop-header">
-        ${data.billSettings?.showShopName !== false && data.shopName ? `<div class="shop-name">${data.shopName}</div>` : ''}
-        ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div class="shop-subtext">${data.shopAddress}</div>` : ''}
+        ${(isGstBill || bs?.showShopName !== false) && data.shopName ? `<div class="shop-name">${data.shopName}</div>` : ''}
+        ${(isGstBill || bs?.showShopAddress !== false) && data.shopAddress ? `<div class="shop-subtext">${data.shopAddress}</div>` : ''}
         <div class="shop-subtext">
-          ${data.billSettings?.showPhone !== false && data.shopPhone ? `<span>Ph: ${data.shopPhone}</span>` : ''}
-          ${data.billSettings?.showShopGstin !== false && data.shopGstin ? `<span style="margin-left: 8px;">GSTIN: ${data.shopGstin}</span>` : ''}
-          ${data.billSettings?.showShopState !== false && data.shopState ? `<span style="margin-left: 8px;">State: ${data.shopState}</span>` : ''}
+          ${(isGstBill || bs?.showPhone !== false) && data.shopPhone ? `<span>Ph: ${data.shopPhone}</span>` : ''}
+          ${(isGstBill || bs?.showShopGstin !== false) && data.shopGstin ? `<span style="margin-left: 8px;">GSTIN: ${data.shopGstin}</span>` : ''}
+          ${(isGstBill || bs?.showShopState !== false) && data.shopState ? `<span style="margin-left: 8px;">State: ${data.shopState}</span>` : ''}
         </div>
       </div>
       ` : ''}
@@ -324,20 +353,26 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           <td style="width: 32%;">
             <strong>No. :</strong> <span style="font-size: 12px; font-weight: bold;">${data.invoiceNumber}</span><br>
             <strong>Date :</strong> ${data.date}
-            ${data.billerName && data.billSettings?.showBillerName !== false ? `<br><span style="font-size: 9.5px; color: #444;">Biller: ${data.billerName}</span>` : ''}
+            ${data.billerName && (isGstBill || bs?.showBillerName !== false) ? `<br><span style="font-size: 9.5px; color: #444;">Biller: ${data.billerName}</span>` : ''}
           </td>
           <td style="width: 36%; text-align: center;">
-            ${data.billSettings?.showTitle !== false ? `<span style="font-size: 13.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">${title}</span>` : ''}
+            ${(isGstBill || bs?.showTitle !== false) ? `<span style="font-size: 13.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">${title}</span>` : ''}
           </td>
           <td style="width: 32%; text-align: right;">
-            ${data.billSettings?.showCustomerName !== false ? `<strong>To :</strong> <span style="font-weight: bold;">${data.customerName || 'Cash'}</span><br>` : ''}
-            ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `${data.customerAddress}<br>` : ''}
-            ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `Ph: ${data.customerPhone}<br>` : ''}
-            ${data.billSettings?.showCustomerGstin !== false && data.customerGstin ? `GSTIN: ${data.customerGstin}<br>` : ''}
-            ${data.customerState && data.billSettings?.showCustomerState !== false ? `State: ${data.customerState}` : ''}
+            ${(isGstBill || bs?.showCustomerName !== false) ? `<strong>To :</strong> <span style="font-weight: bold;">${data.customerName || 'Cash'}</span><br>` : ''}
+            ${data.customerAddress && (isGstBill || bs?.showCustomerAddress !== false) ? `${data.customerAddress}<br>` : ''}
+            ${data.customerPhone && (isGstBill || bs?.showCustomerPhone !== false) ? `Ph: ${data.customerPhone}<br>` : ''}
+            ${(isGstBill || bs?.showCustomerGstin !== false) && data.customerGstin ? `GSTIN: ${data.customerGstin}<br>` : ''}
+            ${data.customerState && (isGstBill || bs?.showCustomerState !== false) ? `State: ${data.customerState}` : ''}
           </td>
         </tr>
       </table>
+
+      ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
+      <div style="margin: 2px 0 4px 0; padding: 3px 6px; background: #fafafa; border: 1px solid #eee; border-radius: 4px; font-size: 10px; color: #333; display: flex; flex-wrap: wrap; justify-content: space-between;">
+        ${(isGstBill || bs?.showTransporterDetails !== false) && (data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo) ? `<span><strong>Transport:</strong> ${[data.transporterName, data.vehicleNumber ? `Veh: ${data.vehicleNumber}` : '', data.transporterDocNo ? `Doc: ${data.transporterDocNo}` : '', data.ewayBillNo ? `E-Way: ${data.ewayBillNo}` : ''].filter(Boolean).join(' | ')}</span>` : ''}
+        ${data.shippingAddress ? `<span><strong>Ship To:</strong> ${data.shippingName ? `<strong>${data.shippingName}</strong> - ` : ''}${data.shippingAddress}</span>` : ''}
+      </div>` : ''}
 
       <div class="divider-solid"></div>
 
@@ -425,25 +460,25 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
               <td style="text-align: right; padding-right: 6px;">IGST :</td>
               <td style="text-align: right; width: 85px;">${data.igst.toFixed(2)}</td>
             </tr>` : ''}
-            ${data.scrapDeduction != null && data.scrapDeduction > 0 ? `
+            ${data.scrapDeduction && data.scrapDeduction > 0 ? `
             <tr>
-              <td style="text-align: right; padding-right: 6px; color: #d97706;">Scrap Adj :</td>
-              <td style="text-align: right; width: 85px; color: #d97706;">-${data.scrapDeduction.toFixed(2)}</td>
+              <td style="text-align: right; padding-right: 6px;">Scrap Return :</td>
+              <td style="text-align: right; width: 85px; color: #dc2626;">- ${data.scrapDeduction.toFixed(2)}</td>
             </tr>` : ''}
-            ${data.returnDeduction != null && data.returnDeduction > 0 ? `
+            ${data.returnDeduction && data.returnDeduction > 0 ? `
             <tr>
-              <td style="text-align: right; padding-right: 6px; color: #ea580c;">Return Adj :</td>
-              <td style="text-align: right; width: 85px; color: #ea580c;">-${data.returnDeduction.toFixed(2)}</td>
+              <td style="text-align: right; padding-right: 6px;">Return Credit :</td>
+              <td style="text-align: right; width: 85px; color: #dc2626;">- ${data.returnDeduction.toFixed(2)}</td>
             </tr>` : ''}
-            <tr>
-              <td style="text-align: right; padding-right: 6px; font-weight: bold; font-size: 12.5px;">Net Amount :</td>
-              <td style="text-align: right; font-weight: bold; font-size: 13.5px; width: 85px;">${netPayable.toFixed(2)}</td>
+            <tr style="font-weight: bold; font-size: 13px;">
+              <td style="text-align: right; padding-right: 6px; padding-top: 2px;">Total :</td>
+              <td style="text-align: right; width: 85px; padding-top: 2px;">${netPayable.toFixed(2)}</td>
             </tr>
           </table>
 
           <!-- Signatory Section -->
           <div style="margin-top: 14px; font-size: 10px;">
-            ${(data.billSettings?.showShopName !== false && data.shopName) ? `<div>For <strong>${data.shopName}</strong></div>` : ''}
+            <div>For <strong>${data.shopName ? data.shopName.toUpperCase() : 'Store'}</strong></div>
             <div style="height: 22px;"></div>
             <div>Authorised Signatory</div>
           </div>
@@ -455,7 +490,418 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 </html>`;
 }
 
+function generateBoxedHtml(data: InvoiceData, title: string): string {
+  const bs = data.billSettings;
+  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
+  const grandTotal = Number(data.grandTotal) || 0;
+  const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
+  const amountWords = numberToIndianWords(Math.max(0, netPayable));
+  const itemsList = Array.isArray(data.items) ? data.items : [];
+
+  const itemsHtml = itemsList.map((item, idx) => {
+    const fmt = formatPrintItem(item, data.billSettings);
+    const displayName = formatItemNameForBill(item.name, item.isCombo);
+    const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#333; font-weight: 600;">(${item.brand})</span>` : '';
+    const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
+      ? `<br><b style="font-size:10px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
+      : '';
+    const offerHtml = data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9.5px; color:#dc2626; font-weight:600;">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
+
+    const hsnCode = item.hsn || item.hsn_code || '-';
+    const unitStr = item.unit || (item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs');
+    const taxPct = item.tax_rate_percent != null ? `${item.tax_rate_percent.toFixed(2)}` : (item.gst_percent != null ? `${item.gst_percent.toFixed(2)}` : '-');
+    const discStr = item.discountAmount && item.discountAmount > 0 ? item.discountAmount.toFixed(2) : '-';
+
+    const isLastItem = idx === itemsList.length - 1 && itemsList.length >= 8;
+    const rowClass = isLastItem ? 'class="last-row"' : '';
+    return `
+    <tr ${rowClass} style="height: 25px;">
+      <td style="text-align: center; font-weight: 500;">${idx + 1}</td>
+      <td style="text-align: left; font-weight: 500; line-height: 1.35; padding-left: 6px;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="text-align: center; font-weight: 500;">${hsnCode}</td>
+      <td style="text-align: center; font-weight: 600; font-variant-numeric: tabular-nums;">${fmt.displayQty}</td>
+      <td style="text-align: center; font-weight: 500;">${unitStr}</td>
+      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${fmt.displayRate}</td>
+      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${discStr}</td>
+      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${taxPct}</td>
+      <td style="text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 6px;">${fmt.displayTotal}</td>
+    </tr>
+    `;
+  }).join('');
+
+  const minRows = 8;
+  let emptyRowsHtml = '';
+  if (itemsList.length < minRows) {
+    const padCount = minRows - itemsList.length;
+    for (let i = 0; i < padCount; i++) {
+      const isLastEmpty = i === padCount - 1;
+      const rowClass = isLastEmpty ? 'class="last-row"' : '';
+      emptyRowsHtml += `
+      <tr ${rowClass} style="height: 25px;">
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>`;
+    }
+  }
+
+  const taxSummaryLine = `Sale @18% = ${data.subtotal.toFixed(2)}${data.igst != null && data.igst > 0 ? `, IGST = ${data.igst.toFixed(2)}` : (data.cgst != null || data.sgst != null ? `, CGST = ${(data.cgst || 0).toFixed(2)}, SGST = ${(data.sgst || 0).toFixed(2)}` : '')} | Total Sale = ${data.subtotal.toFixed(2)}, Tax = ${data.tax.toFixed(2)}, Cess = 0.00, Add. Cess = 0.00`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>${title} - ${data.invoiceNumber}</title>
+  <style>
+    * { box-sizing: border-box; }
+    @page {
+      size: A4 portrait;
+      margin: 8mm 10mm;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      font-size: 11px;
+      color: #000;
+      margin: 0;
+      padding: 0;
+      background: #fff;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      text-rendering: optimizeLegibility;
+    }
+    .invoice-box {
+      width: 100%;
+      border: 1.5px solid #000;
+      margin: 0 auto;
+    }
+    .top-header-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 10px;
+      border-bottom: 1px solid #000;
+      font-size: 11px;
+      font-weight: 600;
+      background: #f8fafc;
+    }
+    .company-header {
+      text-align: center;
+      padding: 10px;
+      border-bottom: 1px solid #000;
+    }
+    .company-name {
+      font-size: 20px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+    .company-subtext {
+      font-size: 11px;
+      line-height: 1.35;
+    }
+    .details-grid {
+      display: flex;
+      border-bottom: 1px solid #000;
+    }
+    .details-col {
+      width: 50%;
+      padding: 6px 10px;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .details-col.left {
+      border-right: 1px solid #000;
+    }
+    .section-title {
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: #f1f5f9;
+      padding: 2.5px 6px;
+      margin: -6px -10px 6px -10px;
+      border-bottom: 1px solid #000;
+    }
+    .irn-bar {
+      padding: 4px 10px;
+      border-bottom: 1px solid #000;
+      font-size: 10.5px;
+      background: #fafafa;
+    }
+    .items-table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      border-bottom: 1.5px solid #000;
+    }
+    .items-table th {
+      border-bottom: 1px solid #000;
+      border-right: 1px solid #000;
+      padding: 5px 4px;
+      font-size: 10.5px;
+      font-weight: bold;
+      background: #f8fafc;
+      text-transform: uppercase;
+    }
+    .items-table th:last-child {
+      border-right: none;
+    }
+    .items-table td {
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #e2e8f0;
+      padding: 4px 4px;
+      font-size: 11px;
+      vertical-align: middle;
+    }
+    .items-table td:last-child {
+      border-right: none;
+    }
+    .totals-box {
+      border-bottom: 1px solid #000;
+    }
+    .totals-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 12px;
+      font-size: 11.5px;
+      border-bottom: 1px solid #ddd;
+    }
+    .totals-row.grand {
+      font-size: 14px;
+      font-weight: 900;
+      background: #f8fafc;
+      border-bottom: 1px solid #000;
+      padding: 6px 12px;
+    }
+    .words-bar {
+      padding: 6px 12px;
+      font-size: 11.5px;
+      font-weight: 700;
+      border-bottom: 1px solid #000;
+      background: #fff;
+    }
+    .settlement-bar {
+      padding: 6px 12px;
+      font-size: 11px;
+      border-bottom: 1px solid #000;
+      background: #fafafa;
+    }
+    .footer-grid {
+      display: flex;
+      border-top: 1px solid #000;
+      min-height: 120px;
+    }
+    .footer-col {
+      padding: 8px 10px;
+      font-size: 10.5px;
+      line-height: 1.45;
+    }
+    .footer-col.terms {
+      width: 38%;
+      border-right: 1px solid #000;
+    }
+    .footer-col.bank {
+      width: 34%;
+      border-right: 1px solid #000;
+    }
+    .footer-col.sign {
+      width: 28%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      text-align: center;
+    }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+  <div class="invoice-box">
+    <div class="top-header-line">
+      <span>Page No. 1 of 1</span>
+      <span style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">${title}</span>
+      <span>${data.isReprint ? 'Duplicate Copy' : 'Original Copy'}</span>
+    </div>
+
+    <div class="company-header">
+      ${data.logoUrl ? `<div style="margin-bottom: 6px;"><img src="${data.logoUrl}" style="max-height: 48px; max-width: 180px; object-fit: contain;" alt="Shop Logo" /></div>` : ''}
+      ${(isGstBill || bs?.showShopName !== false) && data.shopName ? `<div class="company-name">${data.shopName}</div>` : ''}
+      ${(isGstBill || bs?.showShopAddress !== false) && data.shopAddress ? `<div class="company-subtext">${data.shopAddress}</div>` : ''}
+      <div class="company-subtext">
+        ${(isGstBill || bs?.showPhone !== false) && data.shopPhone ? `Mobile: +91 ${data.shopPhone}` : ''}
+        ${data.shopPhone && data.shopEmail ? ' | ' : ''}
+        ${data.shopEmail ? `Email: <strong>${data.shopEmail}</strong>` : ''}
+      </div>
+      <div class="company-subtext" style="font-weight: bold; margin-top: 3px;">
+        ${(isGstBill || bs?.showShopGstin !== false) && data.shopGstin ? `GSTIN - ${data.shopGstin}` : ''}
+        ${data.shopGstin && data.shopPan ? ' | ' : ''}
+        ${data.shopPan ? `PAN - ${data.shopPan}` : ''}
+      </div>
+    </div>
+
+    <!-- Invoice Details & Transporter Details Grid -->
+    ${((isGstBill || bs?.showTransporterDetails !== false) && (data.transporterName || data.vehicleNumber || data.transporterDocNo || data.ewayBillNo)) ? `
+    <div class="details-grid">
+      <div class="details-col left">
+        <div class="section-title">Invoice Details</div>
+        <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
+        <div><strong>Invoice Date</strong> : ${data.date}</div>
+        ${data.dueDate ? `<div><strong>Due date</strong> : ${data.dueDate}</div>` : ''}
+        <div><strong>Place of Supply</strong> : ${data.customerState || data.shopState || '-'}</div>
+        <div><strong>Reverse Charge</strong> : No</div>
+        ${data.billerName && (isGstBill || bs?.showBillerName !== false) ? `<div><strong>Biller</strong> : ${data.billerName}</div>` : ''}
+      </div>
+      <div class="details-col">
+        <div class="section-title">Transporter Details</div>
+        <div><strong>Transporter</strong> : ${data.transporterName || '-'}</div>
+        <div><strong>Vehicle No.</strong> : ${data.vehicleNumber || '-'}</div>
+        <div><strong>Transporter Doc No.</strong> : ${data.transporterDocNo || '-'}</div>
+        <div><strong>Transporter Doc Date</strong> : ${data.transporterDocDate || '-'}</div>
+        <div><strong>E-Way Bill No.</strong> : ${data.ewayBillNo || '-'}</div>
+        <div><strong>E-Way Bill Date</strong> : ${data.ewayBillDate || '-'}</div>
+      </div>
+    </div>
+    ` : `
+    <div class="details-grid">
+      <div class="details-col left" style="width: 50%;">
+        <div class="section-title">Invoice Details</div>
+        <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
+        <div><strong>Invoice Date</strong> : ${data.date}</div>
+        ${data.dueDate ? `<div><strong>Due date</strong> : ${data.dueDate}</div>` : ''}
+      </div>
+      <div class="details-col" style="width: 50%;">
+        <div class="section-title" style="visibility: hidden; user-select: none;">&nbsp;</div>
+        <div><strong>Place of Supply</strong> : ${data.customerState || data.shopState || '-'}</div>
+        <div><strong>Reverse Charge</strong> : No</div>
+        ${data.billerName && (isGstBill || bs?.showBillerName !== false) ? `<div><strong>Biller</strong> : ${data.billerName}</div>` : ''}
+      </div>
+    </div>
+    `}
+
+    <!-- Billing Details & Shipping Details Grid -->
+    <div class="details-grid">
+      ${(data.shippingAddress || data.shippingName || data.shippingGstin) ? `
+      <div class="details-col left" style="width: 50%;">
+        <div class="section-title">Billing Details (Billed To)</div>
+        <div><strong>Name</strong> : ${data.customerName || 'Cash Customer'}</div>
+        <div><strong>GSTIN:</strong> ${data.customerGstin || '-'} | <strong>Mobile:</strong> ${data.customerPhone || '-'}</div>
+        ${data.customerAddress ? `<div><strong>Address:</strong> ${data.customerAddress}</div>` : ''}
+      </div>
+      <div class="details-col" style="width: 50%;">
+        <div class="section-title">Shipping Details (Shipped To)</div>
+        <div><strong>Name</strong> : ${data.shippingName || data.customerName || '-'}</div>
+        <div><strong>GSTIN:</strong> ${data.shippingGstin || data.customerGstin || '-'}</div>
+        <div><strong>Address:</strong> ${data.shippingAddress}</div>
+      </div>
+      ` : `
+      <div class="details-col left" style="width: 100%; border-right: none;">
+        <div class="section-title">Billing Details</div>
+        <div><strong>Name</strong> : ${data.customerName || 'Cash Customer'}</div>
+        <div><strong>GSTIN:</strong> ${data.customerGstin || '-'} | <strong>Mobile:</strong> ${data.customerPhone || '-'}</div>
+        ${data.customerAddress ? `<div><strong>Address:</strong> ${data.customerAddress}</div>` : ''}
+      </div>
+      `}
+    </div>
+
+    ${data.irn ? `
+    <div class="irn-bar">
+      <strong>IRN-</strong> ${data.irn} | <strong>Ack No.-</strong> ${data.ackNo || '-'} | <strong>Ack Date-</strong> ${data.ackDate || '-'}
+    </div>
+    ` : ''}
+
+    <table class="items-table">
+      <colgroup>
+        <col style="width: 32px;">
+        <col style="width: auto;">
+        <col style="width: 72px;">
+        <col style="width: 44px;">
+        <col style="width: 44px;">
+        <col style="width: 76px;">
+        <col style="width: 56px;">
+        <col style="width: 52px;">
+        <col style="width: 88px;">
+      </colgroup>
+      <thead>
+        <tr>
+          <th style="text-align: center;">Sr.</th>
+          <th style="text-align: left; padding-left: 6px;">Item Description</th>
+          <th style="text-align: center;">HSN/SAC</th>
+          <th style="text-align: center;">Qty</th>
+          <th style="text-align: center;">Unit</th>
+          <th style="text-align: right; padding-right: 4px;">List Price</th>
+          <th style="text-align: right; padding-right: 4px;">Disc.</th>
+          <th style="text-align: right; padding-right: 4px;">Tax %</th>
+          <th style="text-align: right; padding-right: 6px;">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+        ${emptyRowsHtml}
+      </tbody>
+    </table>
+
+    <div class="totals-box">
+      ${data.discount > 0 ? `
+      <div class="totals-row">
+        <span>Discount</span>
+        <span>- ${data.discount.toFixed(2)}</span>
+      </div>` : ''}
+
+      <div class="totals-row grand">
+        <span>Total</span>
+        <span>${netPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+      </div>
+
+      <div class="words-bar">
+        Rs. ${amountWords} Only
+      </div>
+
+      <div class="settlement-bar">
+        <div><strong>Settled by - ${data.paymentMethod || 'Bank'} :</strong> ${grandTotal.toFixed(2)} | <strong>Invoice Balance :</strong> ${(Math.abs(data.balanceAmount || 0)).toFixed(2)}</div>
+        <div style="margin-top: 2.5px; font-size: 10px; color: #111;">${taxSummaryLine}</div>
+      </div>
+    </div>
+
+    <div class="footer-grid">
+      <div class="footer-col terms">
+        <div class="section-title" style="margin: -8px -10px 6px -10px;">Terms and Conditions</div>
+        ${bs?.instructions ? bs.instructions.replace(/\n/g, '<br>') : '<div>E &amp; O.E.</div>'}
+      </div>
+
+      <div class="footer-col bank">
+        <div class="section-title" style="margin: -8px -10px 6px -10px;">Bank Account Details</div>
+        <div><strong>Account Number:</strong> ${data.bankAccount || '-'}</div>
+        <div><strong>Bank:</strong> ${data.bankName || '-'}</div>
+        <div><strong>IFSC:</strong> ${data.bankIfsc || '-'}</div>
+        <div><strong>Branch:</strong> ${data.bankBranch || '-'}</div>
+        ${data.upiId ? `<div style="margin-top: 3px;"><strong>UPI ID:</strong> ${data.upiId}</div>` : ''}
+      </div>
+
+      <div class="footer-col sign">
+        <div class="section-title" style="margin: -8px -10px 6px -10px;">For ${data.shopName ? data.shopName.toUpperCase() : 'Company Name'}</div>
+        <div style="height: 35px;"></div>
+        <div style="font-weight: bold; font-size: 10.5px; border-top: 1px solid #000; padding-top: 4px; width: 80%; margin: 0 auto;">Authorized Signature</div>
+      </div>
+    </div>
+
+    <div style="text-align: center; font-size: 9px; color: #666; padding: 4px; border-top: 1px solid #000; font-weight: 500;">
+      Invoice Created by Nafid POS
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 function generateStandardHtml(data: InvoiceData, title: string): string {
+  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
@@ -480,7 +926,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 <html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 15mm; }
-  body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
   .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
   .header h1 { font-size: 22px; margin: 0; color: #1a1a1a; }
   .header p { font-size: 12px; color: #666; margin: 3px 0; }
@@ -504,27 +950,43 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } th { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
   <div class="header">
-    ${data.billSettings?.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-    ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-    ${data.billSettings?.showPhone !== false && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-    ${data.shopGstin && data.billSettings?.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-    ${data.shopState && data.billSettings?.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
+    ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+    ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+    ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
+    ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+    ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
   </div>
-  ${data.billSettings?.showTitle !== false ? `<div class="invoice-title">${title}</div>` : ''}
+  ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-title">${title}</div>` : ''}
   <div class="info-row">
     <div class="info-block">
       <p><span class="label">Invoice #:</span> ${data.invoiceNumber}</p>
       <p><span class="label">Date:</span> ${data.date}</p>
-      ${data.billerName && data.billSettings?.showBillerName !== false ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
+      ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
     </div>
     <div class="info-block" style="text-align:right">
-      ${data.customerName && data.billSettings?.showCustomerName !== false ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
-      ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `<p><span class="label">Address:</span> ${data.customerAddress}</p>` : ''}
-      ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
-      ${data.customerGstin && data.billSettings?.showCustomerGstin !== false ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
-      ${data.customerState && data.billSettings?.showCustomerState !== false ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
+      ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
+      ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<p><span class="label">Address:</span> ${data.customerAddress}</p>` : ''}
+      ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
+      ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
+      ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
     </div>
   </div>
+  ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
+  <div style="margin: -10px 0 15px 0; padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 11px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;">
+    ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo) ? `
+    <div>
+      <strong style="color: #1e293b;">Transport &amp; E-Way Details:</strong>
+      ${data.transporterName ? `<span style="margin-left: 8px;">Transporter: <strong>${data.transporterName}</strong></span>` : ''}
+      ${data.vehicleNumber ? `<span style="margin-left: 8px;">Veh: <strong>${data.vehicleNumber}</strong></span>` : ''}
+      ${data.transporterDocNo ? `<span style="margin-left: 8px;">Doc: <strong>${data.transporterDocNo}</strong></span>` : ''}
+      ${data.ewayBillNo ? `<span style="margin-left: 8px;">E-Way Bill: <strong>${data.ewayBillNo}</strong></span>` : ''}
+    </div>` : ''}
+    ${data.shippingAddress ? `
+    <div>
+      <strong style="color: #1e293b;">Ship To:</strong>
+      <span style="margin-left: 8px;">${data.shippingName ? `<strong>${data.shippingName}</strong> - ` : ''}${data.shippingAddress}</span>
+    </div>` : ''}
+  </div>` : ''}
   <table>
     <thead><tr>
       <th class="text-center" style="width:36px">#</th>
@@ -561,6 +1023,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 }
 
 function generateModernHtml(data: InvoiceData, title: string): string {
+  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
@@ -583,7 +1046,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 <html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 12mm; }
-  body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: #1f2937; padding: 0; margin: 0; background: #f9fafb; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1f2937; padding: 0; margin: 0; background: #f9fafb; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
   .page { background: #fff; max-width: 210mm; margin: 0 auto; padding: 30px 35px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); min-height: 297mm; }
   .header-bar { background: linear-gradient(135deg, #059669, #10b981); margin: -30px -35px 25px -35px; padding: 22px 35px; color: white; }
   .header-bar h1 { font-size: 20px; margin: 0; font-weight: 700; letter-spacing: -0.3px; }
@@ -606,28 +1069,44 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 </style></head><body>
   <div class="page">
     <div class="header-bar">
-      ${data.billSettings?.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-      ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-      ${data.billSettings?.showPhone !== false && data.shopPhone ? `<p>${data.shopPhone}</p>` : ''}
-      ${data.shopGstin && data.billSettings?.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-      ${data.shopState && data.billSettings?.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
-      ${data.billSettings?.showTitle !== false ? `<div class="invoice-badge">${title}</div>` : ''}
+      ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+      ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+      ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>${data.shopPhone}</p>` : ''}
+      ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+      ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
+      ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-badge">${title}</div>` : ''}
     </div>
 
     <div class="info-grid">
       <div class="block">
         <p><span class="lbl">Invoice #</span><br>${data.invoiceNumber}</p>
         <p><span class="lbl">Date</span><br>${data.date}</p>
-        ${data.billerName && data.billSettings?.showBillerName !== false ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
+        ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
       </div>
       <div class="block" style="text-align:right">
-        ${data.customerName && data.billSettings?.showCustomerName !== false ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
-        ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `<p><span class="lbl">Address</span><br>${data.customerAddress}</p>` : ''}
-        ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
-        ${data.customerGstin && data.billSettings?.showCustomerGstin !== false ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
-        ${data.customerState && data.billSettings?.showCustomerState !== false ? `<p><span class="lbl">State</span><br>${data.customerState}</p>` : ''}
+        ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
+        ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<p><span class="lbl">Address</span><br>${data.customerAddress}</p>` : ''}
+        ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
+        ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
+        ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<p><span class="lbl">State</span><br>${data.customerState}</p>` : ''}
       </div>
     </div>
+    ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
+    <div style="margin-top: -10px; margin-bottom: 15px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; font-size: 11px; color: #166534; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;">
+      ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo) ? `
+      <div>
+        <strong>Transport &amp; E-Way Details:</strong>
+        ${data.transporterName ? `<span style="margin-left: 8px;">Transporter: <strong>${data.transporterName}</strong></span>` : ''}
+        ${data.vehicleNumber ? `<span style="margin-left: 8px;">Veh: <strong>${data.vehicleNumber}</strong></span>` : ''}
+        ${data.transporterDocNo ? `<span style="margin-left: 8px;">Doc: <strong>${data.transporterDocNo}</strong></span>` : ''}
+        ${data.ewayBillNo ? `<span style="margin-left: 8px;">E-Way Bill: <strong>${data.ewayBillNo}</strong></span>` : ''}
+      </div>` : ''}
+      ${data.shippingAddress ? `
+      <div>
+        <strong>Ship To:</strong>
+        <span style="margin-left: 8px;">${data.shippingName ? `<strong>${data.shippingName}</strong> - ` : ''}${data.shippingAddress}</span>
+      </div>` : ''}
+    </div>` : ''}
 
     <table>
       <thead><tr>
@@ -671,6 +1150,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 }
 
 function generateClassicHtml(data: InvoiceData, title: string): string {
+  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
@@ -695,7 +1175,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 <html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 15mm; }
-  body { font-family: 'Times New Roman', 'Georgia', serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
   .outer-box { border: 2px double #333; padding: 20px; }
   .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #333; padding-bottom: 12px; }
   .header h1 { font-size: 24px; margin: 0; letter-spacing: 3px; font-weight: 700; }
@@ -721,30 +1201,47 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 </style></head><body>
   <div class="outer-box">
     <div class="header">
-      ${data.billSettings?.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-      ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-      ${data.billSettings?.showPhone !== false && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-      ${data.shopGstin && data.billSettings?.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-      ${data.shopState && data.billSettings?.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
+      ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+      ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+      ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
+      ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+      ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
     </div>
-  ${data.billSettings?.showTitle !== false ? `<div class="invoice-title">— ${title} —</div>` : ''}
+  ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-title">— ${title} —</div>` : ''}
 
     <table class="info-table">
       <tr>
         <td style="width:50%">
           <span class="lbl">Invoice No:</span> ${data.invoiceNumber}<br>
           <span class="lbl">Date:</span> ${data.date}<br>
-          ${data.billerName && data.billSettings?.showBillerName !== false ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
+          ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
         </td>
         <td style="width:50%;text-align:right">
-          ${data.customerName && data.billSettings?.showCustomerName !== false ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
-          ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `<span class="lbl">Address:</span> ${data.customerAddress}<br>` : ''}
-          ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
-          ${data.customerGstin && data.billSettings?.showCustomerGstin !== false ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
-          ${data.customerState && data.billSettings?.showCustomerState !== false ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
+          ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
+          ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<span class="lbl">Address:</span> ${data.customerAddress}<br>` : ''}
+          ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
+          ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
+          ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
         </td>
       </tr>
     </table>
+
+    ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
+    <div style="margin-bottom: 12px; padding: 6px 10px; border: 1px solid #333; font-size: 11px; display: flex; flex-wrap: wrap; gap: 12px; justify-content: space-between;">
+      ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo) ? `
+      <div>
+        <strong>Transporter / E-Way:</strong>
+        ${data.transporterName ? `<span style="margin-left: 6px;">Transporter: <strong>${data.transporterName}</strong></span>` : ''}
+        ${data.vehicleNumber ? `<span style="margin-left: 6px;">Veh: <strong>${data.vehicleNumber}</strong></span>` : ''}
+        ${data.transporterDocNo ? `<span style="margin-left: 6px;">Doc: <strong>${data.transporterDocNo}</strong></span>` : ''}
+        ${data.ewayBillNo ? `<span style="margin-left: 6px;">E-Way: <strong>${data.ewayBillNo}</strong></span>` : ''}
+      </div>` : ''}
+      ${data.shippingAddress ? `
+      <div>
+        <strong>Shipping Address:</strong>
+        <span style="margin-left: 6px;">${data.shippingName ? `<strong>${data.shippingName}</strong> - ` : ''}${data.shippingAddress}</span>
+      </div>` : ''}
+    </div>` : ''}
 
     <table class="items">
       <thead><tr>

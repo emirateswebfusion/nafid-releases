@@ -24,7 +24,7 @@ const SAMPLE_GRAND_TOTAL = SAMPLE_SUBTOTAL + SAMPLE_CGST + SAMPLE_SGST - SAMPLE_
 function createSampleReceiptData(
   showProductOffers = true,
   billSettings?: BillSettings,
-  shopInfo?: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string; shopState?: string }
+  shopInfo?: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string; shopState?: string; bankName?: string; bankAccount?: string; bankIfsc?: string; bankBranch?: string }
 ): ReceiptData {
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   const resolvedShopName = (shopInfo?.shopName || useAuthStore.getState().shopName || 'My Shop').trim();
@@ -34,6 +34,10 @@ function createSampleReceiptData(
     shopState: bs.showShopState !== false ? (shopInfo?.shopState || 'KL') : undefined,
     shopAddress: bs.showShopAddress !== false ? (shopInfo?.shopAddress || '123, Main Street, Kochi, Kerala - 682001') : undefined,
     shopPhone: bs.showPhone !== false ? (shopInfo?.shopPhone || '+91 98765 43210') : undefined,
+    bankName: shopInfo?.bankName,
+    bankAccount: shopInfo?.bankAccount,
+    bankIfsc: shopInfo?.bankIfsc,
+    bankBranch: shopInfo?.bankBranch,
     upiId: 'nafid@upi',
     showUpiQr: false,
     showProductOffers,
@@ -68,16 +72,20 @@ function createSampleInvoiceData(
   showProductOffers = true,
   billSettings?: BillSettings,
   a5Orientation: 'horizontal' | 'vertical' = 'horizontal',
-  shopInfo?: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string; shopState?: string }
+  shopInfo?: { shopName?: string; shopAddress?: string; shopPhone?: string; shopGstin?: string; shopState?: string; bankName?: string; bankAccount?: string; bankIfsc?: string; bankBranch?: string }
 ): InvoiceData {
   const bs = billSettings || DEFAULT_BILL_SETTINGS;
   const resolvedShopName = (shopInfo?.shopName || useAuthStore.getState().shopName || 'My Shop').trim();
   return {
-    shopName: bs.showShopName !== false ? (resolvedShopName || 'My Shop') : '',
-    shopGstin: bs.showShopGstin !== false ? (shopInfo?.shopGstin || '32AAAAA1111A1Z1') : undefined,
-    shopState: bs.showShopState !== false ? (shopInfo?.shopState || 'KL') : undefined,
-    shopAddress: bs.showShopAddress !== false ? (shopInfo?.shopAddress || '123, Main Street, Kochi, Kerala - 682001') : undefined,
-    shopPhone: bs.showPhone !== false ? (shopInfo?.shopPhone || '+91 98765 43210') : undefined,
+    shopName: resolvedShopName || 'My Shop',
+    shopGstin: shopInfo?.shopGstin || '32AAAAA1111A1Z1',
+    shopState: shopInfo?.shopState || 'KL',
+    shopAddress: shopInfo?.shopAddress || '123, Main Street, Kochi, Kerala - 682001',
+    shopPhone: shopInfo?.shopPhone || '+91 98765 43210',
+    bankName: shopInfo?.bankName,
+    bankAccount: shopInfo?.bankAccount,
+    bankIfsc: shopInfo?.bankIfsc,
+    bankBranch: shopInfo?.bankBranch,
     upiId: 'nafid@upi',
     invoiceNumber: 'INV-001',
     date: new Date().toLocaleDateString('en-IN'),
@@ -101,6 +109,12 @@ function createSampleInvoiceData(
     customerAddress: bs.showCustomerAddress !== false ? '123, Park Avenue, Kochi, Kerala' : undefined,
     customerGstin: bs.showCustomerGstin ? '32AAAAA2222A1Z1' : undefined,
     customerState: bs.showCustomerState !== false ? 'KL' : undefined,
+    transporterName: bs.showTransporterDetails !== false ? 'VRL Logistics' : undefined,
+    vehicleNumber: bs.showTransporterDetails !== false ? 'KA-01-EA-1234' : undefined,
+    transporterDocNo: bs.showTransporterDetails !== false ? 'DOC-98765' : undefined,
+    transporterDocDate: bs.showTransporterDetails !== false ? '14/9/2026' : undefined,
+    ewayBillNo: bs.showTransporterDetails !== false ? '351009876543' : undefined,
+    ewayBillDate: bs.showTransporterDetails !== false ? '14/9/2026' : undefined,
     showProductOffers,
     billSettings: bs,
     isB2B: Boolean(bs.showCustomerGstin && '32AAAAA2222A1Z1'),
@@ -185,7 +199,7 @@ interface PaperPreviewModalProps {
   onClose: () => void;
   format: 'thermal' | 'a4' | 'half-a4';
   thermalStyle: 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
-  a4Style: 'standard' | 'modern' | 'classic';
+  a4Style: 'standard' | 'boxed' | 'modern' | 'classic';
   paperWidth: number;
   showProductOffers: boolean;
   receiptFont?: string;
@@ -197,6 +211,10 @@ interface PaperPreviewModalProps {
   shopPhone?: string;
   shopGstin?: string;
   shopState?: string;
+  bankName?: string;
+  bankAccount?: string;
+  bankIfsc?: string;
+  bankBranch?: string;
 }
 
 export function PaperPreviewModal({
@@ -216,11 +234,15 @@ export function PaperPreviewModal({
   shopPhone,
   shopGstin,
   shopState,
+  bankName,
+  bankAccount,
+  bankIfsc,
+  bankBranch,
 }: PaperPreviewModalProps) {
   const [zoom, setZoom] = useState(1);
 
   const style = format === 'thermal' ? thermalStyle : a4Style;
-  const shopInfo = useMemo(() => ({ shopName, shopAddress, shopPhone, shopGstin, shopState }), [shopName, shopAddress, shopPhone, shopGstin, shopState]);
+  const shopInfo = useMemo(() => ({ shopName, shopAddress, shopPhone, shopGstin, shopState, bankName, bankAccount, bankIfsc, bankBranch }), [shopName, shopAddress, shopPhone, shopGstin, shopState, bankName, bankAccount, bankIfsc, bankBranch]);
 
   const content = useMemo(() => {
     if (!isOpen) return '';
@@ -232,7 +254,7 @@ export function PaperPreviewModal({
       return generateInvoiceHtml(data, 'half-a4');
     } else {
       const data = createSampleInvoiceData(showProductOffers, billSettings, undefined, shopInfo);
-      return generateInvoiceHtml(data, style as 'standard' | 'modern' | 'classic');
+      return generateInvoiceHtml(data, style as 'standard' | 'boxed' | 'modern' | 'classic');
     }
   }, [isOpen, format, style, paperWidth, showProductOffers, billSettings, a5Orientation, shopInfo]);
 

@@ -1,13 +1,13 @@
 import { useRef, useState, useEffect } from 'react';
 import { useCartStore } from '../store/cartStore';
-import { Search, Trash, Scale, Ruler, Package, X } from 'lucide-react';
+import { Search, Trash, Pencil, Scale, Ruler, Package, X } from 'lucide-react';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import clsx from 'clsx';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 
-export function CartPane() {
+export function CartPane({ onEditProduct }: { onEditProduct?: (item: any) => void } = {}) {
   const { items, lastAddedProductId, updateQuantity, updatePiecesOverride, removeItem, currentUserRole, shopDomain, addItem } = useCartStore();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const qtyInputsRef = useRef<Record<string, HTMLInputElement | null>>({});
@@ -366,10 +366,20 @@ export function CartPane() {
                       </div>
                     )}
                   </div>
-                  <div className="col-span-1 flex justify-center">
+                  <div className="col-span-1 flex justify-center items-center gap-1">
+                    {onEditProduct && (
+                      <button 
+                        onClick={() => onEditProduct(item)}
+                        className="text-muted-foreground hover:text-primary transition-colors p-1 cursor-pointer"
+                        title="Edit Product"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                    )}
                     <button 
                       onClick={() => removeItem(item.product_id)}
-                      className="text-muted-foreground hover:text-destructive transition-colors p-1"
+                      className="text-muted-foreground hover:text-destructive transition-colors p-1 cursor-pointer"
+                      title="Remove Item"
                     >
                       <Trash className="w-4 h-4" />
                     </button>

@@ -4,7 +4,7 @@ import {
   Search, X, Package, Trash, Recycle, RotateCcw, Minus, Plus, CreditCard,
   Store, LogOut, Settings, Phone, User, Scale,
   Wallet, Banknote, Smartphone, BookOpen, AlertCircle,
-  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight
+  CheckCircle2, Building, TrendingUp, FileText, Clock, Receipt, MapPin, Star, Gift, Save, RefreshCw, ArrowLeftRight, LayoutGrid, List, Loader2, Check, Tag, Layers, Users, PauseCircle, Play, Split, ChevronRight, Truck, Pencil
 } from 'lucide-react';
 import { useCartStore, useCartTotals, type CartItem } from '../store/cartStore';
 import { useScaleStore } from '../store/scaleStore';
@@ -16,7 +16,7 @@ import { Select } from './ui/Select';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, parseUTCDate, type ReceiptData } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
-import { useTabStore, type TabSnapshot } from '../store/tabStore';
+import { useTabStore, type TabSnapshot, type SplitDetails } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
 import { loadFeatureFlags, getFeatureFlags } from '../featureFlags';
@@ -387,7 +387,9 @@ export function BillingPage() {
   const gradeFormDialogRef = useRef<HTMLDivElement>(null);
   const firstInputRef = useRef<HTMLInputElement>(null);
   const [showProductCreateForm, setShowProductCreateForm] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [showSplitModal, setShowSplitModal] = useState(false);
+  const [showTransportModal, setShowTransportModal] = useState(false);
   const [newProductName, setNewProductName] = useState('');
   const [newProductItemCode, setNewProductItemCode] = useState('');
   const [newProductBarcode, setNewProductBarcode] = useState('');
@@ -603,6 +605,10 @@ export function BillingPage() {
   const [shopPhone, setShopPhone] = useState('');
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
+  const [bankNameState, setBankNameState] = useState('');
+  const [bankAccountState, setBankAccountState] = useState('');
+  const [bankIfscState, setBankIfscState] = useState('');
+  const [bankBranchState, setBankBranchState] = useState('');
 
   // useTabStore values are destructured at the top of the component
 
@@ -662,7 +668,10 @@ export function BillingPage() {
   const paymentMethod = (!isCashSettlementEnabled && (!rawPaymentMethod || rawPaymentMethod === 'PENDING'))
     ? 'CASH'
     : (rawPaymentMethod ?? defaultPaymentMethod);
-  const splitDetails = activeTab?.splitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
+  const rawSplitDetails = activeTab?.splitDetails;
+  const splitDetails: SplitDetails = typeof rawSplitDetails === 'string'
+    ? (() => { try { return JSON.parse(rawSplitDetails); } catch { return { cash: 0, card: 0, upi: 0, bank_transfer: 0 }; } })()
+    : (rawSplitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 });
   const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
   const customerName = activeTab?.customerName || '';
@@ -930,6 +939,18 @@ export function BillingPage() {
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }).then((v: any) => {
       if (v !== null && v !== undefined) setShowUpiQr(Boolean(v));
     });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+      if (typeof v === 'string') setBankNameState(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+      if (typeof v === 'string') setBankAccountState(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+      if (typeof v === 'string') setBankIfscState(v);
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+      if (typeof v === 'string') setBankBranchState(v);
+    });
     getUpiPageConfig(tenantId || 'global').then(setUpiPageConfig);
     if (window.electronAPI?.dbPaymentGetSources) {
       window.electronAPI.dbPaymentGetSources(tenantId || 'global').then((sources: any[]) => {
@@ -1028,6 +1049,18 @@ export function BillingPage() {
         });
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
           if (typeof v === 'string') setShopGstin(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_name' }).then((v: any) => {
+          if (typeof v === 'string') setBankNameState(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }).then((v: any) => {
+          if (typeof v === 'string') setBankAccountState(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }).then((v: any) => {
+          if (typeof v === 'string') setBankIfscState(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }).then((v: any) => {
+          if (typeof v === 'string') setBankBranchState(v);
         });
       }
       loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
@@ -1967,7 +2000,17 @@ export function BillingPage() {
           isScrapMode: false,
         });
 
-        // Set customer info and title on active tab
+        // Parse split_details safely (could be JSON string or object)
+        let parsedSplitDetails: any = null;
+        if (invoice.split_details) {
+          if (typeof invoice.split_details === 'string') {
+            try { parsedSplitDetails = JSON.parse(invoice.split_details); } catch {}
+          } else if (typeof invoice.split_details === 'object') {
+            parsedSplitDetails = invoice.split_details;
+          }
+        }
+
+        // Set customer info, payment details, and split details on active tab
         updateActiveTab({
           customerName: invoice.customer_name || '',
           customerPhone: invoice.customer_phone || '',
@@ -1975,6 +2018,10 @@ export function BillingPage() {
           customerAddress: invoice.customer_address || '',
           paymentMethod: invoice.payment_method || 'PENDING',
           receivedAmount: Number(invoice.received_amount) || 0,
+          splitDetails: parsedSplitDetails || undefined,
+          selectedUpiId: parsedSplitDetails?.upi_id,
+          selectedUpiSourceId: parsedSplitDetails?.upi_source_id,
+          selectedUpiName: parsedSplitDetails?.upi_name,
           title: invoice.invoice_number,
         });
 
@@ -2205,6 +2252,7 @@ export function BillingPage() {
 
   const resetProductForm = () => {
     setShowProductCreateForm(false);
+    setEditingProductId(null);
     setNewProductName('');
     setNewProductItemCode('');
     setNewProductBarcode('');
@@ -2274,6 +2322,55 @@ export function BillingPage() {
     }
   };
 
+  const handleEditProduct = async (item: CartItem) => {
+    setEditingProductId(item.product_id);
+    let prodDetails: any = null;
+    if (window.electronAPI && tenantId) {
+      try {
+        const res = await window.electronAPI.dbGetProductsByIds({ tenant_id: tenantId, product_ids: [item.product_id] });
+        if (Array.isArray(res) && res.length > 0) {
+          prodDetails = res[0];
+        }
+      } catch (e) {
+        console.error("Failed to fetch product for editing", e);
+      }
+    }
+
+    const p = prodDetails || item;
+    setNewProductName(p.name || item.name || '');
+    setNewProductItemCode(p.item_code || '');
+    setNewProductBarcode(p.sku_barcode || item.sku_barcode || '');
+    setNewProductBrand(p.brand_manufacturer || item.brand_manufacturer || '');
+    setNewProductCategory(p.category || '');
+    setNewProductUom(p.uom || item.uom || 'Pcs');
+
+    if (p.domain_attributes) {
+      try {
+        const da = typeof p.domain_attributes === 'string' ? JSON.parse(p.domain_attributes) : p.domain_attributes;
+        setNewProductPcs(da.pcs ? String(da.pcs) : da.pcs_stock ? String(da.pcs_stock) : '');
+      } catch {
+        setNewProductPcs('');
+      }
+    } else {
+      setNewProductPcs('');
+    }
+
+    setNewProductPurchasePrice(p.purchase_price != null ? String(p.purchase_price) : (item.purchase_price != null ? String(item.purchase_price) : ''));
+    setNewProductBasePrice(p.base_price != null ? String(p.base_price) : (item.base_price != null ? String(item.base_price) : ''));
+    setNewProductStock(p.current_stock != null ? String(p.current_stock) : (item.quantity != null ? String(item.quantity) : ''));
+    setNewProductReorderLevel(p.reorder_level != null ? String(p.reorder_level) : '');
+    setNewProductHsn(p.hsn_sac_code || '');
+    setNewProductTaxRate(p.tax_rate_percent != null ? Number(p.tax_rate_percent) : (item.tax_rate_percent != null ? Number(item.tax_rate_percent) : 0));
+    setNewProductDiscountPercent(p.discount_percent != null ? String(p.discount_percent) : (item.discount_percent != null ? String(item.discount_percent) : ''));
+    setNewProductDiscountFlat(p.discount_flat != null ? String(p.discount_flat) : (item.discount_flat != null ? String(item.discount_flat) : ''));
+    setNewProductOfferPrice(p.offer_price != null ? String(p.offer_price) : (item.offer_price != null ? String(item.offer_price) : ''));
+    setNewProductIsGstApplicable(Boolean(p.is_gst_applicable));
+    setNewProductGradeId(p.grade_id || item.grade_id || '');
+    setNewProductIsCustomCategory(!configuredCategories.includes(p.category || '') && Boolean(p.category));
+
+    setShowProductCreateForm(true);
+  };
+
   const handleCreateAndAddProduct = async (retries = 3, isAutoGenerated = false, asTemp = false) => {
     if (!window.electronAPI || !tenantId || !newProductName.trim()) return;
     const purchasePrice = Number(newProductPurchasePrice) || 0;
@@ -2284,6 +2381,82 @@ export function BillingPage() {
     const weightUoms = ['Kgs', 'Grams', 'Mtrs', 'Ltrs', 'kg', 'kgs', 'gram', 'grams', 'mtr', 'mtrs', 'ltr', 'ltrs'];
     const isWeightBilling = weightUoms.includes((newProductUom || '').toLowerCase());
     const billingType: 'WEIGHT' | 'PIECE' = isWeightBilling ? 'WEIGHT' : 'PIECE';
+
+    if (editingProductId) {
+      const selectedGrade = newProductGradeId ? newProductGrades.find(g => g.grade_id === newProductGradeId) : null;
+      const rawPcs = Number(newProductPcs) || 0;
+      const domainAttrsObj: Record<string, any> = {};
+      if (isWeightBilling && rawPcs > 0) {
+        domainAttrsObj.pcs_per_kg = qty > 0 ? rawPcs / qty : rawPcs;
+        domainAttrsObj.pcs_stock = rawPcs;
+        domainAttrsObj.pcs = rawPcs;
+      }
+
+      if (window.electronAPI) {
+        const res = await window.electronAPI.dbUpdateProduct({
+          product_id: editingProductId,
+          tenant_id: tenantId,
+          name: newProductName.trim(),
+          sku_barcode: newProductBarcode || null,
+          item_code: newProductItemCode ? newProductItemCode.toUpperCase() : null,
+          category: newProductCategory,
+          brand_manufacturer: newProductBrand,
+          uom: newProductUom,
+          purchase_price: purchasePrice,
+          base_price: basePrice,
+          current_stock: qty,
+          reorder_level: Number(newProductReorderLevel) || 0,
+          is_gst_applicable: isGstProduct ? 1 : (newProductIsGstApplicable ? 1 : 0),
+          tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
+          hsn_sac_code: isGstProduct ? newProductHsn : (newProductIsGstApplicable ? newProductHsn : null),
+          discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+          discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+          offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+          billing_type: billingType,
+          domain_attributes: isWeightBilling && rawPcs > 0 ? JSON.stringify(domainAttrsObj) : '{}',
+          grade_id: selectedGrade?.grade_id || null,
+          pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
+          is_deleted: 0,
+          sync_status: 'PENDING',
+        });
+        if (!res.success) {
+          setHardwareError('Failed to update product: ' + (res.error || ''));
+          return;
+        }
+      }
+
+      useCartStore.setState((state) => ({
+        items: state.items.map((i) => {
+          if (i.product_id === editingProductId) {
+            return {
+              ...i,
+              name: newProductName.trim(),
+              base_price: basePrice,
+              purchase_price: purchasePrice,
+              tax_rate_percent: isGstProduct ? newProductTaxRate : (newProductIsGstApplicable ? newProductTaxRate : 0),
+              uom: newProductUom,
+              billing_type: billingType,
+              pieces_per_kg: isWeightBilling && rawPcs > 0 ? (qty > 0 ? rawPcs / qty : rawPcs) : i.pieces_per_kg,
+              sku_barcode: newProductBarcode || undefined,
+              brand_manufacturer: newProductBrand || undefined,
+              discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+              discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+              offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+              catalog_discount_percent: newProductDiscountPercent ? Number(newProductDiscountPercent) : null,
+              catalog_discount_flat: newProductDiscountFlat ? Number(newProductDiscountFlat) : null,
+              catalog_offer_price: newProductOfferPrice ? Number(newProductOfferPrice) : null,
+              grade_id: selectedGrade?.grade_id || null,
+              pricing_mode: selectedGrade ? 'GRADE_RATE' : 'FIXED_PRICE',
+              grade_rate: selectedGrade ? Number(selectedGrade.rate) : i.grade_rate,
+            };
+          }
+          return i;
+        }),
+      }));
+      syncActiveSnapshot();
+      resetProductForm();
+      return;
+    }
 
     // TEMP item — billing only: no product row, no barcode, no stock/inventory changes
     if (asTemp) {
@@ -3663,14 +3836,11 @@ export function BillingPage() {
           }).catch(() => {});
         }
 
-        const wasScrapPrinted = !saveOnly && scrapPrintSuccess;
         setCheckoutSuccess(saveOnly || !scrapPrintSuccess ? 'saved' : 'printed');
         setTimeout(async () => {
           const tabsCount = useTabStore.getState().tabs.length;
           const currentActiveId = activeTabId;
-          if (wasScrapPrinted) {
-            setIsScrapMode(false);
-          }
+          setIsScrapMode(false);
           if (tabsCount > 1) {
             closeTab(currentActiveId);
           } else {
@@ -3680,12 +3850,8 @@ export function BillingPage() {
             syncActiveSnapshot();
             await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
             const tab = getActiveTab();
-            if (wasScrapPrinted) {
-              if (tab?.reservedInvoiceNumber) {
-                updateActiveTab({ title: tab.reservedInvoiceNumber });
-              }
-            } else if (tab?.reservedScrapInvoiceNumber) {
-              updateActiveTab({ title: tab.reservedScrapInvoiceNumber });
+            if (tab?.reservedInvoiceNumber) {
+              updateActiveTab({ title: tab.reservedInvoiceNumber });
             }
           }
           setCheckoutSuccess(false); // scrap mode reset
@@ -3716,6 +3882,13 @@ export function BillingPage() {
         }
         pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
       });
+
+      if (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode) {
+        if (!(customerName || '').trim() || !(customerPhone || '').trim() || !(customerAddress || '').trim()) {
+          setHardwareError('Customer Name, Mobile Phone, and Address are required for GST Tax Invoices under GST rules.');
+          return;
+        }
+      }
 
       if (paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)) {
         if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
@@ -3968,11 +4141,15 @@ export function BillingPage() {
       // ─────────────────────────────────────────────────────────────────────────
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName !== false ? (shopNameState || shopName || 'My Shop') : '',
-        shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-        shopState: billSettings.showShopState !== false ? (state.shopState || undefined) : undefined,
-        shopAddress: billSettings.showShopAddress !== false ? (shopAddress || undefined) : undefined,
-        shopPhone: billSettings.showPhone !== false ? (shopPhone || undefined) : undefined,
+        shopName: (invoiceType === 'GST' || billSettings.showShopName !== false) ? (shopNameState || shopName || 'My Shop') : '',
+        shopGstin: (invoiceType === 'GST' || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
+        shopState: (invoiceType === 'GST' || billSettings.showShopState !== false) ? (state.shopState || undefined) : undefined,
+        shopAddress: (invoiceType === 'GST' || billSettings.showShopAddress !== false) ? (shopAddress || undefined) : undefined,
+        shopPhone: (invoiceType === 'GST' || billSettings.showPhone !== false) ? (shopPhone || undefined) : undefined,
+        bankName: bankNameState || undefined,
+        bankAccount: bankAccountState || undefined,
+        bankIfsc: bankIfscState || undefined,
+        bankBranch: bankBranchState || undefined,
         upiId: upiId || undefined,
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -4026,6 +4203,15 @@ export function BillingPage() {
         customerPhone: customerPhone || undefined,
         customerAddress: customerAddress || undefined,
         customerGstin: customerGstin?.trim() || undefined,
+        transporterName: activeTab?.transporterName || undefined,
+        vehicleNumber: activeTab?.vehicleNumber || undefined,
+        transporterDocNo: activeTab?.transporterDocNo || undefined,
+        transporterDocDate: activeTab?.transporterDocDate || undefined,
+        ewayBillNo: activeTab?.ewayBillNo || undefined,
+        ewayBillDate: activeTab?.ewayBillDate || undefined,
+        shippingName: activeTab?.shippingName || undefined,
+        shippingAddress: activeTab?.shippingAddress || undefined,
+        shippingGstin: activeTab?.shippingGstin || undefined,
         customerState: customerState || undefined,
         billSettings,
         isB2B,
@@ -4194,7 +4380,7 @@ export function BillingPage() {
             }
           }
           if (!isPaymentPending || openCashDrawerOnPending) {
-            await window.electronAPI.openCashDrawer(tenantId || 'global');
+            window.electronAPI.openCashDrawer(tenantId || 'global').catch(() => {});
           }
         } catch (printErr: any) {
           printSuccess = false;
@@ -4219,6 +4405,9 @@ export function BillingPage() {
       setTimeout(async () => {
         const tabsCount = useTabStore.getState().tabs.length;
         const currentActiveId = activeTabId;
+        if (invoiceType === 'GST') {
+          setInvoiceType('BILL_OF_SUPPLY');
+        }
         if (tabsCount > 1) {
           closeTab(currentActiveId);
         } else {
@@ -4230,8 +4419,7 @@ export function BillingPage() {
           await reserveInvoiceNumberForTab();
           const tab = getActiveTab();
           if (tab?.reservedInvoiceNumber) {
-            const titlePrefix = (invoiceType === 'GST' && !enableThreeInvoiceSeries) ? 'GST-' : '';
-            updateActiveTab({ title: `${titlePrefix}${tab.reservedInvoiceNumber}` });
+            updateActiveTab({ title: tab.reservedInvoiceNumber });
           }
         }
         setCheckoutSuccess(false); // normal mode reset
@@ -4981,6 +5169,22 @@ export function BillingPage() {
               </span>
             )}
           </button>
+          <button
+            onClick={() => setShowTransportModal(true)}
+            className={clsx(
+              "flex items-center gap-1.5 px-3 py-2 rounded-xl transition-all duration-200 active:scale-95 font-bold text-sm cursor-pointer border",
+              (activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo)
+                ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 shadow-xs"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted border-transparent"
+            )}
+            title="Transporter & E-Way Bill Details"
+          >
+            <Truck className={clsx("w-4 h-4", (activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo) ? "text-emerald-500" : "text-primary")} />
+            <span>Transport</span>
+            {(activeTab?.transporterName || activeTab?.vehicleNumber || activeTab?.ewayBillNo) && (
+              <span className="inline-flex items-center justify-center min-w-[8px] h-2 w-2 rounded-full bg-emerald-500" />
+            )}
+          </button>
           {enableScrap && (!featureFlags || featureFlags.scrap) && (
             <button
               onClick={() => {
@@ -5498,7 +5702,7 @@ export function BillingPage() {
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
                   ref={customerNameInputRef}
-                  placeholder="Customer Name [F4]"
+                  placeholder={invoiceType === 'GST' ? "Customer Name * [F4]" : "Customer Name [F4]"}
                   value={customerName}
                   onFocus={() => {
                     if (!skipCustomerDropdownOnFocusRef.current) {
@@ -5517,6 +5721,8 @@ export function BillingPage() {
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
                       ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
+                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'
                   )}
                 />
@@ -5565,7 +5771,7 @@ export function BillingPage() {
                 <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
                   ref={customerPhoneInputRef}
-                  placeholder="Phone Number"
+                  placeholder={invoiceType === 'GST' ? "Phone Number *" : "Phone Number"}
                   value={customerPhone}
                   onFocus={() => {
                     if (!skipCustomerDropdownOnFocusRef.current) {
@@ -5584,6 +5790,8 @@ export function BillingPage() {
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
                       ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
+                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'
                   )}
                 />
@@ -5644,11 +5852,16 @@ export function BillingPage() {
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                 <input
                   ref={customerAddressInputRef}
-                  placeholder="Customer Address"
+                  placeholder={invoiceType === 'GST' ? "Customer Address *" : "Customer Address"}
                   value={customerAddress}
                   onChange={e => updateActiveTab({ customerAddress: e.target.value })}
                   onKeyDown={handleCustomerAddressKeyDown}
-                  className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
+                  className={clsx(
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
+                      ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
+                      : 'border-border focus:ring-primary/20 focus:border-primary'
+                  )}
                 />
               </div>
               {pricingTiers.length > 0 && (
@@ -5853,9 +6066,14 @@ export function BillingPage() {
                         />
                       </div>
                       <div className="font-black text-sm text-violet-600 dark:text-violet-400 shrink-0 min-w-[65px] text-right">{formatCurrency(serviceAmount)}</div>
-                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
-                        <Trash className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleEditProduct(item)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Edit Item">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 }
@@ -5938,9 +6156,14 @@ export function BillingPage() {
                           <div className="text-[9px] text-muted-foreground/50">Sold: {item.originalQuantity}</div>
                         )}
                       </div>
-                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
-                        <Trash className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleEditProduct(item)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Edit Item">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 }
@@ -6128,9 +6351,14 @@ export function BillingPage() {
                         )}
                       </div>
 
-                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
-                        <Trash className="w-3.5 h-3.5" />
-                      </button>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => handleEditProduct(item)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Edit Item">
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                          <Trash className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
                   );
                 }
@@ -6476,9 +6704,14 @@ export function BillingPage() {
                       )}
                     </div>
 
-                    <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
-                      <Trash className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button onClick={() => handleEditProduct(item)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Edit Product">
+                        <Pencil className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => removeItem(item.product_id)} className="p-1 rounded-lg text-muted-foreground/30 hover:text-destructive hover:bg-destructive/10 transition-colors cursor-pointer shrink-0 opacity-0 group-hover:opacity-100" title="Remove Item">
+                        <Trash className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 );
               })
@@ -7854,7 +8087,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                   <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
                     <Package className="w-4 h-4" />
                   </div>
-                  <span className="text-xs font-black text-primary uppercase tracking-wider">New Product</span>
+                  <span className="text-xs font-black text-primary uppercase tracking-wider">{editingProductId ? 'Edit Product' : 'New Product'}</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <button type="button" onClick={() => {
@@ -8475,7 +8708,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 <button type="button" data-enter-submit onClick={async () => { await handleCreateAndAddProduct(); }} disabled={!newProductName.trim()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm">
                   <Save className="w-3.5 h-3.5" />
-                  Add to Inventory
+                  {editingProductId ? 'Update Product' : 'Add to Inventory'}
                 </button>
                 <button type="button" onClick={() => handleCreateAndAddProduct(3, false, true)} disabled={!newProductName.trim()}
                   className="flex items-center gap-1.5 px-4 py-2 bg-violet-500/15 hover:bg-violet-500/25 disabled:opacity-50 text-violet-600 dark:text-violet-400 border border-violet-500/40 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-sm"
@@ -8692,6 +8925,84 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
             </div>
           </div>
         </>
+      )}
+
+      {showTransportModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+            <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary">
+                  <Truck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-foreground">Transporter & E-Way Bill Details</h3>
+                  <p className="text-xs text-muted-foreground">Add transport information for GST Boxed invoices</p>
+                </div>
+              </div>
+              <button onClick={() => setShowTransportModal(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 max-h-[75vh] overflow-y-auto">
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-primary uppercase tracking-wider block border-b border-border/60 pb-1">Transporter Information</span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Name</label>
+                    <input type="text" value={activeTab?.transporterName || ''} onChange={(e) => updateActiveTab({ transporterName: e.target.value })} placeholder="e.g. Sanjay Transportation" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Vehicle Number</label>
+                    <input type="text" value={activeTab?.vehicleNumber || ''} onChange={(e) => updateActiveTab({ vehicleNumber: e.target.value.toUpperCase() })} placeholder="e.g. KL-07-AB-1234" className="w-full text-xs font-mono font-medium uppercase bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Doc / LR No.</label>
+                    <input type="text" value={activeTab?.transporterDocNo || ''} onChange={(e) => updateActiveTab({ transporterDocNo: e.target.value })} placeholder="e.g. DOC12345" className="w-full text-xs font-mono font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Transporter Doc Date</label>
+                    <input type="date" value={activeTab?.transporterDocDate || ''} onChange={(e) => updateActiveTab({ transporterDocDate: e.target.value })} className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">E-Way Bill Number</label>
+                    <input type="text" value={activeTab?.ewayBillNo || ''} onChange={(e) => updateActiveTab({ ewayBillNo: e.target.value })} placeholder="e.g. 101019999999" className="w-full text-xs font-mono font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">E-Way Bill Date</label>
+                    <input type="date" value={activeTab?.ewayBillDate || ''} onChange={(e) => updateActiveTab({ ewayBillDate: e.target.value })} className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3 pt-2">
+                <span className="text-xs font-bold text-primary uppercase tracking-wider block border-b border-border/60 pb-1">Separate Shipping Details (Optional)</span>
+                <div className="space-y-2.5">
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Shipping Recipient Name</label>
+                    <input type="text" value={activeTab?.shippingName || ''} onChange={(e) => updateActiveTab({ shippingName: e.target.value })} placeholder="Same as customer name if left blank" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-muted-foreground mb-1 block">Shipping Address</label>
+                    <input type="text" value={activeTab?.shippingAddress || ''} onChange={(e) => updateActiveTab({ shippingAddress: e.target.value })} placeholder="Full delivery address" className="w-full text-xs font-medium bg-background border border-border rounded-xl px-3 py-2 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+              <button type="button" onClick={() => { updateActiveTab({ transporterName: '', vehicleNumber: '', transporterDocNo: '', transporterDocDate: '', ewayBillNo: '', ewayBillDate: '', shippingName: '', shippingAddress: '', shippingGstin: '' }); setShowTransportModal(false); }} className="px-3 py-1.5 text-xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">Clear All</button>
+              <button type="button" onClick={() => setShowTransportModal(false)} className="px-4 py-2 text-xs font-bold bg-primary text-primary-foreground rounded-xl shadow-xs hover:bg-primary/90 cursor-pointer">Save & Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

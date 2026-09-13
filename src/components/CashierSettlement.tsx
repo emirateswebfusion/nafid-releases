@@ -210,12 +210,27 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const rawNet = getRawNet(inv);
     const net = rawNet < 0 ? rawNet + plusVal : Math.max(0, rawNet - rd);
 
+    let existingSplit: any = null;
+    if (inv.split_details) {
+      try {
+        existingSplit = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+      } catch {}
+    }
+
     setSplitModalInvoice(inv);
     setSplitModalNet(net);
-    setSplitCash(net);
-    setSplitCard('');
-    setSplitUpi('');
-    setSplitBank('');
+
+    if (existingSplit && (Number(existingSplit.cash) || Number(existingSplit.card) || Number(existingSplit.upi) || Number(existingSplit.bank_transfer || existingSplit.bank))) {
+      setSplitCash(Number(existingSplit.cash) || '');
+      setSplitCard(Number(existingSplit.card) || '');
+      setSplitUpi(Number(existingSplit.upi) || '');
+      setSplitBank(Number(existingSplit.bank_transfer || existingSplit.bank) || '');
+    } else {
+      setSplitCash(net);
+      setSplitCard('');
+      setSplitUpi('');
+      setSplitBank('');
+    }
   };
 
   // Invoice details preview modal states
@@ -2786,6 +2801,36 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     <BookOpen className="w-3.5 h-3.5 text-amber-500" />
                   )}
                 </div>
+                {(() => {
+                  if (selectedInvoice.payment_method !== 'SPLIT') return null;
+                  let sd: any = null;
+                  if (selectedInvoice.split_details) {
+                    try { sd = typeof selectedInvoice.split_details === 'string' ? JSON.parse(selectedInvoice.split_details) : selectedInvoice.split_details; } catch {}
+                  }
+                  if (!sd) return null;
+                  const splitItems = [
+                    { label: 'Cash', value: Number(sd.cash) || 0, color: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' },
+                    { label: 'Card', value: Number(sd.card) || 0, color: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20' },
+                    { label: 'UPI', value: Number(sd.upi) || 0, color: 'bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20' },
+                    { label: 'Credit', value: Number(sd.credit) || 0, color: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20' },
+                    { label: 'Bank', value: Number(sd.bank_transfer || sd.bank) || 0, color: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20' },
+                  ].filter(i => i.value > 0);
+
+                  if (splitItems.length === 0) return null;
+
+                  return (
+                    <div className="pt-1.5 space-y-1">
+                      <div className="text-[9.5px] font-black uppercase tracking-wider text-muted-foreground">Split Breakdown</div>
+                      <div className="flex flex-wrap gap-1">
+                        {splitItems.map(item => (
+                          <span key={item.label} className={clsx('px-1.5 py-0.5 rounded border text-[10px] font-extrabold', item.color)}>
+                            {item.label}: {formatCurrency(item.value)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 {(() => {
                   const received = Number(selectedInvoice.received_amount) || 0;
                   const balance = Number(selectedInvoice.balance_amount) || 0;

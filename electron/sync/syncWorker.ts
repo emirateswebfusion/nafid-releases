@@ -1375,7 +1375,11 @@ const LOCAL_DEVICE_SETTING_KEYS = [
   'a4_printer_config',
   'scale_config',
   'printer_config',
-  'network_sync_config'
+  'network_sync_config',
+  'auto_print_barcode',
+  'print_format',
+  'label_code_type',
+  'label_show_shop_name'
 ];
 
 // ── Settings Sync (Edge → Cloud / LAN) ─────────────────────────────────────────────
@@ -2788,7 +2792,6 @@ async function pullSettings(token: string, tenantId: string): Promise<boolean> {
     'upi_id', 'show_upi_qr', 'show_product_offers',
     'enable_scrap', 'gst_profit_percentage', 'loyalty_config',
     'price_coding',
-    'print_format', 'label_code_type',
     'three_invoice_series',
     'isDomainConfirmed',
   ];

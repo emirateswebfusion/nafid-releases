@@ -4281,7 +4281,11 @@ const LOCAL_DEVICE_SETTING_KEYS = [
   'a4_printer_config',
   'scale_config',
   'printer_config',
-  'network_sync_config'
+  'network_sync_config',
+  'auto_print_barcode',
+  'print_format',
+  'label_code_type',
+  'label_show_shop_name'
 ];
 
 ipcMain.removeHandler('settings:set');
