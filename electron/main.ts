@@ -415,6 +415,13 @@ app.whenReady().then(async () => {
       _db.prepare("UPDATE invoices SET subtotal = 0 WHERE sync_status = 'PENDING' AND (subtotal IS NULL OR subtotal < 0)").run();
       // Self-heal: fix any PENDING invoices with missing/null received_amount
       _db.prepare("UPDATE invoices SET received_amount = 0 WHERE sync_status = 'PENDING' AND (received_amount IS NULL OR received_amount < 0)").run();
+      // Self-heal: ensure grand_total reflects net total after discounts for any invoices where grand_total was stored as gross/subtotal
+      _db.prepare(`
+        UPDATE invoices 
+        SET grand_total = MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0))
+        WHERE (COALESCE(discount_total, 0) > 0 OR COALESCE(points_redeemed_discount, 0) > 0 OR COALESCE(scrap_deduction, 0) > 0 OR COALESCE(return_deduction, 0) > 0)
+          AND grand_total > (COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0) + 0.01)
+      `).run();
       
       const staleBills = _db.prepare(
         "SELECT invoice_id, tenant_id FROM invoices WHERE invoice_type = 'HOLD' AND is_held = 1 AND held_until <= datetime('now', 'localtime')"
@@ -2847,7 +2854,9 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
 
     let query = `
       SELECT 
-        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.grand_total ELSE 0 END), 0) as totalSales,
+        COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN 
+          MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+        ELSE 0 END), 0) as totalSales,
         COUNT(CASE WHEN i.converted_to_invoice_id IS NULL THEN 1 END) as totalInvoices,
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.tax_total ELSE 0 END), 0) as totalTax,
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.discount_total ELSE 0 END), 0) as totalDiscount
@@ -2913,7 +2922,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const today = new Date();
     const dateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
     const row = db.prepare(`
-      SELECT COALESCE(SUM(grand_total), 0) as totalSales, COUNT(*) as invoiceCount
+      SELECT COALESCE(SUM(MIN(grand_total, MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
       WHERE tenant_id = ? 
         AND created_at >= ? 

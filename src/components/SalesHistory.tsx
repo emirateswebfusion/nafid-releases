@@ -71,11 +71,27 @@ function formatGroupDate(dateStr?: string) {
   return `${dd}/${mm}/${yyyy} ${dayName}`;
 }
 
+function getInvoiceNetTotal(inv: any): number {
+  if (!inv) return 0;
+  const sub = Number(inv.subtotal) || 0;
+  const tax = Number(inv.tax_total) || 0;
+  const disc = Number(inv.discount_total) || 0;
+  const pts = Number(inv.points_redeemed_discount) || 0;
+  const scrap = Number(inv.scrap_deduction) || 0;
+  const ret = Number(inv.return_deduction) || 0;
+  const computedNet = Math.max(0, sub + tax - disc - pts - scrap - ret);
+  const gt = Number(inv.grand_total) || 0;
+  if (gt > 0 && gt <= computedNet + 0.01) {
+    return gt;
+  }
+  return computedNet;
+}
+
 function groupByDay(invoices: any[]) {
   const map = new Map<string, number>();
   for (const inv of invoices) {
     const day = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
-    map.set(day, (map.get(day) || 0) + (inv.grand_total || 0));
+    map.set(day, (map.get(day) || 0) + getInvoiceNetTotal(inv));
   }
   return Array.from(map, ([date, sales]) => ({ date, sales }));
 }
@@ -315,10 +331,12 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
             );
           }
 
+          const netAmount = getInvoiceNetTotal(inv);
+
           return (
             <>
               <div className={clsx('text-sm font-black', isSelected ? 'text-primary' : 'text-foreground')}>
-                {formatCurrency(inv.grand_total)}
+                {formatCurrency(netAmount)}
               </div>
               {Number(inv.discount_total) > 0 && (
                 <div className="text-[10px] text-red-500 font-semibold mt-0.5">
@@ -682,13 +700,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const summary = dbSummary || {
-    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.grand_total || 0), 0),
+    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + getInvoiceNetTotal(i), 0),
     totalInvoices: invoices.filter(i => !i.converted_to_invoice_id).length,
     totalTax: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
     totalDiscount: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
     avgOrder: (() => {
       const live = invoices.filter(i => !i.converted_to_invoice_id);
-      return live.length > 0 ? live.reduce((s, i) => s + (i.grand_total || 0), 0) / live.length : 0;
+      return live.length > 0 ? live.reduce((s, i) => s + getInvoiceNetTotal(i), 0) / live.length : 0;
     })(),
   };
 
