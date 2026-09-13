@@ -64,6 +64,7 @@ export interface IElectronAPI {
   exportA4Pdf?: (tenant_id: string, html: string, filename: string) => Promise<{ success: boolean; error?: string }>;
   onDeepLink: (callback: (token: string) => void) => void;
   settingsGet: (payload: { tenant_id: string; key: string }) => Promise<any>;
+  settingsGetAll?: (payload: { tenant_id: string }) => Promise<Record<string, any>>;
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => Promise<{ success: boolean; error?: string }>;
   appGetLocalIp?: () => Promise<string>;
   printReceipt: (tenant_id: string, data: string) => Promise<{ success: boolean; error?: string; skipped?: boolean }>;

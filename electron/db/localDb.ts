@@ -150,7 +150,8 @@ export function initDb() {
         balance REAL NOT NULL DEFAULT 0,
         gst_balance REAL NOT NULL DEFAULT 0,
         estimate_balance REAL NOT NULL DEFAULT 0,
-        balance_type TEXT DEFAULT 'RECEIVABLE',
+        pricing_tier_id TEXT,
+        credit_limit REAL NOT NULL DEFAULT 0,
         notes TEXT,
         last_transaction_date DATETIME,
         is_deleted INTEGER DEFAULT 0,
@@ -593,7 +594,7 @@ export function initDb() {
         'tenant_id', 'key', 'value', 'sync_status', 'updated_at'
     ],
     parties: [
-        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id'
+        'party_id', 'tenant_id', 'name', 'phone', 'address', 'gstin', 'balance', 'gst_balance', 'estimate_balance', 'balance_type', 'notes', 'last_transaction_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at', 'pricing_tier_id', 'credit_limit'
     ],
     party_ledger: [
         'ledger_id', 'party_id', 'tenant_id', 'transaction_date', 'description', 'credit_amount', 'debit_amount', 'running_balance', 'balance_type', 'payment_method', 'reference_number', 'created_by', 'created_by_name', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
@@ -1201,10 +1202,14 @@ export function initDb() {
       console.log('[DB Migration] Adding estimate_balance to parties...');
       db.exec("ALTER TABLE parties ADD COLUMN estimate_balance REAL NOT NULL DEFAULT 0");
     }
+    if (!partyCols.includes('credit_limit')) {
+      console.log('[DB Migration] Adding credit_limit to parties...');
+      db.exec("ALTER TABLE parties ADD COLUMN credit_limit REAL NOT NULL DEFAULT 0");
+    }
     // Backfill: existing balances are treated as GST balance (legacy behavior)
     db.exec("UPDATE parties SET gst_balance = balance WHERE gst_balance = 0 AND balance != 0");
   } catch (e: any) {
-    console.warn('[DB Migration] Failed to add balance columns to parties:', e.message);
+    console.warn('[DB Migration] Failed to add balance/credit_limit columns to parties:', e.message);
   }
 
   // Migration: Add balance_type & payment_method columns to party_ledger

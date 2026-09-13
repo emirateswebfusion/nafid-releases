@@ -2669,12 +2669,14 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   if (!selectedInvoice || !window.electronAPI) return;
                   try {
                     const { tenantId } = useAuthStore.getState();
-                    const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+                    const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
                       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
                       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
                       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
                       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
                       window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+                      window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
                     ]);
                     const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
                     const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
@@ -2688,15 +2690,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     const useA4 = isGstOrB2B || isA4 || isHalfA4;
                     const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
                     const receiptData: ReceiptData = {
-                      shopName: billSettings.showShopName ? (useAuthStore.getState().shopName || 'My Shop') : '',
-                      shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-                      shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-                      shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+                      shopName: billSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+                      shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+                      shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
+                      shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+                      shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
                       upiId: upi || undefined,
                       showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
                       showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
                       invoiceNumber: selectedInvoice.invoice_number,
                       date: formatBillDateTime(selectedInvoice.created_at),
+                      billerName: billSettings.showBillerName !== false ? (selectedInvoice.biller_name || undefined) : undefined,
                       items: invoiceItems.map(item => ({
                         name: item.name,
                         quantity: Number(item.quantity) || 0,
@@ -2721,12 +2725,16 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                       isReprint: true,
                       invoiceType,
                       customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
+                      customerPhone: billSettings.showCustomerPhone !== false ? (selectedInvoice.customer_phone || undefined) : undefined,
+                      customerAddress: billSettings.showCustomerAddress !== false ? (selectedInvoice.customer_address || undefined) : undefined,
                       customerGstin: selectedInvoice.customer_gstin?.trim() || undefined,
+                      customerState: billSettings.showCustomerState !== false ? (selectedInvoice.customer_state || undefined) : undefined,
                       billSettings,
                       isB2B,
+                      a5Orientation: printFmt.a5Orientation || 'horizontal',
                     };
                     if (useA4) {
-                      const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
+                      const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
                       const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
                       const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
                       if (!printResult.success && (printResult as any).useDefaultDialog) {

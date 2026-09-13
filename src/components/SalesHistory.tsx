@@ -773,17 +773,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const combosList = Array.isArray(allCombos) ? allCombos : [];
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
-        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-        shopState: billSettings.showShopState ? (shopStateVal || undefined) : undefined,
-        shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-        shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+        shopName: billSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+        shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+        shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
-        billerName: selectedInvoice.biller_name,
+        billerName: billSettings.showBillerName !== false ? (selectedInvoice.biller_name || undefined) : undefined,
         items: items.map(item => {
           let comboItemsParsed: any[] | undefined = undefined;
           if (item.combo_details) {
@@ -833,14 +833,20 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         returnInvoiceNumber: selectedInvoice.return_invoice_number || undefined,
         isReprint: true,
         invoiceType,
-        customerName: billSettings.showCustomerName ? (selectedInvoice.customer_name || undefined) : undefined,
+        paymentMethod: selectedInvoice.payment_method || undefined,
+        receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
+        balanceAmount: selectedInvoice.balance_amount != null ? Number(selectedInvoice.balance_amount) : undefined,
+        customerName: billSettings.showCustomerName !== false ? (selectedInvoice.customer_name || undefined) : undefined,
+        customerPhone: billSettings.showCustomerPhone !== false ? (selectedInvoice.customer_phone || undefined) : undefined,
+        customerAddress: billSettings.showCustomerAddress !== false ? (selectedInvoice.customer_address || undefined) : undefined,
         customerGstin: selectedInvoice.customer_gstin?.trim() || undefined,
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
+        customerState: billSettings.showCustomerState !== false ? (selectedInvoice.customer_state || undefined) : undefined,
       };
       if (useA4) {
-        const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
+        const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
         const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
         const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
         if (!printResult.success) {

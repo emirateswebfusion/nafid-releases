@@ -29,6 +29,7 @@ interface Party {
   last_transaction_date: string;
   created_at: string;
   pricing_tier_id?: string | null;
+  credit_limit?: number;
 }
 
 interface LedgerEntry {
@@ -101,7 +102,13 @@ const PaymentMethodIcon = ({ method }: { method: string }) => {
   return map[method] ?? <MoreHorizontal className="w-3.5 h-3.5" />;
 };
 
-export function PartyManager({ onClose }: { onClose: () => void }) {
+export function PartyManager({
+  onClose,
+  initialPartyIdOrQuery,
+}: {
+  onClose: () => void;
+  initialPartyIdOrQuery?: string;
+}) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role } = useAuthStore();
   const isOwner = role === 'OWNER';
@@ -118,7 +125,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
 
   const [editingParty, setEditingParty] = useState<Party | null>(null);
   const [partyForm, setPartyForm] = useState({
-    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '', pricing_tier_id: ''
+    name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE' as 'RECEIVABLE' | 'PAYABLE', notes: '', pricing_tier_id: '', credit_limit: ''
   });
   const [isSavingParty, setIsSavingParty] = useState(false);
 
@@ -181,8 +188,25 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     }
   };
 
+  useEffect(() => {
+    if (!initialPartyIdOrQuery || parties.length === 0) return;
+    const q = initialPartyIdOrQuery.trim().toLowerCase();
+    const found = parties.find(p =>
+      p.party_id === initialPartyIdOrQuery ||
+      (p.phone && String(p.phone).trim() === initialPartyIdOrQuery.trim()) ||
+      (p.name && p.name.trim().toLowerCase() === q)
+    );
+    if (found) {
+      setSelectedParty(found);
+      setView('ledger');
+      loadLedger(found.party_id);
+    } else {
+      setSearchQuery(initialPartyIdOrQuery);
+    }
+  }, [initialPartyIdOrQuery, parties]);
+
   const resetPartyForm = () => {
-    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '', pricing_tier_id: '' });
+    setPartyForm({ name: '', phone: '', address: '', gstin: '', opening_balance: '', balance_type: 'RECEIVABLE', notes: '', pricing_tier_id: '', credit_limit: '' });
     setEditingParty(null);
   };
 
@@ -190,6 +214,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
     if (!partyForm.name.trim()) { showStatus('Party name is required', 'error'); return; }
     if (!isOwner) { showStatus('Only owners can manage parties', 'error'); return; }
     setIsSavingParty(true);
+    const parsedCreditLimit = Math.max(0, parseFloat(partyForm.credit_limit) || 0);
     try {
       if (editingParty) {
         await window.electronAPI.dbUpdateParty({
@@ -200,6 +225,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           gstin: partyForm.gstin.trim() || null,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
+          credit_limit: parsedCreditLimit,
         });
         showStatus('Party updated successfully', 'success');
       } else {
@@ -214,6 +240,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
           balance_type: partyForm.balance_type,
           notes: partyForm.notes.trim() || null,
           pricing_tier_id: partyForm.pricing_tier_id || null,
+          credit_limit: parsedCreditLimit,
           created_by: userId,
           created_by_name: userName || undefined,
         });
@@ -579,6 +606,17 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                               {pricingTiers.find(t => t.pricing_tier_id === party.pricing_tier_id)?.name || 'Tier'}
                             </span>
                           )}
+                          {party.credit_limit != null && Number(party.credit_limit) > 0 && (
+                            <span className={clsx(
+                              "inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md shrink-0 border",
+                              isReceivable && party.balance >= party.credit_limit
+                                ? "text-red-600 dark:text-red-400 bg-red-500/10 border-red-500/20"
+                                : "text-amber-600 dark:text-amber-400 bg-amber-500/10 dark:bg-amber-500/20 border-amber-500/20"
+                            )}>
+                              <CreditCard className="w-2.5 h-2.5" />
+                              Limit: ₹{Number(party.credit_limit).toLocaleString('en-IN')}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground font-medium">
                           {party.phone && (
@@ -612,6 +650,15 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                         )}>
                           {isReceivable ? 'To Receive' : isPayable ? 'To Pay' : 'Settled'}
                         </span>
+                        {party.credit_limit != null && Number(party.credit_limit) > 0 && isReceivable && (
+                          <div className="mt-0.5 text-[9px]">
+                            {party.balance >= party.credit_limit ? (
+                              <span className="text-red-500 font-bold">Limit Reached</span>
+                            ) : (
+                              <span className="text-muted-foreground font-medium">Avail: ₹{Math.max(0, Number(party.credit_limit) - Number(party.balance)).toLocaleString('en-IN')}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Actions (show on hover) */}
@@ -624,6 +671,7 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                                 name: party.name, phone: party.phone || '', address: party.address || '',
                                 gstin: party.gstin || '', opening_balance: '', balance_type: party.balance_type, notes: party.notes || '',
                                 pricing_tier_id: party.pricing_tier_id || '',
+                                credit_limit: party.credit_limit != null && Number(party.credit_limit) > 0 ? String(party.credit_limit) : '',
                               });
                               setView('party_form');
                             }}
@@ -724,29 +772,52 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
               </div>
-              <div className="mt-4 pt-4 border-t border-border/60">
-                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-violet-500" />
-                  Default Pricing Tier
-                </label>
-                {pricingTiers.length > 0 ? (
-                  <Select
-                    value={partyForm.pricing_tier_id}
-                    onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
-                    options={[
-                      { value: '', label: 'Default (MRP)' },
-                      ...pricingTiers
-                        .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
-                        .map(t => ({ value: t.pricing_tier_id, label: t.name })),
-                    ]}
-                    triggerClassName="rounded-xl h-[46px] w-full"
-                  />
-                ) : (
-                  <div className="p-3 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground">
-                    No custom pricing tiers configured yet. Standard MRP price will be applied. (Configure tiers in <span className="font-bold text-foreground">Settings &gt; Pricing Tiers</span>).
+              <div className="mt-4 pt-4 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-violet-500" />
+                    Default Pricing Tier
+                  </label>
+                  {pricingTiers.length > 0 ? (
+                    <Select
+                      value={partyForm.pricing_tier_id}
+                      onChange={v => setPartyForm(f => ({ ...f, pricing_tier_id: v }))}
+                      options={[
+                        { value: '', label: 'Default (MRP)' },
+                        ...pricingTiers
+                          .filter(t => (t.is_active === 1 || t.is_active === true || t.is_active === '1') && !t.is_deleted)
+                          .map(t => ({ value: t.pricing_tier_id, label: t.name })),
+                      ]}
+                      triggerClassName="rounded-xl h-[46px] w-full"
+                    />
+                  ) : (
+                    <div className="p-3 bg-muted/40 border border-border rounded-xl text-xs text-muted-foreground">
+                      No custom pricing tiers configured yet. Standard MRP price will be applied. (Configure tiers in <span className="font-bold text-foreground">Settings &gt; Pricing Tiers</span>).
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will automatically apply the selected pricing tier's rates.</p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-amber-500" />
+                    Credit Limit (₹)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-sm pointer-events-none">₹</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00 (No Limit)"
+                      value={partyForm.credit_limit}
+                      onChange={e => setPartyForm(f => ({ ...f, credit_limit: e.target.value }))}
+                      onWheel={e => (e.target as HTMLInputElement).blur()}
+                      className={clsx(fieldCls, 'pl-8 no-spinners')}
+                    />
                   </div>
-                )}
-                <p className="text-[10px] text-muted-foreground mt-1.5">Bills for this party will automatically apply the selected pricing tier's rates.</p>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">Maximum credit allowed. Billing on credit above this limit will be blocked with a toast message.</p>
+                </div>
               </div>
             </section>
             {!editingParty && (
@@ -936,6 +1007,28 @@ export function PartyManager({ onClose }: { onClose: () => void }) {
                   </span>
                 </div>
               </div>
+
+              {/* Credit Limit Card if configured */}
+              {selectedParty.credit_limit != null && Number(selectedParty.credit_limit) > 0 && (
+                <div className="shrink-0 text-right px-4 py-3 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 shadow-sm">
+                  <p className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center justify-end gap-1">
+                    <CreditCard className="w-3 h-3" />
+                    Credit Limit
+                  </p>
+                  <p className="text-lg font-black leading-tight text-foreground mt-0.5">
+                    ₹{Number(selectedParty.credit_limit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </p>
+                  <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 text-[10px] font-bold">
+                    {selectedParty.balance >= selectedParty.credit_limit ? (
+                      <span className="text-red-500 font-extrabold">Limit Reached</span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        Available: <span className="text-emerald-600 dark:text-emerald-400 font-black">₹{Math.max(0, Number(selectedParty.credit_limit) - Math.max(0, Number(selectedParty.balance))).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

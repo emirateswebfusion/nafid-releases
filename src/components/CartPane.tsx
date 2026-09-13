@@ -326,7 +326,9 @@ export function CartPane() {
                              type="number" min="1" step="1"
                              className="w-14 text-center h-7 px-1 text-xs"
                              value={pieces}
-                             onChange={e => handlePcsChange(e.target.value === '' ? 1 : Number(e.target.value))}
+                             onFocus={e => e.target.select()}
+                             onBlur={e => { if (!e.target.value || Number(e.target.value) <= 0) handlePcsChange(1); }}
+                             onChange={e => handlePcsChange(e.target.value === '' ? '' as any : Number(e.target.value))}
                           />
                         </div>
                         <div className="flex items-center gap-1">

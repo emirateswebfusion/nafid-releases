@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
 import type { CartItem, InvoiceType } from './cartStore';
 import { useCartStore } from './cartStore';
+import { getFeatureFlags } from '../featureFlags';
 
 export type PaymentMethod = 'PENDING' | 'CASH' | 'CARD' | 'UPI' | 'CREDIT' | 'SPLIT';
 
@@ -148,6 +149,7 @@ function createDefaultTab(): Tab {
   const isQuotationMode = currentCartState?.isQuotationMode || false;
   const isReturnMode = currentCartState?.isReturnMode || false;
   const isScrapMode = currentCartState?.isScrapMode || false;
+  const isCashSettlementOn = getFeatureFlags().cash_settlement !== false;
   return {
     id,
     title: isQuotationMode ? 'New Quote' : isReturnMode ? 'Return' : isScrapMode ? 'Scrap' : 'New',
@@ -176,7 +178,7 @@ function createDefaultTab(): Tab {
     customerPhone: '',
     customerGstin: '',
     customerAddress: '',
-    paymentMethod: 'PENDING',
+    paymentMethod: isCashSettlementOn ? 'PENDING' : 'CASH',
     splitDetails: { cash: 0, card: 0, upi: 0, bank_transfer: 0 },
     receivedAmount: 0,
     reservedInvoiceNumber: '',

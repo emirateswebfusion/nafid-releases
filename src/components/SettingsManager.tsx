@@ -452,7 +452,27 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     return getSettingsSnapshot() !== initialSnapshot.current;
   }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
 
-  useEffect(() => { loadSettings(); }, []);
+  const updateSnapshotField = (updater: (prevObj: any) => any) => {
+    try {
+      if (initialSnapshot.current) {
+        const snap = JSON.parse(initialSnapshot.current);
+        initialSnapshot.current = JSON.stringify(updater(snap));
+      }
+    } catch {}
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+    loadSettings();
+    // Maximum safety timer: Never let the UI remain stuck on skeleton loader
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, 1500);
+    return () => {
+      isMounted = false;
+      clearTimeout(safetyTimer);
+    };
+  }, []);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -483,383 +503,473 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   }, []);
 
   const loadSettings = async () => {
-    if (!window.electronAPI) return;
-    const { tenantId } = useAuthStore.getState();
-    const pBarcode = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'barcode_printer_config' });
-    const pReceipt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
-    const pA4 = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'a4_printer_config' });
-    const pLegacy = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'printer_config' });
-    const s = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'scale_config' });
-    const pCoding = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'price_coding' });
-    const gstinVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' });
-    const stateVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' });
-    const nameVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' });
-    const addressVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' });
-    const phoneVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' });
-    const upiVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' });
-    const showQrVal = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' });
-    const printFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
-    const labelType = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_code_type' });
-
-    let finalBarcode = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' };
-    if (pBarcode && typeof pBarcode === 'object' && !Array.isArray(pBarcode)) {
-      const cleanBarcode = { ...pBarcode };
-      for (let i = 0; i <= 20; i++) delete cleanBarcode[String(i)];
-      finalBarcode = { ...finalBarcode, ...cleanBarcode };
-    } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
-      const cleanLegacy = { ...pLegacy };
-      for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
-      finalBarcode = { ...finalBarcode, ...cleanLegacy };
+    window.electronAPI?.logError?.('[SettingsManager] loadSettings STARTED');
+    if (!window.electronAPI) {
+      setLoading(false);
+      return;
     }
+    try {
+      const { tenantId } = useAuthStore.getState();
+      const currentTenant = tenantId || 'global';
+      window.electronAPI?.logError?.(`[SettingsManager] tenantId: ${currentTenant}`);
 
-    let finalReceipt = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
-    if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
-      const cleanReceipt = { ...pReceipt };
-      for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
-      finalReceipt = { ...finalReceipt, ...cleanReceipt };
-    } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
-      const cleanLegacy = { ...pLegacy };
-      for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
-      finalReceipt = { ...finalReceipt, ...cleanLegacy };
-    }
-
-    let finalA4 = { deviceName: '' };
-    if (pA4 && typeof pA4 === 'object' && !Array.isArray(pA4)) {
-      const cleanA4 = { ...pA4 };
-      for (let i = 0; i <= 20; i++) delete cleanA4[String(i)];
-      finalA4 = cleanA4;
-    }
-
-    let finalScaleObj = { path: 'COM3', baudRate: 9600 };
-    if (s && typeof s === 'object' && !Array.isArray(s)) finalScaleObj = s;
-
-    let finalCoding = { '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '' };
-    if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) finalCoding = pCoding;
-
-    const finalGstin = typeof gstinVal === 'string' ? gstinVal : '';
-    const finalState = typeof stateVal === 'string' ? stateVal : '';
-    const finalName = typeof nameVal === 'string' ? nameVal : '';
-    const finalAddress = typeof addressVal === 'string' ? addressVal : '';
-    const finalPhone = typeof phoneVal === 'string' ? phoneVal : '';
-    const finalUpi = typeof upiVal === 'string' ? upiVal : '';
-    const finalShowQr = showQrVal !== null && showQrVal !== undefined ? Boolean(showQrVal) : true;
-
-    let finalSyncMode: 'CLOUD' | 'LAN' | 'HYBRID' = 'HYBRID';
-    let finalLanRole: 'PRIMARY' | 'SECONDARY' = 'PRIMARY';
-    let finalLanHostIp = '192.168.1.100';
-    let finalLanPort = 3888;
-    let finalSyncFreq: 'NORMAL' | 'BALANCED' | 'HIGH' = 'NORMAL';
-
-    const netSync = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'network_sync_config' });
-    if (netSync && typeof netSync === 'object') {
-      if (netSync.syncMode) finalSyncMode = netSync.syncMode;
-      if (netSync.lanRole) finalLanRole = netSync.lanRole;
-      if (netSync.lanHostIp) finalLanHostIp = netSync.lanHostIp;
-      if (netSync.lanPort) finalLanPort = Number(netSync.lanPort) || 3888;
-      if (netSync.syncFrequency) finalSyncFreq = netSync.syncFrequency;
-    }
-
-    let finalScrap = false;
-    const scrapEnabled = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'enable_scrap' });
-    if (scrapEnabled !== null && scrapEnabled !== undefined) finalScrap = Boolean(scrapEnabled);
-
-    let finalCashReg = false;
-    const cashReg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_cash_register' });
-    if (cashReg !== null && cashReg !== undefined) finalCashReg = Boolean(cashReg);
-
-    const flags = await loadFeatureFlags(tenantId || 'global');
-    let finalFlags = { ...flags };
-    if (wereFeatureFlagsStored()) {
-      finalScrap = flags.scrap;
-      finalCashReg = flags.cash_register;
-    }
-
-    let finalAutoBarcode = true;
-    const autoBarcode = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'auto_print_barcode' });
-    if (autoBarcode !== null && autoBarcode !== undefined) finalAutoBarcode = Boolean(autoBarcode);
-
-    let finalLoyaltyEnabled = false;
-    let finalLoyaltyEarningRate = 100;
-    let finalLoyaltyRedemptionRate = 1;
-    const loyaltyCfg = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'loyalty_config' });
-    if (loyaltyCfg) {
-      finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled);
-      if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate);
-      if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate);
-    }
-
-    let finalLabelType: CodeType = DEFAULT_CODE_TYPE;
-    if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) finalLabelType = labelType as CodeType;
-
-    let finalLabelShowName = true;
-    const labelShowName = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name' });
-    if (labelShowName !== null && labelShowName !== undefined) finalLabelShowName = Boolean(labelShowName);
-
-    let finalSrdv = 'combined';
-    const srdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view' });
-    if (srdv === 'estimate' || srdv === 'gst' || srdv === 'combined') finalSrdv = srdv;
-
-    let finalInvdv = 'combined';
-    const invdv = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'inventory_default_view' });
-    if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') finalInvdv = invdv;
-
-    let finalTimeFmt: '12h' | '24h' = '12h';
-    const timeFmt = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'time_format' });
-    if (timeFmt === '24h' || timeFmt === '12h') {
-      finalTimeFmt = timeFmt;
-      setAppTimeFormat(timeFmt);
-    } else {
-      setAppTimeFormat('12h');
-    }
-
-    let finalPrintFmt: 'thermal' | 'a4' | 'half-a4' = 'thermal';
-    let finalPrintWidth = 58;
-    let finalThermalStyle: any = 'standard';
-    let finalA4Style: any = 'standard';
-    let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
-    let finalShowOffers = true;
-    let finalOpenCashDrawer = false;
-    let finalReceiptFont = 'courier';
-    let finalBillSettings = { ...DEFAULT_BILL_SETTINGS };
-    let finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS };
-
-    if (printFmt) {
-      if (printFmt.format === 'a4') {
-        finalPrintFmt = 'a4';
-        if (printFmt.style) finalA4Style = printFmt.style;
-      } else if (printFmt.format === 'half-a4') {
-        finalPrintFmt = 'half-a4';
-        if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
-          finalA5Orientation = printFmt.a5Orientation;
+      // 1. Fetch all settings in a single batch query, or parallel fallback
+      let allSettings: Record<string, any> = {};
+      if (typeof window.electronAPI.settingsGetAll === 'function') {
+        try {
+          allSettings = await window.electronAPI.settingsGetAll({ tenant_id: currentTenant }) || {};
+        } catch (err) {
+          console.warn('[SettingsManager] settingsGetAll failed, falling back to parallel fetch', err);
         }
+      }
+
+      // If settingsGetAll returned empty or is not yet available, fetch in parallel (not sequential!)
+      if (Object.keys(allSettings).length === 0) {
+        const keysToFetch = [
+          'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'printer_config',
+          'scale_config', 'price_coding', 'shop_gstin', 'shop_state', 'shop_name', 'shop_address',
+          'shop_phone', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
+          'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
+          'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
+          'time_format', 'gst_profit_percentage', 'feature_flags',
+          'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
+          'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
+        ];
+        const globalOnlyKeys = new Set([
+          'terminal_code', 'invoice_counter_config', 'return_counter',
+          'scrap_invoice_counter', 'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
+        ]);
+
+        const results = await Promise.allSettled(
+          keysToFetch.map(key =>
+            window.electronAPI!.settingsGet({
+              tenant_id: globalOnlyKeys.has(key) ? 'global' : currentTenant,
+              key
+            })
+          )
+        );
+        keysToFetch.forEach((key, idx) => {
+          const res = results[idx];
+          if (res.status === 'fulfilled' && res.value !== undefined) {
+            allSettings[key] = res.value;
+          }
+        });
+      }
+
+      const pBarcode = allSettings['barcode_printer_config'];
+      const pReceipt = allSettings['receipt_printer_config'];
+      const pA4 = allSettings['a4_printer_config'];
+      const pLegacy = allSettings['printer_config'];
+      const s = allSettings['scale_config'];
+      const pCoding = allSettings['price_coding'];
+      const gstinVal = allSettings['shop_gstin'];
+      const stateVal = allSettings['shop_state'];
+      const nameVal = allSettings['shop_name'];
+      const addressVal = allSettings['shop_address'];
+      const phoneVal = allSettings['shop_phone'];
+      const upiVal = allSettings['upi_id'];
+      const showQrVal = allSettings['show_upi_qr'];
+      const printFmt = allSettings['print_format'];
+      const labelType = allSettings['label_code_type'];
+
+      let finalBarcode = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '' };
+      if (pBarcode && typeof pBarcode === 'object' && !Array.isArray(pBarcode)) {
+        const cleanBarcode = { ...pBarcode };
+        for (let i = 0; i <= 20; i++) delete cleanBarcode[String(i)];
+        finalBarcode = { ...finalBarcode, ...cleanBarcode };
+      } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
+        const cleanLegacy = { ...pLegacy };
+        for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
+        finalBarcode = { ...finalBarcode, ...cleanLegacy };
+      }
+
+      let finalReceipt = { type: 'usb', ip: '192.168.1.100', port: 9100, deviceName: '', receiptWidthCm: 5.8 };
+      if (pReceipt && typeof pReceipt === 'object' && !Array.isArray(pReceipt)) {
+        const cleanReceipt = { ...pReceipt };
+        for (let i = 0; i <= 20; i++) delete cleanReceipt[String(i)];
+        finalReceipt = { ...finalReceipt, ...cleanReceipt };
+      } else if (pLegacy && typeof pLegacy === 'object' && !Array.isArray(pLegacy)) {
+        const cleanLegacy = { ...pLegacy };
+        for (let i = 0; i <= 20; i++) delete cleanLegacy[String(i)];
+        finalReceipt = { ...finalReceipt, ...cleanLegacy };
+      }
+
+      let finalA4 = { deviceName: '' };
+      if (pA4 && typeof pA4 === 'object' && !Array.isArray(pA4)) {
+        const cleanA4 = { ...pA4 };
+        for (let i = 0; i <= 20; i++) delete cleanA4[String(i)];
+        finalA4 = cleanA4;
+      }
+
+      let finalScaleObj = { path: 'COM3', baudRate: 9600 };
+      if (s && typeof s === 'object' && !Array.isArray(s)) finalScaleObj = s;
+
+      let finalCoding = { '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': '' };
+      if (pCoding && typeof pCoding === 'object' && !Array.isArray(pCoding)) finalCoding = pCoding;
+
+      const finalGstin = typeof gstinVal === 'string' ? gstinVal : (gstinVal ? String(gstinVal) : '');
+      const finalState = typeof stateVal === 'string' ? stateVal : (stateVal ? String(stateVal) : '');
+      const finalName = typeof nameVal === 'string' ? nameVal : (nameVal ? String(nameVal) : '');
+      const finalAddress = typeof addressVal === 'string' ? addressVal : (addressVal ? String(addressVal) : '');
+      const finalPhone = typeof phoneVal === 'string' ? phoneVal : (phoneVal ? String(phoneVal) : '');
+      const finalUpi = typeof upiVal === 'string' ? upiVal : (upiVal ? String(upiVal) : '');
+      const finalShowQr = showQrVal !== null && showQrVal !== undefined ? Boolean(showQrVal) : true;
+
+      let finalSyncMode: 'CLOUD' | 'LAN' | 'HYBRID' = 'HYBRID';
+      let finalLanRole: 'PRIMARY' | 'SECONDARY' = 'PRIMARY';
+      let finalLanHostIp = '192.168.1.100';
+      let finalLanPort = 3888;
+      let finalSyncFreq: 'NORMAL' | 'BALANCED' | 'HIGH' = 'NORMAL';
+
+      const netSync = allSettings['network_sync_config'];
+      if (netSync && typeof netSync === 'object') {
+        if (netSync.syncMode) finalSyncMode = netSync.syncMode;
+        if (netSync.lanRole) finalLanRole = netSync.lanRole;
+        if (netSync.lanHostIp) finalLanHostIp = netSync.lanHostIp;
+        if (netSync.lanPort) finalLanPort = Number(netSync.lanPort) || 3888;
+        if (netSync.syncFrequency) finalSyncFreq = netSync.syncFrequency;
+      }
+
+      let finalScrap = false;
+      const scrapEnabled = allSettings['enable_scrap'];
+      if (scrapEnabled !== null && scrapEnabled !== undefined) finalScrap = Boolean(scrapEnabled);
+
+      let finalCashReg = false;
+      const cashReg = allSettings['show_cash_register'];
+      if (cashReg !== null && cashReg !== undefined) finalCashReg = Boolean(cashReg);
+
+      let finalFlags: FeatureFlags = { ...DEFAULT_FEATURE_FLAGS };
+      const storedFlags = allSettings['feature_flags'];
+      if (storedFlags && typeof storedFlags === 'object' && !Array.isArray(storedFlags)) {
+        for (const def of FEATURE_LIST) {
+          const v = (storedFlags as any)[def.key];
+          if (typeof v === 'boolean') (finalFlags as any)[def.key] = v;
+        }
+        finalScrap = finalFlags.scrap;
+        finalCashReg = finalFlags.cash_register;
       } else {
-        finalPrintFmt = 'thermal';
-        finalPrintWidth = Number(printFmt.width) || 58;
-        if (printFmt.style) finalThermalStyle = printFmt.style;
+        try {
+          const flags = await loadFeatureFlags(currentTenant);
+          finalFlags = { ...flags };
+          if (wereFeatureFlagsStored()) {
+            finalScrap = flags.scrap;
+            finalCashReg = flags.cash_register;
+          }
+        } catch {}
       }
-      if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
-      if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
-      if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
-      if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
-      if (printFmt.scrapBillSettings) finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings };
-    }
 
-    let termCode = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'terminal_code' });
-    if (typeof termCode === 'string') {
-      termCode = termCode.trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase();
-    }
-    if (!termCode || termCode.length === 0) {
-      const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
-      termCode = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-      await window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: termCode });
-    }
-    const finalTermCode = termCode;
+      let finalAutoBarcode = true;
+      const autoBarcode = allSettings['auto_print_barcode'];
+      if (autoBarcode !== null && autoBarcode !== undefined) finalAutoBarcode = Boolean(autoBarcode);
 
-    let finalInvoiceStart: number | string = 1;
-    const invCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'invoice_counter_config' });
-    if (invCfg && invCfg.counter) finalInvoiceStart = invCfg.counter;
-
-    let finalGstProfit = 30;
-    const gstProfitPct = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'gst_profit_percentage' });
-    if (gstProfitPct !== null && gstProfitPct !== undefined) finalGstProfit = Number(gstProfitPct);
-
-    let finalReturnPrefix = '';
-    let finalReturnStart: number | string = 1;
-    const returnCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'return_counter' });
-    if (returnCfg) {
-      if (returnCfg.prefix) finalReturnPrefix = returnCfg.prefix.replace(/-$/, '');
-      if (returnCfg.counter) finalReturnStart = returnCfg.counter;
-    }
-
-    let finalScrapPrefix = '';
-    let finalScrapStart: number | string = 1;
-    const scrapCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'scrap_invoice_counter' });
-    if (scrapCfg) {
-      if (scrapCfg.prefix) finalScrapPrefix = scrapCfg.prefix.replace(/-$/, '');
-      if (scrapCfg.counter) finalScrapStart = scrapCfg.counter;
-    }
-
-    let finalQuotationPrefix = '';
-    let finalQuotationStart: number | string = 1;
-    const quotationCfg = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'quotation_counter' });
-    if (quotationCfg) {
-      if (quotationCfg.prefix) finalQuotationPrefix = quotationCfg.prefix.replace(/-$/, '');
-      if (quotationCfg.counter) finalQuotationStart = quotationCfg.counter;
-    }
-
-    let finalTripleSeries = false;
-    let finalB2bPrefix = '';
-    let finalB2bStart: number | string = 1;
-    let finalB2cPrefix = '';
-    let finalB2cStart: number | string = 1;
-
-    const tripleSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'three_invoice_series' });
-    if (tripleSeries) {
-      finalTripleSeries = Boolean(tripleSeries.enabled);
-      if (tripleSeries.b2bPrefix) finalB2bPrefix = tripleSeries.b2bPrefix;
-      if (tripleSeries.b2bStartNumber) finalB2bStart = tripleSeries.b2bStartNumber;
-      if (tripleSeries.b2cPrefix) finalB2cPrefix = tripleSeries.b2cPrefix;
-      if (tripleSeries.b2cStartNumber) finalB2cStart = tripleSeries.b2cStartNumber;
-    } else {
-      const dualSeries = await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'dual_invoice_series' });
-      if (dualSeries && dualSeries.enabled) {
-        finalTripleSeries = true;
-        finalB2bPrefix = dualSeries.gstTerminalCode || 'B2B';
-        finalB2bStart = dualSeries.gstStartNumber || 1;
-        finalB2cPrefix = dualSeries.gstTerminalCode || 'B2C';
-        finalB2cStart = dualSeries.gstStartNumber || 1;
+      let finalLoyaltyEnabled = false;
+      let finalLoyaltyEarningRate = 100;
+      let finalLoyaltyRedemptionRate = 1;
+      const loyaltyCfg = allSettings['loyalty_config'];
+      if (loyaltyCfg && typeof loyaltyCfg === 'object') {
+        finalLoyaltyEnabled = Boolean(loyaltyCfg.enabled);
+        if (loyaltyCfg.earningRate) finalLoyaltyEarningRate = Number(loyaltyCfg.earningRate) || 100;
+        if (loyaltyCfg.redemptionRate) finalLoyaltyRedemptionRate = Number(loyaltyCfg.redemptionRate) || 1;
       }
-    }
 
-    try {
-      const pr = await window.electronAPI.getPrinters();
-      const printerList = Array.isArray(pr) ? pr : [];
-      setOsPrinters(printerList);
+      let finalLabelType: CodeType = DEFAULT_CODE_TYPE;
+      if (labelType && CODE_TYPE_CONFIGS[labelType as CodeType]) finalLabelType = labelType as CodeType;
 
-      if (printerList.length > 0) {
-        const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
-        if (defPr && defPr.name) {
-          if (!finalReceipt.deviceName) finalReceipt.deviceName = defPr.name;
-          if (!finalBarcode.deviceName) finalBarcode.deviceName = defPr.name;
+      let finalLabelShowName = true;
+      const labelShowName = allSettings['label_show_shop_name'];
+      if (labelShowName !== null && labelShowName !== undefined) finalLabelShowName = Boolean(labelShowName);
+
+      let finalSrdv = 'combined';
+      const srdv = allSettings['stock_report_default_view'];
+      if (srdv === 'estimate' || srdv === 'gst' || srdv === 'combined') finalSrdv = srdv;
+
+      let finalInvdv = 'combined';
+      const invdv = allSettings['inventory_default_view'];
+      if (invdv === 'estimate' || invdv === 'gst' || invdv === 'combined') finalInvdv = invdv;
+
+      let finalTimeFmt: '12h' | '24h' = '12h';
+      const timeFmt = allSettings['time_format'];
+      if (timeFmt === '24h' || timeFmt === '12h') {
+        finalTimeFmt = timeFmt;
+        setAppTimeFormat(timeFmt);
+      } else {
+        setAppTimeFormat('12h');
+      }
+
+      let finalPrintFmt: 'thermal' | 'a4' | 'half-a4' = 'thermal';
+      let finalPrintWidth = 58;
+      let finalThermalStyle: any = 'standard';
+      let finalA4Style: any = 'standard';
+      let finalA5Orientation: 'horizontal' | 'vertical' = 'horizontal';
+      let finalShowOffers = true;
+      let finalOpenCashDrawer = false;
+      let finalReceiptFont = 'courier';
+      let finalBillSettings = { ...DEFAULT_BILL_SETTINGS };
+      let finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS };
+
+      if (printFmt && typeof printFmt === 'object') {
+        if (printFmt.format === 'a4') {
+          finalPrintFmt = 'a4';
+          if (printFmt.style) finalA4Style = printFmt.style;
+        } else if (printFmt.format === 'half-a4') {
+          finalPrintFmt = 'half-a4';
+          if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
+            finalA5Orientation = printFmt.a5Orientation;
+          }
+        } else {
+          finalPrintFmt = 'thermal';
+          finalPrintWidth = Number(printFmt.width) || 58;
+          if (printFmt.style) finalThermalStyle = printFmt.style;
+        }
+        if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
+        if (printFmt.openCashDrawerOnPending !== undefined) finalOpenCashDrawer = Boolean(printFmt.openCashDrawerOnPending);
+        if (printFmt.receiptFont) finalReceiptFont = printFmt.receiptFont;
+        if (printFmt.billSettings) finalBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.billSettings };
+        if (printFmt.scrapBillSettings) finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...printFmt.scrapBillSettings };
+      }
+
+      let rawTermCode = allSettings['terminal_code'];
+      if (rawTermCode && typeof rawTermCode === 'object') {
+        rawTermCode = rawTermCode.value || rawTermCode.code || '';
+      }
+      let termCode = typeof rawTermCode === 'string'
+        ? rawTermCode.trim().replace(/^["']|["']$/g, '').replace(/[^A-Z0-9]/gi, '').toUpperCase()
+        : '';
+      if (!termCode || termCode.length === 0) {
+        const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+        termCode = Array.from({ length: 4 }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+        window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: termCode }).catch(() => {});
+      }
+      const finalTermCode = termCode;
+
+      let finalInvoiceStart: number | string = 1;
+      const invCfg = allSettings['invoice_counter_config'];
+      if (invCfg && invCfg.counter) finalInvoiceStart = invCfg.counter;
+
+      let finalGstProfit = 30;
+      const gstProfitPct = allSettings['gst_profit_percentage'];
+      if (gstProfitPct !== null && gstProfitPct !== undefined) finalGstProfit = Number(gstProfitPct) || 30;
+
+      let finalReturnPrefix = '';
+      let finalReturnStart: number | string = 1;
+      const returnCfg = allSettings['return_counter'];
+      if (returnCfg && typeof returnCfg === 'object') {
+        if (returnCfg.prefix) finalReturnPrefix = String(returnCfg.prefix).replace(/-$/, '');
+        if (returnCfg.counter) finalReturnStart = returnCfg.counter;
+      }
+
+      let finalScrapPrefix = '';
+      let finalScrapStart: number | string = 1;
+      const scrapCfg = allSettings['scrap_invoice_counter'];
+      if (scrapCfg && typeof scrapCfg === 'object') {
+        if (scrapCfg.prefix) finalScrapPrefix = String(scrapCfg.prefix).replace(/-$/, '');
+        if (scrapCfg.counter) finalScrapStart = scrapCfg.counter;
+      }
+
+      let finalQuotationPrefix = '';
+      let finalQuotationStart: number | string = 1;
+      const quotationCfg = allSettings['quotation_counter'];
+      if (quotationCfg && typeof quotationCfg === 'object') {
+        if (quotationCfg.prefix) finalQuotationPrefix = String(quotationCfg.prefix).replace(/-$/, '');
+        if (quotationCfg.counter) finalQuotationStart = quotationCfg.counter;
+      }
+
+      let finalTripleSeries = false;
+      let finalB2bPrefix = '';
+      let finalB2bStart: number | string = 1;
+      let finalB2cPrefix = '';
+      let finalB2cStart: number | string = 1;
+
+      const tripleSeries = allSettings['three_invoice_series'];
+      if (tripleSeries && typeof tripleSeries === 'object') {
+        finalTripleSeries = Boolean(tripleSeries.enabled);
+        if (tripleSeries.b2bPrefix) finalB2bPrefix = String(tripleSeries.b2bPrefix);
+        if (tripleSeries.b2bStartNumber) finalB2bStart = tripleSeries.b2bStartNumber;
+        if (tripleSeries.b2cPrefix) finalB2cPrefix = String(tripleSeries.b2cPrefix);
+        if (tripleSeries.b2cStartNumber) finalB2cStart = tripleSeries.b2cStartNumber;
+      } else {
+        const dualSeries = allSettings['dual_invoice_series'];
+        if (dualSeries && typeof dualSeries === 'object' && dualSeries.enabled) {
+          finalTripleSeries = true;
+          finalB2bPrefix = String(dualSeries.gstTerminalCode || 'B2B');
+          finalB2bStart = dualSeries.gstStartNumber || 1;
+          finalB2cPrefix = String(dualSeries.gstTerminalCode || 'B2C');
+          finalB2cStart = dualSeries.gstStartNumber || 1;
         }
       }
-    } catch (err) { console.error('Failed to get printers', err); }
 
-    try { const v = await window.electronAPI.appGetVersion(); if (v) setAppVersion(`v${v}`); } catch (err) { console.error('Failed to get app version', err); }
+      setBarcodePrinter(finalBarcode);
+      setReceiptPrinter(finalReceipt);
+      setA4Printer(finalA4);
+      setScale(finalScaleObj);
+      setPriceCoding(finalCoding);
+      setShopGstin(finalGstin);
+      setShopState(finalState);
+      setShopNameLocal(finalName);
+      setShopAddress(finalAddress);
+      setShopPhone(finalPhone);
+      setUpiId(finalUpi);
+      setShowUpiQr(finalShowQr);
+      setSyncMode(finalSyncMode);
+      setLanRole(finalLanRole);
+      setLanHostIp(finalLanHostIp);
+      setLanPort(finalLanPort);
+      setSyncFrequency(finalSyncFreq);
+      setEnableScrap(finalScrap);
+      setShowCashRegister(finalCashReg);
+      setFeatureFlags(finalFlags);
+      setAutoPrintBarcode(finalAutoBarcode);
+      setLoyaltyEnabled(finalLoyaltyEnabled);
+      setLoyaltyEarningRate(finalLoyaltyEarningRate);
+      setLoyaltyRedemptionRate(finalLoyaltyRedemptionRate);
+      setLabelCodeType(finalLabelType);
+      setLabelShowShopName(finalLabelShowName);
+      setStockReportDefaultView(finalSrdv);
+      setInventoryDefaultView(finalInvdv);
+      setTimeFormat(finalTimeFmt);
+      setPrintFormat(finalPrintFmt);
+      setPrintWidth(finalPrintWidth);
+      setThermalStyle(finalThermalStyle);
+      setA4Style(finalA4Style);
+      setA5Orientation(finalA5Orientation);
+      setShowProductOffers(finalShowOffers);
+      setOpenCashDrawerOnPending(finalOpenCashDrawer);
+      setReceiptFont(finalReceiptFont);
+      setBillSettings(finalBillSettings);
+      setScrapBillSettings(finalScrapBillSettings);
+      setTerminalCode(finalTermCode);
+      setInvoiceStartNumber(finalInvoiceStart);
+      setGstProfitPercentage(finalGstProfit);
+      setReturnPrefix(finalReturnPrefix);
+      setReturnStartNumber(finalReturnStart);
+      setScrapPrefix(finalScrapPrefix);
+      setScrapStartNumber(finalScrapStart);
+      setQuotationPrefix(finalQuotationPrefix);
+      setQuotationStartNumber(finalQuotationStart);
+      setEnableThreeInvoiceSeries(finalTripleSeries);
+      setB2bPrefix(finalB2bPrefix);
+      setB2bStartNumber(finalB2bStart);
+      setB2cPrefix(finalB2cPrefix);
+      setB2cStartNumber(finalB2cStart);
 
-    let finalServiceBarcode = '';
-    try {
-      await window.electronAPI.dbEnsureServiceItem({ tenant_id: tenantId || 'global' });
-      const svcProducts = await window.electronAPI.dbGetProducts({ tenant_id: tenantId || 'global', search: 'Service Charge' });
-      const svcProd = Array.isArray(svcProducts)
-        ? svcProducts
-            .filter((p: any) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
-            .sort((a: any, b: any) => {
-              const rank = (p: any) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
-              return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(b.created_at || ''));
-            })[0]
-        : null;
-      if (svcProd) {
-        setServiceChargeProduct(svcProd);
-        finalServiceBarcode = svcProd.sku_barcode || '99';
-      }
-    } catch (err) {
-      console.error('Failed to load Service Charge settings', err);
+      initialSnapshot.current = JSON.stringify({
+        barcodePrinter: finalBarcode,
+        receiptPrinter: finalReceipt,
+        a4Printer: finalA4,
+        scale: finalScaleObj,
+        priceCoding: finalCoding,
+        shopGstin: finalGstin,
+        shopState: finalState,
+        shopNameLocal: finalName,
+        shopAddress: finalAddress,
+        shopPhone: finalPhone,
+        upiId: finalUpi,
+        showUpiQr: finalShowQr,
+        showProductOffers: finalShowOffers,
+        openCashDrawerOnPending: finalOpenCashDrawer,
+        receiptFont: finalReceiptFont,
+        printFormat: finalPrintFmt,
+        a5Orientation: finalA5Orientation,
+        printWidth: finalPrintWidth,
+        thermalStyle: finalThermalStyle,
+        a4Style: finalA4Style,
+        terminalCode: finalTermCode,
+        invoiceStartNumber: finalInvoiceStart,
+        enableThreeInvoiceSeries: finalTripleSeries,
+        b2bPrefix: finalTripleSeries ? finalB2bPrefix : '',
+        b2bStartNumber: finalTripleSeries ? finalB2bStart : '',
+        b2cPrefix: finalTripleSeries ? finalB2cPrefix : '',
+        b2cStartNumber: finalTripleSeries ? finalB2cStart : '',
+        labelCodeType: finalLabelType,
+        labelShowShopName: finalLabelShowName,
+        enableScrap: finalScrap,
+        showCashRegister: finalCashReg,
+        autoPrintBarcode: finalAutoBarcode,
+        loyaltyEnabled: finalLoyaltyEnabled,
+        loyaltyEarningRate: finalLoyaltyEarningRate,
+        loyaltyRedemptionRate: finalLoyaltyRedemptionRate,
+        billSettings: finalBillSettings,
+        scrapBillSettings: finalScrapBillSettings,
+        gstProfitPercentage: finalGstProfit,
+        returnPrefix: finalReturnPrefix,
+        returnStartNumber: finalReturnStart,
+        scrapPrefix: finalScrapPrefix,
+        scrapStartNumber: finalScrapStart,
+        quotationPrefix: finalQuotationPrefix,
+        quotationStartNumber: finalQuotationStart,
+        stockReportDefaultView: finalSrdv,
+        inventoryDefaultView: finalInvdv,
+        serviceChargeBarcode: '',
+        timeFormat: finalTimeFmt,
+        syncMode: finalSyncMode,
+        lanRole: finalLanRole,
+        lanHostIp: finalLanHostIp,
+        lanPort: finalLanPort,
+        syncFrequency: finalSyncFreq,
+        features: JSON.stringify(finalFlags)
+      });
+
+      // Settings loaded: dismiss skeleton loader immediately (<30ms)
+      setLoading(false);
+      window.electronAPI?.logError?.('[SettingsManager] loadSettings COMPLETED SUCCESS');
+
+      // 2. Non-blocking asynchronous background jobs: Printers, Version, Service Charge Item
+      // A. Printers (Windows Print Spooler enumeration can take several seconds - do NOT block UI)
+      window.electronAPI.getPrinters().then((pr: any) => {
+        const printerList = Array.isArray(pr) ? pr : [];
+        setOsPrinters(printerList);
+
+        if (printerList.length > 0) {
+          const defPr = printerList.find((p: any) => p.isDefault) || printerList[0];
+          if (defPr && defPr.name) {
+            setReceiptPrinter((prev: any) => {
+              if (!prev?.deviceName) {
+                updateSnapshotField(s => ({ ...s, receiptPrinter: { ...s.receiptPrinter, deviceName: defPr.name } }));
+                return { ...prev, deviceName: defPr.name };
+              }
+              return prev;
+            });
+            setBarcodePrinter((prev: any) => {
+              if (!prev?.deviceName) {
+                updateSnapshotField(s => ({ ...s, barcodePrinter: { ...s.barcodePrinter, deviceName: defPr.name } }));
+                return { ...prev, deviceName: defPr.name };
+              }
+              return prev;
+            });
+          }
+        }
+      }).catch((err: any) => console.error('[SettingsManager] Failed to get printers in background', err));
+
+      // B. App Version
+      window.electronAPI.appGetVersion().then((v: string) => {
+        if (v) setAppVersion(`v${v}`);
+      }).catch(() => {});
+
+      // C. Service Charge Product & Barcode
+      window.electronAPI.dbEnsureServiceItem({ tenant_id: currentTenant })
+        .then(() => window.electronAPI.dbGetProducts({ tenant_id: currentTenant, search: 'Service Charge' }))
+        .then((svcProducts: any) => {
+          const svcProd = Array.isArray(svcProducts)
+            ? svcProducts
+                .filter((p: any) => Number(p.is_service_item) === 1 || String(p.name || '').trim() === 'Service Charge')
+                .sort((a: any, b: any) => {
+                  const rank = (p: any) => (Number(p.is_service_item) === 1 ? (String(p.sku_barcode || '') === '99' ? 0 : 1) : 2);
+                  return rank(a) - rank(b) || String(a.created_at || '').localeCompare(String(a.created_at || ''));
+                })[0]
+            : null;
+          if (svcProd) {
+            setServiceChargeProduct(svcProd);
+            const barcode = svcProd.sku_barcode || '99';
+            setServiceChargeBarcode(barcode);
+            updateSnapshotField(s => ({ ...s, serviceChargeBarcode: barcode }));
+          }
+        })
+        .catch((err: any) => console.error('[SettingsManager] Failed to load Service Charge settings', err));
+
+    } catch (err: any) {
+      window.electronAPI?.logError?.('[SettingsManager] ERROR in loadSettings: ' + (err?.message || String(err)));
+      setLoading(false);
     }
-
-    setBarcodePrinter(finalBarcode);
-    setReceiptPrinter(finalReceipt);
-    setA4Printer(finalA4);
-    setScale(finalScaleObj);
-    setPriceCoding(finalCoding);
-    setShopGstin(finalGstin);
-    setShopState(finalState);
-    setShopNameLocal(finalName);
-    setShopAddress(finalAddress);
-    setShopPhone(finalPhone);
-    setUpiId(finalUpi);
-    setShowUpiQr(finalShowQr);
-    setSyncMode(finalSyncMode);
-    setLanRole(finalLanRole);
-    setLanHostIp(finalLanHostIp);
-    setLanPort(finalLanPort);
-    setSyncFrequency(finalSyncFreq);
-    setEnableScrap(finalScrap);
-    setShowCashRegister(finalCashReg);
-    setFeatureFlags(finalFlags);
-    setAutoPrintBarcode(finalAutoBarcode);
-    setLoyaltyEnabled(finalLoyaltyEnabled);
-    setLoyaltyEarningRate(finalLoyaltyEarningRate);
-    setLoyaltyRedemptionRate(finalLoyaltyRedemptionRate);
-    setLabelCodeType(finalLabelType);
-    setLabelShowShopName(finalLabelShowName);
-    setStockReportDefaultView(finalSrdv);
-    setInventoryDefaultView(finalInvdv);
-    setTimeFormat(finalTimeFmt);
-    setPrintFormat(finalPrintFmt);
-    setPrintWidth(finalPrintWidth);
-    setThermalStyle(finalThermalStyle);
-    setA4Style(finalA4Style);
-    setA5Orientation(finalA5Orientation);
-    setShowProductOffers(finalShowOffers);
-    setOpenCashDrawerOnPending(finalOpenCashDrawer);
-    setReceiptFont(finalReceiptFont);
-    setBillSettings(finalBillSettings);
-    setScrapBillSettings(finalScrapBillSettings);
-    setTerminalCode(finalTermCode);
-    setInvoiceStartNumber(finalInvoiceStart);
-    setGstProfitPercentage(finalGstProfit);
-    setReturnPrefix(finalReturnPrefix);
-    setReturnStartNumber(finalReturnStart);
-    setScrapPrefix(finalScrapPrefix);
-    setScrapStartNumber(finalScrapStart);
-    setQuotationPrefix(finalQuotationPrefix);
-    setQuotationStartNumber(finalQuotationStart);
-    setEnableThreeInvoiceSeries(finalTripleSeries);
-    setB2bPrefix(finalB2bPrefix);
-    setB2bStartNumber(finalB2bStart);
-    setB2cPrefix(finalB2cPrefix);
-    setB2cStartNumber(finalB2cStart);
-    setServiceChargeBarcode(finalServiceBarcode);
-
-    initialSnapshot.current = JSON.stringify({
-      barcodePrinter: finalBarcode,
-      receiptPrinter: finalReceipt,
-      a4Printer: finalA4,
-      scale: finalScaleObj,
-      priceCoding: finalCoding,
-      shopGstin: finalGstin,
-      shopState: finalState,
-      shopNameLocal: finalName,
-      shopAddress: finalAddress,
-      shopPhone: finalPhone,
-      upiId: finalUpi,
-      showUpiQr: finalShowQr,
-      showProductOffers: finalShowOffers,
-      openCashDrawerOnPending: finalOpenCashDrawer,
-      receiptFont: finalReceiptFont,
-      printFormat: finalPrintFmt,
-      a5Orientation: finalA5Orientation,
-      printWidth: finalPrintWidth,
-      thermalStyle: finalThermalStyle,
-      a4Style: finalA4Style,
-      terminalCode: finalTermCode,
-      invoiceStartNumber: finalInvoiceStart,
-      enableThreeInvoiceSeries: finalTripleSeries,
-      b2bPrefix: finalTripleSeries ? finalB2bPrefix : '',
-      b2bStartNumber: finalTripleSeries ? finalB2bStart : '',
-      b2cPrefix: finalTripleSeries ? finalB2cPrefix : '',
-      b2cStartNumber: finalTripleSeries ? finalB2cStart : '',
-      labelCodeType: finalLabelType,
-      labelShowShopName: finalLabelShowName,
-      enableScrap: finalScrap,
-      showCashRegister: finalCashReg,
-      autoPrintBarcode: finalAutoBarcode,
-      loyaltyEnabled: finalLoyaltyEnabled,
-      loyaltyEarningRate: finalLoyaltyEarningRate,
-      loyaltyRedemptionRate: finalLoyaltyRedemptionRate,
-      billSettings: finalBillSettings,
-      scrapBillSettings: finalScrapBillSettings,
-      gstProfitPercentage: finalGstProfit,
-      returnPrefix: finalReturnPrefix,
-      returnStartNumber: finalReturnStart,
-      scrapPrefix: finalScrapPrefix,
-      scrapStartNumber: finalScrapStart,
-      quotationPrefix: finalQuotationPrefix,
-      quotationStartNumber: finalQuotationStart,
-      stockReportDefaultView: finalSrdv,
-      inventoryDefaultView: finalInvdv,
-      serviceChargeBarcode: finalServiceBarcode,
-      timeFormat: finalTimeFmt,
-      syncMode: finalSyncMode,
-      lanRole: finalLanRole,
-      lanHostIp: finalLanHostIp,
-      lanPort: finalLanPort,
-      syncFrequency: finalSyncFreq,
-      features: JSON.stringify(finalFlags)
-    });
-
-    setLoading(false);
   };
 
   const handleSave = async () => {
@@ -926,6 +1036,9 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_state', value: shopState }), name: 'state' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_name', value: shopNameLocal }), name: 'name' },
+        ...(tenantId && tenantId !== 'global' ? [
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_name', value: shopNameLocal }), name: 'name_global' }
+        ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_address', value: shopAddress }), name: 'address' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
@@ -962,7 +1075,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
       // Notify application and invalidate stale tab reservations
       try {
-        window.dispatchEvent(new CustomEvent('settings:updated', { detail: { terminalCode: cleanCode } }));
+        useAuthStore.setState({ shopName: shopNameLocal });
+        window.dispatchEvent(new CustomEvent('settings:updated', { detail: { terminalCode: cleanCode, shopName: shopNameLocal } }));
       } catch {}
       try {
         const { tabs } = useTabStore.getState();
@@ -1083,7 +1197,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
           <div className="flex items-center gap-3">
             <Skeleton className="h-9 w-24 rounded-xl" />
-            <Skeleton className="h-9 w-28 rounded-xl" />
+            <button
+              onClick={onClose}
+              className="p-2.5 text-destructive hover:bg-destructive/10 border border-destructive/30 shadow-sm rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer"
+              title="Close"
+            >
+              <X className="w-4.5 h-4.5 text-destructive" />
+            </button>
           </div>
         </header>
 
@@ -1954,8 +2074,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                             <FileText className="w-5 h-5 rotate-90" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">Horizontal (Landscape)</p>
-                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">210mm × 148.5mm wide paper feed</p>
+                            <p className="text-sm font-bold text-foreground truncate">Half-A4 Cut Sheet (210mm Wide)</p>
+                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Cut Half-A4 sheet (210mm wide feed - Recommended)</p>
                           </div>
                           {a5Orientation === 'horizontal' && (
                             <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
@@ -1978,8 +2098,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                             <FileText className="w-5 h-5" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">Vertical (Portrait)</p>
-                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">148.5mm × 210mm tall paper feed</p>
+                            <p className="text-sm font-bold text-foreground truncate">A5 Vertical (148.5mm Wide)</p>
+                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Standard A5 portrait paper (148mm feed)</p>
                           </div>
                           {a5Orientation === 'vertical' && (
                             <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
@@ -2103,8 +2223,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         { key: 'showShopGstin', label: 'Shop GSTIN' },
                         { key: 'showShopState', label: 'Shop State' },
                         { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showBillerName', label: 'Biller Name' },
                         { key: 'showCustomerName', label: 'Customer Name' },
+                        { key: 'showCustomerPhone', label: 'Customer Phone' },
+                        { key: 'showCustomerAddress', label: 'Customer Address' },
                         { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                        { key: 'showCustomerState', label: 'Customer State' },
                         { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
                         { key: 'printFullName', label: 'Full Product Name' },
                         { key: 'showBrandName', label: 'Product Brand Name' },
@@ -2113,22 +2237,20 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
                         { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
                       ].map(({ key, label }) => {
-                        const forcedOn = key === 'showTitle' && billSettings.estimateMode;
+                        const isChecked = (billSettings as any)[key] !== false;
                         return (
-                          <label key={key} className={`flex items-center gap-3 py-1.5 ${forcedOn ? '' : 'cursor-pointer group text-xs text-foreground font-medium select-none'}`}>
+                          <label key={key} className="flex items-center gap-3 py-1.5 cursor-pointer group text-xs text-foreground font-medium select-none">
                             <button
                               type="button"
                               onClick={() => {
-                                if (forcedOn) return;
-                                setBillSettings(s => ({ ...s, [key]: !(s as any)[key] }));
+                                setBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }));
                               }}
                               className={clsx(
                                 'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                                (billSettings as any)[key] || forcedOn ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50',
-                                forcedOn && 'opacity-50'
+                                isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
                               )}
                             >
-                              {((billSettings as any)[key] || forcedOn) && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                              {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
                             </button>
                             <span>{label}</span>
                           </label>
@@ -2182,23 +2304,45 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       </div>
                     )}
 
-                    <div className="border-t border-border/40 my-3.5" />
-                    <label className="flex items-center gap-3 cursor-pointer group select-none">
-                      <button
-                        type="button"
-                        onClick={() => setBillSettings(s => ({ ...s, estimateMode: !s.estimateMode, showTitle: !s.estimateMode ? true : s.showTitle }))}
-                        className={clsx(
-                          'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                          billSettings.estimateMode ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                        )}
-                      >
-                        {billSettings.estimateMode && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                      </button>
-                      <div>
-                        <span className="text-xs text-foreground font-bold">Force "BILL OF SUPPLY" title</span>
-                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">Overrides document title to BILL OF SUPPLY.</p>
+                    <div className="border-t border-border/40 my-3.5 pt-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card/60 border border-border/60 rounded-xl">
+                        <div>
+                          <span className="text-xs text-foreground font-bold flex items-center gap-1.5">
+                            <FileText className="w-3.5 h-3.5 text-primary" />
+                            Bill Document Title (Non-GST / Regular Bill)
+                          </span>
+                          <p className="text-[10px] text-muted-foreground/75 mt-0.5">Choose whether regular bills display "BILL OF SUPPLY" or "ESTIMATE" as document title.</p>
+                        </div>
+                        <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'BILL_OF_SUPPLY', estimateMode: false }))}
+                            className={clsx(
+                              'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                              (billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode)
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'bg-transparent text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {(billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
+                            BILL OF SUPPLY
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'ESTIMATE', estimateMode: true }))}
+                            className={clsx(
+                              'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                              (billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode)
+                                ? 'bg-primary text-primary-foreground shadow-sm'
+                                : 'bg-transparent text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            {(billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
+                            ESTIMATE
+                          </button>
+                        </div>
                       </div>
-                    </label>
+                    </div>
                   </div>
 
                   <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
@@ -2223,22 +2367,29 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         { key: 'showPhone', label: 'Phone Number' },
                         { key: 'showShopGstin', label: 'Shop GSTIN' },
                         { key: 'showTitle', label: 'Document Title' },
+                        { key: 'showBillerName', label: 'Biller Name' },
                         { key: 'showCustomerName', label: 'Customer Name' },
-                      ].map(({ key, label }) => (
-                        <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
-                          <button
-                            type="button"
-                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: !(s as any)[key] }))}
-                            className={clsx(
-                              'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                              (scrapBillSettings as any)[key] ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                            )}
-                          >
-                            {(scrapBillSettings as any)[key] && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                          </button>
-                          <span>{label}</span>
-                        </label>
-                      ))}
+                        { key: 'showCustomerPhone', label: 'Customer Phone' },
+                        { key: 'showCustomerAddress', label: 'Customer Address' },
+                        { key: 'showCustomerState', label: 'Customer State' },
+                      ].map(({ key, label }) => {
+                        const isChecked = (scrapBillSettings as any)[key] !== false;
+                        return (
+                          <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
+                            <button
+                              type="button"
+                              onClick={() => setScrapBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }))}
+                              className={clsx(
+                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                                isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                              )}
+                            >
+                              {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                            </button>
+                            <span>{label}</span>
+                          </label>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -3090,6 +3241,25 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
             </div>
 
           </div>
+
+          {/* Floating Save Bar when changes are unsaved */}
+          {hasChanges && (
+            <div className="fixed bottom-6 right-8 z-50 flex items-center gap-3 px-5 py-3 bg-card/95 backdrop-blur-md border-2 border-primary/40 shadow-2xl rounded-2xl animate-in slide-in-from-bottom-5">
+              <div className="flex items-center gap-2 text-xs font-bold text-foreground">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                <span>You have unsaved changes</span>
+              </div>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2.5 text-xs font-black text-primary-foreground bg-primary hover:bg-primary/90 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
+                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
+              </button>
+            </div>
+          )}
         </main>
       </div>
 
@@ -3105,6 +3275,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         receiptFont={receiptFont}
         billSettings={billSettings}
         a5Orientation={a5Orientation}
+        shopName={shopNameLocal || undefined}
+        shopAddress={shopAddress || undefined}
+        shopPhone={shopPhone || undefined}
+        shopGstin={shopGstin || undefined}
+        shopState={shopState || undefined}
       />
 
       {/* LAN / Wi-Fi Sync Help Modal — Fully Redesigned Step-by-Step Wizard */}

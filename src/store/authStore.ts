@@ -96,6 +96,17 @@ export const useAuthStore = create<AuthState>()((set) => ({
           let rawRole = (stored.role || '') as any;
           if (['BILLER', 'CASHIER'].includes(rawRole)) rawRole = 'STAFF';
 
+          let resolvedShopName = stored.shop_name;
+          try {
+            const localName = await window.electronAPI.settingsGet({
+              tenant_id: stored.tenant_id || 'global',
+              key: 'shop_name'
+            });
+            if (typeof localName === 'string' && localName.trim()) {
+              resolvedShopName = localName.trim();
+            }
+          } catch {}
+
           set({
             isAuthenticated: true,
             token: stored.jwt_token,
@@ -104,7 +115,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
             role: rawRole,
             permissions: perms,
             userName: stored.user_name || null,
-            shopName: stored.shop_name,
+            shopName: resolvedShopName,
             restrictedPage: stored.restricted_page || null,
           });
           useCartStore.getState().setRole(rawRole);
@@ -150,6 +161,15 @@ export const useAuthStore = create<AuthState>()((set) => ({
       if (['BILLER', 'CASHIER'].includes(roleVal)) roleVal = 'STAFF';
       const perms = parsePermissionsFromToken(data.token);
 
+      let resolvedShopName = data.shop_name;
+      if (!resolvedShopName && window.electronAPI) {
+        try {
+          const local = await window.electronAPI.settingsGet({ tenant_id: data.tenant_id || 'global', key: 'shop_name' });
+          if (typeof local === 'string' && local.trim()) resolvedShopName = local.trim();
+        } catch {}
+      }
+      if (!resolvedShopName) resolvedShopName = email;
+
       // Persist to disk via IPC
       if (window.electronAPI) {
         await window.electronAPI.authSaveToken({
@@ -158,7 +178,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
           user_id: data.user_id,
           role: roleVal,
           user_name: data.user_name,
-          shop_name: data.shop_name || email,
+          shop_name: resolvedShopName,
           domain_type: data.domain_type,
           restricted_page: data.restricted_page,
         });
@@ -172,7 +192,7 @@ export const useAuthStore = create<AuthState>()((set) => ({
         role: roleVal,
         permissions: perms,
         userName: data.user_name || null,
-        shopName: data.shop_name || email,
+        shopName: resolvedShopName,
         restrictedPage: data.restricted_page || null,
       });
       useCartStore.getState().setRole(roleVal);

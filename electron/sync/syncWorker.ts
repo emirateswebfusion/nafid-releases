@@ -2367,10 +2367,10 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
 
   const upsert = db.prepare(`
     INSERT INTO parties (
-      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, pricing_tier_id, is_deleted,
+      party_id, tenant_id, name, phone, address, gstin, balance, gst_balance, estimate_balance, balance_type, notes, last_transaction_date, pricing_tier_id, credit_limit, is_deleted,
       sync_status, created_at, updated_at
     ) VALUES (
-      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @pricing_tier_id, @is_deleted,
+      @party_id, @tenant_id, @name, @phone, @address, @gstin, @balance, @gst_balance, @estimate_balance, @balance_type, @notes, @last_transaction_date, @pricing_tier_id, @credit_limit, @is_deleted,
       'SYNCED', @created_at, @updated_at
     )
     ON CONFLICT(party_id) DO UPDATE SET
@@ -2385,6 +2385,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
       notes = excluded.notes,
       last_transaction_date = excluded.last_transaction_date,
       pricing_tier_id = excluded.pricing_tier_id,
+      credit_limit = excluded.credit_limit,
       is_deleted = excluded.is_deleted,
       created_at = COALESCE(parties.created_at, excluded.created_at),
       updated_at = excluded.updated_at,
@@ -2417,6 +2418,7 @@ async function pullParties(token: string, tenantId: string): Promise<boolean> {
               notes: p.notes || null,
               last_transaction_date: p.last_transaction_date ? toSqliteDate(p.last_transaction_date) : null,
               pricing_tier_id: p.pricing_tier_id || null,
+              credit_limit: Number(p.credit_limit) || 0,
               is_deleted: parseIsDeleted(p.is_deleted),
               created_at: toSqliteDate(p.created_at),
               updated_at: toSqliteDate(p.updated_at),

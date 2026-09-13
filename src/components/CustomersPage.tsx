@@ -30,6 +30,7 @@ interface Party {
   gst_balance?: number;
   estimate_balance?: number;
   balance_type: 'RECEIVABLE' | 'PAYABLE';
+  credit_limit?: number;
 }
 
 interface LoyaltyTx {
@@ -460,6 +461,16 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
                       ? ((matchedParty.balance || 0) >= 0 ? `+${formatCurrency(matchedParty.balance)} (Rec)` : `-${formatCurrency(Math.abs(matchedParty.balance))} (Pay)`)
                       : 'No Party Record'}
                   </p>
+                  {matchedParty?.credit_limit != null && Number(matchedParty.credit_limit) > 0 && (
+                    <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                      <span>Limit: {formatCurrency(matchedParty.credit_limit)}</span>
+                      {(matchedParty.balance || 0) >= matchedParty.credit_limit ? (
+                        <span className="text-red-500 font-extrabold text-[10px]">Over Limit</span>
+                      ) : (
+                        <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Avail: {formatCurrency(Math.max(0, matchedParty.credit_limit - Math.max(0, matchedParty.balance || 0)))}</span>
+                      )}
+                    </div>
+                  )}
                   <button
                     onClick={handleNavigateToParty}
                     className="mt-2 w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-500/30 active:scale-95"

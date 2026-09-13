@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   drainPendingCloudQueue: (tenant_id?: string) => ipcRenderer.invoke('sync:drainPendingCloudQueue', tenant_id),
   testNetworkConnection: (payload: { syncMode?: string; lanRole?: string; lanHostIp?: string; lanPort?: number }) => ipcRenderer.invoke('sync:testConnection', payload),
   settingsGet: (payload: { tenant_id: string; key: string }) => ipcRenderer.invoke('settings:get', payload),
+  settingsGetAll: (payload: { tenant_id: string }) => ipcRenderer.invoke('settings:getAll', payload),
   settingsSet: (payload: { tenant_id: string; key: string; value: any }) => ipcRenderer.invoke('settings:set', payload),
 
   // Auth

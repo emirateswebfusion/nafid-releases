@@ -129,6 +129,7 @@ function App() {
   const [showSettingsGrades, setShowSettingsGrades] = useState(false);
   const [showSettingsPricingTiers, setShowSettingsPricingTiers] = useState(false);
   const [showPartyManager, setShowPartyManager] = useState(false);
+  const [partyTarget, setPartyTarget] = useState<string | undefined>(undefined);
   const [showScrapManager, setShowScrapManager] = useState(false);
   const [scrapManagerInitialView, setScrapManagerInitialView] = useState<string>('list');
   const [enableScrap, setEnableScrap] = useState(false);
@@ -323,6 +324,18 @@ function App() {
         setAppTimeFormat('12h');
       }
     });
+
+    const handleSettingsUpdated = () => {
+      const currentTid = useAuthStore.getState().tenantId;
+      loadFeatureFlags(currentTid || 'global').then(flags => setFeatureFlags(flags));
+      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
+        if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+      });
+    };
+    window.addEventListener('settings:updated', handleSettingsUpdated);
+    return () => {
+      window.removeEventListener('settings:updated', handleSettingsUpdated);
+    };
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -623,8 +636,11 @@ function App() {
           <ComboManager onClose={() => setShowComboManager(false)} />
         </PermissionGuard>
       ) : showPartyManager ? (
-        <PermissionGuard permission="customers.view" onBack={() => setShowPartyManager(false)}>
-          <PartyManager onClose={() => setShowPartyManager(false)} />
+        <PermissionGuard permission="customers.view" onBack={() => { setShowPartyManager(false); setPartyTarget(undefined); }}>
+          <PartyManager
+            initialPartyIdOrQuery={partyTarget}
+            onClose={() => { setShowPartyManager(false); setPartyTarget(undefined); }}
+          />
         </PermissionGuard>
       ) : showCashierSettlement ? (
         <PermissionGuard permission="cash_register.view" onBack={() => setShowCashierSettlement(false)}>
@@ -652,7 +668,14 @@ function App() {
         </PermissionGuard>
       ) : showCustomersPage ? (
         <PermissionGuard permission="customers.view" onBack={() => setShowCustomersPage(false)}>
-          <CustomersPage onClose={() => setShowCustomersPage(false)} />
+          <CustomersPage
+            onClose={() => setShowCustomersPage(false)}
+            onOpenParty={(target) => {
+              setShowCustomersPage(false);
+              setPartyTarget(target);
+              setShowPartyManager(true);
+            }}
+          />
         </PermissionGuard>
       ) : showPaymentsPage ? (
         <PermissionGuard permission="settings.view" onBack={() => setShowPaymentsPage(false)}>

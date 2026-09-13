@@ -104,12 +104,14 @@ export function ActionPane() {
           };
         });
 
-        const [shopAddr, shopPh, upi, showQr, shopGstin] = await Promise.all([
+        const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
         ]);
 
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
@@ -120,6 +122,7 @@ export function ActionPane() {
         const customerPhone = activeTab?.customerPhone || '';
         const customerGstin = activeTab?.customerGstin || '';
         const customerAddress = activeTab?.customerAddress || '';
+        const customerState = activeTab?.snapshot?.customerState || useCartStore.getState().customerState || '';
         const isB2B = Boolean(customerGstin.trim());
         const isGstOrB2B = invoiceType === 'GST' || isB2B;
 
@@ -131,16 +134,17 @@ export function ActionPane() {
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
           upiId: activeTab?.selectedUpiId || upi || undefined,
           showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: invoice_number,
           date: formatBillDateTime(new Date()),
-          billerName: useAuthStore.getState().role || undefined,
+          billerName: useAuthStore.getState().userName || useAuthStore.getState().role || undefined,
           items: items.map(item => {
             const effectiveRate = (item.pricing_mode === 'GRADE_RATE' && item.grade_rate != null && Number(item.grade_rate) > 0)
               ? Number(item.grade_rate)
@@ -176,6 +180,7 @@ export function ActionPane() {
           customerPhone: customerPhone || undefined,
           customerGstin: customerGstin.trim() || undefined,
           customerAddress: customerAddress || undefined,
+          customerState: customerState || undefined,
           isB2B,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
@@ -208,7 +213,7 @@ export function ActionPane() {
         receiptData.invoiceNumber = confirmedNum;
 
         if (useA4) {
-          const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
+          const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
           const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
           const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
           if (!printResult.success && (printResult as any).useDefaultDialog) {

@@ -19,7 +19,7 @@ import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper
 import { useTabStore, type TabSnapshot } from '../store/tabStore';
 import { BillingTabBar } from './BillingTabBar';
 import { CashierSettlement } from './CashierSettlement';
-import { loadFeatureFlags } from '../featureFlags';
+import { loadFeatureFlags, getFeatureFlags } from '../featureFlags';
 import { sortProductsBySearchPriority } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
@@ -87,6 +87,126 @@ function detectScannerBurst(
   return false;
 }
 
+interface ItemTotalInputProps {
+  productId: string;
+  total: number;
+  rate: number;
+  qty: number;
+  hasDiscount: boolean;
+  isScrap?: boolean;
+  onUpdateOfferPrice: (productId: string, unitPrice: number) => void;
+  onRemoveDiscount: (productId: string) => void;
+  onClearLocalDiscounts: (productId: string) => void;
+  syncActiveSnapshot: () => void;
+  onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+}
+
+function ItemTotalInput({
+  productId,
+  total,
+  rate,
+  qty,
+  hasDiscount,
+  isScrap = false,
+  onUpdateOfferPrice,
+  onRemoveDiscount,
+  onClearLocalDiscounts,
+  syncActiveSnapshot,
+  onKeyDown,
+}: ItemTotalInputProps) {
+  const [isFocused, setIsFocused] = useState(false);
+  const [localVal, setLocalVal] = useState<string>(() => (total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : ''));
+
+  useEffect(() => {
+    if (!isFocused) {
+      setLocalVal(total > 0 ? (Number.isInteger(total) ? String(total) : total.toFixed(2)) : (total === 0 ? '0' : ''));
+    }
+  }, [total, isFocused]);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value.replace(/[^\d.]/g, '').replace(/(\..*)\./g, '$1');
+    setLocalVal(raw);
+
+    // If input is empty or mid-decimal (e.g. user backspaced all characters),
+    // allow the field to remain empty so they can type the new value.
+    // NEVER revert to default catalog rate while typing!
+    if (raw === '' || isNaN(parseFloat(raw))) {
+      return;
+    }
+
+    const newTotal = parseFloat(raw);
+    if (newTotal < 0) {
+      return;
+    }
+
+    const effectiveQty = qty > 0 ? qty : 1;
+    const newUnitPrice = newTotal / effectiveQty;
+    if (Math.abs(newUnitPrice - rate) < 0.001) {
+      onRemoveDiscount(productId);
+    } else {
+      onUpdateOfferPrice(productId, newUnitPrice);
+    }
+    onClearLocalDiscounts(productId);
+    syncActiveSnapshot();
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const parsed = parseFloat(localVal);
+
+    if (localVal === '' || isNaN(parsed) || parsed < 0) {
+      // User left it blank or invalid when clicking away: restore base rate * qty
+      onRemoveDiscount(productId);
+      onClearLocalDiscounts(productId);
+      const effectiveQty = qty > 0 ? qty : 1;
+      const defaultTotal = rate * effectiveQty;
+      setLocalVal(defaultTotal > 0 ? (Number.isInteger(defaultTotal) ? String(defaultTotal) : defaultTotal.toFixed(2)) : '');
+      syncActiveSnapshot();
+    } else {
+      const effectiveQty = qty > 0 ? qty : 1;
+      const newUnitPrice = parsed / effectiveQty;
+      if (Math.abs(newUnitPrice - rate) < 0.001) {
+        onRemoveDiscount(productId);
+      } else {
+        onUpdateOfferPrice(productId, newUnitPrice);
+      }
+      setLocalVal(Number.isInteger(parsed) ? String(parsed) : parsed.toFixed(2));
+      onClearLocalDiscounts(productId);
+      syncActiveSnapshot();
+    }
+  };
+
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    e.target.select();
+  };
+
+  const handleKeyDownInternal = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleBlur();
+    }
+    onKeyDown?.(e);
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="decimal"
+      className={clsx(
+        "w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+        isScrap
+          ? (hasDiscount ? "text-emerald-500" : "text-orange-600 dark:text-orange-400")
+          : (hasDiscount ? "text-emerald-500" : "text-foreground")
+      )}
+      value={localVal}
+      onChange={handleChange}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onKeyDown={handleKeyDownInternal}
+    />
+  );
+}
+
 export function BillingPage() {
   const searchRef = useRef<HTMLInputElement>(null);
   const discountRef = useRef<HTMLInputElement>(null);
@@ -130,6 +250,7 @@ export function BillingPage() {
   const updateActiveTab = useTabStore(s => s.updateActiveTab);
   const syncActiveSnapshot = useTabStore(s => s.syncActiveSnapshot);
   const getActiveTab = useTabStore(s => s.getActiveTab);
+  const activeTab = tabs.find(t => t.id === activeTabId);
   const { shopName, role: authRole, tenantId, userId, userName, logout } = useAuthStore();
   const shopDomain = useCartStore(s => s.shopDomain);
   const scaleLiveWeight = useScaleStore(s => s.liveWeight);
@@ -220,7 +341,7 @@ export function BillingPage() {
         if (isPiecesWeight) {
           const numKg = Number(item.quantity);
           const curNum = parseFloat(prev[item.product_id] || '');
-          if (!(item.product_id in prev) || (item.quantity !== undefined && (isNaN(curNum) || curNum !== numKg))) {
+          if (!(item.product_id in prev) || (item.quantity !== undefined && prev[item.product_id] !== '' && !isNaN(curNum) && curNum !== numKg)) {
             next[item.product_id] = String(item.quantity ?? '');
             changed = true;
           }
@@ -324,6 +445,20 @@ export function BillingPage() {
   const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(0);
   const customerNameContainerRef = useRef<HTMLDivElement>(null);
   const customerNameInputRef = useRef<HTMLInputElement>(null);
+  const customerPhoneInputRef = useRef<HTMLInputElement>(null);
+  const customerAddressInputRef = useRef<HTMLInputElement>(null);
+  const customerGstinInputRef = useRef<HTMLInputElement>(null);
+  const skipCustomerDropdownOnFocusRef = useRef(false);
+
+  const focusInputWithoutDropdown = (inputEl: HTMLInputElement | null, selectAll = true) => {
+    if (!inputEl) return;
+    skipCustomerDropdownOnFocusRef.current = true;
+    inputEl.focus();
+    if (selectAll) inputEl.select();
+    setTimeout(() => {
+      skipCustomerDropdownOnFocusRef.current = false;
+    }, 150);
+  };
 
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const isCheckingOutRef = useRef(false);
@@ -362,7 +497,13 @@ export function BillingPage() {
       setIsScrapMode(true);
     }
   }, [editingInvoiceNumber, isScrapMode, setIsScrapMode]);
-  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(() => getFeatureFlags());
+  const isCashSettlementEnabled = featureFlags ? featureFlags.cash_settlement !== false : getFeatureFlags().cash_settlement !== false;
+  const paymentOptions = useMemo(() => {
+    return isCashSettlementEnabled
+      ? PAYMENT_OPTIONS
+      : PAYMENT_OPTIONS.filter((opt) => opt.value !== 'PENDING');
+  }, [isCashSettlementEnabled]);
   const [cashRegisterOpen, setCashRegisterOpen] = useState(false);
   const lastActiveTabId = useRef(activeTabId);
   const prevScrapMode = useRef(isScrapMode);
@@ -408,7 +549,16 @@ export function BillingPage() {
     if (!featureFlags) return;
     if (featureFlags.quotations === false && isQuotationMode) setQuotationMode(false);
     if (featureFlags.returns === false && isReturnMode) setReturnMode(false);
-  }, [featureFlags, isQuotationMode, isReturnMode, setQuotationMode, setReturnMode]);
+    if (featureFlags.cash_settlement === false && activeTab?.paymentMethod === 'PENDING') {
+      updateActiveTab({ paymentMethod: 'CASH' });
+    }
+  }, [featureFlags, isQuotationMode, isReturnMode, activeTab?.paymentMethod, setQuotationMode, setReturnMode, updateActiveTab]);
+
+  useEffect(() => {
+    if (!isCashSettlementEnabled && activeTab?.paymentMethod === 'PENDING') {
+      updateActiveTab({ paymentMethod: 'CASH' });
+    }
+  }, [isCashSettlementEnabled, activeTab?.paymentMethod, updateActiveTab]);
 
   // Update tab title when mode changes (normal, scrap, quotation, return)
   const prevReserveMode = useRef<'normal' | 'scrap' | 'return' | 'quotation' | null>(null);
@@ -507,8 +657,11 @@ export function BillingPage() {
     if (Object.keys(updates).length) updateActiveTab(updates as any);
   };
 
-  const activeTab = tabs.find(t => t.id === activeTabId);
-  const paymentMethod = activeTab?.paymentMethod ?? 'PENDING';
+  const rawPaymentMethod = activeTab?.paymentMethod;
+  const defaultPaymentMethod = isCashSettlementEnabled ? 'PENDING' : 'CASH';
+  const paymentMethod = (!isCashSettlementEnabled && (!rawPaymentMethod || rawPaymentMethod === 'PENDING'))
+    ? 'CASH'
+    : (rawPaymentMethod ?? defaultPaymentMethod);
   const splitDetails = activeTab?.splitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
   const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
@@ -758,7 +911,9 @@ export function BillingPage() {
       }
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
-      setShopNameState(typeof v === 'string' ? v : '');
+      const resolved = typeof v === 'string' && v.trim() ? v.trim() : (shopName || '');
+      setShopNameState(resolved);
+      if (resolved) useAuthStore.setState({ shopName: resolved });
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
       setShopGstin(typeof v === 'string' ? v : '');
@@ -853,6 +1008,29 @@ export function BillingPage() {
           }
         });
       }
+      if (e?.detail?.shopName) {
+        setShopNameState(e.detail.shopName);
+        useAuthStore.setState({ shopName: e.detail.shopName });
+      } else if (window.electronAPI) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }).then((v: any) => {
+          if (typeof v === 'string' && v.trim()) {
+            setShopNameState(v.trim());
+            useAuthStore.setState({ shopName: v.trim() });
+          }
+        });
+      }
+      if (window.electronAPI) {
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }).then((v: any) => {
+          if (typeof v === 'string') setShopAddress(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
+          if (typeof v === 'string') setShopPhone(v);
+        });
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }).then((v: any) => {
+          if (typeof v === 'string') setShopGstin(v);
+        });
+      }
+      loadFeatureFlags(tenantId || 'global').then(flags => setFeatureFlags(flags));
       reserveInvoiceNumberForTab(true);
       if (isScrapMode) reserveScrapInvoiceNumberForTab(true);
       if (isQuotationMode) reserveQuotationNumberForTab(true);
@@ -1366,7 +1544,17 @@ export function BillingPage() {
     if (!qName && !qPhone) return [];
 
     const seen = new Set<string>();
-    const combined = [...customerSearchResults, ...allCustomersList];
+    const partyCustomers = (partiesForTier || []).map((p: any) => ({
+      name: p.name,
+      phone: p.phone,
+      address: p.address,
+      gstin: p.gstin,
+      customer_gstin: p.gstin,
+      party_id: p.party_id,
+      balance: p.balance,
+      party_type: p.party_type,
+    }));
+    const combined = [...customerSearchResults, ...allCustomersList, ...partyCustomers];
     const matched: any[] = [];
 
     for (const c of combined) {
@@ -1385,12 +1573,15 @@ export function BillingPage() {
       }
     }
     return matched.slice(0, 15);
-  }, [customerName, customerPhone, customerSearchResults, allCustomersList]);
+  }, [customerName, customerPhone, customerSearchResults, allCustomersList, partiesForTier]);
 
   // Click outside to dismiss customer suggestions dropdown
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (customerNameContainerRef.current && !customerNameContainerRef.current.contains(e.target as Node)) {
+      if (
+        customerNameContainerRef.current && !customerNameContainerRef.current.contains(e.target as Node) &&
+        customerPhoneInputRef.current && !customerPhoneInputRef.current.contains(e.target as Node)
+      ) {
         setShowCustomerDropdown(false);
       }
     };
@@ -1399,6 +1590,7 @@ export function BillingPage() {
   }, []);
 
   const selectCustomerSuggestion = (c: any) => {
+    skipCustomerDropdownOnFocusRef.current = true;
     const cleanName = (c.name || '').trim().replace(/\s+/g, ' ');
     const cleanPhone = (c.phone || '').trim();
     const cleanAddress = (c.address || '').trim();
@@ -1418,23 +1610,125 @@ export function BillingPage() {
     }
     setCustomerSearchResults([]);
     setShowCustomerDropdown(false);
+    setTimeout(() => {
+      focusInputWithoutDropdown(customerPhoneInputRef.current);
+    }, 40);
   };
 
   const handleCustomerNameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!showCustomerDropdown || filteredCustomerSuggestions.length === 0) return;
-    if (e.key === 'ArrowDown') {
+    if (showCustomerDropdown && filteredCustomerSuggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
+        return;
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
+        return;
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        e.preventDefault();
+        if (filteredCustomerSuggestions[selectedCustomerIndex]) {
+          selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
+        } else {
+          setShowCustomerDropdown(false);
+          focusInputWithoutDropdown(customerPhoneInputRef.current);
+        }
+        return;
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        return;
+      }
+    }
+
+    // Dropdown not showing or no suggestions
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
       e.preventDefault();
-      setSelectedCustomerIndex(prev => (prev + 1) % filteredCustomerSuggestions.length);
+      setShowCustomerDropdown(false);
+      focusInputWithoutDropdown(customerPhoneInputRef.current);
+    } else if (e.key === 'ArrowRight') {
+      const input = e.currentTarget;
+      if (input.selectionEnd === input.value.length) {
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        focusInputWithoutDropdown(customerPhoneInputRef.current);
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
-      setSelectedCustomerIndex(prev => (prev - 1 + filteredCustomerSuggestions.length) % filteredCustomerSuggestions.length);
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      if (filteredCustomerSuggestions[selectedCustomerIndex]) {
-        e.preventDefault();
-        selectCustomerSuggestion(filteredCustomerSuggestions[selectedCustomerIndex]);
-      }
-    } else if (e.key === 'Escape') {
       setShowCustomerDropdown(false);
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    }
+  };
+
+  const handleCustomerPhoneKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      setShowCustomerDropdown(false);
+      customerAddressInputRef.current?.focus();
+      customerAddressInputRef.current?.select();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setShowCustomerDropdown(false);
+      focusInputWithoutDropdown(customerNameInputRef.current);
+    } else if (e.key === 'ArrowLeft') {
+      const input = e.currentTarget;
+      if (input.selectionStart === 0) {
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        focusInputWithoutDropdown(customerNameInputRef.current);
+      }
+    } else if (e.key === 'ArrowRight') {
+      const input = e.currentTarget;
+      if (input.selectionEnd === input.value.length) {
+        e.preventDefault();
+        setShowCustomerDropdown(false);
+        customerAddressInputRef.current?.focus();
+        customerAddressInputRef.current?.select();
+      }
+    }
+  };
+
+  const handleCustomerAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      focusInputWithoutDropdown(customerPhoneInputRef.current);
+    } else if (e.key === 'ArrowLeft') {
+      const input = e.currentTarget;
+      if (input.selectionStart === 0) {
+        e.preventDefault();
+        focusInputWithoutDropdown(customerPhoneInputRef.current);
+      }
+    } else if (e.key === 'ArrowRight') {
+      const input = e.currentTarget;
+      if (input.selectionEnd === input.value.length) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    }
+  };
+
+  const handleCustomerGstinKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      customerAddressInputRef.current?.focus();
+      customerAddressInputRef.current?.select();
+    } else if (e.key === 'ArrowLeft') {
+      const input = e.currentTarget;
+      if (input.selectionStart === 0) {
+        e.preventDefault();
+        customerAddressInputRef.current?.focus();
+        customerAddressInputRef.current?.select();
+      }
     }
   };
 
@@ -2357,7 +2651,7 @@ export function BillingPage() {
         customerPhone: '',
         customerGstin: '',
         customerAddress: '',
-        paymentMethod: 'PENDING',
+        paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH',
         receivedAmount: 0,
         reservedQuotationNumber: '',
       });
@@ -2725,7 +3019,49 @@ export function BillingPage() {
       }
 
       if (shouldPrint) {
-        const fullHtml = `<!DOCTYPE html>
+        let htmlToPrint = '';
+        try {
+          const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tid, key: 'print_format' });
+          const printFmt = parsePrintFormat(printFmtRaw);
+          if (printFmt.format === 'half-a4') {
+            const qBillSettings = {
+              ...DEFAULT_BILL_SETTINGS,
+              ...(printFmt.billSettings || {}),
+              instructions: quotationTerms || (printFmt.billSettings?.instructions || ''),
+            };
+            const qReceiptData: ReceiptData = {
+              shopName: shopNameState || shopName || 'Shop',
+              shopAddress: shopAddress || undefined,
+              shopPhone: shopPhone || undefined,
+              shopGstin: shopGstin || undefined,
+              invoiceNumber: quotationNumber,
+              invoiceType: 'QUOTATION',
+              date: new Date().toLocaleDateString('en-IN'),
+              items: qItems.map(item => ({
+                name: item.name,
+                quantity: item.quantity,
+                unit_price: item.rate,
+                total: item.amount,
+              })),
+              subtotal: qSubtotal,
+              tax: qTaxTotal,
+              discount: 0,
+              grandTotal: qGrandTotal,
+              customerName: customerName || undefined,
+              customerPhone: customerPhone || undefined,
+              customerAddress: customerAddress || undefined,
+              customerState: customerState || undefined,
+              billerName: useAuthStore.getState().userName || undefined,
+              billSettings: qBillSettings,
+              a5Orientation: printFmt.a5Orientation || 'horizontal',
+            };
+            htmlToPrint = generateInvoiceHtml(qReceiptData, 'half-a4');
+          }
+        } catch (err) {
+          console.warn('Failed to load print format for quotation', err);
+        }
+
+        const fullHtml = htmlToPrint || `<!DOCTYPE html>
           <html>
             <head>
               <title>Quotation - ${shopName}</title>
@@ -2743,8 +3079,8 @@ export function BillingPage() {
                 .text-center { text-align: center; }
                 .total-row td { font-weight: bold; }
                 .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
-                .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
-                .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
+                .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
+                .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
               </style>
             </head>
             <body>
@@ -2838,7 +3174,7 @@ export function BillingPage() {
         customerPhone: '', 
         customerGstin: '', 
         customerAddress: '', 
-        paymentMethod: 'PENDING', 
+        paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
         receivedAmount: 0,
         reservedQuotationNumber: '',
       });
@@ -2877,9 +3213,45 @@ export function BillingPage() {
 
   const handleSearchKey = async (e: React.KeyboardEvent) => {
     const maxLen = isScrapMode ? scrapSearchResults.length : isPastBillMode ? pastBillResults.length : results.length;
-    if (e.key === 'ArrowDown') { setSelectedIndex(i => Math.min(i + 1, maxLen - 1)); e.preventDefault(); }
-    else if (e.key === 'ArrowUp') { setSelectedIndex(i => Math.max(i - 1, 0)); e.preventDefault(); }
+    if (e.key === 'ArrowDown') {
+      if (maxLen > 0) {
+        setSelectedIndex(i => Math.min(i + 1, maxLen - 1));
+        e.preventDefault();
+      } else if (searchQuery.trim() === '') {
+        e.preventDefault();
+        if (items.length > 0) {
+          const firstId = items[0].product_id;
+          qtyRefs.current[firstId]?.focus();
+          qtyRefs.current[firstId]?.select();
+        } else {
+          customerNameInputRef.current?.focus();
+          customerNameInputRef.current?.select();
+        }
+      }
+    }
+    else if (e.key === 'ArrowUp') {
+      if (maxLen > 0 && selectedIndex > 0) {
+        setSelectedIndex(i => Math.max(i - 1, 0));
+        e.preventDefault();
+      } else if (searchQuery.trim() === '') {
+        e.preventDefault();
+        customerNameInputRef.current?.focus();
+        customerNameInputRef.current?.select();
+      }
+    }
     else if (e.key === 'Enter') {
+      if (searchQuery.trim() === '' && maxLen === 0) {
+        if (items.length > 0) {
+          e.preventDefault();
+          if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
+            receivedInputRef.current?.focus();
+            receivedInputRef.current?.select();
+          } else {
+            handleCheckout();
+          }
+          return;
+        }
+      }
       if (isScrapMode) {
         if (scrapSearchResults[selectedIndex]) handleSelectScrapItem(scrapSearchResults[selectedIndex]);
       } else if (isReturnMode) {
@@ -2916,13 +3288,63 @@ export function BillingPage() {
     else if (e.key === 'Escape') { setResults([]); setScrapSearchResults([]); setPastBillResults([]); setSearchQuery(''); setIsPastBillMode(false); }
   };
 
-  const handleQtyKeyDown = (e: React.KeyboardEvent, _productId: string) => {
+  const handleQtyKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       // After confirming qty, return focus to the search field so the cashier
       // can immediately scan or type the next product barcode.
       searchRef.current?.focus();
       searchRef.current?.select();
+    } else if (e.key === 'ArrowDown') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx !== -1 && idx < items.length - 1) {
+        e.preventDefault();
+        const nextId = items[idx + 1].product_id;
+        qtyRefs.current[nextId]?.focus();
+        qtyRefs.current[nextId]?.select();
+      } else {
+        e.preventDefault();
+        if (discountRef.current) {
+          discountRef.current.focus();
+          discountRef.current.select();
+        } else if (receivedInputRef.current && (paymentMethod === 'CASH' || paymentMethod === 'CREDIT')) {
+          receivedInputRef.current.focus();
+          receivedInputRef.current.select();
+        }
+      }
+    } else if (e.key === 'ArrowUp') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx > 0) {
+        e.preventDefault();
+        const prevId = items[idx - 1].product_id;
+        qtyRefs.current[prevId]?.focus();
+        qtyRefs.current[prevId]?.select();
+      } else {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    } else if (e.key === 'ArrowRight') {
+      if (discRefs.current[productId]) {
+        e.preventDefault();
+        discRefs.current[productId]?.focus();
+        discRefs.current[productId]?.select();
+      }
+    } else if (e.ctrlKey && (e.key === 'Delete' || e.key === 'Backspace')) {
+      e.preventDefault();
+      const idx = items.findIndex(i => i.product_id === productId);
+      removeItem(productId);
+      setTimeout(() => {
+        const remaining = useCartStore.getState().items;
+        if (remaining.length > 0) {
+          const targetItem = remaining[Math.min(idx, remaining.length - 1)];
+          qtyRefs.current[targetItem.product_id]?.focus();
+          qtyRefs.current[targetItem.product_id]?.select();
+        } else {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
+      }, 50);
     }
   };
 
@@ -2943,13 +3365,62 @@ export function BillingPage() {
       e.preventDefault();
       const flatInput = discFlatRefs.current[productId];
       if (flatInput) { flatInput.focus(); flatInput.select(); }
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      qtyRefs.current[productId]?.focus();
+      qtyRefs.current[productId]?.select();
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      discFlatRefs.current[productId]?.focus();
+      discFlatRefs.current[productId]?.select();
+    } else if (e.key === 'ArrowDown') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx !== -1 && idx < items.length - 1) {
+        e.preventDefault();
+        const nextId = items[idx + 1].product_id;
+        discRefs.current[nextId]?.focus();
+        discRefs.current[nextId]?.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx > 0) {
+        e.preventDefault();
+        const prevId = items[idx - 1].product_id;
+        discRefs.current[prevId]?.focus();
+        discRefs.current[prevId]?.select();
+      } else {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     }
   };
 
-  const handleDiscFlatKeyDown = (e: React.KeyboardEvent, _productId: string) => {
+  const handleDiscFlatKeyDown = (e: React.KeyboardEvent, productId: string) => {
     if (e.key === 'Enter') {
       e.preventDefault();
       searchRef.current?.focus();
+      searchRef.current?.select();
+    } else if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      discRefs.current[productId]?.focus();
+      discRefs.current[productId]?.select();
+    } else if (e.key === 'ArrowDown') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx !== -1 && idx < items.length - 1) {
+        e.preventDefault();
+        const nextId = items[idx + 1].product_id;
+        discFlatRefs.current[nextId]?.focus();
+        discFlatRefs.current[nextId]?.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      const idx = items.findIndex(i => i.product_id === productId);
+      if (idx > 0) {
+        e.preventDefault();
+        const prevId = items[idx - 1].product_id;
+        discFlatRefs.current[prevId]?.focus();
+        discFlatRefs.current[prevId]?.select();
+      }
     }
   };
 
@@ -3140,17 +3611,17 @@ export function BillingPage() {
           const scrapBillSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt?.scrapBillSettings || {}) };
           const cartState = useCartStore.getState();
           const receiptData: ReceiptData = {
-            shopName: scrapBillSettings.showShopName ? (shopNameState || shopName || 'My Shop') : '',
-            shopGstin: scrapBillSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-            shopAddress: scrapBillSettings.showShopAddress ? (shopAddress || undefined) : undefined,
-            shopPhone: scrapBillSettings.showPhone ? (shopPhone || undefined) : undefined,
+            shopName: scrapBillSettings.showShopName !== false ? (shopNameState || shopName || 'My Shop') : '',
+            shopGstin: scrapBillSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+            shopAddress: scrapBillSettings.showShopAddress !== false ? (shopAddress || undefined) : undefined,
+            shopPhone: scrapBillSettings.showPhone !== false ? (shopPhone || undefined) : undefined,
             upiId: undefined,
             showUpiQr: false,
             showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
             invoiceNumber: scrapInvoiceNum || '',
             invoiceType: 'SCRAP',
             date: formatBillDateTime(new Date()),
-            billerName: userName || authRole || undefined,
+            billerName: scrapBillSettings.showBillerName !== false ? (userName || authRole || undefined) : undefined,
             items: scrapReceiptItems,
             subtotal: scrapTotal,
             tax: 0,
@@ -3159,7 +3630,10 @@ export function BillingPage() {
             discountValue: cartState.discountValue,
             grandTotal: finalScrapGrandTotal,
             extraBonus: extraBonus,
-            customerName: scrapBillSettings.showCustomerName ? (customerName || undefined) : undefined,
+            customerName: scrapBillSettings.showCustomerName !== false ? (customerName || undefined) : undefined,
+            customerPhone: scrapBillSettings.showCustomerPhone !== false ? (customerPhone || undefined) : undefined,
+            customerAddress: scrapBillSettings.showCustomerAddress !== false ? (customerAddress || undefined) : undefined,
+            customerState: scrapBillSettings.showCustomerState !== false ? (customerState || undefined) : undefined,
             billSettings: scrapBillSettings,
           };
 
@@ -3202,7 +3676,7 @@ export function BillingPage() {
           } else {
             clearCart();
             useCartStore.getState().setEditingInvoice(null, null, null);
-            updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
+            updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '' });
             syncActiveSnapshot();
             await Promise.all([reserveScrapInvoiceNumberForTab(), reserveInvoiceNumberForTab()]);
             const tab = getActiveTab();
@@ -3243,7 +3717,7 @@ export function BillingPage() {
         pcsSnapshot[item.product_id] = item.pieces_override ?? 1;
       });
 
-      if (paymentMethod === 'CREDIT') {
+      if (paymentMethod === 'CREDIT' || (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)) {
         if (!(customerName || '').trim() || !(customerPhone || '').trim()) {
           setHardwareError('Please enter Customer Name and Phone Number for Credit');
           return;
@@ -3251,8 +3725,9 @@ export function BillingPage() {
       }
 
       if (paymentMethod === 'SPLIT') {
-        if (splitTotal <= 0) {
-          setHardwareError('Please enter split payment breakdown amounts for Cash, Card, or UPI');
+        const totalSplitEntered = splitTotal + (Number(splitDetails?.credit) || 0);
+        if (totalSplitEntered <= 0) {
+          setHardwareError('Please enter split payment breakdown amounts for Cash, Card, UPI, or Credit');
           return;
         }
       }
@@ -3458,12 +3933,46 @@ export function BillingPage() {
       // Without this fix, scrap deduction was subtracted twice (here and in receiptGenerator).
       const grandTotalBeforeScrap = Math.max(0, grandTotal - pointsRedeemedDiscount);
 
+      const cleanCustName = (customerName || '').trim();
+      const cleanCustPhone = (customerPhone || '').trim();
+      const matchedParty = (cleanCustName || cleanCustPhone) ? partiesForTier.find((p: any) =>
+        (cleanCustName && p.name && p.name.trim().toLowerCase() === cleanCustName.toLowerCase()) ||
+        (cleanCustPhone && p.phone && String(p.phone).trim() === cleanCustPhone)
+      ) : null;
+      const partyOldBalance = matchedParty ? (Number(matchedParty.balance) || 0) : 0;
+
+      // ── Credit Limit Enforcement ─────────────────────────────────────────────
+      // Block checkout if the party's credit balance would exceed their limit.
+      if (matchedParty && Number(matchedParty.credit_limit) > 0) {
+        const creditLimit = Number(matchedParty.credit_limit);
+        // Determine how much of THIS bill is on credit
+        let billCreditAmount = 0;
+        if (paymentMethod === 'CREDIT') {
+          // Whole bill goes on credit (effectiveGrandTotal already accounts for loyalty points)
+          billCreditAmount = Math.max(0, effectiveGrandTotal);
+        } else if (paymentMethod === 'SPLIT') {
+          billCreditAmount = Math.max(0, Number(splitDetails.credit) || 0);
+        }
+        if (billCreditAmount > 0) {
+          const projectedBalance = partyOldBalance + billCreditAmount;
+          if (projectedBalance > creditLimit) {
+            const excess = projectedBalance - creditLimit;
+            const fmtNum = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            setHardwareError(
+              `Credit Limit Exceeded for ${matchedParty.name}! Limit: ₹${fmtNum(creditLimit)}, Current Due: ₹${fmtNum(partyOldBalance)}, Bill Credit: ₹${fmtNum(billCreditAmount)}. Exceeds limit by ₹${fmtNum(excess)} — Cannot complete bill.`
+            );
+            return;
+          }
+        }
+      }
+      // ─────────────────────────────────────────────────────────────────────────
+
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName ? (shopNameState || shopName || 'My Shop') : '',
-        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-        shopState: billSettings.showShopState ? (state.shopState || undefined) : undefined,
-        shopAddress: billSettings.showShopAddress ? (shopAddress || undefined) : undefined,
-        shopPhone: billSettings.showPhone ? (shopPhone || undefined) : undefined,
+        shopName: billSettings.showShopName !== false ? (shopNameState || shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+        shopState: billSettings.showShopState !== false ? (state.shopState || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress !== false ? (shopAddress || undefined) : undefined,
+        shopPhone: billSettings.showPhone !== false ? (shopPhone || undefined) : undefined,
         upiId: upiId || undefined,
         showUpiQr: showUpiQr,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
@@ -3483,14 +3992,44 @@ export function BillingPage() {
         remainingPointsBalance: remainingPointsBalance > 0 ? remainingPointsBalance : undefined,
         scrapDeduction: storeScrapDeduction || undefined, scrapInvoiceNumber: storeScrapInvoiceNumber || undefined,
         returnDeduction: storeReturnDeduction || undefined, returnInvoiceNumber: storeReturnInvoiceNumber || undefined,
-        ...(paymentMethod === 'CASH' && !isPaymentPending ? { receivedAmount: effectiveReceivedAmount, balanceAmount: effectiveBalanceAmount } : {}),
+        ...(paymentMethod === 'CREDIT'
+          ? {
+              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              receivedAmount: effectiveReceivedAmount,
+              balanceAmount: partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)),
+              customerBalance: partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)),
+              paymentMethod: 'CREDIT',
+            }
+          : (paymentMethod === 'CASH' && !isPaymentPending)
+          ? {
+              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              receivedAmount: effectiveReceivedAmount,
+              balanceAmount: effectiveBalanceAmount,
+              paymentMethod: 'CASH',
+            }
+          : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+          ? {
+              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              receivedAmount: effectiveGrandTotal - (Number(splitDetails?.credit) || 0),
+              balanceAmount: partyOldBalance + (Number(splitDetails?.credit) || 0),
+              customerBalance: partyOldBalance + (Number(splitDetails?.credit) || 0),
+              paymentMethod: 'SPLIT',
+            }
+          : {
+              oldBalance: partyOldBalance !== 0 ? partyOldBalance : undefined,
+              ...(paymentMethod === 'SPLIT' ? { receivedAmount: effectiveReceivedAmount } : {}),
+              paymentMethod: paymentMethod,
+            }
+        ),
         invoiceType,
         customerName: customerName || undefined,
         customerPhone: customerPhone || undefined,
+        customerAddress: customerAddress || undefined,
         customerGstin: customerGstin?.trim() || undefined,
         customerState: customerState || undefined,
         billSettings,
         isB2B,
+        a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
 
       let result: any;
@@ -3501,6 +4040,12 @@ export function BillingPage() {
           subtotal, tax_total: totalTax, discount_total: discount,
           discount_type: useCartStore.getState().discountType, discount_value: useCartStore.getState().discountValue,
           grand_total: effectiveGrandTotal, payment_method: paymentMethod,
+          received_amount: effectiveReceivedAmount,
+          balance_amount: paymentMethod === 'CREDIT'
+            ? (partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)))
+            : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+            ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
+            : effectiveBalanceAmount,
           split_details: paymentMethod === 'SPLIT'
             ? { ...(splitDetails || {}), upi_id: currentSelectedUpi?.upi_id, upi_name: currentSelectedUpi?.name, upi_source_id: currentSelectedUpi?.source_id }
             : (paymentMethod === 'UPI' && currentSelectedUpi
@@ -3508,7 +4053,7 @@ export function BillingPage() {
                 : (splitDetails || undefined)),
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
-          customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          customer_state: billSettings.showCustomerState !== false ? (customerState || null) : null,
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
@@ -3527,10 +4072,15 @@ export function BillingPage() {
             : (paymentMethod === 'UPI' && currentSelectedUpi
                 ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
                 : (splitDetails || undefined)),
-          received_amount: effectiveReceivedAmount, balance_amount: effectiveBalanceAmount,
+          received_amount: effectiveReceivedAmount,
+          balance_amount: paymentMethod === 'CREDIT'
+            ? (partyOldBalance + Math.max(0, effectiveGrandTotal - (effectiveReceivedAmount || 0)))
+            : (paymentMethod === 'SPLIT' && (Number(splitDetails?.credit) || 0) > 0)
+            ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
+            : effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
           customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
-          customer_state: billSettings.showCustomerGstin ? (customerState || null) : null,
+          customer_state: billSettings.showCustomerState !== false ? (customerState || null) : null,
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
@@ -3614,7 +4164,7 @@ export function BillingPage() {
       if (!saveOnly) {
         try {
           if (useA4) {
-            const invoiceStyle = (isHalfA4 && !isGstOrB2B) ? 'half-a4' : (printFmt.style || 'standard');
+            const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
             const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
             const printResult = await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
             if (!printResult.success) {
@@ -3660,6 +4210,12 @@ export function BillingPage() {
       try {
         window.dispatchEvent(new CustomEvent('checkout:completed', { detail: { invoice_id: invoice_id || '', invoice_number: invoice_number || '' } }));
       } catch (e) { /* ignore */ }
+      // Refresh parties list so party balances update immediately
+      window.electronAPI.dbGetParties(tenantId || 'global')
+        .then((res: any) => {
+          if (Array.isArray(res)) setPartiesForTier(res);
+        })
+        .catch(console.error);
       setTimeout(async () => {
         const tabsCount = useTabStore.getState().tabs.length;
         const currentActiveId = activeTabId;
@@ -3669,7 +4225,7 @@ export function BillingPage() {
           clearCart();
           clearScrapDeduction();
           clearReturnDeduction();
-          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: 'PENDING', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
+          updateActiveTab({ customerName: '', customerPhone: '', customerGstin: '', customerAddress: '', paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', receivedAmount: 0, reservedInvoiceNumber: '', reservedScrapInvoiceNumber: '', reservedQuotationNumber: '', reservedReturnNumber: '' });
           syncActiveSnapshot();
           await reserveInvoiceNumberForTab();
           const tab = getActiveTab();
@@ -3786,6 +4342,8 @@ export function BillingPage() {
           invoiceType: 'RETURN',
           customerName: selectedReturnInvoice.customer_name || customerName || undefined,
           customerPhone: selectedReturnInvoice.customer_phone || customerPhone || undefined,
+          customerAddress: (selectedReturnInvoice as any)?.customer_address || customerAddress || undefined,
+          customerState: (selectedReturnInvoice as any)?.customer_state || undefined,
           billSettings,
         };
         const { generateReceiptText } = await import('../utils/receiptGenerator');
@@ -4040,7 +4598,7 @@ export function BillingPage() {
         customerPhone: result.invoice?.customer_phone || '',
         customerGstin: result.invoice?.customer_gstin || '',
         customerAddress: result.invoice?.customer_address || '',
-        paymentMethod: 'PENDING',
+        paymentMethod: (!isCashSettlementEnabled && (!result.invoice?.payment_method || result.invoice?.payment_method === 'PENDING')) ? 'CASH' : (result.invoice?.payment_method || (isCashSettlementEnabled ? 'PENDING' : 'CASH')),
         receivedAmount: Number(result.invoice?.received_amount) || 0,
       });
 
@@ -4152,6 +4710,18 @@ export function BillingPage() {
       if (!next) { setSelectedReturnInvoice(null); }
       setTimeout(() => searchRef.current?.focus(), 100);
     },
+    'F4': () => {
+      customerNameInputRef.current?.focus();
+      customerNameInputRef.current?.select();
+    },
+    'Alt+c': () => {
+      customerNameInputRef.current?.focus();
+      customerNameInputRef.current?.select();
+    },
+    'Alt+C': () => {
+      customerNameInputRef.current?.focus();
+      customerNameInputRef.current?.select();
+    },
     'F8': () => { discountRef.current?.focus(); },
     'F9': () => {
       // Scrap Deduction
@@ -4163,6 +4733,43 @@ export function BillingPage() {
       setReturnDeductionSearchMode(true);
       setTimeout(() => returnDeductionInputRef.current?.focus(), 100);
     },
+    'F11': () => {
+      // Cycle payment method
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      if (isCashSettlementEnabled) order.push('PENDING');
+      const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
+      const nextIdx = (currentIdx + 1) % order.length;
+      const nextMethod = order[nextIdx];
+      updateActiveTab({ paymentMethod: nextMethod });
+      setInfoToast(`Payment Mode: ${nextMethod}`);
+      setTimeout(() => setInfoToast(null), 2500);
+    },
+    'Alt+p': () => {
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      if (isCashSettlementEnabled) order.push('PENDING');
+      const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
+      const nextIdx = (currentIdx + 1) % order.length;
+      const nextMethod = order[nextIdx];
+      updateActiveTab({ paymentMethod: nextMethod });
+      setInfoToast(`Payment Mode: ${nextMethod}`);
+      setTimeout(() => setInfoToast(null), 2500);
+    },
+    'Alt+P': () => {
+      const order: PaymentMethod[] = ['CASH', 'UPI', 'CARD', 'CREDIT', 'SPLIT'];
+      if (isCashSettlementEnabled) order.push('PENDING');
+      const currentIdx = order.indexOf(paymentMethod as PaymentMethod);
+      const nextIdx = (currentIdx + 1) % order.length;
+      const nextMethod = order[nextIdx];
+      updateActiveTab({ paymentMethod: nextMethod });
+      setInfoToast(`Payment Mode: ${nextMethod}`);
+      setTimeout(() => setInfoToast(null), 2500);
+    },
+    'Alt+1': () => { updateActiveTab({ paymentMethod: 'CASH' }); setInfoToast('Payment Mode: CASH'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+2': () => { updateActiveTab({ paymentMethod: 'UPI' }); setInfoToast('Payment Mode: UPI'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+3': () => { updateActiveTab({ paymentMethod: 'CARD' }); setInfoToast('Payment Mode: CARD'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+4': () => { updateActiveTab({ paymentMethod: 'CREDIT' }); setInfoToast('Payment Mode: CREDIT'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+5': () => { updateActiveTab({ paymentMethod: 'SPLIT' }); setInfoToast('Payment Mode: SPLIT'); setTimeout(() => setInfoToast(null), 2000); },
+    'Alt+6': () => { if (isCashSettlementEnabled) { updateActiveTab({ paymentMethod: 'PENDING' }); setInfoToast('Payment Mode: PENDING'); setTimeout(() => setInfoToast(null), 2000); } },
     'F12': () => {
       if (isScrapMode) {
         handleCheckout();
@@ -4323,7 +4930,7 @@ export function BillingPage() {
                   customerPhone: '', 
                   customerGstin: '', 
                   customerAddress: '', 
-                  paymentMethod: 'PENDING', 
+                  paymentMethod: isCashSettlementEnabled ? 'PENDING' : 'CASH', 
                   receivedAmount: 0, 
                   reservedInvoiceNumber: normalInvoiceNumber,
                   title: fallbackTitle 
@@ -4891,9 +5498,13 @@ export function BillingPage() {
                 <User className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
                   ref={customerNameInputRef}
-                  placeholder={'Customer Name (optional)'}
+                  placeholder="Customer Name [F4]"
                   value={customerName}
-                  onFocus={() => setShowCustomerDropdown(true)}
+                  onFocus={() => {
+                    if (!skipCustomerDropdownOnFocusRef.current) {
+                      setShowCustomerDropdown(true);
+                    }
+                  }}
                   onChange={e => {
                     const val = e.target.value;
                     updateActiveTab({ customerName: val });
@@ -4909,40 +5520,58 @@ export function BillingPage() {
                       : 'border-border focus:ring-primary/20 focus:border-primary'
                   )}
                 />
-                {showCustomerDropdown && filteredCustomerSuggestions.length > 0 && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
-                    {filteredCustomerSuggestions.map((c: any, index: number) => (
-                      <button
-                        key={c.customer_id || index}
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          selectCustomerSuggestion(c);
-                        }}
-                        className={clsx(
-                          "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border last:border-0 cursor-pointer transition-colors",
-                          index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold" : "hover:bg-muted/40"
-                        )}
-                      >
-                        <User className="w-4 h-4 text-muted-foreground shrink-0" />
-                        <div className="flex-1 min-w-0">
-                          <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
-                          <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No phone/address'}</div>
-                        </div>
-                        {Number(c.current_points_balance) > 0 && (
-                          <span className="text-[10px] font-bold text-emerald-600 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
+                {(() => {
+                  const isExactSingleMatch = filteredCustomerSuggestions.length === 1 &&
+                    (filteredCustomerSuggestions[0].name || '').trim().toLowerCase() === customerName.trim().toLowerCase() &&
+                    (filteredCustomerSuggestions[0].phone || '').trim() === customerPhone.trim();
+                  
+                  if (!showCustomerDropdown || filteredCustomerSuggestions.length === 0 || isExactSingleMatch) return null;
+
+                  return (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
+                      {filteredCustomerSuggestions.map((c: any, index: number) => (
+                        <button
+                          key={c.customer_id || c.party_id || index}
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            selectCustomerSuggestion(c);
+                          }}
+                          className={clsx(
+                            "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border last:border-0 cursor-pointer transition-colors",
+                            index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold" : "hover:bg-muted/40"
+                          )}
+                        >
+                          <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
+                            <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No phone/address'}</div>
+                          </div>
+                          {Number(c.current_points_balance) > 0 && (
+                            <span className="text-[10px] font-bold text-emerald-600 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
+                          )}
+                          {c.balance != null && Number(c.balance) !== 0 && (
+                            <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600")}>
+                              Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
               </div>
               <div className="relative flex-1">
                 <Phone className={clsx('absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 transition-all duration-300', paymentMethod === 'CREDIT' ? 'text-amber-500' : 'text-muted-foreground/50')} />
                 <input
-                  placeholder={'Phone Number (optional)'}
+                  ref={customerPhoneInputRef}
+                  placeholder="Phone Number"
                   value={customerPhone}
-                  onFocus={() => setShowCustomerDropdown(true)}
+                  onFocus={() => {
+                    if (!skipCustomerDropdownOnFocusRef.current) {
+                      setShowCustomerDropdown(true);
+                    }
+                  }}
                   onChange={e => {
                     const val = e.target.value;
                     updateActiveTab({ customerPhone: val });
@@ -4950,6 +5579,7 @@ export function BillingPage() {
                     setShowCustomerDropdown(true);
                     setSelectedCustomerIndex(0);
                   }}
+                  onKeyDown={handleCustomerPhoneKeyDown}
                   className={clsx(
                     'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
@@ -4959,13 +5589,65 @@ export function BillingPage() {
                 />
               </div>
             </div>
+
+            {/* ── Real-time Credit Limit Warning Banner ────────────────────────── */}
+            {(() => {
+              if (paymentMethod !== 'CREDIT' && !(paymentMethod === 'SPLIT' && Number(splitDetails.credit) > 0)) return null;
+              const cleanName = (customerName || '').trim();
+              const cleanPhone = (customerPhone || '').trim();
+              if (!cleanName && !cleanPhone) return null;
+              const party = partiesForTier.find((p: any) =>
+                (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
+                (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
+              );
+              if (!party || !(Number(party.credit_limit) > 0)) return null;
+              const limit = Number(party.credit_limit);
+              const currentBal = Number(party.balance) || 0;
+              const billCredit = paymentMethod === 'CREDIT'
+                ? Math.max(0, displayGrandTotal)
+                : Math.max(0, Number(splitDetails.credit) || 0);
+              const projected = currentBal + billCredit;
+              const available = Math.max(0, limit - currentBal);
+              const exceeded = projected > limit;
+              const excess = exceeded ? projected - limit : 0;
+              const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              return (
+                <div className={`mb-2 rounded-xl px-3 py-2 border text-xs flex flex-col gap-1 transition-all duration-300 ${
+                  exceeded
+                    ? 'border-red-400 bg-red-500/10 text-red-700 dark:text-red-400'
+                    : 'border-amber-400 bg-amber-500/8 text-amber-700 dark:text-amber-400'
+                }`}>
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-bold flex items-center gap-1">
+                      {exceeded ? '🚫' : '💳'} Credit Limit
+                    </span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <span>Limit: <strong>₹{fmtN(limit)}</strong></span>
+                      <span>Due: <strong>₹{fmtN(currentBal)}</strong></span>
+                      <span className={exceeded ? 'text-red-600 dark:text-red-400 font-black' : 'text-emerald-600 dark:text-emerald-400 font-bold'}>
+                        Avail: ₹{fmtN(available)}
+                      </span>
+                    </div>
+                  </div>
+                  {exceeded && (
+                    <div className="font-bold text-red-600 dark:text-red-400">
+                      ⚠️ Exceeds limit by ₹{fmtN(excess)} — Bill cannot be completed on credit!
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            {/* ──────────────────────────────────────────────────────────────── */}
+
             <div className="flex items-center gap-2 mb-2">
               <div className="relative flex-1">
                 <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                 <input
-                  placeholder="Customer Address (optional)"
+                  ref={customerAddressInputRef}
+                  placeholder="Customer Address"
                   value={customerAddress}
                   onChange={e => updateActiveTab({ customerAddress: e.target.value })}
+                  onKeyDown={handleCustomerAddressKeyDown}
                   className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all duration-300"
                 />
               </div>
@@ -5027,9 +5709,11 @@ export function BillingPage() {
                     <div className="relative flex-1">
                       <Building className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/50" />
                       <input
+                        ref={customerGstinInputRef}
                         placeholder="GSTIN"
                         value={customerGstin}
                         onChange={e => updateActiveTab({ customerGstin: e.target.value.toUpperCase() })}
+                        onKeyDown={handleCustomerGstinKeyDown}
                         maxLength={15}
                         className="w-full pl-7 pr-2 py-1 bg-background border border-border rounded-lg text-xs text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-primary/20 uppercase"
                       />
@@ -5111,7 +5795,9 @@ export function BillingPage() {
                 <div className="flex gap-1.5 mt-1 flex-wrap justify-center">
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F1: Normal</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F2: Search</span>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F4: Customer</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F8: {isScrapMode ? 'Extra' : 'Discount'}</span>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F11: Pay Mode</span>
                   <span className="px-2 py-0.5 text-[10px] font-extrabold bg-primary/10 text-primary rounded-full shadow-2xs">F12: Print</span>
                 </div>
               </div>
@@ -5158,7 +5844,10 @@ export function BillingPage() {
                             }
                           }}
                           onChange={e => updateItemOfferPrice(item.product_id, e.target.value === '' ? 0 : Number(e.target.value))}
-                          onKeyDown={e => guardScannerInput(e, item.product_id, serviceAmount || '', v => updateItemOfferPrice(item.product_id, v === '' ? 0 : Number(v)))}
+                          onKeyDown={e => {
+                            guardScannerInput(e, item.product_id, serviceAmount || '', v => updateItemOfferPrice(item.product_id, v === '' ? 0 : Number(v)));
+                            handleQtyKeyDown(e, item.product_id);
+                          }}
                           onFocus={e => e.target.select()}
                           placeholder="0"
                         />
@@ -5211,7 +5900,7 @@ export function BillingPage() {
                         <button onClick={() => { const q = Number(item.quantity); if (q > 1) updateQuantity(item.product_id, q - 1); }}
                           className="w-7 h-7 flex items-center justify-center bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-all active:scale-90 cursor-pointer font-bold"
                         ><Minus className="w-3 h-3" /></button>
-                        <input type="number" min="0" max={avail} step="1"
+                        <input type="text" inputMode="numeric"
                           ref={(el) => {
                             qtyRefs.current[item.product_id] = el;
                             if (el && pendingFocusProductIdRef.current === item.product_id) {
@@ -5221,10 +5910,21 @@ export function BillingPage() {
                             }
                           }}
                           className="w-12 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                          value={qtyText}
+                          value={item.quantity === '' ? '' : (item.quantity ?? qtyText)}
+                          onFocus={e => e.target.select()}
+                          onBlur={e => {
+                            const num = Number(e.target.value);
+                            const validVal = (!e.target.value || isNaN(num) || num <= 0) ? 1 : Math.min(avail, num);
+                            updateQuantity(item.product_id, validVal);
+                          }}
                           onChange={e => {
-                            const v = e.target.value === '' ? 1 : Math.min(avail, Math.max(0, Number(e.target.value)));
-                            updateQuantity(item.product_id, v);
+                            const raw = e.target.value.replace(/[^\d]/g, '');
+                            if (raw === '') {
+                              updateQuantity(item.product_id, '');
+                            } else {
+                              const num = parseInt(raw, 10);
+                              updateQuantity(item.product_id, isNaN(num) ? '' : Math.min(avail, Math.max(0, num)));
+                            }
                           }}
                           onKeyDown={e => { guardScannerInput(e, item.product_id, qtyText, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
@@ -5311,6 +6011,7 @@ export function BillingPage() {
                           }}
                           className="w-14 text-center h-7 bg-transparent border-0 text-sm font-black text-foreground focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                           value={item.quantity === 0 ? 0 : item.quantity || ''}
+                          onFocus={e => e.target.select()}
                           onChange={e => updateQuantity(item.product_id, sanitizeQtyText(e.target.value))}
                           onKeyDown={e => { guardScannerInput(e, item.product_id, qty, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                           placeholder="Kg"
@@ -5406,27 +6107,20 @@ export function BillingPage() {
                       </div>
 
                       <div className="text-right shrink-0 min-w-[70px]">
-                        <input type="number" min="0" step="any" inputMode="decimal"
-                          className={`w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${hasItemBonus ? 'text-emerald-500' : 'text-orange-600 dark:text-orange-400'}`}
-                          value={total}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0 || qty <= 0) {
-                              removeItemDiscount(item.product_id);
-                            } else {
-                              const newTotal = parseFloat(val);
-                              const newUnitPrice = newTotal / qty;
-                              if (Math.abs(newUnitPrice - rate) < 0.001) {
-                                removeItemDiscount(item.product_id);
-                              } else {
-                                updateItemOfferPrice(item.product_id, newUnitPrice);
-                              }
-                            }
-                            setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
-                            setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
-                            syncActiveSnapshot();
+                        <ItemTotalInput
+                          productId={item.product_id}
+                          total={total}
+                          rate={rate}
+                          qty={qty}
+                          hasDiscount={hasItemBonus}
+                          isScrap={true}
+                          onUpdateOfferPrice={updateItemOfferPrice}
+                          onRemoveDiscount={removeItemDiscount}
+                          onClearLocalDiscounts={pid => {
+                            setLocalDiscPcts(p => ({ ...p, [pid]: 0 }));
+                            setLocalDiscFlats(p => ({ ...p, [pid]: 0 }));
                           }}
-                          onFocus={e => e.target.select()}
+                          syncActiveSnapshot={syncActiveSnapshot}
                           onKeyDown={e => handleDiscKeyDown(e, item.product_id)}
                         />
                         {hasItemBonus && (
@@ -5657,6 +6351,13 @@ export function BillingPage() {
                             (item.billing_type === 'WEIGHT' || item.isScrap) ? "w-20 min-w-[5rem]" : "w-12"
                           )}
                           value={item.quantity}
+                          onFocus={e => e.target.select()}
+                          onBlur={e => {
+                            const val = Number(e.target.value);
+                            if (!e.target.value || isNaN(val) || val <= 0) {
+                              updateQuantity(item.product_id, item.billing_type === 'WEIGHT' ? 0.1 : 1);
+                            }
+                          }}
                           onChange={e => updateQuantity(item.product_id, sanitizeQtyText(e.target.value))}
                           onKeyDown={e => { guardScannerInput(e, item.product_id, item.quantity, v => updateQuantity(item.product_id, v)); handleQtyKeyDown(e, item.product_id); }}
                         />
@@ -5755,27 +6456,19 @@ export function BillingPage() {
                     </div>
 
                     <div className="text-right shrink-0 min-w-[70px]">
-                      <input type="number" min="0" step="any" inputMode="decimal"
-                        className={`w-20 text-right bg-transparent border-0 font-black text-sm focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${hasItemDiscount ? 'text-emerald-500' : 'text-foreground'}`}
-                        value={total}
-                        onChange={e => {
-                          const val = e.target.value;
-                          if (val === '' || isNaN(parseFloat(val)) || parseFloat(val) <= 0 || qty <= 0) {
-                            removeItemDiscount(item.product_id);
-                          } else {
-                            const newTotal = parseFloat(val);
-                            const newUnitPrice = newTotal / qty;
-                            if (Math.abs(newUnitPrice - rate) < 0.001) {
-                              removeItemDiscount(item.product_id);
-                            } else {
-                              updateItemOfferPrice(item.product_id, newUnitPrice);
-                            }
-                          }
-                          setLocalDiscPcts(p => ({ ...p, [item.product_id]: 0 }));
-                          setLocalDiscFlats(p => ({ ...p, [item.product_id]: 0 }));
-                          syncActiveSnapshot();
+                      <ItemTotalInput
+                        productId={item.product_id}
+                        total={total}
+                        rate={rate}
+                        qty={qty}
+                        hasDiscount={hasItemDiscount}
+                        onUpdateOfferPrice={updateItemOfferPrice}
+                        onRemoveDiscount={removeItemDiscount}
+                        onClearLocalDiscounts={pid => {
+                          setLocalDiscPcts(p => ({ ...p, [pid]: 0 }));
+                          setLocalDiscFlats(p => ({ ...p, [pid]: 0 }));
                         }}
-                        onFocus={e => e.target.select()}
+                        syncActiveSnapshot={syncActiveSnapshot}
                         onKeyDown={e => handleDiscFlatKeyDown(e, item.product_id)}
                       />
                       {(hasItemDiscount || rate * qty > total + 0.005) && rate * qty > total + 0.005 && (
@@ -5880,15 +6573,17 @@ export function BillingPage() {
               ) : (
                 <div>
                   <div className="grid grid-cols-6 gap-2">
-                      {PAYMENT_OPTIONS.map((opt) => {
+                      {paymentOptions.map((opt, idx) => {
                         const isActive = paymentMethod === opt.value;
-                        const span = 'col-span-2';
+                        const span = !isCashSettlementEnabled
+                          ? (idx < 3 ? 'col-span-2' : 'col-span-3')
+                          : 'col-span-2';
 
                         // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
                         if (paymentMethod === 'SPLIT') {
                           if (opt.value === 'CASH') {
                             return (
-                              <div key="CASH" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]">
+                              <div key="CASH" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-emerald-500 bg-emerald-500/10 focus-within:border-emerald-500 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all shadow-xs h-[72px]')}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-extrabold text-xs">
                                     <Banknote className="w-4 h-4" />
@@ -5923,7 +6618,7 @@ export function BillingPage() {
 
                           if (opt.value === 'CARD') {
                             return (
-                              <div key="CARD" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]">
+                              <div key="CARD" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-blue-500 bg-blue-500/10 focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-xs h-[72px]')}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400 font-extrabold text-xs">
                                     <Wallet className="w-4 h-4" />
@@ -5958,7 +6653,7 @@ export function BillingPage() {
 
                           if (opt.value === 'UPI') {
                             return (
-                              <div key="UPI" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]">
+                              <div key="UPI" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-violet-500 bg-violet-500/10 focus-within:border-violet-500 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all shadow-xs h-[72px]')}>
                                 <div className="flex items-center justify-between">
                                   <div
                                     className="flex items-center gap-1 text-violet-600 dark:text-violet-400 font-extrabold text-xs cursor-pointer hover:underline min-w-0"
@@ -6006,7 +6701,7 @@ export function BillingPage() {
 
                           if (opt.value === 'CREDIT') {
                             return (
-                              <div key="CREDIT" className="col-span-2 flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]">
+                              <div key="CREDIT" className={clsx(span, 'flex flex-col justify-between p-2 rounded-2xl border-2 border-amber-500 bg-amber-500/10 focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-xs h-[72px]')}>
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-extrabold text-xs">
                                     <BookOpen className="w-4 h-4" />
@@ -6045,7 +6740,7 @@ export function BillingPage() {
                                 key="SPLIT"
                                 type="button"
                                 onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
-                                className="col-span-2 flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]"
+                                className={clsx(span, 'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]')}
                                 title="Click again to deactivate Split Mode"
                               >
                                 <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
@@ -6274,6 +6969,28 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
                           setDiscount(0, discountType);
                         }
+                      } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
+                          receivedInputRef.current?.focus();
+                          receivedInputRef.current?.select();
+                        } else {
+                          handleCheckout();
+                        }
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        if (items.length > 0) {
+                          const lastItem = items[items.length - 1];
+                          qtyRefs.current[lastItem.product_id]?.focus();
+                          qtyRefs.current[lastItem.product_id]?.select();
+                        } else {
+                          searchRef.current?.focus();
+                          searchRef.current?.select();
+                        }
+                      } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        receivedInputRef.current?.focus();
+                        receivedInputRef.current?.select();
                       }
                     }}
                     placeholder="0"
@@ -6694,6 +7411,16 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                     value={receivedAmount || ''}
                     onChange={e => updateActiveTab({ receivedAmount: e.target.value === '' ? 0 : Number(e.target.value) })}
                     onFocus={e => e.target.select()}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleCheckout();
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        discountRef.current?.focus();
+                        discountRef.current?.select();
+                      }
+                    }}
                     placeholder={grandTotal.toFixed(2)}
                     inputMode="decimal"
                     className="w-full pl-5 pr-2 py-1.5 bg-background/80 border border-border focus:border-primary focus:ring-1 focus:ring-primary/15 rounded-lg text-sm font-black text-right text-foreground placeholder:text-muted-foreground/35 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

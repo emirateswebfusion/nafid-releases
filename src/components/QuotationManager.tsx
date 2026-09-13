@@ -128,24 +128,32 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       if (printFmt.format === 'half-a4' && selectedQuotation) {
-        const [shopGstin, shopAddr, shopPh, upi] = await Promise.all([
+        const [shopNameVal, shopGstin, shopAddr, shopPh, upi, shopStateVal] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
         ]);
-        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+        const billSettings = {
+          ...DEFAULT_BILL_SETTINGS,
+          ...(printFmt.billSettings || {}),
+          instructions: selectedQuotation.terms_conditions || printFmt.billSettings?.instructions || '',
+        };
         const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
           upiId: upi || undefined,
           showUpiQr: true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: selectedQuotation.quotation_number,
           invoiceType: 'QUOTATION',
           date: formatDateLabel(selectedQuotation.created_at),
+          billerName: billSettings.showBillerName !== false ? ((selectedQuotation as any).biller_name || userName || undefined) : undefined,
           items: quotationItems.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -161,7 +169,9 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           discount: 0,
           grandTotal: selectedQuotation.grand_total,
           customerName: billSettings.showCustomerName ? (selectedQuotation.customer_name || undefined) : undefined,
-          customerPhone: billSettings.showPhone ? (selectedQuotation.customer_phone || undefined) : undefined,
+          customerPhone: billSettings.showCustomerPhone !== false ? (selectedQuotation.customer_phone || undefined) : undefined,
+          customerAddress: billSettings.showCustomerAddress !== false ? (selectedQuotation.customer_address || undefined) : undefined,
+          customerState: billSettings.showCustomerState !== false ? ((selectedQuotation as any).customer_state || undefined) : undefined,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
         };
@@ -194,8 +204,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             .text-center { text-align: center; }
             .total-row td { font-weight: bold; }
             .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
-            .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
-            .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
+            .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
+            .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
           </style>
         </head>
         <body>${content}</body>
@@ -223,24 +233,32 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       if (printFmt.format === 'half-a4') {
-        const [shopGstin, shopAddr, shopPh, upi] = await Promise.all([
+        const [shopNameVal, shopGstin, shopAddr, shopPh, upi, shopStateVal] = await Promise.all([
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
         ]);
-        const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
+        const billSettings = {
+          ...DEFAULT_BILL_SETTINGS,
+          ...(printFmt.billSettings || {}),
+          instructions: selectedQuotation.terms_conditions || printFmt.billSettings?.instructions || '',
+        };
         const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName ? (shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
+          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
           upiId: upi || undefined,
           showUpiQr: true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: selectedQuotation.quotation_number,
           invoiceType: 'QUOTATION',
           date: formatDateLabel(selectedQuotation.created_at),
+          billerName: billSettings.showBillerName !== false ? ((selectedQuotation as any).biller_name || userName || undefined) : undefined,
           items: quotationItems.map(item => ({
             name: item.name,
             quantity: item.quantity,
@@ -255,8 +273,10 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           tax: selectedQuotation.tax_total,
           discount: 0,
           grandTotal: selectedQuotation.grand_total,
-          customerName: billSettings.showCustomerName ? (selectedQuotation.customer_name || undefined) : undefined,
-          customerPhone: billSettings.showPhone ? (selectedQuotation.customer_phone || undefined) : undefined,
+          customerName: billSettings.showCustomerName !== false ? (selectedQuotation.customer_name || undefined) : undefined,
+          customerPhone: billSettings.showCustomerPhone !== false ? (selectedQuotation.customer_phone || undefined) : undefined,
+          customerAddress: billSettings.showCustomerAddress !== false ? (selectedQuotation.customer_address || undefined) : undefined,
+          customerState: billSettings.showCustomerState !== false ? ((selectedQuotation as any).customer_state || undefined) : undefined,
           billSettings,
           a5Orientation: printFmt.a5Orientation || 'horizontal',
         };
@@ -284,8 +304,8 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               .text-center { text-align: center; }
               .total-row td { font-weight: bold; }
               .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
-              .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; }
-              .terms p { font-size: 12px; color: #4b5563; line-height: 1.5; white-space: pre-line; }
+              .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
+              .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
             </style>
           </head>
           <body>${content}</body>

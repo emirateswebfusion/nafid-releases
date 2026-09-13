@@ -22,9 +22,14 @@ export interface BillSettings {
   showShopGstin: boolean;
   showShopState: boolean;
   showTitle: boolean;
+  showBillerName?: boolean;
   showCustomerName: boolean;
+  showCustomerPhone?: boolean;
+  showCustomerAddress?: boolean;
   showCustomerGstin: boolean;
+  showCustomerState?: boolean;
   estimateMode: boolean;
+  nonGstBillTitle?: 'BILL_OF_SUPPLY' | 'ESTIMATE';
   showScrapHeading: boolean;
   showBosTaxBreakup: boolean;
   bosTaxRatePercent: number;
@@ -45,9 +50,14 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showShopGstin: true,
   showShopState: true,
   showTitle: true,
+  showBillerName: true,
   showCustomerName: true,
+  showCustomerPhone: true,
+  showCustomerAddress: true,
   showCustomerGstin: true,
+  showCustomerState: true,
   estimateMode: false,
+  nonGstBillTitle: 'BILL_OF_SUPPLY',
   showScrapHeading: true,
   showBosTaxBreakup: false,
   bosTaxRatePercent: 0,
@@ -180,6 +190,9 @@ export interface ReceiptData {
   grandTotal: number;
   receivedAmount?: number;
   balanceAmount?: number;
+  oldBalance?: number;
+  customerBalance?: number;
+  paymentMethod?: string;
   isReprint?: boolean;
   invoiceType?: string;
   customerName?: string;
@@ -249,16 +262,16 @@ export function numberToIndianWords(amount: number): string {
   return words || 'Zero';
 }
 
-function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean): string {
+function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   if (isB2B) return 'TAX INVOICE (B2B)';
-  if (estimateMode) return 'BILL OF SUPPLY';
+  const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   switch (invoiceType) {
     case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
     case 'SCRAP': return 'SCRAP BILL';
-    case 'BILL_OF_SUPPLY': return 'BILL OF SUPPLY';
-    case 'ESTIMATE': return 'BILL OF SUPPLY';
+    case 'BILL_OF_SUPPLY': return nonGstTitle;
+    case 'ESTIMATE': return nonGstTitle;
     case 'RETURN': return 'RETURN INVOICE';
-    default: return isB2B ? 'TAX INVOICE (B2B)' : 'INVOICE';
+    default: return isB2B ? 'TAX INVOICE (B2B)' : nonGstTitle;
   }
 }
 
@@ -328,7 +341,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (lines.length === 0) return t;
     const dash = '-'.repeat(charsPerLine);
     let out = t + '\n' + dash + '\n';
-    out += centerText('INSTRUCTIONS', charsPerLine) + '\n';
+    out += centerText('TERMS & CONDITIONS', charsPerLine) + '\n';
     for (const line of lines) {
       out += centerText(line.trim(), charsPerLine) + '\n';
     }
@@ -375,17 +388,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Header ──
     const bs = data.billSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
-    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
+                      (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
+                      (bs?.showPhone !== false && Boolean(data.shopPhone)) ||
+                      (bs?.showShopGstin !== false && Boolean(data.shopGstin)) ||
+                      (bs?.showShopState !== false && Boolean(data.shopState)) ||
+                      bs?.showTitle !== false || showScrapH;
     if (hasHeader) {
       text += FRAME + '\n';
-      if (bs?.showShopName) text += centerText(data.shopName, charsPerLine) + '\n';
-      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-      if (bs?.showPhone && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
-      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-      if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
+      if (bs?.showShopName !== false && data.shopName) text += centerText(data.shopName, charsPerLine) + '\n';
+      if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone !== false && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState !== false && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-      if (bs?.showTitle || showScrap) {
-        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+      if (bs?.showTitle !== false || showScrap) {
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle);
         text += centerText(`-- ${docTitle} --`, charsPerLine) + '\n';
       }
       text += FRAME + '\n';
@@ -400,16 +418,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.invoiceType === 'RETURN' && data.refundMethod) {
       text += `  Refund Method: ${data.refundMethod}\n`;
     }
-    if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `  Staff:   ${data.billerName}\n`;
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       text += LIGHT + '\n';
       text += centerText('CUSTOMER', charsPerLine) + '\n';
       if (showCustName) text += `  ${data.customerName}\n`;
-      if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustPhone) text += `  Ph: ${data.customerPhone}\n`;
+      if (showCustAddress) text += `  ${data.customerAddress}\n`;
+      if (showCustGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustState) text += `  State: ${data.customerState}\n`;
     }
 
     text += LIGHT + '\n';
@@ -512,9 +536,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      text += `${padRight('BALANCE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'BALANCE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
+      }
       text += LIGHT + '\n';
     }
 
@@ -564,12 +595,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Header ──
     const bs = data.billSettings;
-    if (bs?.showShopName) text += `${data.shopName}\n`;
-    if (bs?.showShopAddress && data.shopAddress) text += `${data.shopAddress}\n`;
-    if (bs?.showPhone && data.shopPhone) text += `${data.shopPhone}\n`;
-    if (bs?.showShopGstin && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
-    if (bs?.showShopState && data.shopState) text += `${data.shopState}\n`;
-    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
+    if (bs?.showShopName !== false && data.shopName) text += `${data.shopName}\n`;
+    if (bs?.showShopAddress !== false && data.shopAddress) text += `${data.shopAddress}\n`;
+    if (bs?.showPhone !== false && data.shopPhone) text += `${data.shopPhone}\n`;
+    if (bs?.showShopGstin !== false && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    if (bs?.showShopState !== false && data.shopState) text += `${data.shopState}\n`;
+    if (bs?.showTitle !== false || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle)} --`, charsPerLine) + '\n';
     text += DASH + '\n';
     text += `${data.invoiceType === 'RETURN' ? 'RET No' : 'INV No'}: ${data.invoiceNumber}  ${data.date}\n`;
     if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) {
@@ -578,15 +609,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.invoiceType === 'RETURN' && data.refundMethod) {
       text += `Refund Method: ${data.refundMethod}\n`;
     }
-    if (data.billerName) text += `${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `${data.billerName}\n`;
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       if (showCustName) text += `${data.customerName}`;
-      if (data.customerPhone) text += `  ${data.customerPhone}`;
-      text += '\n';
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
+      if (showCustPhone) text += `  ${data.customerPhone}`;
+      if (showCustName || showCustPhone) text += '\n';
+      if (showCustAddress) text += `${data.customerAddress}\n`;
+      if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
+      if (showCustState) text += `State: ${data.customerState}\n`;
     }
 
     text += DASH + '\n';
@@ -652,9 +689,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      text += `${padRight('Change', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('Old Balance', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received' : 'Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Change', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
+      }
     }
 
     text += DASH + '\n';
@@ -700,16 +744,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Header ──
     const bs = data.billSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
-    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
+                      (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
+                      (bs?.showPhone !== false && Boolean(data.shopPhone)) ||
+                      (bs?.showShopGstin !== false && Boolean(data.shopGstin)) ||
+                      (bs?.showShopState !== false && Boolean(data.shopState)) ||
+                      bs?.showTitle !== false || showScrapH;
     if (hasHeader) {
-      if (bs?.showShopName) text += centerText(`✦ ${data.shopName} ✦`, charsPerLine) + '\n';
-      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-      if (bs?.showPhone && data.shopPhone) text += centerText(`📞 ${data.shopPhone}`, charsPerLine) + '\n';
-      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
-      if (bs?.showShopState && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
+      if (bs?.showShopName !== false && data.shopName) text += centerText(`✦ ${data.shopName} ✦`, charsPerLine) + '\n';
+      if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone !== false && data.shopPhone) text += centerText(`📞 ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState !== false && data.shopState) text += centerText(`State: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-      if (bs?.showTitle || showScrap) {
-        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+      if (bs?.showTitle !== false || showScrap) {
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle);
         text += centerText(`[ ${docTitle} ]`, charsPerLine) + '\n';
       }
       text += THICK + '\n';
@@ -722,16 +771,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.invoiceType === 'RETURN' && data.refundMethod) {
       text += `  Refund Method: ${data.refundMethod}\n`;
     }
-    if (data.billerName) text += `  Staff: ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `  Staff: ${data.billerName}\n`;
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       text += THIN + '\n';
       text += centerText('[ CUSTOMER ]', charsPerLine) + '\n';
       if (showCustName) text += `  ${data.customerName}\n`;
-      if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustPhone) text += `  Ph: ${data.customerPhone}\n`;
+      if (showCustAddress) text += `  ${data.customerAddress}\n`;
+      if (showCustGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustState) text += `  State: ${data.customerState}\n`;
     }
 
     text += THIN + '\n';
@@ -808,9 +863,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      text += `${padRight('CHANGE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'CHANGE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
+      }
       text += THIN + '\n';
     }
 
@@ -862,12 +924,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Header ──
     const bs = data.billSettings;
-    if (bs?.showShopName) { text += '\n'; text += centerText(data.shopName, charsPerLine) + '\n'; }
-    if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-    if (bs?.showPhone && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
-    if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
-    if (bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += '\n';
+    if (bs?.showShopName !== false && data.shopName) { text += '\n'; text += centerText(data.shopName, charsPerLine) + '\n'; }
+    if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+    if (bs?.showPhone !== false && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
+    if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+    if (bs?.showTitle !== false || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle)} --`, charsPerLine) + '\n';
+    if ((bs?.showShopName !== false && data.shopName) || (bs?.showShopAddress !== false && data.shopAddress) || (bs?.showPhone !== false && data.shopPhone) || (bs?.showShopGstin !== false && data.shopGstin) || bs?.showTitle !== false || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += '\n';
 
     text += `Date: ${data.date}\n`;
     text += `${data.invoiceType === 'RETURN' ? 'Return No' : 'Receipt No'}: ${data.invoiceNumber}\n`;
@@ -877,15 +939,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.invoiceType === 'RETURN' && data.refundMethod) {
       text += `Refund Method: ${data.refundMethod}\n`;
     }
-    if (data.billerName) text += `Staff: ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `Staff: ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       if (showCustName) text += `${data.customerName}\n`;
-      if (data.customerPhone) text += `${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GSTIN: ${data.customerGstin}\n`;
+      if (showCustPhone) text += `Ph: ${data.customerPhone}\n`;
+      if (showCustAddress) text += `${data.customerAddress}\n`;
+      if (showCustGstin) text += `GSTIN: ${data.customerGstin}\n`;
+      if (showCustState) text += `State: ${data.customerState}\n`;
     }
     text += '\n';
 
@@ -990,9 +1058,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('AMOUNT RECEIVED :', labelW)}  ${padLeft(`₹${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
-      text += `${padRight('BALANCE RETURN :', labelW)}  ${padLeft(`₹${data.balanceAmount.toFixed(2)}`, totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('OLD BALANCE :', labelW)}  ${padLeft(`₹${data.oldBalance.toFixed(2)}`, totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RECEIVED :' : 'AMOUNT RECEIVED :', labelW)}  ${padLeft(`₹${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE :' : 'BALANCE RETURN :', labelW)}  ${padLeft(`₹${Math.abs(data.balanceAmount).toFixed(2)}`, totalW)}\n`;
+      }
     }
     text += '\n';
 
@@ -1045,17 +1120,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Header (ornate banner with ***) ──
     const bs = data.billSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
-    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showShopState || bs?.showTitle || showScrapH;
+    const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
+                      (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
+                      (bs?.showPhone !== false && Boolean(data.shopPhone)) ||
+                      (bs?.showShopGstin !== false && Boolean(data.shopGstin)) ||
+                      (bs?.showShopState !== false && Boolean(data.shopState)) ||
+                      bs?.showTitle !== false || showScrapH;
     if (hasHeader) {
       text += FRAME + '\n';
-      if (bs?.showShopName) text += centerText(`*** ${data.shopName} ***`, charsPerLine) + '\n';
-      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-      if (bs?.showPhone && data.shopPhone) text += centerText(`Phone: ${data.shopPhone}`, charsPerLine) + '\n';
-      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-      if (bs?.showShopState && data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
+      if (bs?.showShopName !== false && data.shopName) text += centerText(`*** ${data.shopName} ***`, charsPerLine) + '\n';
+      if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone !== false && data.shopPhone) text += centerText(`Phone: ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showShopState !== false && data.shopState) text += centerText(`State Code: ${data.shopState}`, charsPerLine) + '\n';
       const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-      if (bs?.showTitle || showScrap) {
-        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+      if (bs?.showTitle !== false || showScrap) {
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle);
         text += centerText(`--- ${docTitle} ---`, charsPerLine) + '\n';
       }
       text += FRAME + '\n';
@@ -1070,16 +1150,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     if (data.invoiceType === 'RETURN' && data.refundMethod) {
       text += `  Refund Method: ${data.refundMethod}\n`;
     }
-    if (data.billerName) text += `  Biller:      ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `  Biller:      ${data.billerName}\n`;
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       text += LIGHT + '\n';
       text += centerText('CUSTOMER DETAILS', charsPerLine) + '\n';
-      if (showCustName) text += `  Name:   ${data.customerName}\n`;
-      if (data.customerPhone) text += `  Phone:  ${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN:  ${data.customerGstin}\n`;
+      if (showCustName) text += `  Name:    ${data.customerName}\n`;
+      if (showCustPhone) text += `  Phone:   ${data.customerPhone}\n`;
+      if (showCustAddress) text += `  Address: ${data.customerAddress}\n`;
+      if (showCustGstin) text += `  GSTIN:   ${data.customerGstin}\n`;
+      if (showCustState) text += `  State:   ${data.customerState}\n`;
     }
 
     text += LIGHT + '\n';
@@ -1156,9 +1242,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('Amount Received:', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      text += `${padRight('Change Due:', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('Old Balance:', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received:' : 'Amount Received:', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due:' : 'Change Due:', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
+      }
       text += LIGHT + '\n';
     }
 
@@ -1210,29 +1303,39 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Header centered ──
     const bs = data.billSettings;
     const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || showScrap;
+    const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
+                      (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
+                      (bs?.showPhone !== false && Boolean(data.shopPhone)) ||
+                      (bs?.showShopGstin !== false && Boolean(data.shopGstin)) ||
+                      bs?.showTitle !== false || showScrap;
     if (hasHeader) {
-      if (bs?.showShopName) text += centerText(data.shopName, charsPerLine) + '\n';
-      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-      if (bs?.showPhone && data.shopPhone) text += centerText(data.shopPhone, charsPerLine) + '\n';
-      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
-      if (bs?.showTitle || showScrap) {
-        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B);
+      if (bs?.showShopName !== false && data.shopName) text += centerText(data.shopName, charsPerLine) + '\n';
+      if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone !== false && data.shopPhone) text += centerText(data.shopPhone, charsPerLine) + '\n';
+      if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GST: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showTitle !== false || showScrap) {
+        const docTitle = getDocumentTitle(data.invoiceType, false, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle);
         text += centerText(docTitle, charsPerLine) + '\n';
       }
       text += '\n';
     }
     text += `${data.invoiceNumber}     ${data.date}\n`;
-    if (data.billerName) text += `Staff: ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `Staff: ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
-      if (showCustName && data.customerPhone) text += `${data.customerName}  ${data.customerPhone}\n`;
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
+      if (showCustName && showCustPhone) text += `${data.customerName}  ${data.customerPhone}\n`;
       else if (showCustName) text += `${data.customerName}\n`;
-      else if (data.customerPhone) text += `${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
+      else if (showCustPhone) text += `${data.customerPhone}\n`;
+      if (showCustAddress) text += `${data.customerAddress}\n`;
+      if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
+      if (showCustState) text += `State: ${data.customerState}\n`;
     }
 
     // ── Items (dot leaders between name and total) ──
@@ -1306,9 +1409,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      dotLine('RECEIVED', data.receivedAmount.toFixed(2));
-      dotLine('CHANGE', data.balanceAmount.toFixed(2));
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        dotLine('OLD BALANCE', data.oldBalance.toFixed(2));
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        dotLine(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', data.receivedAmount.toFixed(2));
+      }
+      if (data.balanceAmount != null) {
+        dotLine(data.paymentMethod === 'CREDIT' ? 'BAL DUE' : 'CHANGE', Math.abs(data.balanceAmount).toFixed(2));
+      }
       text += DASH + '\n';
     }
 
@@ -1350,18 +1460,26 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Header ──
     const bs = data.billSettings;
-    if (bs?.showShopName) text += `${data.shopName}\n`;
-    if (bs?.showShopAddress && data.shopAddress) text += `${data.shopAddress}\n`;
-    if (bs?.showPhone && data.shopPhone) text += `${data.shopPhone}\n`;
-    if (bs?.showShopGstin && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
-    if (bs?.showTitle || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
+    if (bs?.showShopName !== false && data.shopName) text += `${data.shopName}\n`;
+    if (bs?.showShopAddress !== false && data.shopAddress) text += `${data.shopAddress}\n`;
+    if (bs?.showPhone !== false && data.shopPhone) text += `${data.shopPhone}\n`;
+    if (bs?.showShopGstin !== false && data.shopGstin) text += `GST: ${data.shopGstin}\n`;
+    if (bs?.showTitle !== false || (data.invoiceType === 'SCRAP' && bs?.showScrapHeading)) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle)} --`, charsPerLine) + '\n';
     text += `\n${data.invoiceNumber}  ${data.date}\n`;
-    if (data.billerName) text += `${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
-    if (data.customerName && data.billSettings?.showCustomerName) text += `${data.customerName}\n`;
-    if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `GST: ${data.customerGstin}\n`;
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName) text += `${data.customerName}\n`;
+    if (showCustPhone) text += `Ph: ${data.customerPhone}\n`;
+    if (showCustAddress) text += `${data.customerAddress}\n`;
+    if (showCustGstin) text += `GST: ${data.customerGstin}\n`;
+    if (showCustState) text += `State: ${data.customerState}\n`;
 
     // ── Items (name + total right-aligned, no qty/rate unless offer) ──
     data.items.forEach(item => {
@@ -1415,9 +1533,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      text += `${padRight('CHANGE', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'CHANGE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
+      }
     }
 
     // ── You Saved (skip for scrap) ──
@@ -1459,29 +1584,39 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     // ── Header ──
     const bs = data.billSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
-    const hasHeader = bs?.showShopName || bs?.showShopAddress || bs?.showPhone || bs?.showShopGstin || bs?.showTitle || showScrapH;
+    const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
+                      (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
+                      (bs?.showPhone !== false && Boolean(data.shopPhone)) ||
+                      (bs?.showShopGstin !== false && Boolean(data.shopGstin)) ||
+                      bs?.showTitle !== false || showScrapH;
     if (hasHeader) {
       text += THICK + '\n';
-      if (bs?.showShopName) text += centerText(` ${data.shopName} `, charsPerLine) + '\n';
-      if (bs?.showShopAddress && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
-      if (bs?.showPhone && data.shopPhone) text += centerText(`\u260E ${data.shopPhone}`, charsPerLine) + '\n';
-      if (bs?.showShopGstin && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
-      if (bs?.showTitle || showScrapH) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B)} --`, charsPerLine) + '\n';
+      if (bs?.showShopName !== false && data.shopName) text += centerText(` ${data.shopName} `, charsPerLine) + '\n';
+      if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
+      if (bs?.showPhone !== false && data.shopPhone) text += centerText(`☎ ${data.shopPhone}`, charsPerLine) + '\n';
+      if (bs?.showShopGstin !== false && data.shopGstin) text += centerText(`GSTIN: ${data.shopGstin}`, charsPerLine) + '\n';
+      if (bs?.showTitle !== false || showScrapH) text += centerText(`-- ${getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle)} --`, charsPerLine) + '\n';
       text += THICK + '\n';
     }
     text += `  Invoice: ${data.invoiceNumber}\n`;
     text += `  Date:    ${data.date}\n`;
-    if (data.billerName) text += `  Staff:   ${data.billerName}\n`;
+    if (data.billerName && bs?.showBillerName !== false) text += `  Staff:   ${data.billerName}\n`;
     text += '\n';
 
     // ── Customer ──
-    const showCustName = data.customerName && data.billSettings?.showCustomerName;
-    if (showCustName || data.customerPhone || (data.customerGstin && data.billSettings?.showCustomerGstin)) {
+    const showCustName = data.customerName && bs?.showCustomerName !== false;
+    const showCustPhone = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCustAddress = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCustGstin = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCustState = data.customerState && bs?.showCustomerState !== false;
+    if (showCustName || showCustPhone || showCustAddress || showCustGstin || showCustState) {
       text += THIN + '\n';
       text += centerText('CUSTOMER', charsPerLine) + '\n';
       if (showCustName) text += `  ${data.customerName}\n`;
-      if (data.customerPhone) text += `  ${data.customerPhone}\n`;
-      if (data.customerGstin && data.billSettings?.showCustomerGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustPhone) text += `  Ph: ${data.customerPhone}\n`;
+      if (showCustAddress) text += `  ${data.customerAddress}\n`;
+      if (showCustGstin) text += `  GSTIN: ${data.customerGstin}\n`;
+      if (showCustState) text += `  State: ${data.customerState}\n`;
       text += '\n';
     }
 
@@ -1561,9 +1696,16 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && data.receivedAmount != null && data.balanceAmount != null) {
-      text += `${padRight('Received', labelW)}  ${padLeft(`\u20B9${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
-      text += `${padRight('Change', labelW)}  ${padLeft(`\u20B9${data.balanceAmount.toFixed(2)}`, totalW)}\n`;
+    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
+      if (data.oldBalance != null && data.oldBalance !== 0) {
+        text += `${padRight('Old Balance', labelW)}  ${padLeft(`\u20B9${data.oldBalance.toFixed(2)}`, totalW)}\n`;
+      }
+      if (data.receivedAmount != null && data.receivedAmount > 0) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received' : 'Received', labelW)}  ${padLeft(`\u20B9${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
+      }
+      if (data.balanceAmount != null) {
+        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Change', labelW)}  ${padLeft(`\u20B9${Math.abs(data.balanceAmount).toFixed(2)}`, totalW)}\n`;
+      }
       text += THIN + '\n';
     }
 
@@ -1652,12 +1794,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += B_TOP();
 
     // 1. Shop name — UPPERCASE, centered
-    if (bs?.showShopName) {
+    if (bs?.showShopName !== false && data.shopName) {
       text += B_LINE(centerText(data.shopName.toUpperCase(), INNER));
     }
 
     // 2. Address — centered, with clean multi-line wrapping to prevent clipping
-    if (bs?.showShopAddress && data.shopAddress) {
+    if (bs?.showShopAddress !== false && data.shopAddress) {
       const addr = data.shopAddress;
       const words = addr.split(/\s+/);
       let currentLine = '';
@@ -1679,17 +1821,17 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // 3. Phone — centered
-    if (bs?.showPhone && data.shopPhone) {
+    if (bs?.showPhone !== false && data.shopPhone) {
       text += B_LINE(centerText(`Ph: ${data.shopPhone}`, INNER));
     }
 
     // 4. GSTIN — centered
-    if (bs?.showShopGstin && data.shopGstin) {
+    if (bs?.showShopGstin !== false && data.shopGstin) {
       text += B_LINE(centerText(`GSTIN: ${data.shopGstin}`, INNER));
     }
 
     // 5. State — centered
-    if (bs?.showShopState && data.shopState) {
+    if (bs?.showShopState !== false && data.shopState) {
       text += B_LINE(centerText(`State: ${data.shopState}`, INNER));
     }
 
@@ -1697,8 +1839,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Document Title ────────────────────────────────────────────────────────
     const showScrapT = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
-    if (bs?.showTitle || showScrapT) {
-      const docTitle = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B);
+    if (bs?.showTitle !== false || showScrapT) {
+      const docTitle = getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, data.isB2B, bs?.nonGstBillTitle);
       text += B_LINE(centerText(docTitle, INNER));
       text += B_MID();
     }
@@ -1719,17 +1861,22 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
     if (data.invoiceType === 'RETURN' && data.referenceInvoiceNumber) text += B_LINE(` Ref Inv: ${data.referenceInvoiceNumber}`);
     if (data.invoiceType === 'RETURN' && data.refundMethod) text += B_LINE(` Refund: ${data.refundMethod}`);
-    if (data.billerName) text += B_LINE(` Staff: ${data.billerName}`);
+    if (data.billerName && bs?.showBillerName !== false) text += B_LINE(` Staff: ${data.billerName}`);
 
     // ── Customer Details ──────────────────────────────────────────────────────
-    const showCN = data.customerName && bs?.showCustomerName;
-    if (showCN || data.customerPhone || (data.customerGstin && bs?.showCustomerGstin) || data.customerAddress) {
+    const showCN = data.customerName && bs?.showCustomerName !== false;
+    const showCP = data.customerPhone && bs?.showCustomerPhone !== false;
+    const showCA = data.customerAddress && bs?.showCustomerAddress !== false;
+    const showCG = data.customerGstin && bs?.showCustomerGstin !== false;
+    const showCS = data.customerState && bs?.showCustomerState !== false;
+    if (showCN || showCP || showCA || showCG || showCS) {
       text += B_MID();
       text += B_LINE(' Customer Details:');
       if (data.customerName && showCN) text += B_LINE(` Name    : ${data.customerName}`);
-      if (data.customerAddress) text += B_LINE(` Address : ${data.customerAddress}`);
-      if (data.customerPhone) text += B_LINE(` Contact : ${data.customerPhone}`);
-      if (data.customerGstin && bs?.showCustomerGstin) text += B_LINE(` GSTIN   : ${data.customerGstin}`);
+      if (data.customerAddress && showCA) text += B_LINE(` Address : ${data.customerAddress}`);
+      if (data.customerPhone && showCP) text += B_LINE(` Contact : ${data.customerPhone}`);
+      if (data.customerGstin && showCG) text += B_LINE(` GSTIN   : ${data.customerGstin}`);
+      if (data.customerState && showCS) text += B_LINE(` State   : ${data.customerState}`);
     }
 
     // ── Item Table ────────────────────────────────────────────────────────────

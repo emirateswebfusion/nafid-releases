@@ -15,6 +15,9 @@ interface ReturnInvoice {
   return_number: string;
   customer_name: string | null;
   customer_phone: string | null;
+  customer_address?: string | null;
+  customer_state?: string | null;
+  biller_name?: string | null;
   subtotal: number;
   tax_total: number;
   grand_total: number;
@@ -132,16 +135,17 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
-        shopGstin: billSettings.showShopGstin ? (shopGstin || undefined) : undefined,
-        shopAddress: billSettings.showShopAddress ? (shopAddr || undefined) : undefined,
-        shopPhone: billSettings.showPhone ? (shopPh || undefined) : undefined,
+        shopName: billSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
+        shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
+        shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: r.return_number,
         invoiceType: 'RETURN',
         date: formatBillDateTime(r.return_date || r.created_at || Date.now()),
+        billerName: billSettings.showBillerName !== false ? (r.biller_name || useAuthStore.getState().userName || undefined) : undefined,
         items: items.map(item => {
           const itemAny = item as any;
           return {
@@ -159,8 +163,10 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
         tax: r.tax_total,
         discount: 0,
         grandTotal: r.grand_total,
-        customerName: billSettings.showCustomerName ? (r.customer_name || undefined) : undefined,
-        customerPhone: billSettings.showPhone ? (r.customer_phone || undefined) : undefined,
+        customerName: billSettings.showCustomerName !== false ? (r.customer_name || undefined) : undefined,
+        customerPhone: billSettings.showCustomerPhone !== false ? (r.customer_phone || undefined) : undefined,
+        customerAddress: billSettings.showCustomerAddress !== false ? (r.customer_address || undefined) : undefined,
+        customerState: billSettings.showCustomerState !== false ? (r.customer_state || undefined) : undefined,
         billSettings,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
       };
