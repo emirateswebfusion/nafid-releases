@@ -1,5 +1,6 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import {
@@ -81,6 +82,8 @@ const getInitials = (name: string) =>
 export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted }: { onClose: () => void; initialView?: View; isRestricted?: boolean }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId: _userId, userName: _userName, role: _role } = useAuthStore();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
   // Enable edit and delete features in Scrap Manager
   const isOwner = true;
 
@@ -1239,7 +1242,11 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           <div className="flex flex-col flex-1 min-h-0 bg-background">
             <div
               className="shrink-0 px-5 py-4 border-b border-border"
-              style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)},60%,96%) 0%, hsl(${nameToHue(selectedCategory.name)},40%,98%) 100%)` }}
+              style={{
+                background: isDark
+                  ? `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)}, 25%, 13%) 0%, hsl(${nameToHue(selectedCategory.name)}, 15%, 17%) 100%)`
+                  : `linear-gradient(135deg, hsl(${nameToHue(selectedCategory.name)}, 60%, 96%) 0%, hsl(${nameToHue(selectedCategory.name)}, 40%, 98%) 100%)`
+              }}
             >
               <div className="flex items-center gap-4">
                 <div
@@ -1254,8 +1261,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                     <span className={clsx(
                       'inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-lg',
                       realizedProfit >= 0
-                        ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                        : 'text-red-700 bg-red-50 border border-red-200'
+                        ? 'text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40'
+                        : 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40'
                     )}>
                       {realizedProfit >= 0 ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
                       Profit: {formatCurrency(realizedProfit)}

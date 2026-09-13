@@ -163,7 +163,9 @@ export function initPrinter() {
 
       currentA4Html = htmlContent;
       const isHalfA4 = htmlContent.includes('name="page-size" content="half-a4"');
-      const isA5 = !isHalfA4 && (htmlContent.includes('name="page-size" content="A5"') || htmlContent.includes('148mm'));
+      // Detect A5 strictly via meta tag only — never match raw mm values (e.g. "148mm"
+      // appears in Half-A4 @page CSS "210mm 148.5mm" and would cause false positives).
+      const isA5 = !isHalfA4 && htmlContent.includes('name="page-size" content="A5"');
       const isLandscape = !isHalfA4 && (htmlContent.includes('name="page-orientation" content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent));
       
       // For Half-A4 (cut A4 paper), feed width is 210mm (standard A4 portrait feed width), not rotated
@@ -182,7 +184,9 @@ export function initPrinter() {
   ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename }: { tenant_id: string; htmlContent: string; defaultFilename?: string }) => {
     try {
       const isHalfA4 = htmlContent.includes('name="page-size" content="half-a4"');
-      const isA5 = !isHalfA4 && (htmlContent.includes('name="page-size" content="A5"') || htmlContent.includes('148mm'));
+      // Detect A5 strictly via meta tag only — never match raw mm values (e.g. "148mm"
+      // appears in Half-A4 @page CSS "210mm 148.5mm" and would cause false positives).
+      const isA5 = !isHalfA4 && htmlContent.includes('name="page-size" content="A5"');
       const isLandscape = !isHalfA4 && (htmlContent.includes('name="page-orientation" content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent));
 
       const printWindow = new BrowserWindow({

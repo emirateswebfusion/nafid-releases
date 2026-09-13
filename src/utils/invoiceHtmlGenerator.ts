@@ -58,20 +58,25 @@ export interface InvoiceData {
   a5Orientation?: 'horizontal' | 'vertical';
 }
 
-function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
-  if (isB2B) return 'TAX INVOICE (B2B)';
+function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
-  switch (invoiceType) {
-    case 'GST': return isB2B ? 'TAX INVOICE (B2B)' : 'TAX INVOICE (B2C)';
-    case 'SCRAP': return 'SCRAP BILL';
-    case 'RETURN':
-    case 'SALES_RETURN':
-    case 'CREDIT_NOTE': return 'SALES RETURN';
-    case 'QUOTATION': return 'QUOTATION';
-    case 'BILL_OF_SUPPLY': return nonGstTitle;
-    case 'ESTIMATE': return nonGstTitle;
-    default: return isB2B ? 'TAX INVOICE (B2B)' : nonGstTitle;
+  let baseTitle = '';
+  if (isB2B) {
+    baseTitle = 'TAX INVOICE (B2B)';
+  } else {
+    switch (invoiceType) {
+      case 'GST': baseTitle = 'TAX INVOICE (B2C)'; break;
+      case 'SCRAP': baseTitle = 'SCRAP BILL'; break;
+      case 'RETURN':
+      case 'SALES_RETURN':
+      case 'CREDIT_NOTE': baseTitle = 'SALES RETURN'; break;
+      case 'QUOTATION': baseTitle = 'QUOTATION'; break;
+      case 'BILL_OF_SUPPLY': baseTitle = nonGstTitle; break;
+      case 'ESTIMATE': baseTitle = nonGstTitle; break;
+      default: baseTitle = nonGstTitle; break;
+    }
   }
+  return isReprint ? `${baseTitle} (REPRINT)` : baseTitle;
 }
 
 function formatItemNameForBill(name: string, isCombo?: boolean): string {
@@ -129,7 +134,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const pageCss = isVertical ? `
     @page {
       size: 148mm 210mm;
-      margin: 4mm 5mm;
+      margin: 3mm 4mm;
     }
     @media print {
       html, body {
@@ -141,10 +146,9 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         print-color-adjust: exact;
       }
       .bill-container {
+        min-height: 196mm !important;
         page-break-after: avoid;
         break-after: avoid;
-        page-break-inside: avoid;
-        break-inside: avoid;
       }
     }
     body {
@@ -162,13 +166,17 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     .bill-container {
       width: 100%;
       max-width: 138mm;
+      min-height: 196mm;
       box-sizing: border-box;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
   ` : `
     @page {
       size: A4 portrait;
-      margin: 4mm 6mm;
+      margin: 3mm 5mm;
     }
     @media print {
       html, body {
@@ -180,10 +188,9 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         print-color-adjust: exact;
       }
       .bill-container {
+        min-height: 134mm !important;
         page-break-after: avoid;
         break-after: avoid;
-        page-break-inside: avoid;
-        break-inside: avoid;
       }
     }
     body {
@@ -201,8 +208,12 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     .bill-container {
       width: 100%;
       max-width: 198mm;
+      min-height: 134mm;
       box-sizing: border-box;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
     }
   `;
 
@@ -264,8 +275,10 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      margin-top: 3px;
-      padding-top: 3px;
+      margin-top: 2px;
+      padding-top: 2px;
+      page-break-inside: avoid;
+      break-inside: avoid;
     }
     .ledger-table {
       border-collapse: collapse;
@@ -282,150 +295,158 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       border-top: 1px dashed #000;
       font-weight: bold;
     }
+    .footer-section {
+      margin-top: auto;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
   </style>
 </head>
 <body>
   <div class="bill-container">
-    <!-- Shop Info at Top -->
-    ${((data.billSettings?.showShopName !== false && data.shopName) || (data.billSettings?.showShopAddress !== false && data.shopAddress) || (data.billSettings?.showPhone !== false && data.shopPhone) || (data.billSettings?.showShopGstin !== false && data.shopGstin) || (data.billSettings?.showShopState !== false && data.shopState)) ? `
-    <div class="shop-header">
-      ${data.billSettings?.showShopName !== false && data.shopName ? `<div class="shop-name">${data.shopName}</div>` : ''}
-      ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div class="shop-subtext">${data.shopAddress}</div>` : ''}
-      <div class="shop-subtext">
-        ${data.billSettings?.showPhone !== false && data.shopPhone ? `<span>Ph: ${data.shopPhone}</span>` : ''}
-        ${data.billSettings?.showShopGstin !== false && data.shopGstin ? `<span style="margin-left: 8px;">GSTIN: ${data.shopGstin}</span>` : ''}
-        ${data.billSettings?.showShopState !== false && data.shopState ? `<span style="margin-left: 8px;">State: ${data.shopState}</span>` : ''}
+    <div class="main-content" style="flex: 1 1 auto;">
+      <!-- Shop Info at Top -->
+      ${((data.billSettings?.showShopName !== false && data.shopName) || (data.billSettings?.showShopAddress !== false && data.shopAddress) || (data.billSettings?.showPhone !== false && data.shopPhone) || (data.billSettings?.showShopGstin !== false && data.shopGstin) || (data.billSettings?.showShopState !== false && data.shopState)) ? `
+      <div class="shop-header">
+        ${data.billSettings?.showShopName !== false && data.shopName ? `<div class="shop-name">${data.shopName}</div>` : ''}
+        ${data.billSettings?.showShopAddress !== false && data.shopAddress ? `<div class="shop-subtext">${data.shopAddress}</div>` : ''}
+        <div class="shop-subtext">
+          ${data.billSettings?.showPhone !== false && data.shopPhone ? `<span>Ph: ${data.shopPhone}</span>` : ''}
+          ${data.billSettings?.showShopGstin !== false && data.shopGstin ? `<span style="margin-left: 8px;">GSTIN: ${data.shopGstin}</span>` : ''}
+          ${data.billSettings?.showShopState !== false && data.shopState ? `<span style="margin-left: 8px;">State: ${data.shopState}</span>` : ''}
+        </div>
       </div>
-    </div>
-    ` : ''}
+      ` : ''}
 
-    <!-- Metadata Section matching Image 3 -->
-    <table class="top-meta-table">
-      <tr>
-        <td style="width: 32%;">
-          <strong>No. :</strong> <span style="font-size: 12px; font-weight: bold;">${data.invoiceNumber}</span><br>
-          <strong>Date :</strong> ${data.date}
-          ${data.billerName && data.billSettings?.showBillerName !== false ? `<br><span style="font-size: 9.5px; color: #444;">Biller: ${data.billerName}</span>` : ''}
-        </td>
-        <td style="width: 36%; text-align: center;">
-          ${data.billSettings?.showTitle !== false ? `<span style="font-size: 13.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">${title}</span>` : ''}
-        </td>
-        <td style="width: 32%; text-align: right;">
-          ${data.billSettings?.showCustomerName !== false ? `<strong>To :</strong> <span style="font-weight: bold;">${data.customerName || 'Cash'}</span><br>` : ''}
-          ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `${data.customerAddress}<br>` : ''}
-          ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `Ph: ${data.customerPhone}<br>` : ''}
-          ${data.billSettings?.showCustomerGstin !== false && data.customerGstin ? `GSTIN: ${data.customerGstin}<br>` : ''}
-          ${data.customerState && data.billSettings?.showCustomerState !== false ? `State: ${data.customerState}` : ''}
-        </td>
-      </tr>
-    </table>
-
-    <div class="divider-solid"></div>
-
-    <!-- Items Table across Full Width matching Image 3 -->
-    <table class="items-table">
-      <thead>
+      <!-- Metadata Section -->
+      <table class="top-meta-table">
         <tr>
-          <th style="text-align: left; width: 35px;">S No</th>
-          <th style="text-align: left;">Description</th>
-          <th style="text-align: right; width: 75px;">Rate</th>
-          <th style="text-align: right; width: 55px;">Qty</th>
-          <th style="text-align: right; width: 85px;">Total</th>
+          <td style="width: 32%;">
+            <strong>No. :</strong> <span style="font-size: 12px; font-weight: bold;">${data.invoiceNumber}</span><br>
+            <strong>Date :</strong> ${data.date}
+            ${data.billerName && data.billSettings?.showBillerName !== false ? `<br><span style="font-size: 9.5px; color: #444;">Biller: ${data.billerName}</span>` : ''}
+          </td>
+          <td style="width: 36%; text-align: center;">
+            ${data.billSettings?.showTitle !== false ? `<span style="font-size: 13.5px; font-weight: bold; letter-spacing: 0.5px; text-transform: uppercase;">${title}</span>` : ''}
+          </td>
+          <td style="width: 32%; text-align: right;">
+            ${data.billSettings?.showCustomerName !== false ? `<strong>To :</strong> <span style="font-weight: bold;">${data.customerName || 'Cash'}</span><br>` : ''}
+            ${data.customerAddress && data.billSettings?.showCustomerAddress !== false ? `${data.customerAddress}<br>` : ''}
+            ${data.customerPhone && data.billSettings?.showCustomerPhone !== false ? `Ph: ${data.customerPhone}<br>` : ''}
+            ${data.billSettings?.showCustomerGstin !== false && data.customerGstin ? `GSTIN: ${data.customerGstin}<br>` : ''}
+            ${data.customerState && data.billSettings?.showCustomerState !== false ? `State: ${data.customerState}` : ''}
+          </td>
         </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml}
-      </tbody>
-    </table>
+      </table>
 
-    <div class="divider-solid"></div>
+      <div class="divider-solid"></div>
 
-    <!-- Bottom Summary Row matching Image 3 -->
-    <div class="summary-grid">
-      <!-- Left: Rupees in Words & Customer Ledger -->
-      <div style="width: ${isVertical ? '50%' : '55%'};">
-        <div style="font-size: 11px; font-weight: 600;">Rupees ${amountWords} Only</div>
-
-        ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
-        <table class="ledger-table">
-          ${oldBalance != null && oldBalance !== 0 ? `
+      <!-- Items Table across Full Width -->
+      <table class="items-table">
+        <thead>
           <tr>
-            <td style="padding-right: 10px;">Old Balance</td>
-            <td>:</td>
-            <td style="text-align: right; padding-left: 10px;">${oldBalance.toFixed(2)}</td>
-          </tr>` : ''}
-          <tr>
-            <td style="padding-right: 10px;">Sales</td>
-            <td>:</td>
-            <td style="text-align: right; padding-left: 10px;">${grandTotal.toFixed(2)}</td>
+            <th style="text-align: left; width: 35px;">S No</th>
+            <th style="text-align: left;">Description</th>
+            <th style="text-align: right; width: 75px;">Rate</th>
+            <th style="text-align: right; width: 55px;">Qty</th>
+            <th style="text-align: right; width: 85px;">Total</th>
           </tr>
-          ${data.receivedAmount != null && data.receivedAmount > 0 ? `
-          <tr>
-            <td style="padding-right: 10px;">${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Cash Received'}</td>
-            <td>:</td>
-            <td style="text-align: right; padding-left: 10px;">${data.receivedAmount.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.balanceAmount != null ? `
-          <tr class="double-underline">
-            <td style="padding-right: 10px; font-weight: bold;">${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</td>
-            <td style="font-weight: bold;">:</td>
-            <td style="text-align: right; padding-left: 10px; font-weight: bold;">${Math.abs(data.balanceAmount).toFixed(2)}</td>
-          </tr>` : ''}
-        </table>
-        ` : ''}
+        </thead>
+        <tbody>
+          ${itemsHtml}
+        </tbody>
+      </table>
+    </div>
 
-        ${data.billSettings?.instructions ? `<div style="margin-top: 6px; font-size: 11.5px; color: #1a1a1a; line-height: 1.4;"><strong style="font-weight: bold; color: #000; font-size: 12px;">Terms:</strong> ${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
-      </div>
+    <!-- Bottom Page Footer (Anchored at bottom of Half A4 paper) -->
+    <div class="footer-section">
+      <div class="divider-solid"></div>
+      <div class="summary-grid">
+        <!-- Left: Rupees in Words & Customer Ledger -->
+        <div style="width: ${isVertical ? '50%' : '55%'};">
+          <div style="font-size: 11px; font-weight: 600;">Rupees ${amountWords} Only</div>
 
-      <!-- Right: Totals & Signatory -->
-      <div style="width: ${isVertical ? '48%' : '42%'}; text-align: right;">
-        <table style="width: 100%; font-size: 11.5px;">
-          ${((data.tax > 0 || (data.cgst != null && data.cgst > 0) || (data.sgst != null && data.sgst > 0) || (data.igst != null && data.igst > 0) || data.discount > 0) && data.subtotal) ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px;">Subtotal :</td>
-            <td style="text-align: right; width: 85px;">${data.subtotal.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.discount > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px;">Discount :</td>
-            <td style="text-align: right; width: 85px;">${data.discount.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.cgst != null && data.cgst > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px;">CGST :</td>
-            <td style="text-align: right; width: 85px;">${data.cgst.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.sgst != null && data.sgst > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px;">SGST :</td>
-            <td style="text-align: right; width: 85px;">${data.sgst.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.igst != null && data.igst > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px;">IGST :</td>
-            <td style="text-align: right; width: 85px;">${data.igst.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.scrapDeduction != null && data.scrapDeduction > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px; color: #d97706;">Scrap Adj :</td>
-            <td style="text-align: right; width: 85px; color: #d97706;">-${data.scrapDeduction.toFixed(2)}</td>
-          </tr>` : ''}
-          ${data.returnDeduction != null && data.returnDeduction > 0 ? `
-          <tr>
-            <td style="text-align: right; padding-right: 6px; color: #ea580c;">Return Adj :</td>
-            <td style="text-align: right; width: 85px; color: #ea580c;">-${data.returnDeduction.toFixed(2)}</td>
-          </tr>` : ''}
-          <tr>
-            <td style="text-align: right; padding-right: 6px; font-weight: bold; font-size: 12.5px;">Net Amount :</td>
-            <td style="text-align: right; font-weight: bold; font-size: 13.5px; width: 85px;">${netPayable.toFixed(2)}</td>
-          </tr>
-        </table>
+          ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
+          <table class="ledger-table">
+            ${oldBalance != null && oldBalance !== 0 ? `
+            <tr>
+              <td style="padding-right: 10px; font-weight: bold;">Old Balance</td>
+              <td style="font-weight: bold;">:</td>
+              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${oldBalance.toFixed(2)}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="padding-right: 10px; font-weight: bold;">Sales</td>
+              <td style="font-weight: bold;">:</td>
+              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${grandTotal.toFixed(2)}</td>
+            </tr>
+            ${data.receivedAmount != null && data.receivedAmount > 0 ? `
+            <tr>
+              <td style="padding-right: 10px; font-weight: bold;">${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Cash Received'}</td>
+              <td style="font-weight: bold;">:</td>
+              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${data.receivedAmount.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.balanceAmount != null ? `
+            <tr class="double-underline">
+              <td style="padding-right: 10px; font-weight: bold;">${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</td>
+              <td style="font-weight: bold;">:</td>
+              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${Math.abs(data.balanceAmount).toFixed(2)}</td>
+            </tr>` : ''}
+          </table>
+          ` : ''}
 
-        <!-- Signatory Section matching Image 3 -->
-        <div style="margin-top: 14px; font-size: 10px;">
-          ${(data.billSettings?.showShopName !== false && data.shopName) ? `<div>For <strong>${data.shopName}</strong></div>` : ''}
-          <div style="height: 22px;"></div>
-          <div>Authorised Signatory</div>
+          ${data.billSettings?.instructions ? `<div style="margin-top: 6px; font-size: 11.5px; color: #1a1a1a; line-height: 1.4;"><strong style="font-weight: bold; color: #000; font-size: 12px;">Terms:</strong> ${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
+        </div>
+
+        <!-- Right: Totals & Signatory -->
+        <div style="width: ${isVertical ? '48%' : '42%'}; text-align: right;">
+          <table style="width: 100%; font-size: 11.5px;">
+            ${((data.tax > 0 || (data.cgst != null && data.cgst > 0) || (data.sgst != null && data.sgst > 0) || (data.igst != null && data.igst > 0) || data.discount > 0) && data.subtotal) ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">Subtotal :</td>
+              <td style="text-align: right; width: 85px;">${data.subtotal.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.discount > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">Discount :</td>
+              <td style="text-align: right; width: 85px;">${data.discount.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.cgst != null && data.cgst > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">CGST :</td>
+              <td style="text-align: right; width: 85px;">${data.cgst.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.sgst != null && data.sgst > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">SGST :</td>
+              <td style="text-align: right; width: 85px;">${data.sgst.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.igst != null && data.igst > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px;">IGST :</td>
+              <td style="text-align: right; width: 85px;">${data.igst.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.scrapDeduction != null && data.scrapDeduction > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px; color: #d97706;">Scrap Adj :</td>
+              <td style="text-align: right; width: 85px; color: #d97706;">-${data.scrapDeduction.toFixed(2)}</td>
+            </tr>` : ''}
+            ${data.returnDeduction != null && data.returnDeduction > 0 ? `
+            <tr>
+              <td style="text-align: right; padding-right: 6px; color: #ea580c;">Return Adj :</td>
+              <td style="text-align: right; width: 85px; color: #ea580c;">-${data.returnDeduction.toFixed(2)}</td>
+            </tr>` : ''}
+            <tr>
+              <td style="text-align: right; padding-right: 6px; font-weight: bold; font-size: 12.5px;">Net Amount :</td>
+              <td style="text-align: right; font-weight: bold; font-size: 13.5px; width: 85px;">${netPayable.toFixed(2)}</td>
+            </tr>
+          </table>
+
+          <!-- Signatory Section -->
+          <div style="margin-top: 14px; font-size: 10px;">
+            ${(data.billSettings?.showShopName !== false && data.shopName) ? `<div>For <strong>${data.shopName}</strong></div>` : ''}
+            <div style="height: 22px;"></div>
+            <div>Authorised Signatory</div>
+          </div>
         </div>
       </div>
     </div>
@@ -456,7 +477,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 
 
   return `<!DOCTYPE html>
-<html><head><title>${title} - ${data.shopName}</title>
+<html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 15mm; }
   body { font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
@@ -559,7 +580,7 @@ function generateModernHtml(data: InvoiceData, title: string): string {
   }).join('');
 
   return `<!DOCTYPE html>
-<html><head><title>${title} - ${data.shopName}</title>
+<html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 12mm; }
   body { font-family: 'Inter', 'Segoe UI', system-ui, sans-serif; font-size: 12px; color: #1f2937; padding: 0; margin: 0; background: #f9fafb; }
@@ -671,7 +692,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 
 
   return `<!DOCTYPE html>
-<html><head><title>${title} - ${data.shopName}</title>
+<html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
 <style>
   @page { size: A4; margin: 15mm; }
   body { font-family: 'Times New Roman', 'Georgia', serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }

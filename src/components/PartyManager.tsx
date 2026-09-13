@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
 import {
   Search, Loader2, UserPlus, Handshake,
   Pencil, Trash, BookOpen, PlusCircle, MinusCircle,
@@ -111,6 +112,8 @@ export function PartyManager({
 }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role } = useAuthStore();
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
   const isOwner = role === 'OWNER';
 
   const [parties, setParties] = useState<Party[]>([]);
@@ -943,7 +946,11 @@ export function PartyManager({
           {/* ── Party Banner ── */}
           <div
             className="shrink-0 px-5 py-4 border-b border-border"
-            style={{ background: `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)},60%,96%) 0%, hsl(${nameToHue(selectedParty.name)},40%,98%) 100%)` }}
+            style={{
+              background: isDark
+                ? `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 25%, 13%) 0%, hsl(${nameToHue(selectedParty.name)}, 15%, 17%) 100%)`
+                : `linear-gradient(135deg, hsl(${nameToHue(selectedParty.name)}, 60%, 96%) 0%, hsl(${nameToHue(selectedParty.name)}, 40%, 98%) 100%)`
+            }}
           >
             <div className="flex items-center gap-4">
               {/* Avatar */}
@@ -958,7 +965,7 @@ export function PartyManager({
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   {selectedParty.phone && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-white/60 border border-border px-2 py-0.5 rounded-lg">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/70 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg">
                       <Phone className="w-3 h-3" /> {selectedParty.phone}
                     </span>
                   )}
@@ -968,7 +975,7 @@ export function PartyManager({
                     </span>
                   )}
                   {selectedParty.address && (
-                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-white/60 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
+                    <span className="flex items-center gap-1 text-xs font-semibold text-foreground/60 bg-background/60 dark:bg-white/10 border border-border px-2 py-0.5 rounded-lg truncate max-w-[200px]">
                       <MapPin className="w-3 h-3 shrink-0" /> {selectedParty.address}
                     </span>
                   )}

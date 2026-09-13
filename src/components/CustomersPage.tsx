@@ -451,34 +451,66 @@ export function CustomersPage({ onClose, isRestricted, onOpenParty }: { onClose:
               {/* Action & Points Badges */}
               <div className="flex items-center gap-3 w-full md:w-auto flex-wrap">
                 {/* Party Ledger Outstanding Balance Box */}
-                <div className="bg-gradient-to-br from-amber-500/15 via-amber-500/5 to-transparent border border-amber-500/30 rounded-2xl p-4 min-w-[200px] shadow-xs">
-                  <div className="flex items-center justify-between text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-1">
-                    <span>Party Ledger Balance</span>
-                    <Building2 className="w-3.5 h-3.5" />
-                  </div>
-                  <p className={clsx("text-2xl font-black font-mono tracking-tight", (matchedParty?.balance || 0) >= 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600")}>
-                    {matchedParty
-                      ? ((matchedParty.balance || 0) >= 0 ? `+${formatCurrency(matchedParty.balance)} (Rec)` : `-${formatCurrency(Math.abs(matchedParty.balance))} (Pay)`)
-                      : 'No Party Record'}
-                  </p>
-                  {matchedParty?.credit_limit != null && Number(matchedParty.credit_limit) > 0 && (
-                    <div className="mt-1.5 pt-1.5 border-t border-amber-500/20 text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
-                      <span>Limit: {formatCurrency(matchedParty.credit_limit)}</span>
-                      {(matchedParty.balance || 0) >= matchedParty.credit_limit ? (
-                        <span className="text-red-500 font-extrabold text-[10px]">Over Limit</span>
-                      ) : (
-                        <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Avail: {formatCurrency(Math.max(0, matchedParty.credit_limit - Math.max(0, matchedParty.balance || 0)))}</span>
+                {(() => {
+                  const bal = matchedParty?.balance || 0;
+                  const isReceivable = bal > 0;
+                  const isPayable = bal < 0;
+
+                  const colorStyles = isReceivable
+                    ? {
+                        box: 'bg-gradient-to-br from-rose-500/15 via-rose-500/5 to-transparent border-rose-500/30',
+                        title: 'text-rose-600 dark:text-rose-400',
+                        amount: 'text-rose-600 dark:text-rose-400',
+                        limit: 'border-rose-500/20 text-rose-700 dark:text-rose-300',
+                        button: 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-700 dark:text-rose-300 border-rose-500/30',
+                      }
+                    : isPayable
+                    ? {
+                        box: 'bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border-emerald-500/30',
+                        title: 'text-emerald-600 dark:text-emerald-400',
+                        amount: 'text-emerald-600 dark:text-emerald-400',
+                        limit: 'border-emerald-500/20 text-emerald-700 dark:text-emerald-300',
+                        button: 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-700 dark:text-emerald-300 border-emerald-500/30',
+                      }
+                    : {
+                        box: 'bg-gradient-to-br from-blue-500/15 via-blue-500/5 to-transparent border-blue-500/30',
+                        title: 'text-blue-600 dark:text-blue-400',
+                        amount: 'text-blue-600 dark:text-blue-400',
+                        limit: 'border-blue-500/20 text-blue-700 dark:text-blue-300',
+                        button: 'bg-blue-500/15 hover:bg-blue-500/25 text-blue-700 dark:text-blue-300 border-blue-500/30',
+                      };
+
+                  return (
+                    <div className={clsx("rounded-2xl p-4 min-w-[200px] shadow-xs border transition-all", colorStyles.box)}>
+                      <div className={clsx("flex items-center justify-between text-[10px] font-black uppercase tracking-wider mb-1", colorStyles.title)}>
+                        <span>Party Ledger Balance</span>
+                        <Building2 className="w-3.5 h-3.5" />
+                      </div>
+                      <p className={clsx("text-2xl font-black font-mono tracking-tight", colorStyles.amount)}>
+                        {matchedParty
+                          ? (isReceivable ? `+${formatCurrency(bal)} (Rec)` : isPayable ? `-${formatCurrency(Math.abs(bal))} (Pay)` : `₹0.00 (Settled)`)
+                          : 'No Party Record'}
+                      </p>
+                      {matchedParty?.credit_limit != null && Number(matchedParty.credit_limit) > 0 && (
+                        <div className={clsx("mt-1.5 pt-1.5 border-t text-[11px] font-bold flex items-center justify-between", colorStyles.limit)}>
+                          <span>Limit: {formatCurrency(matchedParty.credit_limit)}</span>
+                          {bal >= matchedParty.credit_limit ? (
+                            <span className="text-red-500 font-extrabold text-[10px]">Over Limit</span>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400 text-[10px]">Avail: {formatCurrency(Math.max(0, matchedParty.credit_limit - Math.max(0, bal)))}</span>
+                          )}
+                        </div>
                       )}
+                      <button
+                        onClick={handleNavigateToParty}
+                        className={clsx("mt-2 w-full py-1.5 px-3 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border active:scale-95", colorStyles.button)}
+                      >
+                        <span>View Party Ledger</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
                     </div>
-                  )}
-                  <button
-                    onClick={handleNavigateToParty}
-                    className="mt-2 w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-500/30 active:scale-95"
-                  >
-                    <span>View Party Ledger</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
-                </div>
+                  );
+                })()}
 
                 {/* Available Points Badge Box */}
                 <div className="bg-gradient-to-br from-emerald-500/15 via-emerald-500/5 to-transparent border border-emerald-500/30 rounded-2xl p-4 min-w-[180px] text-left shadow-xs">
