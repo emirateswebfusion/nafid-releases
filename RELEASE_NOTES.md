@@ -1,3 +1,10 @@
+# Vendora v1.5.63 Release Notes
+
+## What's Changed
+- Enhanced billing, cashier settlement, paper preview, settings manager, and invoice HTML generator
+- Improved printer hardware integration, local database handling, and receipt generation
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.62...v1.5.63
+
 # Vendora v1.5.62 Release Notes
 
 ## What's Changed
