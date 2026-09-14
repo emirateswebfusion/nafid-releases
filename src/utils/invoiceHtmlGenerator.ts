@@ -160,7 +160,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 
   const pageCss = isVertical ? `
     @page {
-      size: 148mm 210mm;
+      size: A5 portrait;
       margin: 3mm 4mm;
     }
     @media print {
@@ -204,7 +204,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
     }
   ` : `
     @page {
-      size: 210mm 148mm;
+      size: A4 portrait;
       margin: 3mm 4mm;
     }
     @media print {
@@ -218,6 +218,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       }
       .bill-container {
         min-height: 136mm !important;
+        max-height: 142mm !important;
         page-break-after: avoid;
         break-after: avoid;
       }
@@ -240,6 +241,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
       width: 100%;
       max-width: 198mm;
       min-height: 136mm;
+      max-height: 142mm;
       box-sizing: border-box;
       margin: 0 auto;
       display: flex;
@@ -252,6 +254,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="page-size" content="${isVertical ? 'A5' : 'half-a4'}">
+  <meta name="page-orientation" content="portrait">
   <title>${title} - ${data.invoiceNumber}</title>
   <style>
     * { box-sizing: border-box; }

@@ -404,7 +404,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             <div className={clsx("flex items-center gap-2 px-3 py-1.5 rounded-full border", (!isOnline || activeRoute === 'NONE') ? "bg-destructive/10 border-destructive/20" : "bg-primary/10 border-primary/20")}>
                                 <span className={clsx("w-1.5 h-1.5 rounded-full", (!isOnline || activeRoute === 'NONE') ? "bg-destructive" : "bg-primary animate-pulse")} />
                                 <span className={clsx("text-[10px] font-bold tracking-wider", (!isOnline || activeRoute === 'NONE') ? "text-destructive" : "text-primary")}>
-                                    {!isOnline || activeRoute === 'NONE' ? 'Sync Inactive' : (activeRoute === 'LAN' ? 'Wifi Sync Active' : (activeRoute === 'CLOUD' ? 'Cloud Sync Active' : ((syncMode === 'LAN' || syncMode === 'HYBRID') ? 'Wifi Sync Active' : 'Cloud Sync Active')))}
+                                    {!isOnline || activeRoute === 'NONE' ? 'Sync Inactive' : (activeRoute === 'LAN' ? 'Wifi Sync Active' : (activeRoute === 'CLOUD' ? 'Cloud Sync Active' : (syncMode === 'LAN' ? 'Wifi Sync Active' : 'Cloud Sync Active')))}
                                 </span>
                             </div>
                             <span className="w-px h-5 bg-border/40" />

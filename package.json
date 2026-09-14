@@ -14,7 +14,7 @@
     "package:win": "npm run build && electron-builder build --config electron-builder.config.js --win",
     "package:mac": "npm run build && electron-builder build --config electron-builder.config.js --mac",
     "package:all": "npm run build && electron-builder build --config electron-builder.config.js --win --mac",
-    "rebuild": "electron-rebuild",
+    "rebuild": "cd node_modules/.pnpm/better-sqlite3@12.11.1/node_modules/better-sqlite3 && npx prebuild-install --runtime=electron --target=42.4.1",
     "lint": "eslint .",
     "preview": "vite preview"
   },

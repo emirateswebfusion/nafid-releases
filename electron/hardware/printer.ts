@@ -162,11 +162,9 @@ export function initPrinter() {
       }
 
       currentA4Html = htmlContent;
-      const isHalfA4 = htmlContent.includes('name="page-size" content="half-a4"');
-      // Detect A5 strictly via meta tag only — never match raw mm values (e.g. "148mm"
-      // appears in Half-A4 @page CSS "210mm 148.5mm" and would cause false positives).
-      const isA5 = !isHalfA4 && htmlContent.includes('name="page-size" content="A5"');
-      const isLandscape = !isHalfA4 && (htmlContent.includes('name="page-orientation" content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent));
+      const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
+      const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
+      const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
       
       // For Half-A4 (cut A4 paper), feed width is 210mm (standard A4 portrait feed width), not rotated
       const targetPageSize = isHalfA4 ? 'A4' : (isA5 ? 'A5' : 'A4');
@@ -183,11 +181,9 @@ export function initPrinter() {
 
   ipcMain.handle('hardware:exportA4Pdf', async (event, { tenant_id, htmlContent, defaultFilename }: { tenant_id: string; htmlContent: string; defaultFilename?: string }) => {
     try {
-      const isHalfA4 = htmlContent.includes('name="page-size" content="half-a4"');
-      // Detect A5 strictly via meta tag only — never match raw mm values (e.g. "148mm"
-      // appears in Half-A4 @page CSS "210mm 148.5mm" and would cause false positives).
-      const isA5 = !isHalfA4 && htmlContent.includes('name="page-size" content="A5"');
-      const isLandscape = !isHalfA4 && (htmlContent.includes('name="page-orientation" content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent));
+      const isHalfA4 = htmlContent.includes('content="half-a4"') || /@page\s*\{[^}]*210mm\s+148/i.test(htmlContent);
+      const isA5 = !isHalfA4 && (htmlContent.includes('content="A5"') || /@page\s*\{[^}]*148mm\s+210/i.test(htmlContent));
+      const isLandscape = htmlContent.includes('content="landscape"') || /@page\s*\{[^}]*landscape/i.test(htmlContent) || isHalfA4;
 
       const printWindow = new BrowserWindow({
         show: false,
@@ -221,9 +217,9 @@ export function initPrinter() {
           try {
             const data = await printWindow.webContents.printToPDF({
               printBackground: true,
-              pageSize: isHalfA4 ? { width: 210000, height: 148500 } : (isA5 ? 'A5' : 'A4'),
-              landscape: isLandscape,
-              preferCSSPageSize: true,
+              pageSize: 'A4',
+              landscape: false,
+              preferCSSPageSize: false,
               margins: { marginType: 'none' },
             });
             clearTimeout(timer);
@@ -590,6 +586,101 @@ function escapeHtml(str: string): string {
     .replace(/'/g, '&#039;');
 }
 
+function generateCode128Svg(text: string): string {
+  const patterns: string[] = [
+    "212222","222122","222221","121223","121322","131222","122213","122312","132212","221213",
+    "221312","231212","112232","122132","122231","113222","123122","123221","223211","221132",
+    "221231","213212","223112","312131","311222","321122","321221","312212","322112","322211",
+    "212123","212321","222121","111323","131123","131321","112313","132113","132311","211313",
+    "231113","231311","112133","112331","132131","113123","113321","133121","313121","211331",
+    "231131","213113","213311","213131","311123","311321","331121","312113","312311","332111",
+    "314111","221411","431111","111224","111422","121124","121421","141122","141221","112214",
+    "112412","122114","122411","142112","142211","241211","221114","413111","241112","134111",
+    "111242","121142","121241","114212","124112","124211","411212","421112","421211","212141",
+    "214121","412121","111143","111341","131141","114113","114311","411113","411311","113141",
+    "114131","311141","411131","211412","211214","211232","2331112"
+  ];
+  
+  const startB = 104;
+  let checksum = startB;
+  const codes: number[] = [startB];
+
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i) - 32;
+    if (code >= 0 && code <= 94) {
+      codes.push(code);
+      checksum += code * (i + 1);
+    }
+  }
+  codes.push(checksum % 103);
+  codes.push(106);
+
+  let width = 0;
+  let barElements = '';
+  const barHeight = 24;
+
+  codes.forEach(codeIdx => {
+    const pat = patterns[codeIdx];
+    if (!pat) return;
+    for (let j = 0; j < pat.length; j++) {
+      const w = parseInt(pat[j], 10) * 1.0;
+      if (j % 2 === 0) {
+        barElements += `<rect x="${width.toFixed(1)}" y="0" width="${w.toFixed(1)}" height="${barHeight}" fill="#000" />`;
+      }
+      width += w;
+    }
+  });
+
+  return `<div style="width:100%;display:flex;justify-content:center;margin:4px 0;">
+    <svg width="${width.toFixed(1)}" height="${barHeight}" viewBox="0 0 ${width.toFixed(1)} ${barHeight}" xmlns="http://www.w3.org/2000/svg" style="display:block;">
+      ${barElements}
+    </svg>
+  </div>`;
+}
+
+function isTopBorderLine(str: string): boolean {
+  const s = str.trim();
+  if (s.length < 4) return false;
+  const f = s.charAt(0);
+  const l = s.charAt(s.length - 1);
+  const isCorner = (f === '┌' || f === '+' || f === '|') && (l === '┐' || l === '+' || l === '|');
+  if (!isCorner) return false;
+  const mid = s.substring(1, s.length - 1);
+  return /^─+$/.test(mid) || /^-+$/.test(mid) || /^=+$/.test(mid);
+}
+
+function isBottomBorderLine(str: string): boolean {
+  const s = str.trim();
+  if (s.length < 4) return false;
+  const f = s.charAt(0);
+  const l = s.charAt(s.length - 1);
+  const isCorner = (f === '└' || f === '+' || f === '|') && (l === '┘' || l === '+' || l === '|');
+  if (!isCorner) return false;
+  const mid = s.substring(1, s.length - 1);
+  return /^─+$/.test(mid) || /^-+$/.test(mid) || /^=+$/.test(mid);
+}
+
+function isDividerLine(str: string): boolean {
+  const s = str.trim();
+  if (s.length < 4) return false;
+  const f = s.charAt(0);
+  const l = s.charAt(s.length - 1);
+  const isEdge = (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐');
+  if (!isEdge) return false;
+  const mid = s.substring(1, s.length - 1);
+  return /^[─┼┬┴]+$/.test(mid) || /^[-\+|]+$/.test(mid) || /^=+$/.test(mid);
+}
+
+function stripOuterPipes(str: string): string {
+  if (str.length < 2) return str;
+  const f = str.charAt(0);
+  const l = str.charAt(str.length - 1);
+  if ((f === '│' || f === '|') && (l === '│' || l === '|')) {
+    return str.substring(1, str.length - 1);
+  }
+  return str;
+}
+
 async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily: string = 'Consolas, monospace'): Promise<string> {
   const lines = receiptText.split('\n');
   let startIdx = 0;
@@ -597,6 +688,12 @@ async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily
   let endIdx = lines.length - 1;
   while (endIdx >= startIdx && lines[endIdx].trim() === '') endIdx--;
   const activeLines = lines.slice(startIdx, endIdx + 1);
+
+  const isBillStyle = receiptText.includes('│') || receiptText.includes('┌') || receiptText.includes('├') ||
+    activeLines.some(l => {
+      const s = l.trim();
+      return (s.startsWith('|') && s.endsWith('|')) || (s.startsWith('+') && s.endsWith('+'));
+    });
 
   let rowsHtml = '';
   for (let i = 0; i < activeLines.length; i++) {
@@ -610,6 +707,13 @@ async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily
         } catch {
           rowsHtml += `<pre style="margin:0;text-align:center;">[QR CODE]</pre>`;
         }
+        continue;
+      }
+    }
+    if (line.includes('[[BARCODE:')) {
+      const match = line.match(/\[\[BARCODE:([^\]]+)\]\]/);
+      if (match) {
+        rowsHtml += generateCode128Svg(match[1]);
         continue;
       }
     }
@@ -629,21 +733,62 @@ async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily
         cleanLine = line.substring(match[0].length);
       }
     }
-    const trimmed = cleanLine.trim();
+
+    let displayValue = cleanLine.replace(/\r/g, '');
+
+    if (isBillStyle) {
+      if (isTopBorderLine(displayValue) && i === 0) {
+        continue;
+      }
+      if (isBottomBorderLine(displayValue) && i >= activeLines.length - 2) {
+        continue;
+      }
+      if (isDividerLine(displayValue)) {
+        const hasVisibleAfter = activeLines.slice(i + 1).some(l => {
+          let c = l;
+          if (c.startsWith('[[LH:')) {
+            const m = c.match(/^\[\[LH:([^\]]+)\]\]/);
+            if (m) c = c.substring(m[0].length);
+          }
+          const val = c.replace(/\r/g, '');
+          if (isTopBorderLine(val) || isBottomBorderLine(val) || isDividerLine(val)) {
+            return false;
+          }
+          return val.trim().length > 0;
+        });
+
+        if (!hasVisibleAfter) {
+          continue;
+        }
+
+        rowsHtml += `<hr style="border:none;border-top:2px solid black;margin:0 -3px;padding:0;" />`;
+        continue;
+      }
+
+      displayValue = stripOuterPipes(displayValue);
+    }
+
+    const trimmed = displayValue.trim();
     let isCentered = false;
-    let finalValue = cleanLine;
-    if (trimmed && !cleanLine.includes('│')) {
-      const leading = cleanLine.length - cleanLine.trimStart().length;
-      const trailing = cleanLine.length - cleanLine.trimEnd().length;
+    let finalValue = displayValue;
+    if (trimmed && !displayValue.includes('│') && !displayValue.includes('|')) {
+      const leading = displayValue.length - displayValue.trimStart().length;
+      const trailing = displayValue.length - displayValue.trimEnd().length;
       if (Math.abs(leading - trailing) <= 2) {
         isCentered = true;
         finalValue = trimmed;
       }
     }
-    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * 1.25).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
+
+    const lh = isBillStyle ? 1.08 : 1.25;
+    rowsHtml += `<pre style="margin:0;padding:0;font-family:inherit;font-size:inherit;line-height:${(lhMultiplier * lh).toFixed(2)};font-weight:700;letter-spacing:0px;text-align:${isCentered ? 'center' : 'left'};white-space:${isCentered ? 'pre-wrap' : 'pre'};word-break:break-word;">${escapeHtml(finalValue)}</pre>`;
   }
 
   const fontSize = widthMm <= 58 ? '10px' : '11.5px';
+  const contentBody = isBillStyle
+    ? `<div style="border:2px solid black;padding:6px 3px;width:100%;box-sizing:border-box;background:#fff;display:flex;flex-direction:column;align-items:stretch;overflow:hidden;">${rowsHtml}</div>`
+    : rowsHtml;
+
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -668,7 +813,7 @@ async function buildReceiptHtml(receiptText: string, widthMm: number, fontFamily
 </style>
 </head>
 <body>
-  ${rowsHtml}
+  ${contentBody}
   <script>
     window.addEventListener('DOMContentLoaded', () => {
       const height = document.documentElement.scrollHeight || document.body.scrollHeight || 0;

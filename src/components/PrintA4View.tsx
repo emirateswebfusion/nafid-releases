@@ -3,8 +3,8 @@ import { useEffect, useState } from 'react';
 function sanitizeHtml(html: string): string {
   // Strip script blocks
   html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-  // Strip dangerous tags (iframe, object, embed, svg, meta, link, form, input, etc.)
-  html = html.replace(/<\/?(?:iframe|object|embed|svg|meta|link|base|form|input|button|textarea|select|option|optgroup|label|fieldset|legend|datalist|output|progress|meter|details|summary|dialog|template|slot|canvas|map|area|math|noscript|noembed|plaintext|xmp)\b[^>]*>/gi, '');
+  // Strip dangerous tags (iframe, object, embed, svg, base, form, input, etc.) — PRESERVE meta, link, and style for page formatting!
+  html = html.replace(/<\/?(?:iframe|object|embed|svg|base|form|input|button|textarea|select|option|optgroup|label|fieldset|legend|datalist|output|progress|meter|details|summary|dialog|template|slot|canvas|map|area|math|noscript|noembed|plaintext|xmp)\b[^>]*>/gi, '');
   // Strip event handlers (onclick, onerror, etc.) with any quote style including backticks
   html = html.replace(/\bon\w+\s*=\s*(?:"[^"]*"|'[^']*'|`[^`]*`|[^\s>]+)/gi, '');
   // Strip javascript:/data:/vbscript: protocol URLs

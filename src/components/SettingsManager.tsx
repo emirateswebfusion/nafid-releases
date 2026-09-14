@@ -93,6 +93,7 @@ const SIDEBAR_GROUPS: SidebarGroup[] = [
     icon: Printer,
     items: [
       { id: 'printing', label: 'Print Templates', icon: Printer, ownerOnly: true },
+      { id: 'print_options', label: 'Bill & Print Options', icon: FileText, ownerOnly: true },
     ],
   },
   {
@@ -172,7 +173,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveRevision, setSaveRevision] = useState(0);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string, title?: string } | null>(null);
   const [activeSection, setActiveSection] = useState(role === 'OWNER' ? 'store' : 'hardware');
   const [showBulkSheet, setShowBulkSheet] = useState(false);
 
@@ -728,18 +729,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       let finalScrapBillSettings = { ...DEFAULT_BILL_SETTINGS };
 
       if (printFmt && typeof printFmt === 'object') {
-        if (printFmt.format === 'a4') {
-          finalPrintFmt = 'a4';
-          if (printFmt.style) finalA4Style = printFmt.style;
-        } else if (printFmt.format === 'half-a4') {
-          finalPrintFmt = 'half-a4';
-          if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
-            finalA5Orientation = printFmt.a5Orientation;
-          }
-        } else {
-          finalPrintFmt = 'thermal';
-          finalPrintWidth = Number(printFmt.width) || Math.round((Number(finalReceipt.receiptWidthCm) || 5.8) * 10);
-          if (printFmt.style) finalThermalStyle = printFmt.style;
+        if (printFmt.format === 'a4' || printFmt.format === 'half-a4' || printFmt.format === 'thermal') {
+          finalPrintFmt = printFmt.format;
+        }
+        if (printFmt.a5Orientation === 'vertical' || printFmt.a5Orientation === 'horizontal') {
+          finalA5Orientation = printFmt.a5Orientation;
+        }
+        finalPrintWidth = Number(printFmt.width) || Math.round((Number(finalReceipt.receiptWidthCm) || 5.8) * 10);
+        if (printFmt.thermalStyle) {
+          finalThermalStyle = printFmt.thermalStyle;
+        } else if (printFmt.format === 'thermal' && printFmt.style) {
+          finalThermalStyle = printFmt.style;
+        }
+        if (printFmt.a4Style) {
+          finalA4Style = printFmt.a4Style;
+        } else if (printFmt.format === 'a4' && printFmt.style) {
+          finalA4Style = printFmt.style;
         }
         finalReceipt.receiptWidthCm = finalPrintWidth / 10;
         if (printFmt.showProductOffers !== undefined) finalShowOffers = Boolean(printFmt.showProductOffers);
@@ -1084,7 +1089,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'loyalty_config', value: { enabled: loyaltyEnabled, earningRate: Number(loyaltyEarningRate) || 100, redemptionRate: Number(loyaltyRedemptionRate) || 1 } }), name: 'loyalty_config' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_code_type', value: labelCodeType }), name: 'label_code_type' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'label_show_shop_name', value: labelShowShopName }), name: 'label_show_shop_name' },
-        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, style: printFormat === 'thermal' ? thermalStyle : printFormat === 'a4' ? a4Style : undefined, a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'print_format', value: { format: printFormat, width: printWidth, thermalStyle, a4Style, style: printFormat === 'thermal' ? thermalStyle : (printFormat === 'a4' ? a4Style : 'half-a4'), a5Orientation, showProductOffers, openCashDrawerOnPending, receiptFont, billSettings, scrapBillSettings } }), name: 'print_format' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'terminal_code', value: cleanCode }), name: 'terminal_code' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'invoice_counter_config', value: { prefix: `${cleanCode}-`, counter: finalInvCounter } }), name: 'invoice' },
         { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'return_counter', value: { prefix: `${computedReturnPrefix}-`, counter: finalReturnCounter } }), name: 'return_counter' },
@@ -1143,10 +1148,32 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       useCartStore.setState({ shopState });
       for (const def of FEATURE_LIST) setFeatureFlag(def.key, featureFlags[def.key]);
       setEnableScrap(Boolean(featureFlags.scrap));
-      const syncStatusToast = (syncMode === 'LAN' || syncMode === 'HYBRID')
-        ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
-        : 'Cloud Sync Active (Connected to Cloud API)';
-      setMessage({ type: 'success', text: `Settings saved successfully! ${syncStatusToast}` });
+      if (activeSection === 'network') {
+        const syncStatusToast = (syncMode === 'LAN' || (syncMode === 'HYBRID' && lanRole === 'SECONDARY'))
+          ? `Wifi Sync Active (${lanRole === 'PRIMARY' ? `Primary Master Server IP ${detectedLocalIp || lanHostIp || '192.168.1.100'}:${lanPort}` : `Connected to Master Server ${lanHostIp}:${lanPort}`})`
+          : 'Cloud Sync Active (Connected to Cloud API)';
+        setMessage({
+          type: 'success',
+          title: 'NETWORK & SYNC STATUS',
+          text: `Network & sync settings saved successfully! ${syncStatusToast}`
+        });
+      } else {
+        const sectionLabels: Record<string, string> = {
+          hardware: 'Hardware & device settings',
+          store: 'Store profile settings',
+          products: 'Products & inventory settings',
+          printing: 'Print template settings',
+          print_options: 'Bill & print options',
+          system: 'App preferences',
+          features: 'Feature module settings',
+        };
+        const label = sectionLabels[activeSection] || 'Settings';
+        setMessage({
+          type: 'success',
+          title: 'SETTINGS SAVED',
+          text: `${label} saved successfully!`
+        });
+      }
       initialSnapshot.current = JSON.stringify({
         barcodePrinter: formattedBarcodePrinter,
         receiptPrinter: formattedReceiptPrinter,
@@ -1204,7 +1231,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
           <div className="flex-1 min-w-0 leading-snug">
             <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-              {message.type === 'success' ? 'SYSTEM & SYNC STATUS' : 'SETTINGS ALERT'}
+              {message.title || (message.type === 'success' ? 'SETTINGS SAVED' : 'SETTINGS ALERT')}
             </span>
             <span className="text-white font-bold text-xs block leading-tight">{message.text}</span>
           </div>
@@ -1964,18 +1991,33 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       case 'printing':
         return (
           <div className="space-y-6 animate-in fade-in duration-300">
-            {/* Card 1: Receipt & Invoice Format */}
+            {/* Card 1: Normal Print Paper Format (Bill of Supply & Estimate) */}
             <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
               <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
                 <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
-                  <FileText className="w-4.5 h-4.5" />
+                  <Printer className="w-4.5 h-4.5" />
                 </div>
-                <span className="text-xs font-black text-primary uppercase tracking-widest">Receipt &amp; Invoice Format</span>
-              </div>
-              <div className="space-y-6">
-                {/* Format Toggle: Thermal vs Half A4 vs A4 */}
                 <div>
-                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Paper Format</label>
+                  <span className="text-xs font-black text-primary uppercase tracking-widest block">Normal Print Paper Format</span>
+                  <p className="text-[11px] text-muted-foreground/75 mt-0.5">Format used for non-GST bills (Bill of Supply &amp; Estimate)</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                {/* Info Note for GST Bills */}
+                <div className="p-4 bg-emerald-500/[0.06] border border-emerald-500/20 rounded-2xl flex items-start gap-3">
+                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">GST Bills (Tax Invoices) are fixed to A4 Format</p>
+                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium leading-relaxed mt-0.5">
+                      GST Tax Invoices and B2B bills are automatically formatted and printed on standard A4 paper as required by GST regulations. Paper format selection below applies to Normal Print (Bill of Supply &amp; Estimate).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Normal Print Format Toggle: Thermal vs A5 (Half A4) vs A4 */}
+                <div>
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Select Format for BOS / Estimate</label>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <button
                       type="button"
@@ -2015,8 +2057,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         <FileText className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate">A5 Paper</p>
-                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Estimate &amp; bill format</p>
+                        <p className="text-sm font-bold text-foreground truncate">A5 Paper (Half-A4)</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Estimate &amp; BOS cut-sheet</p>
                       </div>
                       {printFormat === 'half-a4' && (
                         <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
@@ -2039,7 +2081,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                         <FileText className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-bold text-foreground truncate">A4 Invoice</p>
+                        <p className="text-sm font-bold text-foreground truncate">A4 Paper</p>
                         <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Full-page A4 document</p>
                       </div>
                       {printFormat === 'a4' && (
@@ -2104,437 +2146,413 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                 </div>
 
-                {/* Format Specific Options: Style Selectors */}
-                {printFormat === 'thermal' && (
-                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/40 rounded-xl border border-border/60 text-xs">
-                      <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
-                        Paper Width: <strong className="text-foreground font-bold">{printWidth}mm</strong>
-                      </span>
-                      <button type="button" onClick={() => setActiveSection('hardware')} className="text-primary hover:underline text-[11px] font-bold cursor-pointer">
-                        Configure in Devices & Hardware &rarr;
-                      </button>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Receipt Style</span>
-                      <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
-                          { id: 'compact', name: 'Compact', color: 'from-violet-500/10 to-violet-500/5' },
-                          { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
-                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' },
-                          { id: 'clean', name: 'Clean', color: 'from-emerald-500/10 to-emerald-500/5' },
-                          { id: 'dot', name: 'Dot', color: 'from-cyan-500/10 to-cyan-500/5' },
-                          { id: 'slim', name: 'Slim', color: 'from-gray-500/10 to-gray-500/5' },
-                          { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' },
-                          { id: 'boxed', name: 'Boxed', color: 'from-teal-500/10 to-teal-500/5' }
-                        ].map((style) => {
-                          const isActive = thermalStyle === style.id;
-                          return (
-                            <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
-                              {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setThermalStyle(style.id as any); }} className="w-full cursor-pointer text-left">
-                                <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
-                                  <span className="text-xs font-extrabold text-foreground">{style.name}</span>
-                                </div>
-                              </button>
-                              <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
-                                <div className="relative group flex justify-center">
-                                  <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
-                                    <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
-                                  </button>
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                {/* 1. A4 & A5 Invoice Style Selector */}
+                <div className="space-y-4 pt-6 border-t border-border/40 animate-in fade-in duration-300">
+                  <div>
+                    <span className="text-xs font-extrabold text-foreground uppercase tracking-wider block">A4 &amp; A5 Invoice Style</span>
+                    <p className="text-[11px] text-muted-foreground/75 mt-0.5">Applied automatically when printing A4, A5, GST, or B2B tax invoices</p>
                   </div>
-                )}
-
-                {printFormat === 'half-a4' && (
-                  /* A5 Options: Styles & Orientation */
-                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">A5 Page Orientation</span>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <button
-                          type="button"
-                          onClick={() => setA5Orientation('horizontal')}
-                          className={clsx(
-                            "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
-                            a5Orientation === 'horizontal'
-                              ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
-                              : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
-                          )}
-                        >
-                          <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'horizontal' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
-                            <FileText className="w-5 h-5 rotate-90" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">Half-A4 Cut Sheet (210mm Wide)</p>
-                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Cut Half-A4 sheet (210mm wide feed - Recommended)</p>
-                          </div>
-                          {a5Orientation === 'horizontal' && (
-                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                  <div className="grid grid-cols-2 gap-4">
+                    {[
+                      { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
+                      { id: 'boxed', name: 'GST Boxed', color: 'from-emerald-500/10 to-emerald-500/5' },
+                      { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
+                      { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
+                    ].map((style) => {
+                      const isActive = a4Style === style.id;
+                      return (
+                        <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
+                          {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
+                          <button type="button" onClick={() => { setA4Style(style.id as any); }} className="w-full cursor-pointer text-left">
+                            <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
+                              <span className="text-xs font-extrabold text-foreground">{style.name}</span>
                             </div>
-                          )}
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => setA5Orientation('vertical')}
-                          className={clsx(
-                            "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
-                            a5Orientation === 'vertical'
-                              ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
-                              : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
-                          )}
-                        >
-                          <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'vertical' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
-                            <FileText className="w-5 h-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">A5 Vertical (148.5mm Wide)</p>
-                            <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Standard A5 portrait paper (148mm feed)</p>
-                          </div>
-                          {a5Orientation === 'vertical' && (
-                            <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
-                              <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                            </div>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">A5 Estimate &amp; Bill Style</span>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="relative rounded-2xl border-2 border-primary shadow-md ring-2 ring-primary/5 bg-card overflow-hidden transition-all duration-300 hover:shadow-md">
-                          <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
-                          </div>
-                          <div className="p-3 border-b border-border bg-gradient-to-r from-amber-500/10 to-amber-500/5">
-                            <span className="text-xs font-extrabold text-foreground">Standard A5 Layout ({a5Orientation === 'vertical' ? 'Vertical' : 'Horizontal'})</span>
-                          </div>
+                          </button>
                           <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
                             <div className="relative group flex justify-center">
-                              <button
-                                type="button"
-                                onClick={() => { setPreviewFormat('half-a4'); }}
-                                className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors"
-                              >
-                                <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">A5 Estimate Preview</div>
+                              <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
+                                <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
                               </button>
-                              <button
-                                type="button"
-                                onClick={(e) => { e.stopPropagation(); setPreviewFormat('half-a4'); }}
-                                className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"
-                                title="Full Preview"
-                              >
-                                <Maximize2 className="w-3.5 h-3.5 text-primary-foreground" />
-                              </button>
+                              <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer" title="Full Preview"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    </div>
+                      );
+                    })}
                   </div>
-                )}
+                </div>
 
-                {printFormat === 'a4' && (
-                  /* A4 Options: Styles */
-                  <div className="space-y-6 pt-4 border-t border-border/40 animate-in fade-in duration-300">
-                    <div>
-                      <span className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Invoice Style</span>
-                      <div className="grid grid-cols-2 gap-4">
-                        {[
-                          { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
-                          { id: 'boxed', name: 'GST Boxed', color: 'from-emerald-500/10 to-emerald-500/5' },
-                          { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
-                          { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' }
-                        ].map((style) => {
-                          const isActive = a4Style === style.id;
-                          return (
-                            <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
-                              {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" /></div>}
-                              <button type="button" onClick={() => { setA4Style(style.id as any); }} className="w-full cursor-pointer text-left">
-                                <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
-                                  <span className="text-xs font-extrabold text-foreground">{style.name}</span>
-                                </div>
-                              </button>
-                              <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
-                                <div className="relative group flex justify-center">
-                                  <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
-                                    <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
-                                  </button>
-                                  <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('a4'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
-                                </div>
+                {/* 2. Thermal Receipt Typography & Style */}
+                <div className="space-y-4 pt-6 border-t border-border/40 animate-in fade-in duration-300">
+                  <div className="flex items-center justify-between px-3.5 py-2.5 bg-muted/40 rounded-xl border border-border/60 text-xs">
+                    <span className="text-muted-foreground text-[11px] font-medium flex items-center gap-1.5">
+                      Thermal Roll Width: <strong className="text-foreground font-bold">{printWidth}mm</strong>
+                    </span>
+                    <button type="button" onClick={() => setActiveSection('hardware')} className="text-primary hover:underline text-[11px] font-bold cursor-pointer">
+                      Configure in Devices &amp; Hardware &rarr;
+                    </button>
+                  </div>
+
+                  <div>
+                    <span className="text-xs font-extrabold text-foreground uppercase tracking-wider block mb-1">Thermal Receipt Style</span>
+                    <p className="text-[11px] text-muted-foreground/75 mb-3">Layout format used for thermal roll printer receipts</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      {[
+                        { id: 'standard', name: 'Standard', color: 'from-blue-500/10 to-blue-500/5' },
+                        { id: 'compact', name: 'Compact', color: 'from-violet-500/10 to-violet-500/5' },
+                        { id: 'modern', name: 'Modern', color: 'from-amber-500/10 to-amber-500/5' },
+                        { id: 'classic', name: 'Classic', color: 'from-rose-500/10 to-rose-500/5' },
+                        { id: 'clean', name: 'Clean', color: 'from-emerald-500/10 to-emerald-500/5' },
+                        { id: 'dot', name: 'Dot', color: 'from-cyan-500/10 to-cyan-500/5' },
+                        { id: 'slim', name: 'Slim', color: 'from-gray-500/10 to-gray-500/5' },
+                        { id: 'luxe', name: 'Luxe', color: 'from-yellow-500/10 to-yellow-500/5' },
+                        { id: 'boxed', name: 'Boxed', color: 'from-teal-500/10 to-teal-500/5' }
+                      ].map((style) => {
+                        const isActive = thermalStyle === style.id;
+                        return (
+                          <div key={style.id} className={clsx("relative rounded-2xl border-2 transition-all duration-300 overflow-hidden hover:shadow-md hover:border-primary/45", isActive ? "border-primary shadow-md ring-2 ring-primary/5 bg-card" : "border-border/80")}>
+                            {isActive && <div className="absolute top-2.5 right-2.5 z-10 w-5 h-5 rounded-full bg-primary flex items-center justify-center shadow-sm shadow-primary/20"><CheckCircle2 className="w-3 h-3 text-primary-foreground" /></div>}
+                            <button type="button" onClick={() => { setThermalStyle(style.id as any); }} className="w-full cursor-pointer text-left">
+                              <div className={clsx("p-3 border-b border-border bg-gradient-to-r", style.color)}>
+                                <span className="text-xs font-extrabold text-foreground">{style.name}</span>
+                              </div>
+                            </button>
+                            <div className="bg-muted/20 dark:bg-muted/5 flex justify-center py-4">
+                              <div className="relative group flex justify-center">
+                                <button type="button" onClick={() => { setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="bg-card shadow-inner font-mono overflow-hidden border border-border w-36 rounded-md cursor-pointer hover:border-primary/50 transition-colors">
+                                  <div className="text-[8px] text-center p-2.5 text-muted-foreground/60 font-semibold select-none">{style.name} Preview</div>
+                                </button>
+                                <button type="button" onClick={(e) => { e.stopPropagation(); setPreviewStyle(style.id); setPreviewFormat('thermal'); }} className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1.5 bg-primary text-primary-foreground rounded-lg shadow-lg hover:bg-primary/95 cursor-pointer" title="Full Preview"><Maximize2 className="w-3.5 h-3.5 text-primary-foreground" /></button>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* General Bill Settings — ALWAYS VISIBLE for Thermal, A5 & A4 */}
-                <div className="space-y-6 pt-6 border-t border-border/40">
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)}>Auto Print Barcode for New Products</label>
-                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When a new product is created from the Billing page, automatically print its barcode label.</p>
-                    </div>
-                    <button type="button" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoPrintBarcode ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoPrintBarcode ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Bills</label>
-                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
-                    </div>
-                    <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
-                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
-                    </div>
-                    <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <div className="flex-1">
-                      <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))}>Show Transporter &amp; E-Way Bill Details Section</label>
-                      <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the Transporter &amp; E-Way Bill Details section will appear on printed invoices and preview.</p>
-                    </div>
-                    <button type="button" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.showTransporterDetails !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
-                      <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.showTransporterDetails !== false ? 'translate-x-5' : 'translate-x-0')} />
-                    </button>
-                  </div>
-
-                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                      {[
-                        { key: 'showShopName', label: 'Shop Name' },
-                        { key: 'showShopAddress', label: 'Shop Address' },
-                        { key: 'showPhone', label: 'Phone Number' },
-                        { key: 'showShopGstin', label: 'Shop GSTIN' },
-                        { key: 'showShopState', label: 'Shop State' },
-                        { key: 'showTitle', label: 'Document Title' },
-                        { key: 'showBillerName', label: 'Biller Name' },
-                        { key: 'showCustomerName', label: 'Customer Name' },
-                        { key: 'showCustomerPhone', label: 'Customer Phone' },
-                        { key: 'showCustomerAddress', label: 'Customer Address' },
-                        { key: 'showCustomerGstin', label: 'Customer GSTIN' },
-                        { key: 'showCustomerState', label: 'Customer State' },
-                        { key: 'showTransporterDetails', label: 'Transporter & E-Way Bill Details' },
-                        { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
-                        { key: 'printFullName', label: 'Full Product Name' },
-                        { key: 'showBrandName', label: 'Product Brand Name' },
-                        { key: 'showWeightDetails', label: 'Weight & Per-Weight Rate (Weight Items)' },
-                        { key: 'showPcsForWeightProducts', label: 'Show Weight Items in PCS (Pieces)' },
-                        { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
-                        { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
-                      ].map(({ key, label }) => {
-                        const isChecked = (billSettings as any)[key] !== false;
-                        return (
-                          <label key={key} className="flex items-center gap-3 py-1.5 cursor-pointer group text-xs text-foreground font-medium select-none">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }));
-                              }}
-                              className={clsx(
-                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                                isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                              )}
-                            >
-                              {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                            </button>
-                            <span>{label}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-
-                    {billSettings.showBosTaxBreakup && (
-                      <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>
-                          <input
-                            type="number"
-                            min="0"
-                            max="100"
-                            step="0.1"
-                            value={billSettings.bosTaxRatePercent}
-                            onChange={e => {
-                              const v = parseFloat(e.target.value) || 0;
-                              setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
-                            }}
-                            className="w-20 px-3 py-1.5 text-xs border border-border/80 rounded-xl bg-background text-foreground text-center font-mono font-bold"
-                          />
-                          <span className="text-[10px] text-muted-foreground/70">Split equally as CGST + SGST</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <label className="text-xs text-foreground shrink-0 font-bold">Tax Type</label>
-                          <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner">
-                            <button
-                              type="button"
-                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
-                              className={clsx(
-                                'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                                !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
-                              )}
-                            >
-                              Exclusive
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
-                              className={clsx(
-                                'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
-                                billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
-                              )}
-                            >
-                              Inclusive
-                            </button>
                           </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="border-t border-border/40 my-3.5 pt-3">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card/60 border border-border/60 rounded-xl">
-                        <div>
-                          <span className="text-xs text-foreground font-bold flex items-center gap-1.5">
-                            <FileText className="w-3.5 h-3.5 text-primary" />
-                            Bill Document Title (Non-GST / Regular Bill)
-                          </span>
-                          <p className="text-[10px] text-muted-foreground/75 mt-0.5">Choose whether regular bills display "BILL OF SUPPLY" or "ESTIMATE" as document title.</p>
-                        </div>
-                        <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'BILL_OF_SUPPLY', estimateMode: false }))}
-                            className={clsx(
-                              'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
-                              (billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode)
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'bg-transparent text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            {(billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
-                            BILL OF SUPPLY
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'ESTIMATE', estimateMode: true }))}
-                            className={clsx(
-                              'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
-                              (billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode)
-                                ? 'bg-primary text-primary-foreground shadow-sm'
-                                : 'bg-transparent text-muted-foreground hover:text-foreground'
-                            )}
-                          >
-                            {(billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
-                            ESTIMATE
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <label className="text-xs font-bold text-foreground mb-3 block">Bill Instructions (T&amp;C)</label>
-                    <textarea
-                      value={billSettings.instructions || ''}
-                      onChange={e => setBillSettings(s => ({ ...s, instructions: e.target.value }))}
-                      placeholder="e.g. 1. Goods once sold will not be taken back.&#10;2. Subject to local jurisdiction.&#10;3. E. &amp; O. E."
-                      rows={4}
-                      className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
-                    />
-                    <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of thermal receipts, A5 estimates, and A4 invoices.</p>
-                  </div>
-
-                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
-                      {[
-                        { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
-                        { key: 'showShopName', label: 'Shop Name' },
-                        { key: 'showShopAddress', label: 'Shop Address' },
-                        { key: 'showPhone', label: 'Phone Number' },
-                        { key: 'showShopGstin', label: 'Shop GSTIN' },
-                        { key: 'showTitle', label: 'Document Title' },
-                        { key: 'showBillerName', label: 'Biller Name' },
-                        { key: 'showCustomerName', label: 'Customer Name' },
-                        { key: 'showCustomerPhone', label: 'Customer Phone' },
-                        { key: 'showCustomerAddress', label: 'Customer Address' },
-                        { key: 'showCustomerState', label: 'Customer State' },
-                      ].map(({ key, label }) => {
-                        const isChecked = (scrapBillSettings as any)[key] !== false;
-                        return (
-                          <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
-                            <button
-                              type="button"
-                              onClick={() => setScrapBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }))}
-                              className={clsx(
-                                'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
-                                isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
-                              )}
-                            >
-                              {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
-                            </button>
-                            <span>{label}</span>
-                          </label>
                         );
                       })}
                     </div>
                   </div>
+                </div>
 
-                  <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                    <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Bill / Receipt Font</label>
-                    <div className="flex flex-wrap gap-2.5">
-                      {FONT_OPTIONS.map(f => (
+                {/* 3. A5 Page Orientation */}
+                <div className="space-y-4 pt-6 border-t border-border/40 animate-in fade-in duration-300">
+                  <span className="text-xs font-extrabold text-foreground uppercase tracking-wider block mb-1">A5 Page Orientation</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => setA5Orientation('horizontal')}
+                      className={clsx(
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        a5Orientation === 'horizontal'
+                          ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                          : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                      )}
+                    >
+                      <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'horizontal' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                        <FileText className="w-5 h-5 rotate-90" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">Half-A4 Cut Sheet (210mm Wide)</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Cut Half-A4 sheet (210mm wide feed - Recommended)</p>
+                      </div>
+                      {a5Orientation === 'horizontal' && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setA5Orientation('vertical')}
+                      className={clsx(
+                        "relative flex items-center gap-3.5 p-4 rounded-2xl border-2 transition-all duration-300 cursor-pointer text-left",
+                        a5Orientation === 'vertical'
+                          ? "border-primary bg-primary/5 shadow-md ring-1 ring-primary/10"
+                          : "border-border/80 hover:border-primary/35 hover:bg-muted/20"
+                      )}
+                    >
+                      <div className={clsx("p-2.5 rounded-xl shrink-0", a5Orientation === 'vertical' ? "bg-amber-500/20 text-amber-600 dark:text-amber-400" : "bg-muted text-muted-foreground")}>
+                        <FileText className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">A5 Vertical (148.5mm Wide)</p>
+                        <p className="text-xs text-muted-foreground/75 mt-0.5 truncate">Standard A5 portrait paper (148mm feed)</p>
+                      </div>
+                      {a5Orientation === 'vertical' && (
+                        <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center shrink-0 shadow-sm shadow-primary/20">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-primary-foreground" />
+                        </div>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 'print_options':
+        return (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Card 1: General Bill Options & Checklist */}
+            <div className="bg-card border border-border rounded-[28px] p-6 md:p-8 shadow-sm hover:shadow-md hover:border-primary/20 transition-all duration-300">
+              <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
+                <div className="p-2.5 rounded-2xl bg-primary/10 text-primary shadow-[0_4px_12px_rgba(79,70,229,0.1)] shrink-0">
+                  <FileText className="w-4.5 h-4.5" />
+                </div>
+                <span className="text-xs font-black text-primary uppercase tracking-widest">Bill Printing Options &amp; Content Checklist</span>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)}>Auto Print Barcode for New Products</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When a new product is created from the Billing page, automatically print its barcode label.</p>
+                  </div>
+                  <button type="button" onClick={() => setAutoPrintBarcode(!autoPrintBarcode)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', autoPrintBarcode ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', autoPrintBarcode ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setShowProductOffers(!showProductOffers)}>Show Per-Product Offers on Bills</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, items with discounts will show MRP, offer price, and discount labels.</p>
+                  </div>
+                  <button type="button" onClick={() => setShowProductOffers(!showProductOffers)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', showProductOffers ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showProductOffers ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)}>Open Cash Drawer on Pending Payment</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When billing with Pending payment method, automatically open the cash drawer after printing.</p>
+                  </div>
+                  <button type="button" onClick={() => setOpenCashDrawerOnPending(!openCashDrawerOnPending)} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', openCashDrawerOnPending ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', openCashDrawerOnPending ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))}>Show Transporter &amp; E-Way Bill Details Section</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">When enabled, the Transporter &amp; E-Way Bill Details section will appear on printed invoices and preview.</p>
+                  </div>
+                  <button type="button" onClick={() => setBillSettings(s => ({ ...s, showTransporterDetails: s.showTransporterDetails === false ? true : false }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.showTransporterDetails !== false ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.showTransporterDetails !== false ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                    {[
+                      { key: 'showShopName', label: 'Shop Name' },
+                      { key: 'showShopAddress', label: 'Shop Address' },
+                      { key: 'showPhone', label: 'Phone Number' },
+                      { key: 'showShopGstin', label: 'Shop GSTIN' },
+                      { key: 'showShopState', label: 'Shop State' },
+                      { key: 'showTitle', label: 'Document Title' },
+                      { key: 'showBillerName', label: 'Biller Name' },
+                      { key: 'showCustomerName', label: 'Customer Name' },
+                      { key: 'showCustomerPhone', label: 'Customer Phone' },
+                      { key: 'showCustomerAddress', label: 'Customer Address' },
+                      { key: 'showCustomerGstin', label: 'Customer GSTIN' },
+                      { key: 'showCustomerState', label: 'Customer State' },
+                      { key: 'showTransporterDetails', label: 'Transporter & E-Way Bill Details' },
+                      { key: 'showBosTaxBreakup', label: 'Tax Breakup on Bill of Supply' },
+                      { key: 'printFullName', label: 'Full Product Name' },
+                      { key: 'showBrandName', label: 'Product Brand Name' },
+                      { key: 'showWeightDetails', label: 'Weight & Per-Weight Rate (Weight Items)' },
+                      { key: 'showPcsForWeightProducts', label: 'Show Weight Items in PCS (Pieces)' },
+                      { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
+                      { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
+                      { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
+                    ].map(({ key, label }) => {
+                      const isChecked = (billSettings as any)[key] !== false;
+                      return (
+                        <label key={key} className="flex items-center gap-3 py-1.5 cursor-pointer group text-xs text-foreground font-medium select-none">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }));
+                            }}
+                            className={clsx(
+                              'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                              isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                            )}
+                          >
+                            {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          </button>
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {billSettings.showBosTaxBreakup && (
+                    <div className="mt-4 pt-4 border-t border-border/40 space-y-4 animate-in slide-in-from-top-2 duration-200">
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs text-foreground shrink-0 font-bold">CGST/SGST Rate %</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                          value={billSettings.bosTaxRatePercent}
+                          onChange={e => {
+                            const v = parseFloat(e.target.value) || 0;
+                            setBillSettings(s => ({ ...s, bosTaxRatePercent: Math.max(0, Math.min(100, v)) }));
+                          }}
+                          className="w-20 px-3 py-1.5 text-xs border border-border/80 rounded-xl bg-background text-foreground text-center font-mono font-bold"
+                        />
+                        <span className="text-[10px] text-muted-foreground/70">Split equally as CGST + SGST</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <label className="text-xs text-foreground shrink-0 font-bold">Tax Type</label>
+                        <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner">
+                          <button
+                            type="button"
+                            onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: false }))}
+                            className={clsx(
+                              'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                              !billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            Exclusive
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBillSettings(s => ({ ...s, bosTaxInclusive: true }))}
+                            className={clsx(
+                              'px-4 py-1.5 text-xs font-bold transition-all cursor-pointer',
+                              billSettings.bosTaxInclusive ? 'bg-primary text-primary-foreground shadow-sm' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                            )}
+                          >
+                            Inclusive
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="border-t border-border/40 my-3.5 pt-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-card/60 border border-border/60 rounded-xl">
+                      <div>
+                        <span className="text-xs text-foreground font-bold flex items-center gap-1.5">
+                          <FileText className="w-3.5 h-3.5 text-primary" />
+                          Bill Document Title (Non-GST / Regular Bill)
+                        </span>
+                        <p className="text-[10px] text-muted-foreground/75 mt-0.5">Choose whether regular bills display "BILL OF SUPPLY" or "ESTIMATE" as document title.</p>
+                      </div>
+                      <div className="flex rounded-xl border border-border/80 overflow-hidden bg-background/50 shadow-inner shrink-0">
                         <button
                           type="button"
-                          key={f.id}
-                          onClick={() => setReceiptFont(f.id)}
+                          onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'BILL_OF_SUPPLY', estimateMode: false }))}
                           className={clsx(
-                            'px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer border',
-                            receiptFont === f.id
-                              ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10 border-transparent scale-100 font-extrabold'
-                              : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border/60'
+                            'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                            (billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode)
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground'
                           )}
-                          style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
                         >
-                          {f.name}
+                          {(billSettings.nonGstBillTitle !== 'ESTIMATE' && !billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
+                          BILL OF SUPPLY
                         </button>
-                      ))}
+                        <button
+                          type="button"
+                          onClick={() => setBillSettings(s => ({ ...s, nonGstBillTitle: 'ESTIMATE', estimateMode: true }))}
+                          className={clsx(
+                            'px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5',
+                            (billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode)
+                              ? 'bg-primary text-primary-foreground shadow-sm'
+                              : 'bg-transparent text-muted-foreground hover:text-foreground'
+                          )}
+                        >
+                          {(billSettings.nonGstBillTitle === 'ESTIMATE' || billSettings.estimateMode) && <CheckCircle2 className="w-3 h-3" />}
+                          ESTIMATE
+                        </button>
+                      </div>
                     </div>
-                    <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing receipts &amp; bills.</p>
                   </div>
+                </div>
 
-                  <div className="p-4 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl flex items-start gap-3">
-                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-                    <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
-                      Changes apply only to new invoices. Previously generated invoices remain unaffected.
-                    </p>
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-3 block">Bill Instructions (T&amp;C)</label>
+                  <textarea
+                    value={billSettings.instructions || ''}
+                    onChange={e => setBillSettings(s => ({ ...s, instructions: e.target.value }))}
+                    placeholder="e.g. 1. Goods once sold will not be taken back.&#10;2. Subject to local jurisdiction.&#10;3. E. &amp; O. E."
+                    rows={4}
+                    className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
+                  />
+                  <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of thermal receipts, A5 estimates, and A4 invoices.</p>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
+                    {[
+                      { key: 'showScrapHeading', label: 'Scrap Bill Heading' },
+                      { key: 'showShopName', label: 'Shop Name' },
+                      { key: 'showShopAddress', label: 'Shop Address' },
+                      { key: 'showPhone', label: 'Phone Number' },
+                      { key: 'showShopGstin', label: 'Shop GSTIN' },
+                      { key: 'showTitle', label: 'Document Title' },
+                      { key: 'showBillerName', label: 'Biller Name' },
+                      { key: 'showCustomerName', label: 'Customer Name' },
+                      { key: 'showCustomerPhone', label: 'Customer Phone' },
+                      { key: 'showCustomerAddress', label: 'Customer Address' },
+                      { key: 'showCustomerState', label: 'Customer State' },
+                      { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
+                    ].map(({ key, label }) => {
+                      const isChecked = (scrapBillSettings as any)[key] !== false;
+                      return (
+                        <label key={key} className="flex items-center gap-3 cursor-pointer group text-xs text-foreground font-medium select-none">
+                          <button
+                            type="button"
+                            onClick={() => setScrapBillSettings(s => ({ ...s, [key]: (s as any)[key] === false ? true : false }))}
+                            className={clsx(
+                              'w-4.5 h-4.5 rounded-lg border-2 flex items-center justify-center transition-all shrink-0',
+                              isChecked ? 'bg-primary border-primary' : 'border-muted-foreground/30 group-hover:border-primary/50'
+                            )}
+                          >
+                            {isChecked && <CheckCircle2 className="w-3 h-3 text-primary-foreground" />}
+                          </button>
+                          <span>{label}</span>
+                        </label>
+                      );
+                    })}
                   </div>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-3 block">Bill / Receipt Font</label>
+                  <div className="flex flex-wrap gap-2.5">
+                    {FONT_OPTIONS.map(f => (
+                      <button
+                        type="button"
+                        key={f.id}
+                        onClick={() => setReceiptFont(f.id)}
+                        className={clsx(
+                          'px-4 py-2 rounded-xl text-xs font-bold transition-all duration-200 active:scale-95 cursor-pointer border',
+                          receiptFont === f.id
+                            ? 'bg-primary text-primary-foreground shadow-md shadow-primary/10 border-transparent scale-100 font-extrabold'
+                            : 'bg-background text-muted-foreground hover:bg-muted hover:text-foreground border-border/60'
+                        )}
+                        style={{ fontFamily: receiptFont === f.id ? f.family : undefined }}
+                      >
+                        {f.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/70 mt-2.5">Font used when printing receipts &amp; bills.</p>
+                </div>
+
+                <div className="p-4 bg-amber-500/[0.04] border border-amber-500/20 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 dark:text-amber-400 font-medium leading-relaxed">
+                    Changes apply only to new invoices. Previously generated invoices remain unaffected.
+                  </p>
                 </div>
               </div>
             </div>
@@ -3335,7 +3353,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       {activeItem.id === 'store' && 'Manage your shop profile, GST registration, invoice counters, and features.'}
                       {activeItem.id === 'hardware' && 'Configure receipt printers, barcode label printers, scales, and hardware connections.'}
                       {activeItem.id === 'products' && 'Manage product categories, grade pricing, and price coding alphabets.'}
-                      {activeItem.id === 'printing' && 'Choose print formats, invoice styles, receipt typography, and barcode layouts.'}
+                      {activeItem.id === 'printing' && 'Select paper formats for normal print (BOS/Estimate) and customize invoice & thermal template styles.'}
+                      {activeItem.id === 'print_options' && 'Configure bill content checklists, T&C instructions, BOS tax rate, receipt typography, and label codes.'}
                       {activeItem.id === 'system' && 'Adjust UI scaling, security passwords, and manage system updates.'}
                       {activeItem.id === 'network' && 'Configure Cloud API sync, Local Wi-Fi direct connections, and hybrid store networks.'}
                       {activeItem.id === 'features' && 'Turn individual modules on or off across the app — dashboards, billing, and managers hide disabled features.'}

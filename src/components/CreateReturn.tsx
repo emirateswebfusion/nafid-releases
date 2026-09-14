@@ -236,12 +236,12 @@ export function CreateReturn({
             };
 
             if (useA4) {
-              const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.style || 'standard');
+              const invoiceStyle = isHalfA4 ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');
               const invoiceHtml = generateInvoiceHtml(receiptData, invoiceStyle as any);
               await window.electronAPI.printA4Html(tenantId || 'global', invoiceHtml);
             } else {
               const thermalWidth = printFmt.width ? Number(printFmt.width) / 10 : receiptWidthCm;
-              const thermalStyle = printFmt.style || 'standard';
+              const thermalStyle = printFmt.thermalStyle || (printFmt.format === 'thermal' ? printFmt.style : undefined) || 'standard';
               const receiptText = generateReceiptText(receiptData, thermalWidth, undefined, thermalStyle);
               await window.electronAPI.printReceipt(tenantId || 'global', receiptText);
             }

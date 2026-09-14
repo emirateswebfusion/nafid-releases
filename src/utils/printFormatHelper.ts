@@ -1,5 +1,7 @@
 export interface PrintFormatConfig {
   format: 'thermal' | 'a4' | 'half-a4';
+  thermalStyle?: string;
+  a4Style?: string;
   a5Orientation?: 'horizontal' | 'vertical';
   width?: number;
   style?: string;
@@ -12,26 +14,31 @@ export interface PrintFormatConfig {
 }
 
 export function parsePrintFormat(val: any): PrintFormatConfig {
-  if (!val) return { format: 'thermal' };
+  const defaultThermal = 'standard';
+  const defaultA4 = 'boxed';
+
+  if (!val) return { format: 'thermal', thermalStyle: defaultThermal, a4Style: defaultA4 };
   if (typeof val === 'string') {
     if (val === 'half-a4' || val === 'a4' || val === 'thermal') {
-      return { format: val };
+      return { format: val, thermalStyle: defaultThermal, a4Style: defaultA4 };
     }
     try {
       const parsed = JSON.parse(val);
       if (parsed && typeof parsed === 'object') return parsePrintFormat(parsed);
       if (typeof parsed === 'string' && (parsed === 'half-a4' || parsed === 'a4' || parsed === 'thermal')) {
-        return { format: parsed };
+        return { format: parsed, thermalStyle: defaultThermal, a4Style: defaultA4 };
       }
     } catch {
-      return { format: 'thermal' };
+      return { format: 'thermal', thermalStyle: defaultThermal, a4Style: defaultA4 };
     }
   }
   if (typeof val === 'object') {
     const fmt = (val.format === 'half-a4' || val.format === 'a4' || val.format === 'thermal') ? val.format : 'thermal';
-    return { ...val, format: fmt };
+    const thermalStyle = val.thermalStyle || (fmt === 'thermal' ? val.style : undefined) || defaultThermal;
+    const a4Style = val.a4Style || (fmt === 'a4' ? val.style : undefined) || defaultA4;
+    return { ...val, format: fmt, thermalStyle, a4Style };
   }
-  return { format: 'thermal' };
+  return { format: 'thermal', thermalStyle: defaultThermal, a4Style: defaultA4 };
 }
 
 export function formatPrinterError(rawErr: string | undefined | null): string {

@@ -42,6 +42,7 @@ export interface BillSettings {
   showPcsUnit?: boolean;
   showCreditBalance?: boolean;
   showTransporterDetails?: boolean;
+  showBarcodeOnReceipt?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -71,6 +72,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showPcsUnit: false,
   showCreditBalance: true,
   showTransporterDetails: true,
+  showBarcodeOnReceipt: true,
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
@@ -1790,11 +1792,21 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // B_ROW: builds a table row from cells+widths.
     //   sum(widths) must equal INNER - N_cols so total line = exactly charsPerLine
-    const B_ROW = (cells: string[], widths: number[]): string => {
+    const B_ROW = (cells: string[], widths: number[], aligns?: ('left' | 'right' | 'center')[]): string => {
       let line = '│';
       cells.forEach((c, i) => {
         const w = widths[i];
-        const paddedCell = c.length > w ? c.substring(0, w) : c.padEnd(w);
+        const align = aligns && aligns[i] ? aligns[i] : 'left';
+        let paddedCell = c;
+        if (c.length > w) {
+          paddedCell = c.substring(0, w);
+        } else if (align === 'right') {
+          paddedCell = c.padStart(w);
+        } else if (align === 'center') {
+          paddedCell = centerText(c, w);
+        } else {
+          paddedCell = c.padEnd(w);
+        }
         line += paddedCell + '│';
       });
       // Final safety clamp
@@ -1909,6 +1921,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     let colWidths: number[];
     let colLabels: string[];
+    let colAligns: ('left' | 'right' | 'center')[];
     let nameW: number;
     let idxW: number;
     let qtyW: number;
@@ -1918,30 +1931,30 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     if (charsPerLine >= 42) {
       // 6 cols: Sr(2) Product Qty(4) MRP(6) Rate(6) Amt(7)
-      // B_ROW: 1 + sum + 6 = charsPerLine  =>  sum = charsPerLine - 7
       idxW = 2; qtyW = 4; mrpW = 6; rateW = 6; amtW = 7;
       nameW = (charsPerLine - 7) - (idxW + qtyW + mrpW + rateW + amtW);
       colWidths = [idxW, nameW, qtyW, mrpW, rateW, amtW];
       colLabels = ['Sr', 'Product', 'Qty', 'MRP', 'Rate', 'Amount'];
+      colAligns = ['center', 'left', 'right', 'right', 'right', 'right'];
     } else if (charsPerLine >= 36) {
       // 5 cols: Sr(2) Product Qty(3) Rate(6) Amt(7)
-      // B_ROW: 1 + sum + 5 = charsPerLine  =>  sum = charsPerLine - 6
       idxW = 2; qtyW = 3; mrpW = null; rateW = 6; amtW = 7;
       nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
       colWidths = [idxW, nameW, qtyW, rateW, amtW];
       colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
+      colAligns = ['center', 'left', 'right', 'right', 'right'];
     } else {
       // 5 cols: Sr(2) Product Qty(3) Rate(5) Amt(5)
-      // B_ROW: 1 + sum + 5 = charsPerLine  =>  sum = charsPerLine - 6
       idxW = 2; qtyW = 3; mrpW = null; rateW = 5; amtW = 5;
       nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
       if (nameW < 4) { nameW = 4; }
       colWidths = [idxW, nameW, qtyW, rateW, amtW];
       colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
+      colAligns = ['center', 'left', 'right', 'right', 'right'];
     }
 
     text += B_MID();
-    text += B_ROW(colLabels, colWidths);
+    text += B_ROW(colLabels, colWidths, colAligns);
     text += B_SEP(colWidths);
 
     data.items.forEach((item, i) => {
@@ -1964,7 +1977,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         const cells = mrpW
           ? [li === 0 ? idx : '', name, li === 0 ? qty : '', li === 0 ? mrpStr : '', li === 0 ? rate : '', li === 0 ? amt : '']
           : [li === 0 ? idx : '', name, li === 0 ? qty : '', li === 0 ? rate : '', li === 0 ? amt : ''];
-        text += B_ROW(cells, colWidths);
+        text += B_ROW(cells, colWidths, colAligns);
       });
 
       // Combo sub-line for included constituent items
@@ -2007,8 +2020,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += B_MID();
 
     // ── Totals ────────────────────────────────────────────────────────────────
-    // Format: │ Label                    |   123.00│
-    // val field is right-aligned within valW chars; label fills the rest
+    // Format: │ Label                    │   123.00│
     const totalDeductions = (data.scrapDeduction || 0) + (data.returnDeduction || 0);
     const netPayable = Math.max(0, data.grandTotal - totalDeductions);
     const refundAmount = totalDeductions > data.grandTotal ? totalDeductions - data.grandTotal : 0;
@@ -2017,12 +2029,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const refundTotal = Math.round(refundAmount);
     const refundRoundOff = Math.round(refundAmount) - refundAmount;
 
-    // Align totals vertical separator exactly with the table's Amount column divider
-    const VAL_W = amtW;                     // width of value field aligns with Amount col
-    const LAB_W = INNER - VAL_W - 1;        // label fills rest; label + '│' + val = INNER
+    // Align totals vertical separator with minimum 8 chars for value field so 2-decimal numbers are never clipped
+    const VAL_W = Math.max(amtW, 8);
+    const LAB_W = Math.max(4, INNER - VAL_W - 1);
     const tRow = (label: string, val: string) => {
-      const l = label.length > LAB_W ? label.substring(0, LAB_W) : label.padEnd(LAB_W);
-      const v = val.length > VAL_W ? val.substring(0, VAL_W) : val.padStart(VAL_W);
+      const effValW = Math.max(VAL_W, val.length);
+      const effLabW = INNER - effValW - 1;
+      const l = label.length > effLabW ? label.substring(0, effLabW) : label.padEnd(effLabW);
+      const v = val.padStart(effValW);
       return B_LINE(l + '│' + v);
     };
 
@@ -2065,24 +2079,63 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
     // ── Tax Breakup ───────────────────────────────────────────────────────────
     if (data.tax > 0) {
-      // 5 tax cols: B_ROW 1+sum+5=charsPerLine => sum=charsPerLine-6
-      const taxSum = charsPerLine - 6;
-      const tw = Math.floor(taxSum / 5);
-      const twLast = taxSum - tw * 4;
-      const taxWidths = [tw, tw, tw, tw, twLast];
-      const taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
-      text += B_ROW(taxCols, taxWidths);
-      text += B_SEP(taxWidths);
-      text += B_ROW(
-        [
+      let taxCols: string[];
+      let taxWidths: number[];
+      let taxValues: string[];
+      let taxAligns: ('left' | 'right' | 'center')[];
+
+      const hasIgst = Boolean(data.igst && data.igst > 0);
+
+      if (charsPerLine >= 42) {
+        // 5 columns for 80mm/48-char printers
+        const taxSum = charsPerLine - 6;
+        const tw = Math.floor(taxSum / 5);
+        const twLast = taxSum - tw * 4;
+        taxWidths = [tw, tw, tw, tw, twLast];
+        taxCols = ['Taxable', 'CGST', 'SGST', 'IGST', 'Total GST'];
+        taxAligns = ['right', 'right', 'right', 'right', 'right'];
+        taxValues = [
           data.subtotal.toFixed(2),
           data.cgst ? data.cgst.toFixed(2) : '0.00',
           data.sgst ? data.sgst.toFixed(2) : '0.00',
           data.igst ? data.igst.toFixed(2) : '0.00',
           data.tax.toFixed(2),
-        ],
-        taxWidths
-      );
+        ];
+      } else if (hasIgst) {
+        // 3 columns for Inter-State on narrow thermal printer
+        const taxSum = charsPerLine - 4;
+        const wTaxable = Math.max(7, Math.floor(taxSum * 0.38));
+        const wIgst = Math.max(6, Math.floor(taxSum * 0.28));
+        const wTotal = taxSum - wTaxable - wIgst;
+        taxWidths = [wTaxable, wIgst, wTotal];
+        taxCols = ['Taxable', 'IGST', 'Total GST'];
+        taxAligns = ['right', 'right', 'right'];
+        taxValues = [
+          data.subtotal.toFixed(2),
+          data.igst ? data.igst.toFixed(2) : '0.00',
+          data.tax.toFixed(2),
+        ];
+      } else {
+        // 4 columns for Intra-State (CGST+SGST) on narrow thermal printer
+        const taxSum = charsPerLine - 5;
+        const wTaxable = 7;
+        const wCgst = 5;
+        const wSgst = 5;
+        const wTotal = taxSum - wTaxable - wCgst - wSgst;
+        taxWidths = [wTaxable, wCgst, wSgst, wTotal];
+        taxCols = ['Taxable', 'CGST', 'SGST', 'Total'];
+        taxAligns = ['right', 'right', 'right', 'right'];
+        taxValues = [
+          data.subtotal.toFixed(2),
+          data.cgst ? data.cgst.toFixed(2) : '0.00',
+          data.sgst ? data.sgst.toFixed(2) : '0.00',
+          data.tax.toFixed(2),
+        ];
+      }
+
+      text += B_ROW(taxCols, taxWidths, taxAligns);
+      text += B_SEP(taxWidths);
+      text += B_ROW(taxValues, taxWidths, taxAligns);
       text += B_MID();
     }
 
@@ -2117,6 +2170,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += B_MID();
     }
 
+    // ── Barcode ───────────────────────────────────────────────────────────────
+    if (selectedBillSettings.showBarcodeOnReceipt !== false) {
+      text += `[[BARCODE:${data.invoiceNumber}]]\n`;
+      text += B_MID();
+    }
+
     // ── Prominent Total/Refund ────────────────────────────────────────────────
     const finalAmountLabel = refundAmount > 0 ? 'Refund Amount' : 'Net Total';
     const finalAmountValue = refundAmount > 0 ? Math.max(0, refundTotal) : Math.max(0, netTotal);
@@ -2142,11 +2201,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       (data.pointsRedeemed != null && data.pointsRedeemed > 0) ||
       (data.remainingPointsBalance != null && data.remainingPointsBalance > 0);
     if (hasPoints) {
-      // Align loyalty vertical separator with the Amount column divider
-      const ptLW = INNER - amtW - 1;
-      const ptVW = amtW;
-      const ptRow = (l: string, v: string) =>
-        B_LINE((l.length > ptLW ? l.substring(0, ptLW) : l.padEnd(ptLW)) + '│' + (v.length > ptVW ? v.substring(0, ptVW) : v.padStart(ptVW)));
+      const ptRow = (l: string, v: string) => {
+        const effVW = Math.max(amtW, 8, v.length);
+        const effLW = INNER - effVW - 1;
+        const label = l.length > effLW ? l.substring(0, effLW) : l.padEnd(effLW);
+        const val = v.padStart(effVW);
+        return B_LINE(label + '│' + val);
+      };
       text += ptRow('Bill Points', (data.pointsEarned || 0).toFixed(2));
       text += ptRow('Used Point', String(data.pointsRedeemed || 0));
       text += ptRow('Used Amt', data.pointsRedeemedDiscount ? data.pointsRedeemedDiscount.toFixed(2) : '0');

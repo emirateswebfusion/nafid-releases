@@ -168,7 +168,7 @@ export function PrintReceiptView({ text }: { text: string }) {
   if (!receiptText) return null;
 
   const isBillStyle = receiptText.includes('│') || receiptText.includes('┌');
-  const lh = isBillStyle ? 1.15 : 1.2;
+  const lh = isBillStyle ? 1.08 : 1.2;
 
   // ─── Layout constants (ALL in physical mm — avoids 100% resolution ambiguity) ─
   // We keep the receipt container box width at exactly 66mm (for 80mm roll) or 42mm (for 58mm roll)
@@ -232,20 +232,36 @@ export function PrintReceiptView({ text }: { text: string }) {
           if (row.type === 'text') {
             let displayValue = row.value.replace(/\r/g, '');
             if (isBillStyle) {
-              const firstChar = displayValue.charAt(0);
-              const lastChar = displayValue.charAt(displayValue.length - 1);
-              if ((firstChar === '┌' && lastChar === '┐') || (firstChar === '└' && lastChar === '┘')) {
+              const isTop = (str: string) => {
+                const s = str.trim();
+                if (s.length < 4) return false;
+                const f = s.charAt(0); const l = s.charAt(s.length - 1);
+                return (f === '┌' || f === '+' || f === '|') && (l === '┐' || l === '+' || l === '|') && (/^─+$/.test(s.substring(1, s.length - 1)) || /^-+$/.test(s.substring(1, s.length - 1)));
+              };
+              const isBottom = (str: string) => {
+                const s = str.trim();
+                if (s.length < 4) return false;
+                const f = s.charAt(0); const l = s.charAt(s.length - 1);
+                return (f === '└' || f === '+' || f === '|') && (l === '┘' || l === '+' || l === '|') && (/^─+$/.test(s.substring(1, s.length - 1)) || /^-+$/.test(s.substring(1, s.length - 1)));
+              };
+              const isDiv = (str: string) => {
+                const s = str.trim();
+                if (s.length < 4) return false;
+                const f = s.charAt(0); const l = s.charAt(s.length - 1);
+                return (f === '├' || f === '+' || f === '|' || f === '┌') && (l === '┤' || l === '+' || l === '|' || l === '┐') && (/^[─┼┬┴]+$/.test(s.substring(1, s.length - 1)) || /^[-\+|]+$/.test(s.substring(1, s.length - 1)));
+              };
+
+              if (isTop(displayValue) && index === 0) {
                 return null;
               }
-              if (firstChar === '├' && lastChar === '┤') {
-                // If there are no visible lines after this separator, skip rendering it
-                // to eliminate the double-line at the bottom of the boxed receipt.
+              if (isBottom(displayValue) && index >= rows.length - 2) {
+                return null;
+              }
+              if (isDiv(displayValue)) {
                 const hasVisibleAfter = rows.slice(index + 1).some(r => {
                   if (r.type === 'text') {
                     const val = r.value.replace(/\r/g, '');
-                    const f = val.charAt(0);
-                    const l = val.charAt(val.length - 1);
-                    if ((f === '┌' && l === '┐') || (f === '└' && l === '┘') || (f === '├' && l === '┤')) {
+                    if (isTop(val) || isBottom(val) || isDiv(val)) {
                       return false;
                     }
                     return val.trim().length > 0;
@@ -257,8 +273,13 @@ export function PrintReceiptView({ text }: { text: string }) {
                 }
                 return <hr key={`sep-${index}`} style={{ border: 'none', borderTop: '2px solid black', margin: `0 -${INNER_PX_HORIZ}px`, padding: 0 }} />;
               }
-              if (firstChar === '│' && lastChar === '│') {
-                displayValue = displayValue.substring(1, displayValue.length - 1);
+              
+              if (displayValue.length >= 2) {
+                const f = displayValue.charAt(0);
+                const l = displayValue.charAt(displayValue.length - 1);
+                if ((f === '│' || f === '|') && (l === '│' || l === '|')) {
+                  displayValue = displayValue.substring(1, displayValue.length - 1);
+                }
               }
             }
 
@@ -267,7 +288,7 @@ export function PrintReceiptView({ text }: { text: string }) {
             let isCentered = false;
             let finalValue = displayValue;
             const trimmed = displayValue.trim();
-            if (trimmed && !displayValue.includes('│')) {
+            if (trimmed && !displayValue.includes('│') && !displayValue.includes('|')) {
               const leadingSpaces = displayValue.length - displayValue.trimStart().length;
               const trailingSpaces = displayValue.length - displayValue.trimEnd().length;
               if (Math.abs(leadingSpaces - trailingSpaces) <= 2) {
@@ -325,12 +346,12 @@ export function PrintReceiptView({ text }: { text: string }) {
             return (
               <div key={`bc-${index}`} style={{
                 width: '100%',
-                padding: '6px 0',
+                padding: '4px 0',
                 display: 'flex',
                 justifyContent: 'center',
                 boxSizing: 'border-box',
               }}>
-                <Barcode value={row.payload} format="CODE128" width={1.2} height={40} displayValue={true} margin={0} />
+                <Barcode value={row.payload} format="CODE128" width={1.0} height={24} displayValue={false} margin={0} />
               </div>
             );
           }
