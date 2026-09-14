@@ -2367,6 +2367,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       { key: 'showPcsUnit', label: 'Show "PCS" Suffix on Quantities' },
                       { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
                       { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
+                      { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
                     ].map(({ key, label }) => {
                       const isChecked = (billSettings as any)[key] !== false;
                       return (
@@ -2504,6 +2505,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       { key: 'showCustomerAddress', label: 'Customer Address' },
                       { key: 'showCustomerState', label: 'Customer State' },
                       { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
+                      { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
                     ].map(({ key, label }) => {
                       const isChecked = (scrapBillSettings as any)[key] !== false;
                       return (

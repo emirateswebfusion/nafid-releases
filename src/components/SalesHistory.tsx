@@ -28,6 +28,7 @@ const PAYMENT_LABELS: Record<string, string> = {
   CARD: 'Card',
   UPI: 'UPI',
   CREDIT: 'Credit',
+  SPLIT: 'Split',
 };
 
 const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> = {
@@ -36,6 +37,7 @@ const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> 
   CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
+  SPLIT:  { bg: 'bg-indigo-500/10', text: 'text-indigo-500',  dot: '#6366f1' },
 };
 
 const TAX_RATES = [
@@ -427,8 +429,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
+  const convertibleInvoicesInView = useMemo(() =>
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && (convertibleMap[i.invoice_id] !== false)),
+    [invoices, convertibleMap]
+  );
+
   const selectedBosInvoices = useMemo(() =>
-    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && convertibleMap[i.invoice_id] && selectedInvoiceIds.has(i.invoice_id)),
+    invoices.filter(i => i.invoice_type === 'BILL_OF_SUPPLY' && !i.converted_to_invoice_id && (convertibleMap[i.invoice_id] !== false) && selectedInvoiceIds.has(i.invoice_id)),
     [invoices, selectedInvoiceIds, convertibleMap]
   );
 
@@ -446,7 +453,13 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       loadInvoices(true);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [search, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd]);
+  }, [search, paymentFilter, invoiceTypeFilter, filterDate, filterDateEnd, taxPercentageFilter]);
+
+  useEffect(() => {
+    if (invoiceTypeFilter === 'BILL_OF_SUPPLY' && taxPercentageFilter !== '') {
+      setTaxPercentageFilter('');
+    }
+  }, [invoiceTypeFilter, taxPercentageFilter]);
 
   useEffect(() => {
     getUpiPageConfig(useAuthStore.getState().tenantId || 'global').then(setUpiPageConfig);
@@ -531,6 +544,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           user_id: userId, tenant_id: tenantId, role,
           search, payment_method: paymentFilter || undefined,
           invoice_type: effectiveInvoiceType,
+          tax_rate_percent: taxPercentageFilter || undefined,
           filterDate: filterDate || undefined, filterDateEnd: filterDateEnd || undefined,
         };
 
@@ -990,6 +1004,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         search: search || undefined,
         payment_method: paymentFilter || undefined,
         invoice_type: effectiveInvoiceType,
+        tax_rate_percent: taxPercentageFilter || undefined,
         filterDate: filterDate || undefined,
         filterDateEnd: filterDateEnd || undefined,
       });
@@ -1456,6 +1471,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                   { value: 'CARD', label: 'Card' },
                   { value: 'UPI', label: 'UPI' },
                   { value: 'CREDIT', label: 'Credit' },
+                  { value: 'SPLIT', label: 'Split' },
                 ].map(opt => {
                   return (
                     <button
@@ -1508,7 +1524,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     />
                   );
                 })()}
-                {invoiceTypeFilter.startsWith('GST') && (
+                {invoiceTypeFilter !== 'BILL_OF_SUPPLY' && (
                   <Select
                     value={taxPercentageFilter}
                     onChange={setTaxPercentageFilter}
@@ -1529,18 +1545,57 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                 {loading ? '…' : invoices.length === summary.totalInvoices ? `${summary.totalInvoices} record${summary.totalInvoices !== 1 ? 's' : ''}` : `Showing ${invoices.length} of ${summary.totalInvoices} records`}
               </div>
               {['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role) && (
-                <button
-                  onClick={() => { setSelectionMode(!selectionMode); if (selectionMode) { setSelectedInvoiceIds(new Set()); } }}
-                  className={clsx(
-                    'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border',
-                    selectionMode
-                      ? 'bg-amber-500/10 text-amber-500 border-amber-500/30'
-                      : 'bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground'
-                  )}
-                >
-                  <ShieldAlert className="w-3 h-3 inline -mt-0.5 mr-1" />
-                  {selectionMode ? 'Cancel' : 'Convert to GST'}
-                </button>
+                !selectionMode ? (
+                  <button
+                    onClick={() => setSelectionMode(true)}
+                    className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border bg-muted/50 text-muted-foreground border-border hover:bg-muted hover:text-foreground flex items-center gap-1 shrink-0"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-amber-500 inline -mt-0.5" />
+                    Convert to GST
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-2 shrink-0">
+                    {convertibleInvoicesInView.length > 0 && (
+                      <button
+                        onClick={() => {
+                          if (selectedInvoiceIds.size === convertibleInvoicesInView.length) {
+                            setSelectedInvoiceIds(new Set());
+                          } else {
+                            setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
+                          }
+                        }}
+                        className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border border-border bg-card text-foreground hover:bg-muted"
+                      >
+                        {selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0
+                          ? 'Deselect All'
+                          : `Select All (${convertibleInvoicesInView.length})`}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => setConversionOpen(true)}
+                      disabled={selectedBosInvoices.length === 0}
+                      className={clsx(
+                        'h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95',
+                        selectedBosInvoices.length > 0
+                          ? 'bg-amber-500 hover:bg-amber-600 text-white animate-in fade-in'
+                          : 'bg-amber-500/40 text-white/70 cursor-not-allowed'
+                      )}
+                      title={selectedBosInvoices.length === 0 ? 'Select at least 1 Bill of Supply to convert' : 'Click to convert selected bills to GST'}
+                    >
+                      <ArrowDownRight className="w-3.5 h-3.5" />
+                      <span>Convert Selected {selectedBosInvoices.length > 0 ? `(${selectedBosInvoices.length})` : ''}</span>
+                    </button>
+
+                    <button
+                      onClick={() => { setSelectionMode(false); setSelectedInvoiceIds(new Set()); }}
+                      className="h-7 px-3 rounded-full text-[11px] font-extrabold tracking-wide transition-all duration-150 cursor-pointer border bg-amber-500/10 text-amber-500 border-amber-500/30 hover:bg-amber-500/20 flex items-center gap-1"
+                    >
+                      <X className="w-3 h-3" />
+                      Cancel
+                    </button>
+                  </div>
+                )
               )}
             </div>
           {/* Table */}
@@ -1574,12 +1629,30 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               <table className="w-full">
                 <thead className="sticky top-0 z-10 bg-muted/60 border-b border-border">
                   <tr>
-                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Invoice</th>
+                    <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        {selectionMode && convertibleInvoicesInView.length > 0 && (
+                          <input
+                            type="checkbox"
+                            checked={selectedInvoiceIds.size === convertibleInvoicesInView.length && convertibleInvoicesInView.length > 0}
+                            onChange={() => {
+                              if (selectedInvoiceIds.size === convertibleInvoicesInView.length) {
+                                setSelectedInvoiceIds(new Set());
+                              } else {
+                                setSelectedInvoiceIds(new Set(convertibleInvoicesInView.map(i => i.invoice_id)));
+                              }
+                            }}
+                            className="w-4 h-4 rounded-md border-2 border-border text-primary focus:ring-primary/20 transition-all cursor-pointer"
+                            title="Select / Deselect All Convertible Bills"
+                          />
+                        )}
+                        <span>Invoice</span>
+                      </div>
+                    </th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Type</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Date &amp; Time</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Customer</th>
                     <th className="px-4 py-2.5 text-left text-[10px] font-black uppercase tracking-widest text-muted-foreground">Payment</th>
-                    <th className="px-4 py-2.5 text-right text-[10px] font-black uppercase tracking-widest text-muted-foreground">Amount</th>
                     <th className="px-3 py-2.5" />
                   </tr>
                 </thead>

@@ -113,6 +113,7 @@ export function initDb() {
         sync_status TEXT DEFAULT 'PENDING',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        settled_at DATETIME,
         held_until DATETIME,
         is_held INTEGER DEFAULT 0,
         hold_note TEXT,
@@ -581,6 +582,7 @@ export function initDb() {
         'held_until', 'is_held', 'hold_note',
         'converted_from_invoice_id', 'converted_from_invoice_number',
         'converted_to_invoice_id', 'converted_to_invoice_number',
+        'settled_at',
         'is_deleted'
     ],
     invoice_items: [

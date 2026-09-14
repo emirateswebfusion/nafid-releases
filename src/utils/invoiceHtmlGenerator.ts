@@ -481,11 +481,13 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           </table>
 
           <!-- Signatory Section -->
+          ${bs?.showAuthorisedSignatory !== false ? `
           <div style="margin-top: 14px; font-size: 10px;">
             <div>For <strong>${data.shopName ? data.shopName.toUpperCase() : 'Store'}</strong></div>
             <div style="height: 22px;"></div>
             <div>Authorised Signatory</div>
           </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -889,11 +891,13 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
         ${data.upiId ? `<div style="margin-top: 3px;"><strong>UPI ID:</strong> ${data.upiId}</div>` : ''}
       </div>
 
+      ${bs?.showAuthorisedSignatory !== false ? `
       <div class="footer-col sign">
         <div class="section-title" style="margin: -8px -10px 6px -10px;">For ${data.shopName ? data.shopName.toUpperCase() : 'Company Name'}</div>
         <div style="height: 35px;"></div>
         <div style="font-weight: bold; font-size: 10.5px; border-top: 1px solid #000; padding-top: 4px; width: 80%; margin: 0 auto;">Authorized Signature</div>
       </div>
+      ` : ''}
     </div>
 
     <div style="text-align: center; font-size: 9px; color: #666; padding: 4px; border-top: 1px solid #000; font-weight: 500;">

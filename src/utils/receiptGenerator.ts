@@ -43,6 +43,7 @@ export interface BillSettings {
   showCreditBalance?: boolean;
   showTransporterDetails?: boolean;
   showBarcodeOnReceipt?: boolean;
+  showAuthorisedSignatory?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -73,6 +74,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showCreditBalance: true,
   showTransporterDetails: true,
   showBarcodeOnReceipt: true,
+  showAuthorisedSignatory: true,
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
@@ -2167,6 +2169,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       for (const line of instr.split('\n').filter(l => l.trim())) {
         text += B_LINE(` ${line.trim()}`);
       }
+      text += B_MID();
+    }
+
+    // ── Authorised Signatory ──────────────────────────────────────────────────
+    if (selectedBillSettings.showAuthorisedSignatory !== false) {
+      text += B_LINE('');
+      text += B_LINE(padLeft('Authorised Signatory', INNER));
       text += B_MID();
     }
 
