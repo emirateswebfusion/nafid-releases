@@ -1,3 +1,9 @@
+# Vendora v1.5.65 Release Notes
+
+## What's Changed
+- Enhanced sales history, cashier settlement, local database handlers, main process IPC bridges, and print generators
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.64...v1.5.65
+
 # Vendora v1.5.64 Release Notes
 
 ## What's Changed
