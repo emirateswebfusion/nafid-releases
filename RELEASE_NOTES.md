@@ -1,3 +1,10 @@
+# Vendora v1.5.64 Release Notes
+
+## What's Changed
+- Decoupled default paper format selection from invoice template style
+- Enhanced paper preview modal, thermal & receipt printing formatting, printer hardware logic, and settings manager
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.63...v1.5.64
+
 # Vendora v1.5.63 Release Notes
 
 ## What's Changed
