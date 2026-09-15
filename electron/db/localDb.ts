@@ -1240,6 +1240,16 @@ export function initDb() {
     console.warn('[DB Migration] Failed to add restricted_page to users:', e.message);
   }
 
+  // Migration: Backfill settled_at for historical non-pending invoices where settled_at IS NULL
+  try {
+    const invCols = db.prepare(`PRAGMA table_info(invoices)`).all().map((c: any) => c.name);
+    if (invCols.includes('settled_at')) {
+      db.exec("UPDATE invoices SET settled_at = created_at WHERE payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (settled_at IS NULL OR settled_at = '')");
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to backfill settled_at:', e.message);
+  }
+
   // Migration: Add partial-adjustment columns to returns
   try {
     const retCols = db.prepare(`PRAGMA table_info(returns)`).all().map((c: any) => c.name);

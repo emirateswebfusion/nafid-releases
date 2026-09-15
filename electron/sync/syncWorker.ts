@@ -21,6 +21,10 @@ function parseCleanDate(dStr: any): string {
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
+  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
   if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
     const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
     if (!isNaN(d.getTime())) return localDate(d);

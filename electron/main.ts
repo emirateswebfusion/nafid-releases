@@ -224,17 +224,40 @@ function localDate(d: Date = new Date()): string {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
-function parseCleanDate(dStr: any): string {
-  if (!dStr) return localDate();
+function getStoreTimezoneSetting(db: any, tenantId?: string): string {
+  try {
+    if (!db || !tenantId) return 'Asia/Kolkata';
+    const row = db.prepare(`SELECT value FROM settings WHERE key = 'store_timezone' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId) as any;
+    if (row?.value) {
+      const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+      if (typeof parsed === 'string' && parsed) return parsed;
+      if (parsed?.timezone) return parsed.timezone;
+    }
+  } catch {}
+  return 'Asia/Kolkata';
+}
+
+function parseCleanDate(dStr: any, timeZone: string = 'Asia/Kolkata'): string {
+  if (!dStr) {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+    } catch {
+      return localDate();
+    }
+  }
   const str = String(dStr).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
   const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
-  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
-    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
-    if (!isNaN(d.getTime())) return localDate(d);
+  const d = new Date(str);
+  if (!isNaN(d.getTime())) {
+    try {
+      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(d);
+    } catch {
+      return localDate(d);
+    }
   }
   return str.slice(0, 10);
 }
@@ -2261,16 +2284,16 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.customer_address
     );
 
-    // 1. Insert invoice
+    const nowTimestamp = localTimestamp();
     const invStmt = db.prepare(`
       INSERT INTO invoices (
         invoice_id, tenant_id, user_id, invoice_number, invoice_type, 
         subtotal, tax_total, discount_total, discount_type, discount_value, grand_total, 
         payment_method, split_details, received_amount, balance_amount, customer_name, customer_phone, customer_gstin, customer_state, customer_address, sync_status,
         scrap_deduction, scrap_invoice_number, return_deduction, return_invoice_number, customer_id,
-        cgst_total, sgst_total, igst_total, supply_type, settled_at
+        cgst_total, sgst_total, igst_total, supply_type, settled_at, created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     invStmt.run(
       invoice.invoice_id,
@@ -2303,7 +2326,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
       invoice.sgst_total ?? 0,
       invoice.igst_total ?? 0,
       invoice.supply_type || 'INTRA',
-      (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? localTimestamp() : null
+      (invoice.payment_method && invoice.payment_method !== 'PENDING' && invoice.payment_method !== 'HOLD') ? nowTimestamp : null,
+      nowTimestamp,
+      nowTimestamp
     );
 
     // 2. Insert items and update stock
@@ -6168,7 +6193,8 @@ function getCashAmountFromInvoice(inv: any): number {
 function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
   if (!drawer || !tenantId) return drawer;
   try {
-    const cleanDate = parseCleanDate(drawer.business_date);
+    const storeTz = getStoreTimezoneSetting(db, tenantId);
+    const cleanDate = parseCleanDate(drawer.business_date, storeTz);
     const dateLike = `${cleanDate}%`;
 
     // Calculate total cash sales from settled cash invoices & cash portion of split invoices for this business date
@@ -6199,12 +6225,8 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
           substr(COALESCE(settled_at, created_at), 1, 10) = ? 
           OR date(COALESCE(settled_at, created_at)) = ?
           OR COALESCE(settled_at, created_at) LIKE ?
-          OR (
-            settled_at IS NULL 
-            AND (substr(updated_at, 1, 10) = ? OR date(updated_at) = ? OR updated_at LIKE ?)
-          )
         )
-    `).get(tenantId, cleanDate, cleanDate, dateLike, cleanDate, cleanDate, dateLike) as any;
+    `).get(tenantId, cleanDate, cleanDate, dateLike) as any;
 
     const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
 
@@ -6693,8 +6715,8 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10) OR (i.settled_at IS NULL AND (date(i.updated_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(i.updated_at, 1, 10) = SUBSTR(cd.business_date, 1, 10)))) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10) OR (i.settled_at IS NULL AND (date(i.updated_at) = date(cd.business_date) OR i.updated_at LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(i.updated_at, 1, 10) = SUBSTR(cd.business_date, 1, 10)))) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
@@ -6730,11 +6752,10 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
           date(COALESCE(i.settled_at, i.created_at)) = ? 
           OR COALESCE(i.settled_at, i.created_at) LIKE ? 
           OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
-          OR (i.settled_at IS NULL AND (date(i.updated_at) = ? OR i.updated_at LIKE ? OR substr(i.updated_at, 1, 10) = ?))
         )
         AND (i.is_deleted IS NULL OR i.is_deleted = 0)
       ORDER BY COALESCE(i.settled_at, i.updated_at, i.created_at) DESC
-    `).all(tenant_id, cleanDate, dateLike, cleanDate, cleanDate, dateLike, cleanDate);
+    `).all(tenant_id, cleanDate, dateLike, cleanDate);
   } catch (error: any) {
     console.error('[db:cashier:getDaySettlements]', error);
     return { error: 'Operation failed' };

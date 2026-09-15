@@ -1,3 +1,10 @@
+# Vendora v1.5.66 Release Notes
+
+## What's Changed
+- Integrated `timezoneHelper` for regional date and timestamp handling
+- Updated local database schema handling, main process IPC routines, LAN sync worker/server, and settings manager UI
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.65...v1.5.66
+
 # Vendora v1.5.65 Release Notes
 
 ## What's Changed

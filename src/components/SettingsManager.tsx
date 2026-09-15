@@ -22,6 +22,7 @@ import { DEFAULT_BILL_SETTINGS, type BillSettings, setAppTimeFormat } from '../u
 import { CODE_TYPE_CONFIGS, CODE_TYPES, DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { FEATURE_LIST, DEFAULT_FEATURE_FLAGS, loadFeatureFlags, wereFeatureFlagsStored, setFeatureFlag, type FeatureFlags } from '../featureFlags';
 import { useTabStore } from '../store/tabStore';
+import { SUPPORTED_TIMEZONES, getStoreTimezone, setStoreTimezone } from '../utils/timezoneHelper';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -207,6 +208,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [shopNameLocal, setShopNameLocal] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');
+  const [storeTimezone, setStoreTimezoneState] = useState<string>(getStoreTimezone());
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
   const [showProductOffers, setShowProductOffers] = useState(true);
@@ -450,12 +452,12 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     }
   };
 
-  const getSettingsSnapshot = () => JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
+  const getSettingsSnapshot = () => JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -536,7 +538,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           'shop_phone', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
-          'time_format', 'gst_profit_percentage', 'feature_flags',
+          'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
           'terminal_code', 'invoice_counter_config', 'return_counter', 'scrap_invoice_counter',
           'quotation_counter', 'three_invoice_series', 'dual_invoice_series'
         ];
@@ -824,6 +826,11 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         }
       }
 
+      const storeTzVal = allSettings['store_timezone'];
+      const finalStoreTz = typeof storeTzVal === 'string' ? storeTzVal : (storeTzVal?.timezone || getStoreTimezone());
+      setStoreTimezoneState(finalStoreTz);
+      setStoreTimezone(finalStoreTz);
+
       setBarcodePrinter(finalBarcode);
       setReceiptPrinter(finalReceipt);
       setA4Printer(finalA4);
@@ -893,6 +900,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         shopNameLocal: finalName,
         shopAddress: finalAddress,
         shopPhone: finalPhone,
+        storeTimezone: finalStoreTz,
         upiId: finalUpi,
         showUpiQr: finalShowQr,
         bankName: finalBankName,
@@ -1103,6 +1111,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'stock_report_default_view', value: stockReportDefaultView }), name: 'stock_report_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'inventory_default_view', value: inventoryDefaultView }), name: 'inventory_default_view' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'time_format', value: timeFormat }), name: 'time_format' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'store_timezone', value: storeTimezone }), name: 'store_timezone' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'network_sync_config', value: { syncMode, lanRole, lanHostIp, lanPort: Number(lanPort) || 3888, syncFrequency } }), name: 'network_sync_config' },
       ];
 
@@ -1177,7 +1186,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       initialSnapshot.current = JSON.stringify({
         barcodePrinter: formattedBarcodePrinter,
         receiptPrinter: formattedReceiptPrinter,
-        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
+        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
         b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '',
         b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '',
         b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '',
@@ -1340,6 +1349,23 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
                 <div className="col-span-2 space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block flex items-center justify-between">
+                    <span>Store Location & Timezone</span>
+                    <span className="text-[9px] font-bold text-primary bg-primary/10 px-2.5 py-0.5 rounded-full">UTC + Store Timezone Standard</span>
+                  </label>
+                  <Select
+                    value={storeTimezone}
+                    onChange={(val) => {
+                      setStoreTimezoneState(val);
+                      setStoreTimezone(val);
+                    }}
+                    options={SUPPORTED_TIMEZONES}
+                  />
+                  <p className="text-[10px] text-muted-foreground/75 mt-1">
+                    Store business dates, cashier settlement, receipts, and daily sales reports are formatted based on this store timezone. Remote owners viewing from other countries will see reports calculated for this store timezone.
+                  </p>
+                </div>
+                <div className="col-span-2 space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block flex items-center justify-between">
                     <span>UPI ID</span>
                     <span className="text-[9px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full lowercase">Shown on receipts</span>
                   </label>
@@ -1358,6 +1384,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', showUpiQr ? 'translate-x-5' : 'translate-x-0')} />
                   </button>
                 </div>
+
               </div>
             </div>
 
@@ -3248,7 +3275,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               type="button"
               onClick={handleSave}
               disabled={saving}
-              className="flex items-center gap-1.5 px-4 py-2.5 text-xs font-black text-primary bg-primary/10 hover:bg-primary hover:text-primary-foreground rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed animate-in fade-in border border-primary/20 hover:border-primary shadow-sm"
+              className={clsx(
+                "flex items-center gap-1.5 px-4 py-2.5 text-xs font-black rounded-2xl transition-all duration-200 active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-sm border",
+                "text-primary-foreground bg-primary hover:bg-primary/90 border-primary shadow-primary/20 ring-2 ring-primary/20 animate-pulse"
+              )}
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0 text-current" />}
               <span className="hidden sm:inline">{saving ? 'Saving...' : 'Save Changes'}</span>
@@ -3376,24 +3406,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
 
           </div>
 
-          {/* Floating Save Bar when changes are unsaved */}
-          {hasChanges && (
-            <div className="fixed bottom-6 right-8 z-50 flex items-center gap-3 px-5 py-3 bg-card/95 backdrop-blur-md border-2 border-primary/40 shadow-2xl rounded-2xl animate-in slide-in-from-bottom-5">
-              <div className="flex items-center gap-2 text-xs font-bold text-foreground">
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>You have unsaved changes</span>
-              </div>
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="flex items-center gap-2 px-5 py-2.5 text-xs font-black text-primary-foreground bg-primary hover:bg-primary/90 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
-                <span>{saving ? 'Saving...' : 'Save Changes'}</span>
-              </button>
-            </div>
-          )}
+
         </main>
       </div>
 

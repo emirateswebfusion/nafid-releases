@@ -154,10 +154,9 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
     const [y, m, d] = formatted.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
-  const utcStr = formatted.endsWith('Z') ? formatted : `${formatted}Z`;
-  const parsed = new Date(utcStr);
-  if (!isNaN(parsed.getTime())) {
-    return parsed;
+  const parsedLocal = new Date(formatted);
+  if (!isNaN(parsedLocal.getTime())) {
+    return parsedLocal;
   }
   const fallback = new Date(formatted);
   return isNaN(fallback.getTime()) ? new Date() : fallback;
