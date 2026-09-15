@@ -6174,16 +6174,25 @@ function getOpenCashDrawer(db: any, tenantId: string, dateStr?: string): any {
 function getCashAmountFromInvoice(inv: any): number {
   if (!inv) return 0;
   const pm = (inv.payment_method || '').toUpperCase();
+  const grand = Math.max(0, Number(inv.grand_total) || 0);
+  const retD = Math.max(0, Number(inv.return_deduction) || 0);
+  const scrapD = Math.max(0, Number(inv.scrap_deduction) || 0);
+  const netPayable = Math.max(0, grand - retD - scrapD);
+
   if (pm === 'CASH') {
+    if (netPayable <= 0) return 0;
     const rec = Number(inv.received_amount);
-    const grand = Number(inv.grand_total);
-    return rec > 0 ? rec : (grand > 0 ? grand : 0);
+    if (rec > 0 && rec < netPayable) {
+      return rec;
+    }
+    return netPayable;
   }
   if (pm === 'SPLIT') {
     if (inv.split_details) {
       try {
         const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
-        return Number(sd.cash) || 0;
+        const cashSplit = Math.max(0, Number(sd.cash) || 0);
+        return Math.min(cashSplit, netPayable);
       } catch {}
     }
   }
@@ -6203,12 +6212,20 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
         COALESCE(SUM(
           CASE 
             WHEN payment_method = 'CASH' THEN (
-              CASE WHEN received_amount > 0 THEN received_amount ELSE (CASE WHEN grand_total > 0 THEN grand_total ELSE 0 END) END
+              CASE 
+                WHEN (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0)) <= 0 THEN 0
+                WHEN received_amount > 0 AND received_amount < (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                  THEN received_amount 
+                ELSE MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+              END
             )
             WHEN payment_method = 'SPLIT' AND split_details IS NOT NULL THEN (
               CASE 
                 WHEN json_extract(split_details, '$.cash') IS NOT NULL 
-                THEN CAST(json_extract(split_details, '$.cash') AS REAL)
+                THEN MIN(
+                  CAST(json_extract(split_details, '$.cash') AS REAL),
+                  MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                )
                 ELSE 0 
               END
             )
