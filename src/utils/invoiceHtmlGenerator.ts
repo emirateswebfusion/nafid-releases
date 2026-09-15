@@ -84,7 +84,7 @@ export interface InvoiceData {
   a5Orientation?: 'horizontal' | 'vertical';
 }
 
-function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
+function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMode?: boolean, isB2B?: boolean, nonGstBillTitle?: string): string {
   const nonGstTitle = (nonGstBillTitle === 'ESTIMATE' || (estimateMode && nonGstBillTitle !== 'BILL_OF_SUPPLY')) ? 'ESTIMATE' : 'BILL OF SUPPLY';
   let baseTitle = '';
   if (isB2B) {
@@ -102,7 +102,7 @@ function getDocumentTitle(invoiceType?: string, isReprint?: boolean, estimateMod
       default: baseTitle = nonGstTitle; break;
     }
   }
-  return isReprint ? `${baseTitle} (REPRINT)` : baseTitle;
+  return baseTitle;
 }
 
 function formatItemNameForBill(name: string, isCombo?: boolean): string {
@@ -499,11 +499,20 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 
 function generateBoxedHtml(data: InvoiceData, title: string): string {
   const bs = data.billSettings;
-  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const grandTotal = Number(data.grandTotal) || 0;
-  const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
-  const amountWords = numberToIndianWords(Math.max(0, netPayable));
+  const scrapDed = Number(data.scrapDeduction) || 0;
+  const returnDed = Number(data.returnDeduction) || 0;
+  const netPayable = grandTotal - (scrapDed + returnDed);
+  const roundOff = Math.round(netPayable) - netPayable;
+  const finalTotal = Math.round(netPayable);
+  const amountWords = numberToIndianWords(Math.max(0, finalTotal));
   const itemsList = Array.isArray(data.items) ? data.items : [];
+
+  let totalQtySum = 0;
+  let totalTaxableSum = 0;
+  let totalCgstSum = 0;
+  let totalSgstSum = 0;
+  let totalAmountSum = 0;
 
   const itemsHtml = itemsList.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
@@ -515,23 +524,49 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const offerHtml = data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9.5px; color:#dc2626; font-weight:600;">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
 
     const hsnCode = item.hsn || item.hsn_code || '-';
-    const unitStr = item.unit || (item.billing_type === 'WEIGHT' ? 'Kg' : 'Pcs');
-    const taxPct = item.tax_rate_percent != null ? `${item.tax_rate_percent.toFixed(2)}` : (item.gst_percent != null ? `${item.gst_percent.toFixed(2)}` : '-');
-    const discStr = item.discountAmount && item.discountAmount > 0 ? item.discountAmount.toFixed(2) : '-';
+    const qtyNum = Number(item.quantity) || 1;
+    const itemTotal = Number(item.total) || 0;
+    const gstRate = item.tax_rate_percent != null ? Number(item.tax_rate_percent) : (item.gst_percent != null ? Number(item.gst_percent) : (data.tax > 0 ? 18 : 0));
 
-    const isLastItem = idx === itemsList.length - 1 && itemsList.length >= 8;
-    const rowClass = isLastItem ? 'class="last-row"' : '';
+    let taxableVal = 0;
+    let cgstPct = 0;
+    let sgstPct = 0;
+    let cgstAmt = 0;
+    let sgstAmt = 0;
+    let unitPriceVal = 0;
+
+    if (gstRate > 0) {
+      taxableVal = itemTotal / (1 + gstRate / 100);
+      unitPriceVal = qtyNum > 0 ? taxableVal / qtyNum : taxableVal;
+      const totalTax = itemTotal - taxableVal;
+      cgstPct = gstRate / 2;
+      sgstPct = gstRate / 2;
+      cgstAmt = Math.round((totalTax / 2) * 100) / 100;
+      sgstAmt = Math.round((itemTotal - taxableVal - cgstAmt) * 100) / 100;
+    } else {
+      taxableVal = itemTotal;
+      unitPriceVal = qtyNum > 0 ? taxableVal / qtyNum : taxableVal;
+    }
+
+    totalQtySum += qtyNum;
+    totalTaxableSum += taxableVal;
+    totalCgstSum += cgstAmt;
+    totalSgstSum += sgstAmt;
+    totalAmountSum += itemTotal;
+
     return `
-    <tr ${rowClass} style="height: 25px;">
-      <td style="text-align: center; font-weight: 500;">${idx + 1}</td>
-      <td style="text-align: left; font-weight: 500; line-height: 1.35; padding-left: 6px;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
-      <td style="text-align: center; font-weight: 500;">${hsnCode}</td>
-      <td style="text-align: center; font-weight: 600; font-variant-numeric: tabular-nums;">${fmt.displayQty}</td>
-      <td style="text-align: center; font-weight: 500;">${unitStr}</td>
-      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${fmt.displayRate}</td>
-      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${discStr}</td>
-      <td style="text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; padding-right: 4px;">${taxPct}</td>
-      <td style="text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; padding-right: 6px;">${fmt.displayTotal}</td>
+    <tr style="height: 24px;">
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${idx + 1}</td>
+      <td style="text-align: left; border-right: 1px solid #000; padding: 3px 6px; font-weight: 500;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${hsnCode}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${taxableVal.toFixed(2)}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${cgstPct > 0 ? cgstPct : ''}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${cgstAmt > 0 ? cgstAmt.toFixed(2) : ''}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${sgstPct > 0 ? sgstPct : ''}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${sgstAmt > 0 ? sgstAmt.toFixed(2) : ''}</td>
+      <td style="text-align: right; padding: 3px 6px; font-weight: 700;">${itemTotal.toFixed(2)}</td>
     </tr>
     `;
   }).join('');
@@ -541,24 +576,22 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
   if (itemsList.length < minRows) {
     const padCount = minRows - itemsList.length;
     for (let i = 0; i < padCount; i++) {
-      const isLastEmpty = i === padCount - 1;
-      const rowClass = isLastEmpty ? 'class="last-row"' : '';
       emptyRowsHtml += `
-      <tr ${rowClass} style="height: 25px;">
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
-        <td>&nbsp;</td>
+      <tr style="height: 24px;">
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
         <td>&nbsp;</td>
       </tr>`;
     }
   }
-
-  const taxSummaryLine = `Sale @18% = ${data.subtotal.toFixed(2)}${data.igst != null && data.igst > 0 ? `, IGST = ${data.igst.toFixed(2)}` : (data.cgst != null || data.sgst != null ? `, CGST = ${(data.cgst || 0).toFixed(2)}, SGST = ${(data.sgst || 0).toFixed(2)}` : '')} | Total Sale = ${data.subtotal.toFixed(2)}, Tax = ${data.tax.toFixed(2)}, Cess = 0.00, Add. Cess = 0.00`;
 
   return `<!DOCTYPE html>
 <html>
@@ -587,143 +620,51 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       border: 1.5px solid #000;
       margin: 0 auto;
     }
-    .top-header-line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 4px 10px;
+    .header-table {
+      width: 100%;
+      border-collapse: collapse;
       border-bottom: 1px solid #000;
+    }
+    .header-table td {
+      vertical-align: top;
+      padding: 6px 8px;
       font-size: 11px;
-      font-weight: 600;
-      background: #f8fafc;
     }
-    .company-header {
-      text-align: center;
-      padding: 10px;
-      border-bottom: 1px solid #000;
-    }
-    .company-name {
-      font-size: 20px;
+    .shop-title {
+      font-size: 18px;
       font-weight: 900;
       letter-spacing: 0.5px;
       text-transform: uppercase;
       margin-bottom: 2px;
     }
-    .company-subtext {
-      font-size: 11px;
-      line-height: 1.35;
-    }
-    .details-grid {
+    .grid-2col {
       display: flex;
       border-bottom: 1px solid #000;
     }
-    .details-col {
+    .grid-col {
       width: 50%;
-      padding: 6px 10px;
+      padding: 6px 8px;
       font-size: 11px;
       line-height: 1.45;
     }
-    .details-col.left {
+    .grid-col.left {
       border-right: 1px solid #000;
-    }
-    .section-title {
-      font-weight: 800;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      background: #f1f5f9;
-      padding: 2.5px 6px;
-      margin: -6px -10px 6px -10px;
-      border-bottom: 1px solid #000;
-    }
-    .irn-bar {
-      padding: 4px 10px;
-      border-bottom: 1px solid #000;
-      font-size: 10.5px;
-      background: #fafafa;
     }
     .items-table {
       width: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      border-bottom: 1.5px solid #000;
+      border-bottom: 1px solid #000;
     }
     .items-table th {
-      border-bottom: 1px solid #000;
-      border-right: 1px solid #000;
-      padding: 5px 4px;
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: bold;
-      background: #f8fafc;
-      text-transform: uppercase;
-    }
-    .items-table th:last-child {
-      border-right: none;
-    }
-    .items-table td {
-      border-right: 1px solid #000;
-      border-bottom: 1px solid #e2e8f0;
-      padding: 4px 4px;
-      font-size: 11px;
+      background: #fff;
       vertical-align: middle;
     }
-    .items-table td:last-child {
-      border-right: none;
-    }
-    .totals-box {
-      border-bottom: 1px solid #000;
-    }
-    .totals-row {
-      display: flex;
-      justify-content: space-between;
-      padding: 4px 12px;
-      font-size: 11.5px;
-      border-bottom: 1px solid #ddd;
-    }
-    .totals-row.grand {
-      font-size: 14px;
-      font-weight: 900;
-      background: #f8fafc;
-      border-bottom: 1px solid #000;
-      padding: 6px 12px;
-    }
-    .words-bar {
-      padding: 6px 12px;
-      font-size: 11.5px;
-      font-weight: 700;
-      border-bottom: 1px solid #000;
-      background: #fff;
-    }
-    .settlement-bar {
-      padding: 6px 12px;
+    .items-table td {
       font-size: 11px;
-      border-bottom: 1px solid #000;
-      background: #fafafa;
-    }
-    .footer-grid {
-      display: flex;
-      border-top: 1px solid #000;
-      min-height: 120px;
-    }
-    .footer-col {
-      padding: 8px 10px;
-      font-size: 10.5px;
-      line-height: 1.45;
-    }
-    .footer-col.terms {
-      width: 38%;
-      border-right: 1px solid #000;
-    }
-    .footer-col.bank {
-      width: 34%;
-      border-right: 1px solid #000;
-    }
-    .footer-col.sign {
-      width: 28%;
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      text-align: center;
+      vertical-align: middle;
     }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -732,177 +673,145 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
 </head>
 <body>
   <div class="invoice-box">
-    <div class="top-header-line">
-      <span>Page No. 1 of 1</span>
-      <span style="font-size: 14px; font-weight: bold; letter-spacing: 0.5px;">${title}</span>
-      <span>${data.isReprint ? 'Duplicate Copy' : 'Original Copy'}</span>
+    <!-- Top Header -->
+    <table class="header-table">
+      <tr>
+        <td style="width: 30%;">
+          E-Mail : ${data.shopEmail || ''}<br>
+          Web :
+        </td>
+        <td style="width: 40%; text-align: center;">
+          ${(bs?.showShopName !== false && data.shopName) ? `<div class="shop-title">${data.shopName}</div>` : ''}
+          ${(bs?.showShopAddress !== false && data.shopAddress) ? `<div>${data.shopAddress}</div>` : ''}
+          ${(bs?.showPhone !== false && data.shopPhone) ? `<div>Phone:${data.shopPhone}</div>` : ''}
+        </td>
+        <td style="width: 30%; text-align: right;">
+          ${(bs?.showPhone !== false && data.shopPhone) ? `Phone : ${data.shopPhone}<br>Mobile : ${data.shopPhone}` : ''}
+        </td>
+      </tr>
+    </table>
+
+    <!-- Subtitle Bar -->
+    <div style="text-align: center; font-size: 13px; font-weight: 800; padding: 3px 0; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #000;">
+      ${title}
     </div>
 
-    <div class="company-header">
-      ${data.logoUrl ? `<div style="margin-bottom: 6px;"><img src="${data.logoUrl}" style="max-height: 48px; max-width: 180px; object-fit: contain;" alt="Shop Logo" /></div>` : ''}
-      ${(isGstBill || bs?.showShopName !== false) && data.shopName ? `<div class="company-name">${data.shopName}</div>` : ''}
-      ${(isGstBill || bs?.showShopAddress !== false) && data.shopAddress ? `<div class="company-subtext">${data.shopAddress}</div>` : ''}
-      <div class="company-subtext">
-        ${(isGstBill || bs?.showPhone !== false) && data.shopPhone ? `Mobile: +91 ${data.shopPhone}` : ''}
-        ${data.shopPhone && data.shopEmail ? ' | ' : ''}
-        ${data.shopEmail ? `Email: <strong>${data.shopEmail}</strong>` : ''}
-      </div>
-      <div class="company-subtext" style="font-weight: bold; margin-top: 3px;">
-        ${(isGstBill || bs?.showShopGstin !== false) && data.shopGstin ? `GSTIN - ${data.shopGstin}` : ''}
-        ${data.shopGstin && data.shopPan ? ' | ' : ''}
-        ${data.shopPan ? `PAN - ${data.shopPan}` : ''}
-      </div>
-    </div>
-
-    <!-- Invoice Details & Transporter Details Grid -->
-    ${((isGstBill || bs?.showTransporterDetails !== false) && (data.transporterName || data.vehicleNumber || data.transporterDocNo || data.ewayBillNo)) ? `
-    <div class="details-grid">
-      <div class="details-col left">
-        <div class="section-title">Invoice Details</div>
+    <!-- GST & Supply Details Grid -->
+    <div class="grid-2col">
+      <div class="grid-col left">
+        <div><strong>GST Number</strong> : ${data.shopGstin || '-'}</div>
         <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
         <div><strong>Invoice Date</strong> : ${data.date}</div>
-        ${data.dueDate ? `<div><strong>Due date</strong> : ${data.dueDate}</div>` : ''}
-        <div><strong>Place of Supply</strong> : ${data.customerState || data.shopState || '-'}</div>
-        <div><strong>Reverse Charge</strong> : No</div>
-        ${data.billerName && (isGstBill || bs?.showBillerName !== false) ? `<div><strong>Biller</strong> : ${data.billerName}</div>` : ''}
+        <div><strong>Tax Is Payable On Reverse Charge</strong> : ${bs?.reverseCharge ? 'Yes' : 'No'}</div>
       </div>
-      <div class="details-col">
-        <div class="section-title">Transporter Details</div>
-        <div><strong>Transporter</strong> : ${data.transporterName || '-'}</div>
-        <div><strong>Vehicle No.</strong> : ${data.vehicleNumber || '-'}</div>
-        <div><strong>Transporter Doc No.</strong> : ${data.transporterDocNo || '-'}</div>
-        <div><strong>Transporter Doc Date</strong> : ${data.transporterDocDate || '-'}</div>
-        <div><strong>E-Way Bill No.</strong> : ${data.ewayBillNo || '-'}</div>
-        <div><strong>E-Way Bill Date</strong> : ${data.ewayBillDate || '-'}</div>
+      <div class="grid-col">
+        <div><strong>Transportation Mode</strong> : ${data.transporterName || ''}</div>
+        <div><strong>Vehicle Number</strong> : ${data.vehicleNumber || ''}</div>
+        <div><strong>Date &amp; Time of Supply</strong> : ${data.date}</div>
+        <div><strong>Place OF Supply</strong> : ${data.customerState || data.shopState || ''}</div>
       </div>
-    </div>
-    ` : `
-    <div class="details-grid">
-      <div class="details-col left" style="width: 50%;">
-        <div class="section-title">Invoice Details</div>
-        <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
-        <div><strong>Invoice Date</strong> : ${data.date}</div>
-        ${data.dueDate ? `<div><strong>Due date</strong> : ${data.dueDate}</div>` : ''}
-      </div>
-      <div class="details-col" style="width: 50%;">
-        <div class="section-title" style="visibility: hidden; user-select: none;">&nbsp;</div>
-        <div><strong>Place of Supply</strong> : ${data.customerState || data.shopState || '-'}</div>
-        <div><strong>Reverse Charge</strong> : No</div>
-        ${data.billerName && (isGstBill || bs?.showBillerName !== false) ? `<div><strong>Biller</strong> : ${data.billerName}</div>` : ''}
-      </div>
-    </div>
-    `}
-
-    <!-- Billing Details & Shipping Details Grid -->
-    <div class="details-grid">
-      ${(data.shippingAddress || data.shippingName || data.shippingGstin) ? `
-      <div class="details-col left" style="width: 50%;">
-        <div class="section-title">Billing Details (Billed To)</div>
-        <div><strong>Name</strong> : ${data.customerName || 'Cash Customer'}</div>
-        <div><strong>GSTIN:</strong> ${data.customerGstin || '-'} | <strong>Mobile:</strong> ${data.customerPhone || '-'}</div>
-        ${data.customerAddress ? `<div><strong>Address:</strong> ${data.customerAddress}</div>` : ''}
-      </div>
-      <div class="details-col" style="width: 50%;">
-        <div class="section-title">Shipping Details (Shipped To)</div>
-        <div><strong>Name</strong> : ${data.shippingName || data.customerName || '-'}</div>
-        <div><strong>GSTIN:</strong> ${data.shippingGstin || data.customerGstin || '-'}</div>
-        <div><strong>Address:</strong> ${data.shippingAddress}</div>
-      </div>
-      ` : `
-      <div class="details-col left" style="width: 100%; border-right: none;">
-        <div class="section-title">Billing Details</div>
-        <div><strong>Name</strong> : ${data.customerName || 'Cash Customer'}</div>
-        <div><strong>GSTIN:</strong> ${data.customerGstin || '-'} | <strong>Mobile:</strong> ${data.customerPhone || '-'}</div>
-        ${data.customerAddress ? `<div><strong>Address:</strong> ${data.customerAddress}</div>` : ''}
-      </div>
-      `}
     </div>
 
-    ${data.irn ? `
-    <div class="irn-bar">
-      <strong>IRN-</strong> ${data.irn} | <strong>Ack No.-</strong> ${data.ackNo || '-'} | <strong>Ack Date-</strong> ${data.ackDate || '-'}
+    <!-- Receiver & Consignee Details Grid -->
+    <div class="grid-2col">
+      <div class="grid-col left">
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Receiver (Billed to)</div>
+        <div><strong>Name :</strong> ${data.customerName || ''}</div>
+        <div><strong>Address :</strong> ${data.customerAddress || ''}</div>
+        <div style="margin-top: 2px;">
+          <span><strong>State :</strong> ${data.customerState || ''}</span>
+          <span style="margin-left: 20px;"><strong>State Code :</strong></span>
+        </div>
+        <div>
+          <span><strong>Mobile No. :</strong> ${data.customerPhone || ''}</span>
+          <span style="margin-left: 20px;"><strong>Phone :</strong></span>
+        </div>
+        <div><strong>GST No :</strong> ${data.customerGstin || ''}</div>
+      </div>
+      <div class="grid-col">
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Consignee (Shipped to)</div>
+        <div><strong>Name :</strong> ${data.shippingName || data.customerName || ''}</div>
+        <div><strong>Address :</strong> ${data.shippingAddress || data.customerAddress || ''}</div>
+      </div>
     </div>
-    ` : ''}
 
+    <!-- Items Table -->
     <table class="items-table">
-      <colgroup>
-        <col style="width: 32px;">
-        <col style="width: auto;">
-        <col style="width: 72px;">
-        <col style="width: 44px;">
-        <col style="width: 44px;">
-        <col style="width: 76px;">
-        <col style="width: 56px;">
-        <col style="width: 52px;">
-        <col style="width: 88px;">
-      </colgroup>
       <thead>
-        <tr>
-          <th style="text-align: center;">Sr.</th>
-          <th style="text-align: left; padding-left: 6px;">Item Description</th>
-          <th style="text-align: center;">HSN/SAC</th>
-          <th style="text-align: center;">Qty</th>
-          <th style="text-align: center;">Unit</th>
-          <th style="text-align: right; padding-right: 4px;">List Price</th>
-          <th style="text-align: right; padding-right: 4px;">Disc.</th>
-          <th style="text-align: right; padding-right: 4px;">Tax %</th>
-          <th style="text-align: right; padding-right: 6px;">Amount (₹)</th>
+        <tr style="border-bottom: 1px solid #000;">
+          <th rowspan="2" style="width: 32px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Sl<br>No</th>
+          <th rowspan="2" style="border-right: 1px solid #000; text-align: left; padding: 4px 6px;">Description of Goods</th>
+          <th rowspan="2" style="width: 70px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Hsn Code<br>(GST)</th>
+          <th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th>
+          <th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th>
+          <th rowspan="2" style="width: 72px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Taxable<br>Value</th>
+          <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">CGST</th>
+          <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">SGST</th>
+          <th rowspan="2" style="width: 80px; text-align: right; padding: 4px 6px;">Total</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #000;">
+          <th style="width: 28px; border-right: 1px solid #000; text-align: center; padding: 2px 2px;">%</th>
+          <th style="width: 58px; border-right: 1px solid #000; text-align: right; padding: 2px 4px;">Amount</th>
+          <th style="width: 28px; border-right: 1px solid #000; text-align: center; padding: 2px 2px;">%</th>
+          <th style="width: 58px; border-right: 1px solid #000; text-align: right; padding: 2px 4px;">Amount</th>
         </tr>
       </thead>
       <tbody>
         ${itemsHtml}
         ${emptyRowsHtml}
+        <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 10.5px; height: 24px;">
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalTaxableSum.toFixed(2)}</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalCgstSum > 0 ? totalCgstSum.toFixed(2) : ''}</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalSgstSum > 0 ? totalSgstSum.toFixed(2) : ''}</td>
+          <td style="text-align: right; padding: 3px 6px;">${totalAmountSum.toFixed(2)}</td>
+        </tr>
       </tbody>
     </table>
 
-    <div class="totals-box">
-      ${data.discount > 0 ? `
-      <div class="totals-row">
-        <span>Discount</span>
-        <span>- ${data.discount.toFixed(2)}</span>
-      </div>` : ''}
-
-      <div class="totals-row grand">
-        <span>Total</span>
-        <span>${netPayable.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+    <!-- E&OE & Words Section -->
+    <div style="padding: 4px 8px; border-bottom: 1px solid #000; font-size: 11px; line-height: 1.4;">
+      <div style="font-weight: bold;">E&amp;OE</div>
+      <div style="margin-top: 2px;">
+        <strong>Invoice Value (In Words)</strong><br>
+        ( Rupees ${amountWords} Only )
       </div>
-
-      <div class="words-bar">
-        Rs. ${amountWords} Only
-      </div>
-
-      <div class="settlement-bar">
-        <div><strong>Settled by - ${data.paymentMethod || 'Bank'} :</strong> ${grandTotal.toFixed(2)} | <strong>Invoice Balance :</strong> ${(Math.abs(data.balanceAmount || 0)).toFixed(2)}</div>
-        <div style="margin-top: 2.5px; font-size: 10px; color: #111;">${taxSummaryLine}</div>
-      </div>
+      <div style="margin-top: 4px; font-size: 10.5px;">Certified that the Particulars given above are true and correct</div>
+      <div style="font-size: 10.5px;">Electronic Reference Number : ${data.irn || ''}</div>
     </div>
 
-    <div class="footer-grid">
-      <div class="footer-col terms">
-        <div class="section-title" style="margin: -8px -10px 6px -10px;">Terms and Conditions</div>
-        ${bs?.instructions ? bs.instructions.replace(/\n/g, '<br>') : '<div>E &amp; O.E.</div>'}
+    <!-- Bottom Footer Grid (Bank Details & Signatory) -->
+    <div style="display: flex;">
+      <div style="width: 55%; border-right: 1px solid #000; padding: 6px 8px; font-size: 11px; line-height: 1.5;">
+        <div style="font-weight: bold; margin-bottom: 2px; text-decoration: underline;">Bank Details :-</div>
+        <div><strong>Bank Name :</strong> ${data.bankName || ''}</div>
+        <div><strong>Branch :</strong> ${data.bankBranch || ''}</div>
+        <div><strong>A/C No :</strong> ${data.bankAccount || ''}</div>
+        <div><strong>IFSC :</strong> ${data.bankIfsc || ''}</div>
       </div>
-
-      <div class="footer-col bank">
-        <div class="section-title" style="margin: -8px -10px 6px -10px;">Bank Account Details</div>
-        <div><strong>Account Number:</strong> ${data.bankAccount || '-'}</div>
-        <div><strong>Bank:</strong> ${data.bankName || '-'}</div>
-        <div><strong>IFSC:</strong> ${data.bankIfsc || '-'}</div>
-        <div><strong>Branch:</strong> ${data.bankBranch || '-'}</div>
-        ${data.upiId ? `<div style="margin-top: 3px;"><strong>UPI ID:</strong> ${data.upiId}</div>` : ''}
+      <div style="width: 45%; padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px;">
+        <div>
+          <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+            <span>Round To</span>
+            <span>${roundOff.toFixed(2)}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-weight: bold; font-size: 12.5px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 2px;">
+            <span>Total</span>
+            <span>${finalTotal.toFixed(2)}</span>
+          </div>
+        </div>
+        <div style="text-align: right; margin-top: 18px;">
+          <div style="font-weight: bold; font-size: 11px; text-transform: uppercase;">${data.shopName ? data.shopName.toUpperCase() : ''}</div>
+          <div style="height: 35px;"></div>
+          <div style="font-weight: bold; font-size: 10.5px;">Authorised Signatory</div>
+        </div>
       </div>
-
-      ${bs?.showAuthorisedSignatory !== false ? `
-      <div class="footer-col sign">
-        <div class="section-title" style="margin: -8px -10px 6px -10px;">For ${data.shopName ? data.shopName.toUpperCase() : 'Company Name'}</div>
-        <div style="height: 35px;"></div>
-        <div style="font-weight: bold; font-size: 10.5px; border-top: 1px solid #000; padding-top: 4px; width: 80%; margin: 0 auto;">Authorized Signature</div>
-      </div>
-      ` : ''}
-    </div>
-
-    <div style="text-align: center; font-size: 9px; color: #666; padding: 4px; border-top: 1px solid #000; font-weight: 500;">
-      Invoice Created by Nafid POS
     </div>
   </div>
 </body>

@@ -1,3 +1,10 @@
+# Vendora v1.5.68 Release Notes
+
+## What's Changed
+- Enhanced POS components (`BillingPage`, `PartyManager`, `PurchaseBillManager`, `ScrapManager`, `WarrantyManager`, `PaymentMethods`, `ComboManager`, `StaffManager`)
+- Updated Electron main process IPC bridges, LAN sync server/worker, and UI management components
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.67...v1.5.68
+
 # Vendora v1.5.67 Release Notes
 
 ## What's Changed

@@ -9,6 +9,7 @@ import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
 import { getStoreTimezone } from '../utils/timezoneHelper';
+import { DigitalClock } from './DigitalClock';
 
 function timeAgo(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -530,7 +531,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             <span className={`w-1.5 h-1.5 rounded-full ${lastSyncTime && Date.now() - lastSyncTime < 120000 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                             <span>Last sync: <span className="font-medium text-foreground/70">{displayTime}</span></span>
                         </div>
-                        <span className="font-medium">© {new Date().getFullYear()} Vendora</span>
+                        <DigitalClock variant="footer" />
                     </div>
                 </div>
             )}

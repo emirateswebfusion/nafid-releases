@@ -2370,6 +2370,16 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </button>
                 </div>
 
+                <div className="flex items-center justify-between gap-4 p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <div className="flex-1">
+                    <label className="text-xs font-bold text-foreground cursor-pointer select-none" onClick={() => setBillSettings(s => ({ ...s, reverseCharge: !s.reverseCharge }))}>Tax Is Payable On Reverse Charge</label>
+                    <p className="text-[10px] text-muted-foreground/75 mt-0.5">GST-based: When enabled, invoices will indicate tax is payable on reverse charge basis.</p>
+                  </div>
+                  <button type="button" onClick={() => setBillSettings(s => ({ ...s, reverseCharge: !s.reverseCharge }))} className={clsx('relative w-11 h-6 rounded-full transition-all duration-300 shrink-0 cursor-pointer', billSettings.reverseCharge ? 'bg-primary shadow-[0_2px_8px_rgba(79,70,229,0.3)]' : 'bg-muted-foreground/20')}>
+                    <span className={clsx('absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-all duration-300', billSettings.reverseCharge ? 'translate-x-5' : 'translate-x-0')} />
+                  </button>
+                </div>
+
                 <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">

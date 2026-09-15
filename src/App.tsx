@@ -43,6 +43,7 @@ import { useCartStore } from './store/cartStore';
 import { useAuthStore } from './store/authStore';
 import { useScaleStore } from './store/scaleStore';
 import { setAppTimeFormat } from './utils/receiptGenerator';
+import { setStoreTimezone } from './utils/timezoneHelper';
 
 import { PartyManager } from './components/PartyManager';
 import { CashierSettlement } from './components/CashierSettlement';
@@ -324,12 +325,21 @@ function App() {
         setAppTimeFormat('12h');
       }
     });
+    window.electronAPI.settingsGet({ tenant_id: tid || 'global', key: 'store_timezone' }).then((v: any) => {
+      if (v) setStoreTimezone(v);
+    });
 
     const handleSettingsUpdated = () => {
       const currentTid = useAuthStore.getState().tenantId;
       loadFeatureFlags(currentTid || 'global').then(flags => setFeatureFlags(flags));
       window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'enable_scrap' }).then((v: any) => {
         if (v !== null && v !== undefined) setEnableScrap(Boolean(v));
+      });
+      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'time_format' }).then((v: any) => {
+        if (v === '24h' || v === '12h') setAppTimeFormat(v);
+      });
+      window.electronAPI.settingsGet({ tenant_id: currentTid || 'global', key: 'store_timezone' }).then((v: any) => {
+        if (v) setStoreTimezone(v);
       });
     };
     window.addEventListener('settings:updated', handleSettingsUpdated);

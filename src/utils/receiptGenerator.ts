@@ -46,6 +46,7 @@ export interface BillSettings {
   showTransporterDetails?: boolean;
   showBarcodeOnReceipt?: boolean;
   showAuthorisedSignatory?: boolean;
+  reverseCharge?: boolean;
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -77,6 +78,7 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showTransporterDetails: true,
   showBarcodeOnReceipt: true,
   showAuthorisedSignatory: true,
+  reverseCharge: false,
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
