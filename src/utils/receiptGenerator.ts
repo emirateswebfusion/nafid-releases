@@ -1,3 +1,5 @@
+import { getStoreTimezone } from './timezoneHelper';
+
 export interface ReceiptItem {
   name: string;
   quantity: number | string;
@@ -139,36 +141,31 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
   if (dateInput instanceof Date) return dateInput;
   if (typeof dateInput === 'number') return new Date(dateInput);
 
-  const dateStr = String(dateInput).trim();
+  let dateStr = String(dateInput).trim();
   if (!dateStr) return new Date();
 
-  if (dateStr.includes('Z') || dateStr.includes('+') || /-\d{2}:\d{2}$/.test(dateStr)) {
-    const d = new Date(dateStr);
-    return isNaN(d.getTime()) ? new Date() : d;
-  }
-  let formatted = dateStr;
-  if (formatted.includes(' ')) {
-    formatted = formatted.replace(' ', 'T');
-  }
-  if (/^\d{4}-\d{2}-\d{2}$/.test(formatted)) {
-    const [y, m, d] = formatted.split('-').map(Number);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    const [y, m, d] = dateStr.split('-').map(Number);
     return new Date(y, m - 1, d);
   }
-  const parsedLocal = new Date(formatted);
-  if (!isNaN(parsedLocal.getTime())) {
-    return parsedLocal;
+
+  // Strip trailing Z or +00:00 offset to ensure JavaScript Date parses local ISO strings as local time
+  dateStr = dateStr.replace(/Z$/i, '').replace(/\+00:?00$/i, '');
+  if (dateStr.includes(' ')) {
+    dateStr = dateStr.replace(' ', 'T');
   }
-  const fallback = new Date(formatted);
-  return isNaN(fallback.getTime()) ? new Date() : fallback;
+
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? new Date(dateInput as any) : d;
 }
 
 export function formatBillDateTime(date: Date | string | number): string {
   const d = parseUTCDate(date);
   if (isNaN(d.getTime())) return String(date);
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
+  const tz = getStoreTimezone();
+  const [dd, mm, yyyy] = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
   const timeStr = d.toLocaleTimeString('en-US', {
+    timeZone: tz,
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
@@ -176,6 +173,7 @@ export function formatBillDateTime(date: Date | string | number): string {
   });
   return `${dd}/${mm}/${yyyy}, ${timeStr}`;
 }
+
 
 export interface ReceiptData {
   shopName: string;

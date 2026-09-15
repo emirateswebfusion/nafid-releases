@@ -21,14 +21,12 @@ function parseCleanDate(dStr: any): string {
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
-  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) {
-    return isoMatch[1];
-  }
-  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
-    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
-    if (!isNaN(d.getTime())) return localDate(d);
-  }
+
+  let formatted = str;
+  if (formatted.includes(' ')) formatted = formatted.replace(' ', 'T');
+
+  const d = new Date(formatted);
+  if (!isNaN(d.getTime())) return localDate(d);
   return str.slice(0, 10);
 }
 
@@ -337,16 +335,27 @@ function notifyCycleComplete(sender?: WebContents) {
 function toSqliteDate(iso: string | number | Date | null | undefined): string {
   if (!iso) return localTimestamp();
   if (iso instanceof Date) return localTimestamp(iso);
-  const str = typeof iso === 'string' ? iso : String(iso);
+  if (typeof iso === 'number') return localTimestamp(new Date(iso));
+
+  const str = String(iso).trim();
+  if (!str) return localTimestamp();
+
   if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(str)) {
     return str;
   }
+
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}:\d{2})/);
+  if (match) {
+    return `${match[1]} ${match[2]}`;
+  }
+
   try {
     const d = new Date(str);
     if (!isNaN(d.getTime())) {
       return localTimestamp(d);
     }
   } catch {}
+
   return str.replace('T', ' ').replace('Z', '').split('.')[0];
 }
 
@@ -1004,7 +1013,7 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
       const db = getDb();
 
       // One-time auto-heal: reset pull cursors so invalid local-time/truncated cursors are wiped and fresh exact-precision cursors take over
-      const healingKey = `utc_cursor_fix_v6:${tenant_id}`;
+      const healingKey = `utc_cursor_fix_v7:${tenant_id}`;
       if (!getMeta(healingKey)) {
         try {
           db.prepare(`DELETE FROM sync_meta WHERE key LIKE ?`).run(`pull_cursor:${tenant_id}:%`);
@@ -2024,6 +2033,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       sgst_total = EXCLUDED.sgst_total,
       igst_total = EXCLUDED.igst_total,
       supply_type = EXCLUDED.supply_type,
+      created_at = EXCLUDED.created_at,
       updated_at = EXCLUDED.updated_at,
       sync_status = 'SYNCED'
   `);

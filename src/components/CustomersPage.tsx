@@ -9,6 +9,7 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface Customer {
   customer_id: string;
@@ -74,12 +75,14 @@ function formatCurrency(amount: number): string {
 
 function formatDate(d: string) {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function formatDateTime(d: string) {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 function getInitials(name: string): string {

@@ -15,16 +15,17 @@ function parseCleanDate(dStr: any): string {
   }
   const str = String(dStr).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  const isoMatch = str.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoMatch) {
-    return isoMatch[1];
+
+  let isoStr = str;
+  if (!isoStr.includes('Z') && !isoStr.includes('+') && !/-\d{2}:\d{2}$/.test(isoStr)) {
+    if (isoStr.includes(' ')) isoStr = isoStr.replace(' ', 'T');
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(isoStr)) isoStr += 'Z';
   }
-  if (str.includes('T') || str.includes('Z') || str.includes(' ')) {
-    const d = new Date(str.includes('Z') || str.includes('+') ? str : str.replace(' ', 'T'));
-    if (!isNaN(d.getTime())) {
-      const pad = (n: number) => String(n).padStart(2, '0');
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-    }
+
+  const d = new Date(isoStr);
+  if (!isNaN(d.getTime())) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   }
   return str.slice(0, 10);
 }

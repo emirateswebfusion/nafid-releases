@@ -251,7 +251,14 @@ function parseCleanDate(dStr: any, timeZone: string = 'Asia/Kolkata'): string {
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
-  const d = new Date(str);
+
+  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (match) return match[1];
+
+  let formatted = str.replace(/Z$/i, '');
+  if (formatted.includes(' ')) formatted = formatted.replace(' ', 'T');
+
+  const d = new Date(formatted);
   if (!isNaN(d.getTime())) {
     try {
       return new Intl.DateTimeFormat('en-CA', { timeZone }).format(d);
@@ -2463,7 +2470,9 @@ ipcMain.handle('db:checkout', safeHandler((event, payload) => {
     const newCash = getCashAmountFromInvoice(invoice);
     if (newCash > 0) {
       adjustCashDrawerForInvoice(db, invoice.tenant_id || 'global', localDate(), 0, newCash);
-    } else {
+    }
+    adjustPaymentSourcesForInvoice(db, invoice.tenant_id || 'global', invoice, false);
+    if (newCash <= 0) {
       const scrapD = Number(invoice.scrap_deduction) || 0;
       const returnD = Number(invoice.return_deduction) || 0;
       const totalDeductions = scrapD + returnD;
@@ -3565,6 +3574,7 @@ ipcMain.handle('db:updateInvoicePayment', (event, payload: {
     const newCash = getCashAmountFromInvoice(updatedInvObj);
 
     adjustCashDrawerForInvoice(db, existingInv.tenant_id || payload.tenant_id, existingInv.created_at, oldCash, newCash);
+    adjustPaymentSourcesForInvoice(db, existingInv.tenant_id || payload.tenant_id, updatedInvObj, false);
 
     syncInvoiceCreditLedger(db, {
       invoice_id: payload.invoice_id,
@@ -6356,8 +6366,91 @@ function adjustCashDrawerForInvoice(
     drawer = getOpenCashDrawer(db, tenantId, businessDate);
   }
 
+  if (!drawer && tenantId) {
+    try {
+      const drawerId = crypto.randomUUID();
+      db.prepare(`
+        INSERT INTO cash_drawer (drawer_id, tenant_id, business_date, opening_balance, cash_sales, cash_in, cash_out, current_cash, expected_closing, status, opened_at, sync_status, created_at, updated_at)
+        VALUES (?, ?, ?, 0, 0, 0, 0, 0, 0, 'OPEN', CURRENT_TIMESTAMP, 'PENDING', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `).run(drawerId, tenantId, businessDate);
+      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE drawer_id = ?`).get(drawerId) as any;
+    } catch (e: any) {
+      console.error('[Cashier] Auto-create drawer error:', e.message);
+    }
+  }
+
   if (drawer) {
     reconcileCashDrawer(db, tenantId, drawer);
+  }
+}
+
+function adjustPaymentSourcesForInvoice(
+  db: any,
+  tenantId: string,
+  invoice: any,
+  isDeleteOrCancel: boolean = false
+) {
+  if (!db || !tenantId || !invoice) return;
+  try {
+    const pm = (invoice.payment_method || '').toUpperCase();
+    let splitObj: any = null;
+    if (typeof invoice.split_details === 'string') {
+      try { splitObj = JSON.parse(invoice.split_details); } catch {}
+    } else if (typeof invoice.split_details === 'object') {
+      splitObj = invoice.split_details;
+    }
+
+    const processSourceTransaction = (sourceId: string | undefined, sourceType: string, amount: number) => {
+      if (amount <= 0) return;
+      let source: any = null;
+      if (sourceId) {
+        source = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0`).get(sourceId, tenantId) as any;
+      }
+      if (!source) {
+        source = db.prepare(`SELECT * FROM payment_sources WHERE tenant_id = ? AND type = ? AND is_deleted = 0 AND is_enabled = 1 ORDER BY is_default DESC, sort_order ASC LIMIT 1`).get(tenantId, sourceType) as any;
+      }
+      if (source) {
+        const delta = isDeleteOrCancel ? -amount : amount;
+        const newBalance = Number(source.current_balance) + delta;
+        const txnType = isDeleteOrCancel ? 'CASH_OUT' : 'CASH_IN';
+        const category = isDeleteOrCancel ? 'Invoice Cancellation' : 'Invoice Sale';
+        
+        db.prepare(`
+          INSERT INTO payment_source_transactions (transaction_id, tenant_id, source_id, type, amount, category, reference_number, notes, transaction_date, running_balance, entered_by, entered_by_name, sync_status)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?, ?, 'PENDING')
+        `).run(
+          crypto.randomUUID(), tenantId, source.source_id, txnType, amount,
+          category, invoice.invoice_number || null, `Invoice ${invoice.invoice_number || ''} ${isDeleteOrCancel ? 'cancelled' : 'payment'} via ${sourceType}`,
+          newBalance, invoice.user_id || 'system', invoice.user_name || null
+        );
+
+        db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`)
+          .run(newBalance, source.source_id, tenantId);
+      }
+    };
+
+    if (pm === 'UPI') {
+      const upiAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
+      processSourceTransaction(invoice.payment_source_id || splitObj?.upi_source_id, 'UPI', upiAmt);
+    } else if (pm === 'CARD') {
+      const cardAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
+      processSourceTransaction(invoice.payment_source_id || splitObj?.card_source_id, 'CARD', cardAmt);
+    } else if (pm === 'BANK_TRANSFER' || pm === 'BANK') {
+      const bankAmt = Math.max(0, Number(invoice.received_amount || invoice.grand_total) || 0);
+      processSourceTransaction(invoice.payment_source_id || splitObj?.bank_source_id, 'BANK_TRANSFER', bankAmt);
+    } else if (pm === 'SPLIT' && splitObj) {
+      if (Number(splitObj.upi) > 0) {
+        processSourceTransaction(splitObj.upi_source_id || invoice.payment_source_id, 'UPI', Number(splitObj.upi));
+      }
+      if (Number(splitObj.card) > 0) {
+        processSourceTransaction(splitObj.card_source_id || invoice.payment_source_id, 'CARD', Number(splitObj.card));
+      }
+      if (Number(splitObj.bank_transfer) > 0) {
+        processSourceTransaction(splitObj.bank_source_id || invoice.payment_source_id, 'BANK_TRANSFER', Number(splitObj.bank_transfer));
+      }
+    }
+  } catch (err: any) {
+    console.error('[PaymentSources] adjustPaymentSourcesForInvoice error:', err.message);
   }
 }
 
@@ -6600,10 +6693,11 @@ ipcMain.handle('db:cashier:addTransaction', safeHandler((event, { tenant_id, typ
       if (!drawer) throw new Error('No open cash drawer for today. Set opening balance first.');
       
       const transaction_id = crypto.randomUUID();
+      const txDateIso = new Date().toISOString();
       db.prepare(`
-        INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, sync_status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-      `).run(transaction_id, tenant_id, drawer.drawer_id, type, amount, category || null, notes || null, user_id, user_name || null);
+        INSERT INTO cash_transactions (transaction_id, tenant_id, drawer_id, type, amount, category, notes, entered_by, entered_by_name, transaction_date, sync_status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+      `).run(transaction_id, tenant_id, drawer.drawer_id, type, amount, category || null, notes || null, user_id, user_name || null, txDateIso);
       
       reconcileCashDrawer(db, tenant_id, drawer);
       
@@ -6962,6 +7056,10 @@ ipcMain.handle('db:deleteInvoice', (event, invoice_id: string) => {
 
     if (existingInv) {
       syncInvoiceCreditLedger(db, existingInv, true);
+    }
+
+    if (existingInv) {
+      adjustPaymentSourcesForInvoice(db, existingInv.tenant_id, existingInv, true);
     }
 
     if (existingInv && oldCash > 0) {

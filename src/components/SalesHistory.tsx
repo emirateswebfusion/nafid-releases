@@ -20,6 +20,7 @@ import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -37,13 +38,12 @@ const PAYMENT_COLORS: Record<string, { bg: string; text: string; dot: string }> 
   CARD:   { bg: 'bg-blue-500/10',   text: 'text-blue-500',    dot: '#3b82f6' },
   UPI:    { bg: 'bg-violet-500/10', text: 'text-violet-500',  dot: '#8b5cf6' },
   CREDIT: { bg: 'bg-amber-500/10',  text: 'text-amber-500',   dot: '#f59e0b' },
-  SPLIT:  { bg: 'bg-indigo-500/10', text: 'text-indigo-500',  dot: '#6366f1' },
+  SPLIT:  { bg: 'bg-purple-500/10', text: 'text-purple-500',  dot: '#a855f7' },
 };
 
 const TAX_RATES = [
-  { value: '', label: 'All GST %' },
+  { value: 'all', label: 'All GST %' },
   { value: '0', label: '0%' },
-  { value: '3', label: '3%' },
   { value: '5', label: '5%' },
   { value: '12', label: '12%' },
   { value: '18', label: '18%' },
@@ -55,22 +55,22 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateStr: string) {
+  const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return {
-    date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+    date: d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }
 
 function formatGroupDate(dateStr?: string) {
   if (!dateStr) return '-';
+  const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   if (isNaN(d.getTime())) return '-';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
-  return `${dd}/${mm}/${yyyy} ${dayName}`;
+  const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
+  const dateStrFormatted = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${dateStrFormatted} ${dayName}`;
 }
 
 function getInvoiceNetTotal(inv: any): number {
@@ -90,9 +90,10 @@ function getInvoiceNetTotal(inv: any): number {
 }
 
 function groupByDay(invoices: any[]) {
+  const tz = getStoreTimezone();
   const map = new Map<string, number>();
   for (const inv of invoices) {
-    const day = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+    const day = parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short' });
     map.set(day, (map.get(day) || 0) + getInvoiceNetTotal(inv));
   }
   return Array.from(map, ([date, sales]) => ({ date, sales }));
@@ -527,6 +528,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   }, [selectionMode]);
 
   const loadInvoices = async (reset = false) => {
+    if (!reset && isFetching) return;
     setIsFetching(true);
     if (window.electronAPI) {
       const { userId, role, tenantId, restrictedPage } = useAuthStore.getState();
@@ -592,15 +594,27 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     }
   };
 
-  const observer = useRef<IntersectionObserver | null>(null);
-  const lastElementRef = useCallback((node: HTMLTableRowElement | null) => {
-    if (isFetching || !hasMore) return;
-    if (observer.current) observer.current.disconnect();
-    observer.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) loadInvoices(false);
-    }, { threshold: 1.0 });
-    if (node) observer.current.observe(node);
+  const sentinelRef = useRef<HTMLTableRowElement | null>(null);
+
+  useEffect(() => {
+    if (isFetching || !hasMore || !sentinelRef.current) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting && !isFetching && hasMore) {
+        loadInvoices(false);
+      }
+    }, { threshold: 0.1, rootMargin: '150px' });
+
+    observer.observe(sentinelRef.current);
+    return () => observer.disconnect();
   }, [isFetching, hasMore, offset]);
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+    if (distanceToBottom < 200 && !isFetching && hasMore) {
+      loadInvoices(false);
+    }
+  };
 
   // Recover MRP / offer info for past invoices (invoice_items only stores the sold rate).
   // Mirrors the recovery logic used when editing a bill in BillingPage.
@@ -1599,7 +1613,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
               )}
             </div>
           {/* Table */}
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto" onScroll={handleScroll}>
             {loading ? (
               <table className="w-full">
                 <tbody>
@@ -1688,9 +1702,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
                     </Fragment>
                   ))}
                   {hasMore && (
-                    <tr ref={lastElementRef}>
-                      <td colSpan={6} className="py-4 text-center">
-                        <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground mx-auto" />
+                    <tr ref={sentinelRef}>
+                      <td colSpan={7} className="py-4 text-center">
+                        <button
+                          onClick={() => loadInvoices(false)}
+                          disabled={isFetching}
+                          className="px-4 py-2 rounded-full border border-border bg-muted/50 hover:bg-muted text-xs font-bold text-foreground transition-all cursor-pointer inline-flex items-center gap-2"
+                        >
+                          <RefreshCw className={clsx("w-3.5 h-3.5", isFetching && "animate-spin")} />
+                          {isFetching ? 'Loading more records…' : `Load More Records (${invoices.length} of ${summary.totalInvoices} loaded)`}
+                        </button>
                       </td>
                     </tr>
                   )}

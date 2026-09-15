@@ -4,6 +4,7 @@ import { Package, TrendingUp, Search, X, Printer, FileText, RefreshCw, Activity,
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import clsx from 'clsx';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface Product {
   product_id: string;
@@ -497,8 +498,8 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         <body>
           <div class="header">
             <h1>${shopName || 'Shop'}</h1>
-            <p>Stock Report &mdash; ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
-            <p style="font-size:10px;color:#888;">Generated at ${new Date().toLocaleTimeString('en-IN')}</p>
+            <p>Stock Report &mdash; ${new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
+            <p style="font-size:10px;color:#888;">Generated at ${new Date().toLocaleTimeString('en-IN', { timeZone: getStoreTimezone() })}</p>
           </div>\n\n          <div class="summary-row">
             <div class="summary-card"><div class="value">${totalProductsVal}</div><div class="label">Total Products</div></div>
             <div class="summary-card"><div class="value">${totalStockVal.toFixed(0)}</div><div class="label">Total Stock</div></div>

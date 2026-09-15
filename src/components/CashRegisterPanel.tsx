@@ -97,8 +97,8 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
   const [partySearch, setPartySearch] = useState('');
 
   const drawerOpen = drawer?.status === 'OPEN';
-  const totalIn = transactions.filter(t => t.type === 'CASH_IN').reduce((s, t) => s + Number(t.amount), 0);
-  const totalOut = transactions.filter(t => t.type === 'CASH_OUT').reduce((s, t) => s + Number(t.amount), 0);
+  const totalIn = drawer?.status === 'CLOSED' ? 0 : transactions.filter(t => t.type === 'CASH_IN').reduce((s, t) => s + Number(t.amount), 0);
+  const totalOut = drawer?.status === 'CLOSED' ? 0 : transactions.filter(t => t.type === 'CASH_OUT').reduce((s, t) => s + Number(t.amount), 0);
 
   const load = useCallback(async () => {
     if (!window.electronAPI || !tenantId) return;
@@ -281,7 +281,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                 </span>
                 {drawer && (
                   <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                    Sales: {formatCurrency(drawer.cash_sales || 0)}
+                    Sales: {formatCurrency(drawer?.status === 'CLOSED' ? 0 : (drawer.cash_sales || 0))}
                   </span>
                 )}
               </div>

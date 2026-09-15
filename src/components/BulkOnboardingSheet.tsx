@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Save, Printer, AlertCircle, Trash, Loader2, RefreshCw, CheckCheck } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
@@ -424,21 +424,30 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     setLoading(false);
   };
 
-  const handleResetPending = async () => {
+  const [confirmResetPrintModalOpen, setConfirmResetPrintModalOpen] = useState(false);
+  const [resetPrintSaving, setResetPrintSaving] = useState(false);
+
+  const handleResetPending = () => {
+    setConfirmResetPrintModalOpen(true);
+  };
+
+  const confirmResetPending = async () => {
     if (!window.electronAPI) return;
-    if (confirm('Are you sure you want to mark all pending products as printed?')) {
-      try {
-        const res = await window.electronAPI.dbResetPrintStatus(tenantId || 'global');
-        if (res.success) {
-          setPrintStatusMsg({ type: 'success', text: 'All pending items marked as printed.' });
-          loadPendingPrintCount();
-        } else {
-          setPrintStatusMsg({ type: 'error', text: res.error || 'Failed to reset print status.' });
-        }
-      } catch (err: any) {
-        console.error('Reset print status error:', err);
-        setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
+    setResetPrintSaving(true);
+    try {
+      const res = await window.electronAPI.dbResetPrintStatus(tenantId || 'global');
+      if (res.success) {
+        setPrintStatusMsg({ type: 'success', text: 'All pending items marked as printed.' });
+        loadPendingPrintCount();
+        setConfirmResetPrintModalOpen(false);
+      } else {
+        setPrintStatusMsg({ type: 'error', text: res.error || 'Failed to reset print status.' });
       }
+    } catch (err: any) {
+      console.error('Reset print status error:', err);
+      setPrintStatusMsg({ type: 'error', text: 'An error occurred. Please try again.' });
+    } finally {
+      setResetPrintSaving(false);
     }
   };
 
@@ -539,7 +548,8 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Modal
+    <>
+      <Modal
       isOpen={true}
       onClose={onClose}
       fullScreen={true}
@@ -723,6 +733,52 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         </div>
       </div>
     </Modal>
-  );
+
+    {/* Reset Print Status Confirmation Modal */}
+    <Modal
+      isOpen={confirmResetPrintModalOpen}
+      onClose={() => { if (!resetPrintSaving) setConfirmResetPrintModalOpen(false); }}
+      closeButton={null}
+      title={
+        <div className="flex items-center gap-2.5 font-bold text-foreground">
+          <AlertCircle className="w-5 h-5 text-amber-500" />
+          <span>Reset Pending Print Status</span>
+        </div>
+      }
+    >
+      <div className="space-y-4 min-w-[400px] text-foreground">
+        <div className="p-4 bg-amber-500/5 border border-amber-500/20 rounded-2xl">
+          <p className="text-sm font-bold text-amber-600 dark:text-amber-400 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            Are you sure?
+          </p>
+          <p className="text-xs text-muted-foreground mt-2">
+            This will mark all pending products as printed across your inventory.
+          </p>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2 border-t border-border">
+          <button
+            onClick={() => setConfirmResetPrintModalOpen(false)}
+            disabled={resetPrintSaving}
+            className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={confirmResetPending}
+            disabled={resetPrintSaving}
+            className="px-5 py-2.5 text-sm font-black bg-amber-500 text-white rounded-xl hover:bg-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+          >
+            {resetPrintSaving ? (
+              <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Resetting...</>
+            ) : (
+              <><CheckCheck className="w-3.5 h-3.5" /> Mark as Printed</>
+            )}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  </>);
 }
 

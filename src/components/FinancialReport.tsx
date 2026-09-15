@@ -10,6 +10,7 @@ import {
 } from 'recharts';
 import { useAuthStore } from '../store/authStore';
 import clsx from 'clsx';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface FinancialReportProps {
   onClose: () => void;
@@ -231,7 +232,7 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       ['NAFID - Financial Statement Report'],
       ['Shop Name', shopName || 'Retail Store'],
       ['Date Period', `${startDate} to ${endDate}`],
-      ['Generated On', new Date().toLocaleString()],
+      ['Generated On', new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })],
       [],
       ['Metric', 'Amount (INR)'],
       ['Gross Sales Revenue', finData.grossSales.toFixed(2)],

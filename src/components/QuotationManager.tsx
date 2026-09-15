@@ -7,7 +7,8 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
-import { DEFAULT_BILL_SETTINGS, type ReceiptData } from '../utils/receiptGenerator';
+import { DEFAULT_BILL_SETTINGS, type ReceiptData, parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface Quotation {
   quotation_id: string;
@@ -315,7 +316,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     if (window.electronAPI?.exportA4Pdf) {
       const res = await window.electronAPI.exportA4Pdf(tenantId || 'global', htmlToExport, defaultFilename);
       if (!res.success && res.error) {
-        alert(`Export PDF failed: ${res.error}`);
+        setStatusMessage({ text: `Export PDF failed: ${res.error}`, type: 'error' });
       }
     } else {
       const pw = window.open('', '_blank');
@@ -400,8 +401,9 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   };
 
   const formatDateLabel = (dateStr: string) => {
-    const d = new Date(dateStr.replace(' ', 'T'));
-    return `${d.toLocaleDateString('en-IN', { weekday: 'long' })} — ${d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}`;
+    const tz = getStoreTimezone();
+    const d = parseUTCDate(dateStr);
+    return `${d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' })} — ${d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' })}`;
   };
 
   const filteredQuotations = useMemo(() => {
@@ -546,7 +548,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                           q.status === 'ACTIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' : q.status === 'CONVERTED' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' : 'bg-amber-500/10 text-amber-600 border-amber-500/20'
                         )}>{q.status === 'CONVERTED' ? 'BILLED' : q.status}</span>
                       </div>
-                      <div className="col-span-2 text-right text-muted-foreground text-xs font-medium">{new Date(q.created_at).toLocaleDateString('en-IN')}</div>
+                      <div className="col-span-2 text-right text-muted-foreground text-xs font-medium">{parseUTCDate(q.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
                       <div className="col-span-1 text-center" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-center gap-1">
                           {q.status === 'ACTIVE' && (
@@ -588,7 +590,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                 <div>
                   <p className="text-xs text-muted-foreground font-semibold uppercase">Quotation Number</p>
                   <p className="font-mono font-bold text-lg text-primary">{selectedQuotation.quotation_number}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Date: {new Date(selectedQuotation.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-xs text-muted-foreground mt-1">Date: {parseUTCDate(selectedQuotation.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
                   <p className="text-xs text-muted-foreground font-semibold uppercase">Customer Details</p>

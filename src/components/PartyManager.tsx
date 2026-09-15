@@ -8,13 +8,16 @@ import {
   UserCircle, Banknote, FileText, Phone, MapPin,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
+  Trash2, RefreshCw,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Select } from './ui/Select';
+import { Modal } from './ui/Modal';
 import { getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface Party {
   party_id: string;
@@ -54,12 +57,14 @@ type View = 'list' | 'ledger' | 'party_form' | 'tx_form';
 
 const formatDate = (d: string) => {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
 // Converts a naive local datetime-local value (e.g. "2026-08-16T23:25") into a
@@ -143,6 +148,14 @@ export function PartyManager({
     balance_type: 'GST' as 'GST' | 'ESTIMATE',
     payment_method: 'CASH' as 'CASH' | 'BANK_TRANSFER' | 'UPI' | 'CARD' | 'OTHER',
   });
+
+  const [deleteTxModalOpen, setDeleteTxModalOpen] = useState(false);
+  const [txToDelete, setTxToDelete] = useState<LedgerEntry | null>(null);
+  const [deleteTxSaving, setDeleteTxSaving] = useState(false);
+
+  const [deletePartyModalOpen, setDeletePartyModalOpen] = useState(false);
+  const [partyToDelete, setPartyToDelete] = useState<Party | null>(null);
+  const [deletePartySaving, setDeletePartySaving] = useState(false);
 
   const showStatus = (text: string, type: 'success' | 'error') => {
     setStatusMessage({ text, type });
@@ -259,15 +272,25 @@ export function PartyManager({
     }
   };
 
-  const handleDeleteParty = async (party: Party) => {
+  const handleDeleteParty = (party: Party) => {
     if (!isOwner) { showStatus('Only owners can delete parties', 'error'); return; }
-    if (!confirm(`Delete party "${party.name}"? This will remove all ledger entries.`)) return;
+    setPartyToDelete(party);
+    setDeletePartyModalOpen(true);
+  };
+
+  const confirmDeleteParty = async () => {
+    if (!partyToDelete || !isOwner) return;
+    setDeletePartySaving(true);
     try {
-      await window.electronAPI.dbDeleteParty(party.party_id);
+      await window.electronAPI.dbDeleteParty(partyToDelete.party_id);
       showStatus('Party deleted', 'success');
-      setParties(prev => prev.filter(p => p.party_id !== party.party_id));
+      setParties(prev => prev.filter(p => p.party_id !== partyToDelete.party_id));
+      setDeletePartyModalOpen(false);
+      setPartyToDelete(null);
     } catch {
       showStatus('Delete failed', 'error');
+    } finally {
+      setDeletePartySaving(false);
     }
   };
 
@@ -338,13 +361,21 @@ export function PartyManager({
     }
   };
 
-  const handleDeleteTx = async (entry: LedgerEntry) => {
+  const handleDeleteTx = (entry: LedgerEntry) => {
     if (!selectedParty || !isOwner) { showStatus('Only owners can delete transactions', 'error'); return; }
-    if (!confirm('Delete this transaction? The balance will be recalculated.')) return;
+    setTxToDelete(entry);
+    setDeleteTxModalOpen(true);
+  };
+
+  const confirmDeleteTx = async () => {
+    if (!txToDelete || !selectedParty || !isOwner) return;
+    setDeleteTxSaving(true);
     try {
-      setLedger(prev => prev.filter(e => e.ledger_id !== entry.ledger_id));
-      await window.electronAPI.dbDeletePartyLedgerEntry(entry.ledger_id, selectedParty.party_id);
+      setLedger(prev => prev.filter(e => e.ledger_id !== txToDelete.ledger_id));
+      await window.electronAPI.dbDeletePartyLedgerEntry(txToDelete.ledger_id, selectedParty.party_id);
       showStatus('Transaction deleted', 'success');
+      setDeleteTxModalOpen(false);
+      setTxToDelete(null);
       await loadLedger(selectedParty.party_id);
       const freshParties = await loadParties();
       const updatedParty = (freshParties || []).find(p => p.party_id === selectedParty.party_id);
@@ -352,6 +383,8 @@ export function PartyManager({
     } catch {
       showStatus('Delete failed', 'error');
       await loadLedger(selectedParty.party_id);
+    } finally {
+      setDeleteTxSaving(false);
     }
   };
 
@@ -1409,6 +1442,100 @@ export function PartyManager({
           </div>
         </form>
       )}
+
+      {/* Delete Ledger Entry Confirmation Modal */}
+      <Modal
+        isOpen={deleteTxModalOpen}
+        onClose={() => { if (!deleteTxSaving) { setDeleteTxModalOpen(false); setTxToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Ledger Entry</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete this transaction of <strong>₹{(txToDelete ? (txToDelete.credit_amount > 0 ? txToDelete.credit_amount : txToDelete.debit_amount) : 0).toFixed(2)}</strong>
+              {txToDelete?.description ? <> (<strong>{txToDelete.description}</strong>)</> : ''} for <strong>{selectedParty?.name}</strong>.
+              The party balance will be recalculated.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteTxModalOpen(false); setTxToDelete(null); }}
+              disabled={deleteTxSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteTx}
+              disabled={deleteTxSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteTxSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Entry</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Party Confirmation Modal */}
+      <Modal
+        isOpen={deletePartyModalOpen}
+        onClose={() => { if (!deletePartySaving) { setDeletePartyModalOpen(false); setPartyToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Party</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete party <strong>{partyToDelete?.name}</strong> and all associated ledger entries.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeletePartyModalOpen(false); setPartyToDelete(null); }}
+              disabled={deletePartySaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteParty}
+              disabled={deletePartySaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deletePartySaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Party</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

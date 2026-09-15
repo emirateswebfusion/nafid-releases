@@ -18,6 +18,7 @@ import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat } from '../utils/printFormatHelper';
 import { loadFeatureFlags, cashierPageTitle } from '../featureFlags';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 type PaymentMethod = 'CASH' | 'CARD' | 'UPI' | 'BANK_TRANSFER' | 'SPLIT';
 
@@ -39,7 +40,8 @@ function formatCurrency(amount: number | null | undefined): string {
 
 function formatTime(d: string): string {
   if (!d) return '';
-  return parseUTCDate(d).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 }
 
 function todayStr(): string {
@@ -113,10 +115,11 @@ function InvoiceTypeBadge({ inv }: { inv: any }) {
 }
 
 function formatDate(dateStr: string) {
+  const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   return {
-    date: d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
-    time: d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
+    date: d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' }),
+    time: d.toLocaleTimeString('en-IN', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' }),
   };
 }
 
@@ -179,6 +182,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   const [showAddCatForm, setShowAddCatForm] = useState(false);
   const [newCatName, setNewCatName] = useState('');
   const [addingCat, setAddingCat] = useState(false);
+  const [txnError, setTxnError] = useState('');
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
 
   // Split payment modal states
@@ -611,9 +615,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   };
 
   const handleAddTransaction = async () => {
+    setTxnError('');
     if (!tenantId || !userId || txnAmt <= 0) return;
     if (drawer?.status === 'CLOSED') {
-      alert('Cash Register is closed for today. Entries are locked.');
+      setTxnError('Cash Register is closed for today. Entries are locked.');
       return;
     }
     setTxnSubmitting(true);
@@ -804,8 +809,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
   }
 
   // ── Derived summary values ────────────────────────────────────────────────
-  const totalIn  = drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0);
-  const totalOut = drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0);
+  const totalIn  = drawerClosed ? 0 : (drawer?.cash_in != null ? Number(drawer.cash_in) : transactions.filter((t: any) => t.type === 'CASH_IN' ).reduce((s: number, t: any) => s + Number(t.amount), 0));
+  const totalOut = drawerClosed ? 0 : (drawer?.cash_out != null ? Number(drawer.cash_out) : transactions.filter((t: any) => t.type === 'CASH_OUT').reduce((s: number, t: any) => s + Number(t.amount), 0));
 
   // ── Feature-based sections ────────────────────────────────────────────────
   const showSettlement = !featureFlags || featureFlags.cash_settlement;
@@ -820,7 +825,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
     const dd = String(d.getDate()).padStart(2, '0');
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const yyyy = d.getFullYear();
-    const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+    const dayName = d.toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 
@@ -896,7 +901,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               </div>
               <div className="leading-tight">
                 <p className="text-[8px] font-black text-muted-foreground uppercase tracking-widest">Drawer Cash</p>
-                <p className="text-sm font-black tabular-nums text-foreground">{formatCurrency(drawer?.current_cash ?? 0)}</p>
+                <p className="text-sm font-black tabular-nums text-foreground">{formatCurrency(drawerClosed ? 0 : (drawer?.current_cash ?? 0))}</p>
               </div>
             </div>
           </div>
@@ -1653,7 +1658,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             {drawer && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-emerald-500/25 bg-emerald-500/10 shrink-0">
                 <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 tabular-nums leading-none">
-                  {formatCurrency(drawer.cash_sales || 0)}
+                  {formatCurrency(drawerClosed ? 0 : (drawer.cash_sales || 0))}
                 </span>
                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider leading-tight">
                   Sales
@@ -2359,7 +2364,7 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             if (!txnSubmitting) {
               setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote('');
               setTxnPartyId(''); setTxnPartyName(''); setPartySearch('');
-              setShowAddCatForm(false); setNewCatName('');
+              setShowAddCatForm(false); setNewCatName(''); setTxnError('');
             }
           }}
         >
@@ -2390,6 +2395,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
             </div>
 
             <div className="p-6 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
+              {txnError && (
+                <div className="p-3 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-xl flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>{txnError}</span>
+                </div>
+              )}
               {/* Toggle */}
               <div className="flex rounded-xl bg-muted/40 border border-border p-1 gap-1">
                 <button

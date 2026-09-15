@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
-  Plus, Trash, Edit2, Check, X, Loader2, Search,
+  Plus, Trash, Trash2, AlertCircle, RefreshCw, Edit2, Check, X, Loader2, Search,
   Folder, Layers, TrendingUp, Tag, ChevronRight,
   ArrowLeft, Edit3, Tags
 } from 'lucide-react';
@@ -37,6 +37,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
   const [editingCategory, setEditingCategory] = useState<string | null>(null);
   const [categoryRenameValue, setCategoryRenameValue] = useState('');
   const [confirmDeleteCategory, setConfirmDeleteCategory] = useState<string | null>(null);
+  const [gradeToDelete, setGradeToDelete] = useState<Grade | null>(null);
 
   useEffect(() => {
     loadGrades();
@@ -147,10 +148,16 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
     setOperating(false);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = (grade: Grade) => {
+    setGradeToDelete(grade);
+  };
+
+  const confirmDeleteGrade = async () => {
+    if (!gradeToDelete) return;
     setOperating(true);
-    const res = await window.electronAPI.dbDeleteGrade(id);
+    const res = await window.electronAPI.dbDeleteGrade(gradeToDelete.grade_id);
     if (res.success) {
+      setGradeToDelete(null);
       await loadGrades();
     } else {
       setError(res.error || 'Failed to delete grade');
@@ -852,7 +859,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
-                            onClick={() => handleDelete(grade.grade_id)}
+                            onClick={() => handleDelete(grade)}
                             disabled={operating}
                             className="p-2 hover:bg-destructive/15 text-muted-foreground hover:text-destructive rounded-xl transition-all cursor-pointer"
                             title="Delete Grade"
@@ -1067,6 +1074,52 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
               )}
               Delete Grades
             </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Single Grade Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!gradeToDelete}
+        onClose={() => { if (!operating) setGradeToDelete(null); }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Grade</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete grade <strong>"{gradeToDelete?.grade_name}"</strong> in category <strong>"{gradeToDelete?.category}"</strong>.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => setGradeToDelete(null)}
+              disabled={operating}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteGrade}
+              disabled={operating}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {operating ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Grade</>
+              )}
+            </button>
           </div>
         </div>
       </Modal>

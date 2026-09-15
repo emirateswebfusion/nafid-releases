@@ -14,6 +14,8 @@ import { ScrollText } from './ScrollText';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DEFAULT_CODE_TYPE, type CodeType } from '../labelCodeTypes';
 import { sortProductsBySearchPriority } from '../utils/productSort';
+import { parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface Product {
@@ -1017,7 +1019,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
       // Clear message after 3 seconds
       setTimeout(() => setStatusMessage(null), 3000);
     } else {
-      alert('Print command dispatched (mock)');
+      setStatusMessage({ text: 'Print command dispatched', type: 'success' });
       setPrintQuantity(1);
     }
   };
@@ -1344,12 +1346,11 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    const d = new Date(dateStr.replace(' ', 'T'));
+    const tz = getStoreTimezone();
+    const d = parseUTCDate(dateStr);
     if (isNaN(d.getTime())) return '-';
-    const dd = String(d.getDate()).padStart(2, '0');
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const yyyy = d.getFullYear();
-    const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+    const [dd, mm, yyyy] = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' }).split('/');
+    const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
     return `${dd}/${mm}/${yyyy} ${dayName}`;
   };
 

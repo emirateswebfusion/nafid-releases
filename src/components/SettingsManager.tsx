@@ -199,6 +199,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
   const [changingPass, setChangingPass] = useState(false);
+  const [confirmTurnOffAllModalOpen, setConfirmTurnOffAllModalOpen] = useState(false);
   const [appVersion, setAppVersion] = useState('v1.0.0');
   const [priceCoding, setPriceCoding] = useState<Record<string, string>>({
     '0': '', '1': '', '2': '', '3': '', '4': '', '5': '', '6': '', '7': '', '8': '', '9': ''
@@ -2899,7 +2900,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <div className="ml-auto flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => { if (window.confirm('Turn OFF all features? Only Settings will remain accessible.')) setFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags); }}
+                    onClick={() => setConfirmTurnOffAllModalOpen(true)}
                     className="px-3 py-1.5 text-[10px] font-bold text-destructive bg-destructive/10 hover:bg-destructive/15 border border-destructive/25 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer"
                   >
                     Turn Off All
@@ -3592,6 +3593,51 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               <li>Click the <strong>Syncing</strong> button at the top-right header anytime to force an immediate manual refresh.</li>
               <li>Ensure your Wi-Fi network profile is set to <strong>Private Network</strong> on both PCs.</li>
             </ul>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Turn Off All Features Confirmation Modal */}
+      <Modal
+        isOpen={confirmTurnOffAllModalOpen}
+        onClose={() => setConfirmTurnOffAllModalOpen(false)}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Power className="w-5 h-5 text-red-500" />
+            <span>Turn Off All Features</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will turn OFF all feature flags. Only Settings will remain accessible.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              type="button"
+              onClick={() => setConfirmTurnOffAllModalOpen(false)}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFeatureFlags(Object.fromEntries(FEATURE_LIST.map(f => [f.key, false])) as FeatureFlags);
+                setConfirmTurnOffAllModalOpen(false);
+              }}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              <Power className="w-3.5 h-3.5" /> Turn Off All
+            </button>
           </div>
         </div>
       </Modal>

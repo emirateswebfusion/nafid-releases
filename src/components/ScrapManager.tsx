@@ -3,13 +3,15 @@ import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
 import { useCartStore } from '../store/cartStore';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 import {
   Search, Loader2, Plus,
-  Pencil, Trash, Trash2, X, Save, TrendingUp, TrendingDown, Recycle,
+  Pencil, Trash, Trash2, RefreshCw, X, Save, TrendingUp, TrendingDown, Recycle,
   CheckCircle2, AlertCircle, ShoppingCart, Minus, Package,
   IndianRupee, Printer, CheckCheck, Recycle as RecycleIcon,
   ChevronRight, Activity, FileText, Layers
 } from 'lucide-react';
+import { Modal } from './ui/Modal';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 import { DateRangeFilter } from './ui/DateRangeFilter';
@@ -51,22 +53,25 @@ const formatCurrency = (amount: number | undefined | null) =>
 
 const _formatDate = (d: string) => {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
-  return parseUTCDate(d).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
+  const tz = getStoreTimezone();
+  return parseUTCDate(d).toLocaleString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: getAppTimeFormat() !== '24h' });
 };
 
 const formatGroupDate = (dateStr?: string) => {
   if (!dateStr) return '-';
+  const tz = getStoreTimezone();
   const d = parseUTCDate(dateStr);
   if (isNaN(d.getTime())) return '-';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  const dayName = d.toLocaleDateString('en-IN', { weekday: 'long' });
+  const dd = d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit' });
+  const mm = d.toLocaleDateString('en-IN', { timeZone: tz, month: '2-digit' });
+  const yyyy = d.toLocaleDateString('en-IN', { timeZone: tz, year: 'numeric' });
+  const dayName = d.toLocaleDateString('en-IN', { timeZone: tz, weekday: 'long' });
   return `${dd}/${mm}/${yyyy} ${dayName}`;
 };
 
@@ -138,6 +143,9 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
   // Confirm delete transaction & invoice state
   const [confirmDeleteTxId, setConfirmDeleteTxId] = useState<string | null>(null);
   const [confirmDeleteInvoiceNumber, setConfirmDeleteInvoiceNumber] = useState<string | null>(null);
+  const [deleteCatModalOpen, setDeleteCatModalOpen] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<ScrapCategory | null>(null);
+  const [deleteCatSaving, setDeleteCatSaving] = useState(false);
 
   // Edit Invoice Header state
   const [editHeaderInvoice, setEditHeaderInvoice] = useState<any | null>(null);
@@ -278,15 +286,25 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
     }
   };
 
-  const handleDeleteCategory = async (cat: ScrapCategory) => {
+  const handleDeleteCategory = (cat: ScrapCategory) => {
     if (!isOwner) { showStatus('Only owners/admins can delete categories', 'error'); return; }
-    if (!confirm(`Delete category "${cat.name}"?`)) return;
+    setCategoryToDelete(cat);
+    setDeleteCatModalOpen(true);
+  };
+
+  const confirmDeleteCategory = async () => {
+    if (!categoryToDelete || !isOwner) return;
+    setDeleteCatSaving(true);
     try {
-      await window.electronAPI.dbDeleteScrapCategory(cat.scrap_category_id);
+      await window.electronAPI.dbDeleteScrapCategory(categoryToDelete.scrap_category_id);
       showStatus('Category deleted', 'success');
-      setCategories(prev => prev.filter(c => c.scrap_category_id !== cat.scrap_category_id));
+      setCategories(prev => prev.filter(c => c.scrap_category_id !== categoryToDelete.scrap_category_id));
+      setDeleteCatModalOpen(false);
+      setCategoryToDelete(null);
     } catch {
       showStatus('Delete failed', 'error');
+    } finally {
+      setDeleteCatSaving(false);
     }
   };
 
@@ -1874,7 +1892,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                           {/* Date & Status */}
                           <div className="col-span-2 text-center">
                             <div className="text-xs font-semibold text-foreground">
-                              {new Date(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                              {parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short', year: 'numeric' })}
                             </div>
                             <span className={clsx('inline-block mt-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md border',
                               inv.payment_status === 'CREDIT'
@@ -2061,7 +2079,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                       </div>
                       <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                       <div className="col-span-2 text-right font-bold text-orange-600 dark:text-orange-400">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-1 text-center text-xs text-muted-foreground">{new Date(tx.created_at).toLocaleDateString('en-IN')}</div>
+                      <div className="col-span-1 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
                       {isOwner && (
                         <div className="col-span-2 text-center flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                           <button
@@ -2512,6 +2530,52 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           </form>
         </div>
       )}
+
+      {/* Delete Category Confirmation Modal */}
+      <Modal
+        isOpen={deleteCatModalOpen}
+        onClose={() => { if (!deleteCatSaving) { setDeleteCatModalOpen(false); setCategoryToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Scrap Category</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete scrap category <strong>"{categoryToDelete?.name}"</strong>.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteCatModalOpen(false); setCategoryToDelete(null); }}
+              disabled={deleteCatSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteCategory}
+              disabled={deleteCatSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteCatSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Category</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

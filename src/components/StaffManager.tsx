@@ -4,10 +4,11 @@ import {
   Users, UserPlus, Mail, Shield, Save, Loader2, Trash, X, 
   Search, SlidersHorizontal, User, CheckCircle2, Check,
   AlertCircle, Edit, KeyRound, Landmark, Lock, Eye, EyeOff, DollarSign,
-  Percent, Trash2, Tag, ShieldAlert, FileText
+  Percent, Trash2, Tag, ShieldAlert, FileText, RefreshCw
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Button } from './ui/Button';
+import { Modal } from './ui/Modal';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { PermissionSelector } from './PermissionSelector';
@@ -107,15 +108,24 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     fetchStaff();
   }, [fetchStaff]);
 
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [staffToDelete, setStaffToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
   // Remove / Delete Staff Member
-  const handleRemoveStaff = async (id: string, name: string) => {
+  const handleRemoveStaff = (id: string, name: string) => {
     if (id === userId) {
       setStatusMessage({ text: 'Security Violation: Cannot delete your own Owner account!', type: 'error' });
       return;
     }
+    setStaffToDelete({ id, name });
+    setDeleteConfirmOpen(true);
+  };
 
-    if (!window.confirm(`Are you sure you want to remove "${name}" from your NAFID staff directory?\n\nThis will revoke their access to billing and dashboards.`)) return;
-    
+  const confirmDeleteStaff = async () => {
+    if (!staffToDelete) return;
+    setDeleteSaving(true);
+    const { id, name } = staffToDelete;
     try {
       const res = await fetch(`${CLOUD_API}/auth/staff/${id}`, {
         method: 'DELETE',
@@ -127,6 +137,8 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         setStaff(updated);
         localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
         setStatusMessage({ text: `Staff account "${name}" successfully deleted`, type: 'success' });
+        setDeleteConfirmOpen(false);
+        setStaffToDelete(null);
       } else {
         setStatusMessage({ text: data.error || 'Failed to remove staff member', type: 'error' });
       }
@@ -136,6 +148,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       setStaff(updated);
       localStorage.setItem(STAFF_CACHE_KEY, JSON.stringify(updated));
       setStatusMessage({ text: `Removed "${name}" locally (Offline Mode)`, type: 'success' });
+      setDeleteConfirmOpen(false);
+      setStaffToDelete(null);
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -778,6 +794,51 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </div>
+      {/* Delete Staff Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setStaffToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Remove Staff Member</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will remove <strong>"{staffToDelete?.name}"</strong> from your staff directory and revoke their access to billing and dashboards.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setStaffToDelete(null); }}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteStaff}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Removing...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Remove Staff</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

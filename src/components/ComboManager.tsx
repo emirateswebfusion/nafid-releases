@@ -84,6 +84,10 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [copiedBarcode, setCopiedBarcode] = useState<string | null>(null);
 
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [comboToDelete, setComboToDelete] = useState<ComboOffer | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
   // Product Search state inside modal
   const [productSearch, setProductSearch] = useState('');
   const [productResults, setProductResults] = useState<Product[]>([]);
@@ -297,16 +301,26 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
   };
 
   // Delete Combo
-  const handleDeleteCombo = async (combo: ComboOffer) => {
-    if (!confirm(`Are you sure you want to delete "${combo.name}"?`)) return;
+  const handleDeleteCombo = (combo: ComboOffer) => {
+    setComboToDelete(combo);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteCombo = async () => {
+    if (!comboToDelete) return;
+    setDeleteSaving(true);
     try {
-      const res = await window.electronAPI.dbDeleteComboOffer({ combo_id: combo.combo_id, tenant_id: tenantId || 'global' });
+      const res = await window.electronAPI.dbDeleteComboOffer({ combo_id: comboToDelete.combo_id, tenant_id: tenantId || 'global' });
       if (res.success) {
-        setCombos(prev => prev.filter(c => c.combo_id !== combo.combo_id));
+        setCombos(prev => prev.filter(c => c.combo_id !== comboToDelete.combo_id));
         setStatusMessage({ text: 'Combo offer deleted', type: 'success' });
+        setDeleteConfirmOpen(false);
+        setComboToDelete(null);
       }
     } catch (err) {
       console.error('[ComboManager] Error deleting combo:', err);
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -1009,6 +1023,52 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
           </form>
         </Modal>
       )}
+
+      {/* Delete Combo Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setComboToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Combo Offer</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete combo offer <strong>"{comboToDelete?.name}"</strong>.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setComboToDelete(null); }}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteCombo}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Combo</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -5,9 +5,10 @@ import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Modal } from './ui/Modal';
-import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData } from '../utils/receiptGenerator';
+import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface ReturnInvoice {
   return_id: string;
@@ -45,8 +46,9 @@ function formatCurrency(amount: number): string {
 }
 
 function formatDate(dateStr: string) {
-  const d = new Date(dateStr);
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const tz = getStoreTimezone();
+  const d = parseUTCDate(dateStr);
+  return d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; isRestricted?: boolean }) {

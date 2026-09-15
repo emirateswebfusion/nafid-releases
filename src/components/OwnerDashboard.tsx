@@ -8,6 +8,7 @@ import { hasPermission } from '../utils/permissions';
 import clsx from 'clsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from './ui/Card';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 function timeAgo(timestamp: number): string {
     const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -388,7 +389,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                         </div>
                         <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">
-                            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            {new Date().toLocaleDateString('en-US', { timeZone: getStoreTimezone(), weekday: 'long', month: 'long', day: 'numeric' })}
                         </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">

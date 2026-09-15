@@ -24,6 +24,7 @@ import { sortProductsBySearchPriority } from '../utils/productSort';
 import { Skeleton } from './ui/Skeleton';
 import { getUpiPageConfig, DEFAULT_UPI_PAGE_CONFIG, type UpiPageConfig } from '../utils/upiConfig';
 import { getNextOffsetInvoiceNumber } from '../utils/invoiceNumberHelper';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 const INDIAN_STATES = [
   { code: 'MH', name: 'Maharashtra' },
@@ -450,6 +451,7 @@ export function BillingPage() {
   const customerPhoneInputRef = useRef<HTMLInputElement>(null);
   const customerAddressInputRef = useRef<HTMLInputElement>(null);
   const customerGstinInputRef = useRef<HTMLInputElement>(null);
+  const paymentOptionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const skipCustomerDropdownOnFocusRef = useRef(false);
 
   const focusInputWithoutDropdown = (inputEl: HTMLInputElement | null, selectAll = true) => {
@@ -1725,8 +1727,13 @@ export function BillingPage() {
   const handleCustomerAddressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === 'Tab' || e.key === 'ArrowDown') {
       e.preventDefault();
-      searchRef.current?.focus();
-      searchRef.current?.select();
+      if (invoiceType === 'GST' && customerGstinInputRef.current) {
+        customerGstinInputRef.current.focus();
+        customerGstinInputRef.current.select();
+      } else {
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       focusInputWithoutDropdown(customerPhoneInputRef.current);
@@ -1740,8 +1747,13 @@ export function BillingPage() {
       const input = e.currentTarget;
       if (input.selectionEnd === input.value.length) {
         e.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
+        if (invoiceType === 'GST' && customerGstinInputRef.current) {
+          customerGstinInputRef.current.focus();
+          customerGstinInputRef.current.select();
+        } else {
+          searchRef.current?.focus();
+          searchRef.current?.select();
+        }
       }
     }
   };
@@ -3209,7 +3221,7 @@ export function BillingPage() {
               shopGstin: shopGstin || undefined,
               invoiceNumber: quotationNumber,
               invoiceType: 'QUOTATION',
-              date: new Date().toLocaleDateString('en-IN'),
+              date: new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone() }),
               items: qItems.map(item => ({
                 name: item.name,
                 quantity: item.quantity,
@@ -3267,7 +3279,7 @@ export function BillingPage() {
               <div class="qtn-info">
                 <div>
                   <p><strong>Quotation #:</strong> ${quotationNumber}</p>
-                  <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div style="text-align: right;">
                   <p><strong>Customer:</strong> ${customerName || 'N/A'}</p>
@@ -3416,12 +3428,7 @@ export function BillingPage() {
       if (searchQuery.trim() === '' && maxLen === 0) {
         if (items.length > 0) {
           e.preventDefault();
-          if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
-            receivedInputRef.current?.focus();
-            receivedInputRef.current?.select();
-          } else {
-            handleCheckout();
-          }
+          paymentOptionRefs.current[paymentMethod]?.focus();
           return;
         }
       }
@@ -5491,7 +5498,7 @@ export function BillingPage() {
                               <div className="flex items-center gap-2 mt-0.5 text-xs text-muted-foreground">
                                 <span>{inv.customer_name || 'Walk-in'}</span>
                                 <span>&middot;</span>
-                                <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                                <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short' })}</span>
                               </div>
                             </div>
                           </button>
@@ -5663,7 +5670,7 @@ export function BillingPage() {
                               <span>&middot;</span>
                               <span>{inv.customer_name || 'Walk-in'}</span>
                               <span>&middot;</span>
-                              <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                              <span>{parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'short' })}</span>
                             </div>
                           </div>
                           <div className="text-right shrink-0">
@@ -6805,12 +6812,76 @@ export function BillingPage() {
               </div>
               ) : (
                 <div>
+                  <div className="flex items-center justify-between mb-1.5 px-0.5">
+                    <span className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+                      Payment Method
+                    </span>
+                    <span className="text-[10px] font-bold text-muted-foreground/70 bg-muted/60 px-2 py-0.5 rounded-full">
+                      Arrows: Select &middot; Enter: Confirm / Print
+                    </span>
+                  </div>
                   <div className="grid grid-cols-6 gap-2">
                       {paymentOptions.map((opt, idx) => {
                         const isActive = paymentMethod === opt.value;
                         const span = !isCashSettlementEnabled
                           ? (idx < 3 ? 'col-span-2' : 'col-span-3')
                           : 'col-span-2';
+
+                        const shortcutBadge = opt.value === 'CASH' ? 'Alt+1'
+                          : opt.value === 'UPI' ? 'Alt+2'
+                          : opt.value === 'CARD' ? 'Alt+3'
+                          : opt.value === 'CREDIT' ? 'Alt+4'
+                          : opt.value === 'SPLIT' ? 'Alt+5'
+                          : opt.value === 'PENDING' ? 'Alt+6'
+                          : null;
+
+                        const handlePaymentSelect = () => {
+                          if (opt.value === 'UPI') {
+                            updateActiveTab({ paymentMethod: 'UPI' });
+                            if (upiPageConfig.billing && upiSources.length > 0) {
+                              setIsUpiSelectModalOpen(true);
+                            }
+                          } else if (opt.value === 'SPLIT') {
+                            if (paymentMethod === 'SPLIT') {
+                              updateActiveTab({ paymentMethod: 'CASH' });
+                            } else {
+                              if (splitTotal === 0 && displayGrandTotal > 0) {
+                                updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
+                              } else {
+                                updateActiveTab({ paymentMethod: 'SPLIT' });
+                              }
+                            }
+                          } else {
+                            updateActiveTab({ paymentMethod: opt.value });
+                          }
+                        };
+
+                        const handlePaymentOptionKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+                          if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                            e.preventDefault();
+                            const prevIdx = (idx - 1 + paymentOptions.length) % paymentOptions.length;
+                            const prevOpt = paymentOptions[prevIdx];
+                            updateActiveTab({ paymentMethod: prevOpt.value });
+                            setTimeout(() => paymentOptionRefs.current[prevOpt.value]?.focus(), 15);
+                          } else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+                            e.preventDefault();
+                            const nextIdx = (idx + 1) % paymentOptions.length;
+                            const nextOpt = paymentOptions[nextIdx];
+                            updateActiveTab({ paymentMethod: nextOpt.value });
+                            setTimeout(() => paymentOptionRefs.current[nextOpt.value]?.focus(), 15);
+                          } else if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handlePaymentSelect();
+                            if (opt.value === 'CASH' || opt.value === 'CREDIT') {
+                              setTimeout(() => {
+                                receivedInputRef.current?.focus();
+                                receivedInputRef.current?.select();
+                              }, 30);
+                            } else {
+                              handleCheckout();
+                            }
+                          }
+                        };
 
                         // ── In SPLIT mode: Morph Cash, Card, UPI, and Credit buttons into interactive input tiles ──
                         if (paymentMethod === 'SPLIT') {
@@ -6971,9 +7042,11 @@ export function BillingPage() {
                             return (
                               <button
                                 key="SPLIT"
+                                ref={el => { paymentOptionRefs.current['SPLIT'] = el; }}
                                 type="button"
                                 onClick={() => updateActiveTab({ paymentMethod: 'CASH' })}
-                                className={clsx(span, 'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px]')}
+                                onKeyDown={handlePaymentOptionKeyDown}
+                                className={clsx(span, 'flex flex-col items-center justify-center gap-1.5 py-2.5 rounded-2xl border-2 border-purple-500 bg-purple-500/10 text-purple-600 dark:text-purple-400 shadow-sm transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2 focus:ring-purple-500')}
                                 title="Click again to deactivate Split Mode"
                               >
                                 <div className="p-1.5 rounded-xl bg-purple-500/15 transition-colors">
@@ -6990,39 +7063,24 @@ export function BillingPage() {
                         let activeText = '';
                         let activeBorder = '';
                         let activeIconBg = '';
-                        if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; }
-                        if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; }
-                        if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; }
-                        if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; }
-                        if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; }
-                        if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; }
+                        let activeFocusRing = '';
+                        if (opt.value === 'PENDING'){ activeBg = 'bg-gray-500/10';    activeText = 'text-gray-600 dark:text-gray-400';    activeBorder = 'border-gray-500';    activeIconBg = 'bg-gray-500/15'; activeFocusRing = 'focus:ring-gray-500 focus:border-gray-500'; }
+                        if (opt.value === 'CASH')   { activeBg = 'bg-emerald-500/10'; activeText = 'text-emerald-600 dark:text-emerald-400'; activeBorder = 'border-emerald-500'; activeIconBg = 'bg-emerald-500/15'; activeFocusRing = 'focus:ring-emerald-500 focus:border-emerald-500'; }
+                        if (opt.value === 'CARD')   { activeBg = 'bg-blue-500/10';    activeText = 'text-blue-600 dark:text-blue-400';    activeBorder = 'border-blue-500';    activeIconBg = 'bg-blue-500/15'; activeFocusRing = 'focus:ring-blue-500 focus:border-blue-500'; }
+                        if (opt.value === 'UPI')    { activeBg = 'bg-violet-500/10';  activeText = 'text-violet-600 dark:text-violet-400';  activeBorder = 'border-violet-500';  activeIconBg = 'bg-violet-500/15'; activeFocusRing = 'focus:ring-violet-500 focus:border-violet-500'; }
+                        if (opt.value === 'CREDIT') { activeBg = 'bg-amber-500/10';   activeText = 'text-amber-600 dark:text-amber-400';   activeBorder = 'border-amber-500';   activeIconBg = 'bg-amber-500/15'; activeFocusRing = 'focus:ring-amber-500 focus:border-amber-500'; }
+                        if (opt.value === 'SPLIT')  { activeBg = 'bg-purple-500/10';  activeText = 'text-purple-600 dark:text-purple-400';  activeBorder = 'border-purple-500';  activeIconBg = 'bg-purple-500/15'; activeFocusRing = 'focus:ring-purple-500 focus:border-purple-500'; }
 
                         return (
                           <button
                             key={opt.value}
+                            ref={el => { paymentOptionRefs.current[opt.value] = el; }}
                             type="button"
-                            onClick={() => {
-                              if (opt.value === 'UPI') {
-                                updateActiveTab({ paymentMethod: 'UPI' });
-                                if (upiPageConfig.billing && upiSources.length > 0) {
-                                  setIsUpiSelectModalOpen(true);
-                                }
-                              } else if (opt.value === 'SPLIT') {
-                                if (paymentMethod === 'SPLIT') {
-                                  updateActiveTab({ paymentMethod: 'CASH' });
-                                } else {
-                                  if (splitTotal === 0 && displayGrandTotal > 0) {
-                                    updateActiveTab({ paymentMethod: 'SPLIT', splitDetails: { cash: displayGrandTotal, card: 0, upi: 0, bank_transfer: 0 } });
-                                  } else {
-                                    updateActiveTab({ paymentMethod: 'SPLIT' });
-                                  }
-                                }
-                              } else {
-                                updateActiveTab({ paymentMethod: opt.value });
-                              }
-                            }}
+                            onClick={handlePaymentSelect}
+                            onKeyDown={handlePaymentOptionKeyDown}
                             className={clsx(
-                              'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px]',
+                              'flex flex-col items-center justify-center gap-0.5 py-2 rounded-2xl border-2 transition-all duration-200 active:scale-95 cursor-pointer h-[72px] focus:outline-none focus:ring-2',
+                              activeFocusRing,
                               span,
                               isActive
                                 ? `${activeBg} ${activeBorder} ${activeText} shadow-sm`
@@ -7202,13 +7260,13 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         if (input.selectionStart === 0 && input.selectionEnd === input.value.length) {
                           setDiscount(0, discountType);
                         }
-                      } else if (e.key === 'Enter') {
+                      } else if (e.key === 'Enter' || e.key === 'ArrowDown') {
                         e.preventDefault();
                         if (paymentMethod === 'CASH' || paymentMethod === 'CREDIT') {
                           receivedInputRef.current?.focus();
                           receivedInputRef.current?.select();
                         } else {
-                          handleCheckout();
+                          paymentOptionRefs.current[paymentMethod]?.focus();
                         }
                       } else if (e.key === 'ArrowUp') {
                         e.preventDefault();
@@ -7220,10 +7278,6 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                           searchRef.current?.focus();
                           searchRef.current?.select();
                         }
-                      } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        receivedInputRef.current?.focus();
-                        receivedInputRef.current?.select();
                       }
                     }}
                     placeholder="0"
@@ -7652,6 +7706,9 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                         e.preventDefault();
                         discountRef.current?.focus();
                         discountRef.current?.select();
+                      } else if (e.key === 'ArrowLeft' && e.currentTarget.selectionStart === 0) {
+                        e.preventDefault();
+                        paymentOptionRefs.current[paymentMethod]?.focus();
                       }
                     }}
                     placeholder={grandTotal.toFixed(2)}
@@ -7862,7 +7919,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
               {heldBills.map((bill: any) => {
                 const billId = bill.invoice_id || bill.id;
                 const invNum = bill.invoice_number || bill.id?.substring(0, 8) || 'HLD';
-                const createdTime = bill.created_at ? parseUTCDate(bill.created_at).toLocaleString() : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString() : '');
+                const createdTime = bill.created_at ? parseUTCDate(bill.created_at).toLocaleString('en-IN', { timeZone: getStoreTimezone() }) : (bill.heldAt ? parseUTCDate(bill.heldAt).toLocaleString('en-IN', { timeZone: getStoreTimezone() }) : '');
                 const totalAmt = Number(bill.grand_total) || 0;
                 const itemCount = Array.isArray(bill.items) ? bill.items.length : 0;
                 const customer = bill.customer_name || bill.customerName || (bill.customer_phone || bill.customerPhone ? (bill.customer_phone || bill.customerPhone) : 'Walk-in Customer');
@@ -7957,7 +8014,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                       <div className="col-span-2 text-right font-semibold">{Number(tx.quantity).toFixed(3)}</div>
                       <div className="col-span-2 text-right font-semibold">{formatCurrency(tx.rate)}</div>
                       <div className="col-span-2 text-right font-bold text-orange-600">{formatCurrency(tx.total_amount)}</div>
-                      <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN')}</div>
+                      <div className="col-span-2 text-center text-xs text-muted-foreground">{parseUTCDate(tx.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</div>
                     </div>
                   ))}
                 </div>
@@ -8066,7 +8123,7 @@ className="w-full bg-background border border-border rounded-lg p-2 text-sm text
                 <div className="flex-1 min-w-0">
                   <div className="text-xs font-bold text-foreground truncate">{inv.invoice_number}</div>
                   <div className="text-[10px] text-muted-foreground">
-                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString('en-IN')}
+                    <span className="text-amber-500 font-semibold">Pending</span> · {Number(inv.total_qty || 0).toFixed(1)} qty · {parseUTCDate(inv.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}
                   </div>
                 </div>
                 <div className="text-xs font-black text-orange-600">{formatCurrency(inv.total_amount)}</div>

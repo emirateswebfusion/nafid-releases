@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
+import { parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 import { useAuthStore } from '../store/authStore';
-import { Plus, X, Search, Printer, Shield, ShieldCheck, Trash, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
+import { Plus, X, Search, Printer, Shield, ShieldCheck, Trash, Trash2, AlertCircle, RefreshCw, Clock, AlertTriangle, CheckCircle, User, Package, FileText, Calendar } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
+import { Modal } from './ui/Modal';
 
 interface Warranty {
   warranty_id: string;
@@ -87,11 +90,30 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
     setTimeout(() => setStatusMessage(null), 3000);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this warranty record?')) return;
-    if (window.electronAPI) {
-      await window.electronAPI.dbDeleteWarranty(id);
-      loadWarranties();
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [warrantyToDelete, setWarrantyToDelete] = useState<Warranty | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const handleDelete = (w: Warranty) => {
+    setWarrantyToDelete(w);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteWarranty = async () => {
+    if (!warrantyToDelete) return;
+    setDeleteSaving(true);
+    try {
+      if (window.electronAPI) {
+        await window.electronAPI.dbDeleteWarranty(warrantyToDelete.warranty_id);
+        setStatusMessage({ text: 'Warranty deleted', type: 'success' });
+        setDeleteConfirmOpen(false);
+        setWarrantyToDelete(null);
+        loadWarranties();
+      }
+    } catch {
+      setStatusMessage({ text: 'Delete failed', type: 'error' });
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -127,7 +149,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
             </div>
             ${content}
             <div class="footer">
-              <p>This warranty is valid from ${new Date(warranty.purchase_date).toLocaleDateString('en-IN')} to ${new Date(warranty.expiry_date).toLocaleDateString('en-IN')}</p>
+              <p>This warranty is valid from ${parseUTCDate(warranty.purchase_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })} to ${parseUTCDate(warranty.expiry_date).toLocaleDateString('en-IN', { timeZone: getStoreTimezone() })}</p>
               <p>Please present this card for any warranty service.</p>
             </div>
             <div class="stamp">
@@ -161,8 +183,9 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
   };
 
   const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' });
+    const tz = getStoreTimezone();
+    const d = parseUTCDate(dateStr);
+    return d.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'long', year: 'numeric' });
   };
 
   const isExpired = (expiry: string) => new Date(expiry) < new Date();
@@ -314,7 +337,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                         <button onClick={() => handlePrint(w)} className="p-1.5 text-muted-foreground hover:text-primary hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer" title="Print">
                           <Printer className="w-4 h-4" />
                         </button>
-                        <button onClick={() => handleDelete(w.warranty_id)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer" title="Delete">
+                        <button onClick={() => handleDelete(w)} className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-muted rounded-lg transition-all active:scale-95 cursor-pointer" title="Delete">
                           <Trash className="w-4 h-4" />
                         </button>
                       </div>
@@ -419,7 +442,8 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           {selectedWarranty && (
             <div>
               <table>
-                <tr><td className="label">Customer Name</td><td>{selectedWarranty.customer_name}</td></tr>
+                <tbody>
+                  <tr><td className="label">Customer Name</td><td>{selectedWarranty.customer_name}</td></tr>
                 <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '�'}</td></tr>
                 <tr><td className="label">Product</td><td>{selectedWarranty.product_name}</td></tr>
                 <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '�'}</td></tr>
@@ -427,11 +451,58 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
                 <tr><td className="label">Warranty Period</td><td>{selectedWarranty.warranty_period_days} Days</td></tr>
                 <tr><td className="label">Expiry Date</td><td>{formatDate(selectedWarranty.expiry_date)}</td></tr>
                 <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '�'}</td></tr>
+                </tbody>
               </table>
             </div>
           )}
         </div>
       </div>
+
+      {/* Delete Warranty Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setWarrantyToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Warranty Record</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete warranty record for <strong>"{warrantyToDelete?.product_name}"</strong> ({warrantyToDelete?.customer_name}).
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setWarrantyToDelete(null); }}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteWarranty}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Warranty</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

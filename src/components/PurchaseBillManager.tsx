@@ -1,7 +1,7 @@
 import { useState, useEffect, Fragment, forwardRef, useImperativeHandle, useRef, useMemo } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
-  Search, Package, X, Trash, FileText, Calendar, User,
+  Search, Package, X, Trash, Trash2, FileText, Calendar, User,
   CheckCircle2, AlertCircle, Plus, Save,
   Receipt, Tag, RefreshCw, Eye, Download, Pencil, Send, LayoutGrid, List,
   UserPlus, Loader2, Phone, MapPin, UserCircle, Banknote, Check, Layers, Printer
@@ -14,6 +14,8 @@ import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
+import { parseUTCDate } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 
 interface PurchaseBill {
   purchase_bill_id: string;
@@ -72,9 +74,10 @@ interface Product {
 
 const formatDate = (d: string) => {
   if (!d) return '—';
-  const date = new Date(d.replace(' ', 'T'));
+  const tz = getStoreTimezone();
+  const date = parseUTCDate(d);
   if (isNaN(date.getTime())) return d;
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return date.toLocaleDateString('en-IN', { timeZone: tz, day: '2-digit', month: 'short', year: 'numeric' });
 };
 
 export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { onClose: () => void; isRestricted?: boolean }) {
@@ -95,6 +98,10 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
   const [isExporting, setIsExporting] = useState(false);
   const [editingBill, setEditingBill] = useState<PurchaseBill | null>(null);
   const [editHasItems, setEditHasItems] = useState(false);
+
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [billToDelete, setBillToDelete] = useState<PurchaseBill | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
 
   // derived — apply type, invoice, and date filters on top of the server-side search results
   const filteredBills = useMemo(() => {
@@ -326,17 +333,31 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
     setShowAddForm(true);
   };
 
-  const handleDelete = async (bill: PurchaseBill) => {
-    if (!confirm(`Delete purchase bill "${bill.bill_number}" from ${bill.supplier_name}?`)) return;
-    if (window.electronAPI) {
-      const res = await window.electronAPI.dbDeletePurchaseBill(bill.purchase_bill_id);
-      if (res.success) {
-        setBills(prev => prev.filter(b => b.purchase_bill_id !== bill.purchase_bill_id));
-        setStatusMessage({ text: 'Purchase bill deleted', type: 'success' });
-      } else {
-        setStatusMessage({ text: 'Delete failed: ' + (res.error || ''), type: 'error' });
+  const handleDelete = (bill: PurchaseBill) => {
+    setBillToDelete(bill);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteBill = async () => {
+    if (!billToDelete) return;
+    setDeleteSaving(true);
+    try {
+      if (window.electronAPI) {
+        const res = await window.electronAPI.dbDeletePurchaseBill(billToDelete.purchase_bill_id);
+        if (res.success) {
+          setBills(prev => prev.filter(b => b.purchase_bill_id !== billToDelete.purchase_bill_id));
+          setStatusMessage({ text: 'Purchase bill deleted', type: 'success' });
+          setDeleteConfirmOpen(false);
+          setBillToDelete(null);
+        } else {
+          setStatusMessage({ text: 'Delete failed: ' + (res.error || ''), type: 'error' });
+        }
+        setTimeout(() => setStatusMessage(null), 3000);
       }
-      setTimeout(() => setStatusMessage(null), 3000);
+    } catch {
+      setStatusMessage({ text: 'Delete failed', type: 'error' });
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -1566,6 +1587,53 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           </div>
         </div>
       )}
+
+      {/* Delete Purchase Bill Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setBillToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Purchase Bill</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete purchase bill <strong>{billToDelete?.bill_number}</strong>
+              {billToDelete?.supplier_name && <> from <strong>{billToDelete.supplier_name}</strong></>}.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setBillToDelete(null); }}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteBill}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Bill</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

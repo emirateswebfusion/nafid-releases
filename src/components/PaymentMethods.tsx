@@ -6,13 +6,15 @@ import { Select } from '../components/ui/Select';
 import { Skeleton } from '../components/ui/Skeleton';
 import clsx from 'clsx';
 import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
+import { getStoreTimezone } from '../utils/timezoneHelper';
 import { getUpiPageConfig, saveUpiPageConfig, type UpiPageConfig, DEFAULT_UPI_PAGE_CONFIG } from '../utils/upiConfig';
 import {
   Landmark, CreditCard, Smartphone, Plus, Pencil, Trash2, X, ArrowDownToLine,
   ArrowUpFromLine, Star, History, Wallet, CheckCircle2, AlertCircle, Search,
   Copy, Check, Sparkles, Lock, ShieldCheck, ArrowUpRight, Layers, ShoppingCart,
-  FileText, Settings2, ToggleLeft, ToggleRight
+  FileText, Settings2, ToggleLeft, ToggleRight, RefreshCw
 } from 'lucide-react';
+import { Modal } from './ui/Modal';
 
 type View = 'list' | 'form' | 'transactions';
 
@@ -52,8 +54,10 @@ const formatCurrency = (amount: number | undefined | null) =>
 
 const formatDateTime = (d: string) => {
   if (!d) return '—';
+  const tz = getStoreTimezone();
   try {
     return parseUTCDate(d).toLocaleString('en-IN', {
+      timeZone: tz,
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -63,6 +67,7 @@ const formatDateTime = (d: string) => {
     });
   } catch {
     return new Date(d).toLocaleString('en-IN', {
+      timeZone: tz,
       day: '2-digit',
       month: 'short',
       year: 'numeric',
@@ -318,14 +323,32 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
     }
   };
 
-  const deleteSource = async (s: PaymentSource) => {
-    if (!window.confirm(`Delete payment method "${s.name}"?\nExisting transaction history will be preserved.`)) return;
-    const res = await window.electronAPI!.dbPaymentDeleteSource({ source_id: s.source_id, tenant_id: tenantId || '' });
-    if (res.success) {
-      showMessage('Payment method deleted');
-      await loadSources();
-    } else {
-      showMessage(res.error || 'Failed to delete payment method', 'error');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [sourceToDelete, setSourceToDelete] = useState<PaymentSource | null>(null);
+  const [deleteSaving, setDeleteSaving] = useState(false);
+
+  const deleteSource = (s: PaymentSource) => {
+    setSourceToDelete(s);
+    setDeleteConfirmOpen(true);
+  };
+
+  const confirmDeleteSource = async () => {
+    if (!sourceToDelete) return;
+    setDeleteSaving(true);
+    try {
+      const res = await window.electronAPI!.dbPaymentDeleteSource({ source_id: sourceToDelete.source_id, tenant_id: tenantId || '' });
+      if (res.success) {
+        showMessage('Payment method deleted');
+        setDeleteConfirmOpen(false);
+        setSourceToDelete(null);
+        await loadSources();
+      } else {
+        showMessage(res.error || 'Failed to delete payment method', 'error');
+      }
+    } catch {
+      showMessage('Delete failed', 'error');
+    } finally {
+      setDeleteSaving(false);
     }
   };
 
@@ -1610,6 +1633,51 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
           </div>
         )}
       </div>
+      {/* Delete Payment Source Confirmation Modal */}
+      <Modal
+        isOpen={deleteConfirmOpen}
+        onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setSourceToDelete(null); } }}
+        closeButton={null}
+        title={
+          <div className="flex items-center gap-2.5 font-bold text-foreground">
+            <Trash2 className="w-5 h-5 text-red-500" />
+            <span>Delete Payment Method</span>
+          </div>
+        }
+      >
+        <div className="space-y-4 min-w-[400px] text-foreground">
+          <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+            <p className="text-sm font-bold text-red-600 dark:text-red-400 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4" />
+              Are you sure?
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              This will permanently delete payment method <strong>"{sourceToDelete?.name}"</strong>. Existing transaction history will be preserved.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <button
+              onClick={() => { setDeleteConfirmOpen(false); setSourceToDelete(null); }}
+              disabled={deleteSaving}
+              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeleteSource}
+              disabled={deleteSaving}
+              className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
+            >
+              {deleteSaving ? (
+                <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Deleting...</>
+              ) : (
+                <><Trash2 className="w-3.5 h-3.5" /> Delete Method</>
+              )}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
