@@ -1,3 +1,10 @@
+# Vendora v1.5.69 Release Notes
+
+## What's Changed
+- Integrated DigitalClock component and enhanced POS components (`BillingPage`, `SalesHistory`, `SettingsManager`, `SettingsPricingTiers`, `StaffManager`)
+- Updated Electron main process IPC bridges, preload security definitions, tab store state handling, and local DB synchronization
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.68...v1.5.69
+
 # Vendora v1.5.68 Release Notes
 
 ## What's Changed

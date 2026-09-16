@@ -246,14 +246,18 @@ function parseCleanDate(dStr: any, timeZone: string = 'Asia/Kolkata'): string {
     }
   }
   const str = String(dStr).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+
+  // 1. Match YYYY-MM-DD or YYYY/MM/DD at start
+  const yyyymmdd = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (yyyymmdd) {
+    return `${yyyymmdd[1]}-${yyyymmdd[2]}-${yyyymmdd[3]}`;
+  }
+
+  // 2. Match DD-MM-YYYY or DD/MM/YYYY at start
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
-
-  const match = str.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (match) return match[1];
 
   let formatted = str.replace(/Z$/i, '');
   if (formatted.includes(' ')) formatted = formatted.replace(' ', 'T');
@@ -3138,21 +3142,19 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     const db = getDb();
     const { user_id, tenant_id, role, limit, offset, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent } = filters || {};
 
-    if (!tenant_id) {
-      return []; // Safety: always require tenant_id
-    }
+    const activeTenantId = tenant_id || 'global';
 
     let query = `
       SELECT i.*, u.name as biller_name,
         COALESCE((SELECT COUNT(*) FROM invoice_items ii WHERE ii.invoice_id = i.invoice_id), 0) as item_count
       FROM invoices i 
       LEFT JOIN users u ON i.user_id = u.user_id 
-      WHERE i.tenant_id = ? 
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
-    const params: any[] = [tenant_id];
+    const params: any[] = [activeTenantId];
 
     // Only filter by user_id if explicitly requested (e.g. only_user_invoices flag)
     if (filters?.only_user_invoices && user_id) {
@@ -3166,8 +3168,15 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     }
 
     if (payment_method) {
-      query += ' AND i.payment_method = ?';
-      params.push(payment_method);
+      const pmUpper = payment_method.toUpperCase();
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'].includes(pmUpper)) {
+        const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
+        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+        params.push(pmUpper);
+      } else {
+        query += ' AND UPPER(i.payment_method) = ?';
+        params.push(pmUpper);
+      }
     }
 
     if (invoice_type === 'GST_B2B') {
@@ -3196,12 +3205,21 @@ ipcMain.handle('db:getInvoices', (event, filters?: { user_id?: string; tenant_id
     }
 
     if (filterDate) {
-      query += ' AND i.created_at >= ?';
-      params.push(filterDate);
-    }
-    if (filterDateEnd) {
-      query += ' AND i.created_at <= ?';
-      params.push(filterDateEnd + ' 23:59:59');
+      const cleanStart = parseCleanDate(filterDate);
+      const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
+      const partsS = cleanStart.split('-');
+      const altStart = partsS.length === 3 ? `${partsS[2]}-${partsS[1]}-${partsS[0]}` : cleanStart;
+      const partsE = cleanEnd.split('-');
+      const altEnd = partsE.length === 3 ? `${partsE[2]}-${partsE[1]}-${partsE[0]}` : cleanEnd;
+
+      query += ` AND (
+        substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ? 
+        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
+        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
+        OR COALESCE(i.settled_at, i.created_at) LIKE ?
+        OR COALESCE(i.settled_at, i.created_at) LIKE ?
+      )`;
+      params.push(cleanStart, altStart, cleanStart, cleanEnd, `${cleanStart}%`, `${altStart}%`);
     }
 
     query += ' ORDER BY i.created_at DESC, i.invoice_id ASC';
@@ -3229,25 +3247,33 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     const db = getDb();
     const { user_id, tenant_id, role, search, payment_method, invoice_type, filterDate, filterDateEnd, tax_rate_percent } = filters || {};
 
-    if (!tenant_id) {
-      return { totalSales: 0, totalInvoices: 0, totalTax: 0, totalDiscount: 0, avgOrder: 0 };
-    }
+    const activeTenantId = tenant_id || 'global';
+
+    // Determine the split_details JSON key for the active payment method filter
+    const splitJsonKey = payment_method && ['CASH','UPI','CARD','BANK_TRANSFER','CREDIT'].includes(payment_method.toUpperCase())
+      ? (payment_method.toUpperCase() === 'BANK_TRANSFER' ? 'bank_transfer' : payment_method.toLowerCase())
+      : null;
 
     let query = `
       SELECT 
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN 
-          MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+          CASE
+            WHEN UPPER(i.payment_method) = 'SPLIT' AND i.split_details IS NOT NULL AND ${splitJsonKey ? `'${splitJsonKey}' IS NOT NULL` : `1=0`}
+              THEN CAST(COALESCE(json_extract(i.split_details, '$.${splitJsonKey || 'cash'}'), 0) AS REAL)
+            ELSE MIN(i.grand_total, MAX(0, COALESCE(i.subtotal, 0) + COALESCE(i.tax_total, 0) - COALESCE(i.discount_total, 0) - COALESCE(i.points_redeemed_discount, 0) - COALESCE(i.scrap_deduction, 0) - COALESCE(i.return_deduction, 0)))
+          END
         ELSE 0 END), 0) as totalSales,
         COUNT(CASE WHEN i.converted_to_invoice_id IS NULL THEN 1 END) as totalInvoices,
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.tax_total ELSE 0 END), 0) as totalTax,
         COALESCE(SUM(CASE WHEN i.converted_to_invoice_id IS NULL THEN i.discount_total ELSE 0 END), 0) as totalDiscount
       FROM invoices i 
-      WHERE i.tenant_id = ? 
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND (i.is_deleted IS NULL OR i.is_deleted = 0 OR i.is_deleted = '0' OR i.is_deleted = '0.0' OR i.is_deleted = 0.0)
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
     `;
-    const params: any[] = [tenant_id];
+    const params: any[] = [activeTenantId];
+
 
     if (filters?.only_user_invoices && user_id) {
       query += ' AND i.user_id = ?';
@@ -3260,8 +3286,15 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     }
 
     if (payment_method) {
-      query += ' AND i.payment_method = ?';
-      params.push(payment_method);
+      const pmUpper = payment_method.toUpperCase();
+      if (['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'].includes(pmUpper)) {
+        const jsonKey = pmUpper === 'BANK_TRANSFER' ? 'bank_transfer' : pmUpper.toLowerCase();
+        query += ` AND (UPPER(i.payment_method) = ? OR (UPPER(i.payment_method) = 'SPLIT' AND CAST(json_extract(i.split_details, '$.${jsonKey}') AS REAL) > 0))`;
+        params.push(pmUpper);
+      } else {
+        query += ' AND UPPER(i.payment_method) = ?';
+        params.push(pmUpper);
+      }
     }
 
     if (invoice_type === 'GST_B2B') {
@@ -3290,19 +3323,28 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
     }
 
     if (filterDate) {
-      query += ' AND i.created_at >= ?';
-      params.push(filterDate);
-    }
-    if (filterDateEnd) {
-      query += ' AND i.created_at <= ?';
-      params.push(filterDateEnd + ' 23:59:59');
+      const cleanStart = parseCleanDate(filterDate);
+      const cleanEnd = filterDateEnd ? parseCleanDate(filterDateEnd) : cleanStart;
+      const partsS = cleanStart.split('-');
+      const altStart = partsS.length === 3 ? `${partsS[2]}-${partsS[1]}-${partsS[0]}` : cleanStart;
+      const partsE = cleanEnd.split('-');
+      const altEnd = partsE.length === 3 ? `${partsE[2]}-${partsE[1]}-${partsE[0]}` : cleanEnd;
+
+      query += ` AND (
+        substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ? 
+        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = ?
+        OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) BETWEEN ? AND ?
+        OR COALESCE(i.settled_at, i.created_at) LIKE ?
+        OR COALESCE(i.settled_at, i.created_at) LIKE ?
+      )`;
+      params.push(cleanStart, altStart, cleanStart, cleanEnd, `${cleanStart}%`, `${altStart}%`);
     }
 
     const row = db.prepare(query).get(...params) as any;
     const totalSales = row ? Number(row.totalSales) || 0 : 0;
     const totalInvoices = row ? Number(row.totalInvoices) || 0 : 0;
     const totalTax = row ? Number(row.totalTax) || 0 : 0;
-    const totalDiscount = row ? Number(row.totalDiscount) || 0 : 0;
+    const totalDiscount = row ? Number(row.discount_total) || 0 : 0;
     const avgOrder = totalInvoices > 0 ? totalSales / totalInvoices : 0;
 
     return { totalSales, totalInvoices, totalTax, totalDiscount, avgOrder };
@@ -3320,7 +3362,7 @@ ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
     const row = db.prepare(`
       SELECT COALESCE(SUM(MIN(grand_total, MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
-      WHERE tenant_id = ? 
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
         AND created_at >= ? 
         AND converted_to_invoice_id IS NULL 
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
@@ -6172,13 +6214,59 @@ ipcMain.handle('db:generateBarcode', (event, { tenant_id, item_code, strip_suffi
 
 // ── Cash Drawer Helpers ───────────────────────────────────────────────────────
 
-function getOpenCashDrawer(db: any, tenantId: string, dateStr?: string): any {
-  const date = dateStr ? (typeof dateStr === 'string' ? dateStr.slice(0, 10) : localDate(new Date(dateStr))) : localDate();
-  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?) AND status = 'OPEN'`).get(tenantId, date, date, `${date}%`) as any;
-  if (!drawer) {
-    drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenantId) as any;
+function deduplicateAndGetOpenDrawer(db: any, tenantId: string, dateStr?: string): any {
+  if (!db) return null;
+  const activeTenantId = tenantId || 'global';
+  const storeTz = getStoreTimezoneSetting(db, activeTenantId);
+  const cleanDate = dateStr ? parseCleanDate(dateStr, storeTz) : localDate();
+  const parts = cleanDate.split('-');
+  const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
+  const dateLike = `${cleanDate}%`;
+
+  const candidates = db.prepare(`
+    SELECT * FROM cash_drawer 
+    WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+      AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?)
+    ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, current_cash DESC, created_at DESC
+  `).all(activeTenantId, cleanDate, altDate, cleanDate, dateLike, cleanDate, altDate) as any[];
+
+  let primary: any = null;
+  if (candidates && candidates.length > 0) {
+    primary = candidates[0];
+  } else {
+    const openCandidates = db.prepare(`
+      SELECT * FROM cash_drawer 
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+        AND status = 'OPEN' 
+      ORDER BY business_date DESC, created_at DESC
+    `).all(activeTenantId) as any[];
+    if (openCandidates && openCandidates.length > 0) {
+      primary = openCandidates[0];
+    }
   }
-  return drawer || null;
+
+  if (!primary) return null;
+
+  if (candidates && candidates.length > 1) {
+    for (let i = 1; i < candidates.length; i++) {
+      const dup = candidates[i];
+      if (dup.drawer_id !== primary.drawer_id) {
+        try {
+          db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ?`).run(primary.drawer_id, dup.drawer_id);
+          db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ?`).run(primary.drawer_id, dup.drawer_id);
+          if (dup.status === 'OPEN') {
+            db.prepare(`UPDATE cash_drawer SET status = 'CLOSED', closing_remarks = 'Merged duplicate drawer' WHERE drawer_id = ?`).run(dup.drawer_id);
+          }
+        } catch {}
+      }
+    }
+  }
+
+  return reconcileCashDrawer(db, activeTenantId, primary);
+}
+
+function getOpenCashDrawer(db: any, tenantId: string, dateStr?: string): any {
+  return deduplicateAndGetOpenDrawer(db, tenantId, dateStr);
 }
 
 function getCashAmountFromInvoice(inv: any): number {
@@ -6214,14 +6302,17 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
   try {
     const storeTz = getStoreTimezoneSetting(db, tenantId);
     const cleanDate = parseCleanDate(drawer.business_date, storeTz);
-    const dateLike = `${cleanDate}%`;
+    const parts = cleanDate.split('-');
+    const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
+    const dateLike1 = `${cleanDate}%`;
+    const dateLike2 = `${altDate}%`;
 
     // Calculate total cash sales from settled cash invoices & cash portion of split invoices for this business date
     const salesRow = db.prepare(`
       SELECT 
         COALESCE(SUM(
           CASE 
-            WHEN payment_method = 'CASH' THEN (
+            WHEN UPPER(payment_method) = 'CASH' THEN (
               CASE 
                 WHEN (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0)) <= 0 THEN 0
                 WHEN received_amount > 0 AND received_amount < (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
@@ -6229,7 +6320,7 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
                 ELSE MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
               END
             )
-            WHEN payment_method = 'SPLIT' AND split_details IS NOT NULL THEN (
+            WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
               CASE 
                 WHEN json_extract(split_details, '$.cash') IS NOT NULL 
                 THEN MIN(
@@ -6243,17 +6334,20 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
           END
         ), 0) AS total_cash_sales
       FROM invoices
-      WHERE tenant_id = ?
-        AND payment_method IN ('CASH', 'SPLIT')
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND UPPER(payment_method) IN ('CASH', 'SPLIT')
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
         AND (
-          substr(COALESCE(settled_at, created_at), 1, 10) = ? 
+          substr(COALESCE(settled_at, created_at), 1, 10) = ?
+          OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
+          OR date(COALESCE(settled_at, created_at)) = ?
           OR date(COALESCE(settled_at, created_at)) = ?
           OR COALESCE(settled_at, created_at) LIKE ?
+          OR COALESCE(settled_at, created_at) LIKE ?
         )
-    `).get(tenantId, cleanDate, cleanDate, dateLike) as any;
+    `).get(tenantId, cleanDate, altDate, cleanDate, altDate, dateLike1, dateLike2) as any;
 
     const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
 
@@ -6263,12 +6357,12 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
         COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
         COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
       FROM cash_transactions 
-      WHERE tenant_id = ? AND (
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (
         drawer_id = ? 
-        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?))
-        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?
+        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?))
+        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ? OR substr(transaction_date, 1, 10) = ?
       )
-    `).get(tenantId, drawer.drawer_id, tenantId, cleanDate, cleanDate, dateLike, cleanDate, cleanDate, dateLike, cleanDate) as any;
+    `).get(tenantId, drawer.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
 
     const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
     const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
@@ -6311,7 +6405,7 @@ function autoClosePastOpenDrawers(db: any, tenantId: string) {
     const today = localDate();
     const openDrawers = db.prepare(`
       SELECT * FROM cash_drawer
-      WHERE tenant_id = ? AND status = 'OPEN'
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN'
     `).all(tenantId) as any[];
 
     if (Array.isArray(openDrawers) && openDrawers.length > 0) {
@@ -6360,11 +6454,7 @@ function adjustCashDrawerForInvoice(
     } catch {}
   }
 
-  let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenantId, businessDate, businessDate, `${businessDate}%`) as any;
-
-  if (!drawer) {
-    drawer = getOpenCashDrawer(db, tenantId, businessDate);
-  }
+  let drawer = deduplicateAndGetOpenDrawer(db, tenantId, businessDate);
 
   if (!drawer && tenantId) {
     try {
@@ -6404,10 +6494,10 @@ function adjustPaymentSourcesForInvoice(
       if (amount <= 0) return;
       let source: any = null;
       if (sourceId) {
-        source = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND tenant_id = ? AND is_deleted = 0`).get(sourceId, tenantId) as any;
+        source = db.prepare(`SELECT * FROM payment_sources WHERE source_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND is_deleted = 0`).get(sourceId, tenantId) as any;
       }
       if (!source) {
-        source = db.prepare(`SELECT * FROM payment_sources WHERE tenant_id = ? AND type = ? AND is_deleted = 0 AND is_enabled = 1 ORDER BY is_default DESC, sort_order ASC LIMIT 1`).get(tenantId, sourceType) as any;
+        source = db.prepare(`SELECT * FROM payment_sources WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND type = ? AND is_deleted = 0 AND is_enabled = 1 ORDER BY is_default DESC, sort_order ASC LIMIT 1`).get(tenantId, sourceType) as any;
       }
       if (source) {
         const delta = isDeleteOrCancel ? -amount : amount;
@@ -6424,8 +6514,8 @@ function adjustPaymentSourcesForInvoice(
           newBalance, invoice.user_id || 'system', invoice.user_name || null
         );
 
-        db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ? AND tenant_id = ?`)
-          .run(newBalance, source.source_id, tenantId);
+        db.prepare(`UPDATE payment_sources SET current_balance = ?, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE source_id = ?`)
+          .run(newBalance, source.source_id);
       }
     };
 
@@ -6460,17 +6550,7 @@ ipcMain.handle('db:cashier:getDrawer', (event, { tenant_id, business_date }: { t
   try {
     const db = getDb();
     autoClosePastOpenDrawers(db, tenant_id);
-    const date = business_date ? parseCleanDate(business_date) : localDate();
-    let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
-    if (!drawer) {
-      drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
-    }
-
-    if (drawer) {
-      drawer = reconcileCashDrawer(db, tenant_id, drawer);
-    }
-
-    return drawer || null;
+    return deduplicateAndGetOpenDrawer(db, tenant_id, business_date);
   } catch (error: any) {
     console.error(`[Cashier] getDrawer error:`, error.message);
     return { error: 'Operation failed' };
@@ -6579,9 +6659,10 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
   
   try {
     const tx = db.transaction(() => {
-      const invoice = db.prepare(`SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?`).get(invoice_id, tenant_id) as any;
+      const invoice = (db.prepare(`SELECT * FROM invoices WHERE invoice_id = ?`).get(invoice_id) || db.prepare(`SELECT * FROM invoices WHERE invoice_id = ? AND tenant_id = ?`).get(invoice_id, tenant_id)) as any;
       if (!invoice) throw new Error('Invoice not found');
       
+      const targetTenantId = invoice.tenant_id || tenant_id || 'global';
       const subtotal = Number(invoice.subtotal) || 0;
       const taxTotal = Number(invoice.tax_total) || 0;
       const prevDiscount = Number(invoice.discount_total) || 0;
@@ -6593,6 +6674,8 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
       const newGrandTotal = Math.max(0, subtotal + taxTotal - newDiscountTotal);
       const discountValue = newDiscountTotal;
       const discountType = 'FIXED';
+
+      const splitStr = split_details ? (typeof split_details === 'object' ? JSON.stringify(split_details) : split_details) : null;
 
       db.prepare(`
         UPDATE invoices SET 
@@ -6606,11 +6689,11 @@ ipcMain.handle('db:cashier:settlePayment', safeHandler((event, { tenant_id, invo
           settled_at = CURRENT_TIMESTAMP,
           sync_status = 'PENDING', 
           updated_at = CURRENT_TIMESTAMP
-        WHERE invoice_id = ? AND tenant_id = ?
-      `).run(payment_method, split_details ? (typeof split_details === 'object' ? JSON.stringify(split_details) : split_details) : null, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id, tenant_id);
+        WHERE invoice_id = ?
+      `).run(payment_method, splitStr, received, newDiscountTotal, discountValue, discountType, newGrandTotal, invoice_id);
       
       const date = localDate();
-      const drawer = getOpenCashDrawer(db, tenant_id, date);
+      const drawer = getOpenCashDrawer(db, targetTenantId, date);
 
       if (payment_method === 'CASH' || (payment_method === 'SPLIT' && split_details?.cash)) {
         if (drawer) {
@@ -6735,10 +6818,22 @@ ipcMain.handle('db:cashier:dayClosing', safeHandler((event, { tenant_id, actual_
     let cash_excess = 0;
 
     const tx = db.transaction(() => {
-      const date = business_date ? (typeof business_date === 'string' ? business_date.slice(0, 10) : localDate(new Date(business_date))) : localDate();
-      let drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)`).get(tenant_id, date, date, `${date}%`) as any;
+      const date = business_date ? (typeof business_date === 'string' ? parseCleanDate(business_date) : localDate(new Date(business_date))) : localDate();
+      const parts = date.split('-');
+      const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : date;
+      let drawer = db.prepare(`
+        SELECT * FROM cash_drawer 
+        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+          AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?)
+        ORDER BY created_at DESC LIMIT 1
+      `).get(tenant_id, date, altDate, date, `${date}%`, date, altDate) as any;
       if (!drawer) {
-        drawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).get(tenant_id) as any;
+        drawer = db.prepare(`
+          SELECT * FROM cash_drawer 
+          WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+            AND status = 'OPEN' 
+          ORDER BY business_date DESC, created_at DESC LIMIT 1
+        `).get(tenant_id) as any;
       }
       if (!drawer) throw new Error(`No open cash drawer found for ${date}`);
       
@@ -6802,16 +6897,16 @@ ipcMain.handle('db:cashier:getTransactions', (event, { tenant_id }: { tenant_id:
     const db = getDb();
     const date = localDate();
     const dateLike = `${date}%`;
-    let drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, date, date, dateLike, date) as any[];
+    let drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, date, date, dateLike, date) as any[];
     if (!drawers || drawers.length === 0) {
-      drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).all(tenant_id) as any[];
+      drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN' ORDER BY business_date DESC LIMIT 1`).all(tenant_id) as any[];
     }
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
-      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, date, dateLike, date);
+      return db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, date, dateLike, date);
     }
     const placeholders = drawerIds.map(() => '?').join(',');
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, date, dateLike, date);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, date, dateLike, date);
   } catch (error: any) {
     console.error('[db:cashier:getTransactions]', error);
     return { error: 'Operation failed' };
@@ -6826,12 +6921,12 @@ ipcMain.handle('db:cashier:getHistory', (event, { tenant_id, limit = 30, offset 
       SELECT cd.*,
         u1.name as opened_by_name,
         u2.name as closed_by_name,
-        (SELECT COUNT(*) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
-        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE i.tenant_id = cd.tenant_id AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
+        (SELECT COUNT(*) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as settled_count,
+        (SELECT COALESCE(SUM(i.received_amount), 0) FROM invoices i WHERE (i.tenant_id = cd.tenant_id OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD')) AND (i.is_held IS NULL OR i.is_held = 0) AND (date(COALESCE(i.settled_at, i.created_at)) = date(cd.business_date) OR COALESCE(i.settled_at, i.created_at) LIKE SUBSTR(cd.business_date, 1, 10) || '%' OR substr(COALESCE(i.settled_at, i.created_at), 1, 10) = SUBSTR(cd.business_date, 1, 10)) AND (i.is_deleted IS NULL OR i.is_deleted = 0)) as total_collected
       FROM cash_drawer cd
       LEFT JOIN users u1 ON cd.opened_by = u1.user_id
       LEFT JOIN users u2 ON cd.closed_by = u2.user_id
-      WHERE cd.tenant_id = ?
+      WHERE (cd.tenant_id = ? OR cd.tenant_id = 'global' OR cd.tenant_id = 'unset' OR cd.tenant_id IS NULL)
       ORDER BY cd.business_date DESC
       LIMIT ? OFFSET ?
     `).all(tenant_id, limit, offset) as any[];
@@ -6855,7 +6950,7 @@ ipcMain.handle('db:cashier:getDaySettlements', (event, { tenant_id, business_dat
       SELECT i.*, u.name as biller_name
       FROM invoices i
       LEFT JOIN users u ON i.user_id = u.user_id
-      WHERE i.tenant_id = ? 
+      WHERE (i.tenant_id = ? OR i.tenant_id = 'global' OR i.tenant_id = 'unset' OR i.tenant_id IS NULL) 
         AND i.payment_method NOT IN ('PENDING', 'HOLD_DRAFT') 
         AND (i.invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (i.is_held IS NULL OR i.is_held = 0)
@@ -6878,13 +6973,13 @@ ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_da
     const db = getDb();
     const cleanDate = business_date ? business_date.split('T')[0].split(' ')[0] : '';
     const dateLike = `${cleanDate}%`;
-    const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as any[];
+    const drawers = db.prepare(`SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ?)`).all(tenant_id, cleanDate, cleanDate, dateLike, cleanDate) as any[];
     const drawerIds = (drawers || []).map(d => d.drawer_id).filter(Boolean);
     if (drawerIds.length === 0) {
-      return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, cleanDate, dateLike, cleanDate);
+      return db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, cleanDate, dateLike, cleanDate);
     }
     const placeholders = drawerIds.map(() => '?').join(',');
-    return db.prepare(`SELECT * FROM cash_transactions WHERE tenant_id = ? AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate);
+    return db.prepare(`SELECT * FROM cash_transactions WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (drawer_id IN (${placeholders}) OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ?) ORDER BY transaction_date DESC`).all(tenant_id, ...drawerIds, cleanDate, dateLike, cleanDate);
   } catch (error: any) {
     console.error('[db:cashier:getDayTransactions]', error);
     return { error: 'Operation failed' };
@@ -6894,7 +6989,7 @@ ipcMain.handle('db:cashier:getDayTransactions', (event, { tenant_id, business_da
 ipcMain.handle('db:cashier:getAuditLog', (event, { tenant_id, limit = 50, offset = 0 }: { tenant_id: string; limit?: number; offset?: number }) => {
   try {
     const db = getDb();
-    return db.prepare(`SELECT * FROM cashier_audit_log WHERE tenant_id = ? ORDER BY performed_at DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
+    return db.prepare(`SELECT * FROM cashier_audit_log WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) ORDER BY performed_at DESC LIMIT ? OFFSET ?`).all(tenant_id, limit, offset);
   } catch (error: any) {
     console.error('[db:cashier:getAuditLog]', error);
     return { error: 'Operation failed' };
@@ -6955,7 +7050,7 @@ ipcMain.handle('db:getCustomers', (event, { tenant_id }: { tenant_id: string }) 
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    return db.prepare(`SELECT * FROM customers WHERE tenant_id = ? ORDER BY name COLLATE NOCASE ASC`).all(tenant_id);
+    return db.prepare(`SELECT * FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0) ORDER BY name COLLATE NOCASE ASC`).all(tenant_id);
   } catch (error: any) {
     console.error('[db:getCustomers]', error);
     return { error: 'Operation failed' };
@@ -6966,7 +7061,7 @@ ipcMain.handle('db:findCustomers', (event, { tenant_id, name, phone }: { tenant_
   try {
     const db = getDb();
     if (!tenant_id) return [];
-    let query = `SELECT * FROM customers WHERE tenant_id = ?`;
+    let query = `SELECT * FROM customers WHERE tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`;
     const params: any[] = [tenant_id];
     if (name && phone) {
       const cleanName = name.trim().replace(/\s+/g, ' ');
@@ -6985,6 +7080,45 @@ ipcMain.handle('db:findCustomers', (event, { tenant_id, name, phone }: { tenant_
   } catch (error: any) {
     console.error('[db:findCustomers]', error);
     return { error: 'Operation failed' };
+  }
+});
+
+ipcMain.handle('db:deleteCustomer', (event, { customer_id, tenant_id }: { customer_id: string; tenant_id: string }) => {
+  try {
+    const db = getDb();
+    if (!customer_id || !tenant_id) return { success: false, error: 'Customer ID and Tenant ID are required' };
+
+    return db.transaction(() => {
+      // 1. Fetch customer details
+      const customer = db.prepare(`SELECT * FROM customers WHERE customer_id = ? AND tenant_id = ? AND (is_deleted IS NULL OR is_deleted = 0)`).get(customer_id, tenant_id) as any;
+      if (!customer) return { success: false, error: 'Customer not found' };
+
+      // 2. Mark customer as deleted
+      db.prepare(`UPDATE customers SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE customer_id = ? AND tenant_id = ?`).run(customer_id, tenant_id);
+
+      // 3. Find matching party by phone or name
+      let matchedParties: any[] = [];
+      const cleanPhone = (customer.phone || '').trim();
+      const cleanName = (customer.name || '').trim();
+
+      if (cleanPhone) {
+        matchedParties = db.prepare(`SELECT party_id, name FROM parties WHERE tenant_id = ? AND phone = ? AND (is_deleted IS NULL OR is_deleted = 0)`).all(tenant_id, cleanPhone);
+      }
+      if (matchedParties.length === 0 && cleanName) {
+        matchedParties = db.prepare(`SELECT party_id, name FROM parties WHERE tenant_id = ? AND name = ? COLLATE NOCASE AND (is_deleted IS NULL OR is_deleted = 0)`).all(tenant_id, cleanName);
+      }
+
+      // 4. Soft-delete matched parties and their party_ledger entries
+      for (const party of matchedParties) {
+        db.prepare(`UPDATE parties SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ? AND tenant_id = ?`).run(party.party_id, tenant_id);
+        db.prepare(`UPDATE party_ledger SET is_deleted = 1, sync_status = 'PENDING', updated_at = CURRENT_TIMESTAMP WHERE party_id = ? AND tenant_id = ?`).run(party.party_id, tenant_id);
+      }
+
+      return { success: true, deleted_party_count: matchedParties.length };
+    })();
+  } catch (error: any) {
+    console.error('[db:deleteCustomer]', error);
+    return { success: false, error: 'Operation failed' };
   }
 });
 

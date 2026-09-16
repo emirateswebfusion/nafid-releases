@@ -8,7 +8,7 @@ import {
   UserCircle, Banknote, FileText, Phone, MapPin,
   TrendingUp, TrendingDown, Activity, ChevronRight, Wallet,
   CreditCard, Building2, Smartphone, MoreHorizontal, Tag, Layers,
-  Trash2, RefreshCw,
+  Trash2, RefreshCw, ArrowLeft,
 } from 'lucide-react';
 import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
@@ -111,9 +111,11 @@ const PaymentMethodIcon = ({ method }: { method: string }) => {
 export function PartyManager({
   onClose,
   initialPartyIdOrQuery,
+  onBackToCustomers,
 }: {
   onClose: () => void;
   initialPartyIdOrQuery?: string;
+  onBackToCustomers?: () => void;
 }) {
   useCloseOnEscape(onClose);
   const { tenantId, userId, userName, role } = useAuthStore();
@@ -498,7 +500,7 @@ export function PartyManager({
             )}
 
             <button
-              onClick={view === 'list' ? onClose : view === 'ledger' ? () => setView('list') : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); }}
+              onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => setView('list') : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); })}
               className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
             >

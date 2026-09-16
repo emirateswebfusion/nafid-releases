@@ -89,6 +89,22 @@ function getInvoiceNetTotal(inv: any): number {
   return computedNet;
 }
 
+// For SPLIT invoices filtered by a specific payment method, return only that payment's portion
+function getInvoiceRevenueForFilter(inv: any, paymentFilter: string): number {
+  if (!inv) return 0;
+  const pmFilter = paymentFilter?.toUpperCase();
+  const singleMethods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'CREDIT'];
+  if (pmFilter && singleMethods.includes(pmFilter) && inv.payment_method?.toUpperCase() === 'SPLIT' && inv.split_details) {
+    try {
+      const sd = typeof inv.split_details === 'string' ? JSON.parse(inv.split_details) : inv.split_details;
+      const jsonKey = pmFilter === 'BANK_TRANSFER' ? 'bank_transfer' : pmFilter.toLowerCase();
+      return Number(sd[jsonKey]) || 0;
+    } catch { /* fall through */ }
+  }
+  return getInvoiceNetTotal(inv);
+}
+
+
 function groupByDay(invoices: any[]) {
   const tz = getStoreTimezone();
   const map = new Map<string, number>();
@@ -285,6 +301,22 @@ function InvoiceRow({ inv, isSelected, onClick, selectionMode, isChecked, onChec
       <td className="px-4 py-3.5 whitespace-nowrap">
         <div className="flex flex-col items-start gap-0.5">
           <PaymentBadge method={inv.payment_method || 'PENDING'} />
+          {inv.payment_method === 'SPLIT' && (() => {
+            const sd = parseSplitDetails(inv.split_details);
+            if (!sd) return null;
+            const parts: string[] = [];
+            if (Number(sd.cash) > 0) parts.push(`Cash: ₹${Number(sd.cash).toFixed(2)}`);
+            if (Number(sd.upi) > 0) parts.push(`UPI: ₹${Number(sd.upi).toFixed(2)}`);
+            if (Number(sd.card) > 0) parts.push(`Card: ₹${Number(sd.card).toFixed(2)}`);
+            if (Number(sd.bank_transfer) > 0) parts.push(`Bank: ₹${Number(sd.bank_transfer).toFixed(2)}`);
+            if (Number(sd.credit) > 0) parts.push(`Credit: ₹${Number(sd.credit).toFixed(2)}`);
+            if (parts.length === 0) return null;
+            return (
+              <div className="text-[10px] font-black text-purple-700 dark:text-purple-300 mt-0.5 leading-snug">
+                {parts.join(' • ')}
+              </div>
+            );
+          })()}
           {(() => {
             const upiDetail = getUpiDetailsFromInvoice(inv, upiSources);
             if ((inv.payment_method === 'UPI' || (inv.payment_method === 'SPLIT' && (Number(parseSplitDetails(inv.split_details)?.upi) || 0) > 0)) && upiDetail) {
@@ -728,15 +760,16 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
   };
 
   const summary = dbSummary || {
-    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + getInvoiceNetTotal(i), 0),
+    totalSales: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0),
     totalInvoices: invoices.filter(i => !i.converted_to_invoice_id).length,
     totalTax: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.tax_total || 0), 0),
     totalDiscount: invoices.filter(i => !i.converted_to_invoice_id).reduce((s, i) => s + (i.discount_total || 0), 0),
     avgOrder: (() => {
       const live = invoices.filter(i => !i.converted_to_invoice_id);
-      return live.length > 0 ? live.reduce((s, i) => s + getInvoiceNetTotal(i), 0) / live.length : 0;
+      return live.length > 0 ? live.reduce((s, i) => s + getInvoiceRevenueForFilter(i, paymentFilter), 0) / live.length : 0;
     })(),
   };
+
 
   const dailySales = useMemo(() => groupByDay(invoices), [invoices]);
 
@@ -861,9 +894,15 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         returnInvoiceNumber: selectedInvoice.return_invoice_number || undefined,
         isReprint: true,
         invoiceType,
-        paymentMethod: selectedInvoice.payment_method || undefined,
         receivedAmount: selectedInvoice.received_amount != null ? Number(selectedInvoice.received_amount) : undefined,
-        balanceAmount: selectedInvoice.balance_amount != null ? Number(selectedInvoice.balance_amount) : undefined,
+        paymentMethod: selectedInvoice.payment_method,
+        balanceAmount: (() => {
+          if (selectedInvoice.balance_amount == null) return undefined;
+          const rawBal = Number(selectedInvoice.balance_amount);
+          const pmUpper = (selectedInvoice.payment_method || '').toUpperCase();
+          if (pmUpper !== 'CREDIT' && pmUpper !== 'SPLIT' && rawBal < 0) return 0;
+          return rawBal;
+        })(),
         customerName: billSettings.showCustomerName !== false ? (selectedInvoice.customer_name || undefined) : undefined,
         customerPhone: billSettings.showCustomerPhone !== false ? (selectedInvoice.customer_phone || undefined) : undefined,
         customerAddress: billSettings.showCustomerAddress !== false ? (selectedInvoice.customer_address || undefined) : undefined,
@@ -912,9 +951,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const data = await window.electronAPI.dbGetInvoiceItems(selectedInvoice.invoice_id);
       currentItems = Array.isArray(data) ? data : [];
     }
-    if (!currentItems.length) return;
-
-    localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
+    let freshInvoice = selectedInvoice;
+    if (window.electronAPI.dbGetInvoices) {
+      try {
+        const fetched = await window.electronAPI.dbGetInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
+        if (Array.isArray(fetched) && fetched.length > 0) {
+          const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
+          if (exact) freshInvoice = exact;
+        }
+      } catch {}
+    }
+    localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
     onClose();
     if (['OWNER', 'ADMINISTRATOR'].includes(useAuthStore.getState().role)) useCartStore.getState().setRole('BILLER');
     setTimeout(() => window.dispatchEvent(new CustomEvent('open-edit-bill')), 50);
@@ -953,8 +1000,11 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     setCollectPaymentSaving(true);
     try {
       const { tenantId } = useAuthStore.getState();
-      const grandTotal = Number(selectedInvoice.grand_total) || 0;
-      const balanceAmount = collectReceivedAmount - grandTotal;
+      const isCreditPayment = collectPaymentMethod === 'CREDIT';
+      const invGrandTotal = Number(selectedInvoice.grand_total) || 0;
+      const balanceAmount = isCreditPayment
+        ? Math.max(0, invGrandTotal - collectReceivedAmount)
+        : (collectReceivedAmount > invGrandTotal ? (collectReceivedAmount - invGrandTotal) : 0);
 
       const selectedCollectSource = upiSources.find((s: any) => s.source_id === collectUpiSourceId) || upiSources[0];
       const collectSplitDetails = collectPaymentMethod === 'UPI' && selectedCollectSource

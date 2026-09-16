@@ -74,6 +74,7 @@ interface TabState {
   switchTab: (id: string) => void;
   renameTab: (id: string, title: string) => void;
   updateActiveTab: (updates: Partial<Omit<Tab, 'id' | 'snapshot'>>) => void;
+  updateTabById: (id: string, updates: Partial<Omit<Tab, 'id' | 'snapshot'>>) => void;
   syncActiveSnapshot: () => void;
   getActiveTab: () => Tab | undefined;
 }
@@ -302,6 +303,24 @@ export const useTabStore = create<TabState>((set, get) => ({
     set({
       tabs: tabs.map(t =>
         t.id === activeTabId ? { ...t, ...filtered } as Tab : t
+      ),
+    });
+  },
+
+  updateTabById: (id, updates) => {
+    const { tabs } = get();
+    const allowedKeys: (keyof Omit<Tab, 'id' | 'snapshot'>)[] = [
+      'title', 'customerName', 'customerPhone', 'customerGstin', 'customerAddress',
+      'paymentMethod', 'splitDetails', 'receivedAmount', 'reservedInvoiceNumber',
+      'reservedScrapInvoiceNumber', 'reservedQuotationNumber', 'reservedReturnNumber',
+      'scrapPaymentStatus', 'selectedUpiId', 'selectedUpiSourceId', 'selectedUpiName'
+    ];
+    const filtered = Object.fromEntries(
+      Object.entries(updates).filter(([k]) => (allowedKeys as string[]).includes(k))
+    );
+    set({
+      tabs: tabs.map(t =>
+        t.id === id ? { ...t, ...filtered } as Tab : t
       ),
     });
   },

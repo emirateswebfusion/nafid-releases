@@ -393,7 +393,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         )}
 
         {view === 'list' && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 shrink-0 max-w-7xl mx-auto w-full select-none">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 shrink-0 w-full select-none">
             <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <div className="p-3.5 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shadow-inner group-hover:scale-105 transition-transform shrink-0">
                 <Users className="w-6 h-6" />
@@ -426,7 +426,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
         {/* Directory List View */}
         {view === 'list' && (
-          <div className="flex-1 flex flex-col min-h-0 max-w-7xl mx-auto w-full bg-card border border-border/85 rounded-3xl shadow-sm overflow-hidden select-none">
+          <div className="flex-1 flex flex-col min-h-0 w-full bg-card border border-border/85 rounded-3xl shadow-sm overflow-hidden select-none">
             
             {/* Table Control Header */}
             <div className="p-5 border-b border-border bg-card flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">

@@ -270,7 +270,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       )}
 
       {/* Statistics Panel */}
-      <div className="flex-1 flex flex-col min-h-0 bg-background select-none max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+      <div className="flex-1 flex flex-col min-h-0 bg-background select-none w-full px-4 sm:px-6 py-6 space-y-6">
         {/* Themed Stats Cards */}
         <div className="grid grid-cols-3 gap-5 select-none shrink-0">
           <div className="bg-card border border-border p-5 rounded-[24px] flex items-center gap-4 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">

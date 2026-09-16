@@ -14,7 +14,18 @@ function parseCleanDate(dStr: any): string {
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
   }
   const str = String(dStr).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+  // 1. Match YYYY-MM-DD or YYYY/MM/DD at start
+  const yyyymmdd = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (yyyymmdd) {
+    return `${yyyymmdd[1]}-${yyyymmdd[2]}-${yyyymmdd[3]}`;
+  }
+
+  // 2. Match DD-MM-YYYY or DD/MM/YYYY at start
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
+  if (ddmmyyyy) {
+    return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
+  }
 
   let isoStr = str;
   if (!isoStr.includes('Z') && !isoStr.includes('+') && !/-\d{2}:\d{2}$/.test(isoStr)) {
@@ -178,13 +189,15 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
         paramObj['updated_at'] = localTimestamp();
       }
 
-      if (tableName === 'cash_transactions' && rawRow.drawer_id && rawRow.tenant_id) {
+      if (tableName === 'cash_transactions' && rawRow.drawer_id) {
         const txDate = rawRow.transaction_date ? parseCleanDate(rawRow.transaction_date) : parseCleanDate(null);
+        const parts = txDate.split('-');
+        const altTxDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : txDate;
         const existingDrawer = db.prepare(`
           SELECT drawer_id FROM cash_drawer
-          WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
+          WHERE drawer_id = ? OR ((tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
           LIMIT 1
-        `).get(rawRow.drawer_id, rawRow.tenant_id, txDate, txDate, `${txDate}%`) as any;
+        `).get(rawRow.drawer_id, rawRow.tenant_id || 'global', txDate, altTxDate, txDate, `${txDate}%`) as any;
         if (existingDrawer && existingDrawer.drawer_id) {
           paramObj['drawer_id'] = existingDrawer.drawer_id;
         }
@@ -192,14 +205,26 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
 
       if (tableName === 'cash_drawer') {
         const cleanDate = parseCleanDate(rawRow.business_date);
+        const parts = cleanDate.split('-');
+        const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
         const existingDrawer = db.prepare(`
-          SELECT drawer_id FROM cash_drawer
-          WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
-          LIMIT 1
-        `).get(rawRow.drawer_id, rawRow.tenant_id, cleanDate, cleanDate, `${cleanDate}%`) as any;
+          SELECT drawer_id, status, opening_balance, cash_sales, cash_in, cash_out, current_cash, sync_status FROM cash_drawer
+          WHERE drawer_id = ? OR ((tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ?))
+          ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
+        `).get(rawRow.drawer_id, rawRow.tenant_id || 'global', cleanDate, altDate, cleanDate, `${cleanDate}%`) as any;
 
         if (existingDrawer) {
           const targetDrawerId = existingDrawer.drawer_id;
+          const localSales = Number(existingDrawer.cash_sales) || 0;
+          const localCurrent = Number(existingDrawer.current_cash) || 0;
+          let newSales = Number(rawRow.cash_sales || 0);
+          let newCurrent = Number(rawRow.current_cash || 0);
+
+          if (existingDrawer.status === 'OPEN' || existingDrawer.sync_status === 'PENDING' || localSales > newSales || localCurrent > newCurrent) {
+            newSales = Math.max(newSales, localSales);
+            newCurrent = Math.max(newCurrent, localCurrent);
+          }
+
           db.prepare(`
             UPDATE cash_drawer SET
               opening_balance = ?, cash_sales = ?, cash_in = ?, cash_out = ?,
@@ -210,9 +235,9 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
               sync_status = 'SYNCED', updated_at = CURRENT_TIMESTAMP
             WHERE drawer_id = ?
           `).run(
-            Number(rawRow.opening_balance || 0), Number(rawRow.cash_sales || 0),
+            Number(rawRow.opening_balance || 0), newSales,
             Number(rawRow.cash_in || 0), Number(rawRow.cash_out || 0),
-            Number(rawRow.current_cash || 0), Number(rawRow.expected_closing || 0),
+            newCurrent, Math.max(Number(rawRow.expected_closing || 0), newCurrent),
             rawRow.actual_cash != null ? Number(rawRow.actual_cash) : null,
             Number(rawRow.cash_short || 0), Number(rawRow.cash_excess || 0),
             rawRow.closing_remarks || null, rawRow.status || 'OPEN',
@@ -222,8 +247,8 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
           );
           if (targetDrawerId !== rawRow.drawer_id) {
             try {
-              db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id);
-              db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id);
+              db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
+              db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).run(targetDrawerId, rawRow.drawer_id, rawRow.tenant_id || 'global');
             } catch {}
           }
           if (itemId) syncedIds.push(itemId);

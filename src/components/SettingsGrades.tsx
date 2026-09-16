@@ -355,8 +355,8 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="p-4 sm:p-6">
+          <div className="w-full space-y-6">
 
       {/* Top scrollable category selection pills - styled like the hardware tabs */}
       {categories.length > 0 && (

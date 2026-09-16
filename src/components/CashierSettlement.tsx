@@ -11,6 +11,7 @@ import { Modal } from './ui/Modal';
 import { Skeleton } from './ui/Skeleton';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
+import { useTabStore } from '../store/tabStore';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
@@ -2677,8 +2678,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                         const data = await window.electronAPI.dbGetInvoiceItems(selectedInvoice.invoice_id);
                         currentItems = Array.isArray(data) ? data : [];
                       }
-                      if (!currentItems.length) return;
-                      localStorage.setItem('editBillData', JSON.stringify({ invoice: selectedInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
+                      let freshInvoice = selectedInvoice;
+                      if (window.electronAPI.dbGetInvoices) {
+                        try {
+                          const fetched = await window.electronAPI.dbGetInvoices({ search: selectedInvoice.invoice_number || selectedInvoice.invoice_id, tenant_id: selectedInvoice.tenant_id });
+                          if (Array.isArray(fetched) && fetched.length > 0) {
+                            const exact = fetched.find((i: any) => i.invoice_id === selectedInvoice.invoice_id);
+                            if (exact) freshInvoice = exact;
+                          }
+                        } catch {}
+                      }
+                      localStorage.setItem('editBillData', JSON.stringify({ invoice: freshInvoice, items: currentItems, originalRole: useAuthStore.getState().role }));
                       setShowInvoiceModal(false);
                       setSelectedInvoice(null);
                       setInvoiceItems([]);
@@ -3282,6 +3292,17 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     setSplitSubmitting(false);
                     if (r.success) {
                       setSplitModalInvoice(null);
+                      const invId = splitModalInvoice.invoice_id;
+                      const invNum = splitModalInvoice.invoice_number;
+                      useTabStore.getState().tabs.forEach(t => {
+                        if (t.snapshot?.editingInvoiceId === invId || t.title === invNum || t.reservedInvoiceNumber === invNum) {
+                          useTabStore.getState().updateTabById(t.id, {
+                            paymentMethod: 'SPLIT',
+                            splitDetails: splitDetails,
+                            receivedAmount: net,
+                          });
+                        }
+                      });
                       await load();
                     }
                   }}

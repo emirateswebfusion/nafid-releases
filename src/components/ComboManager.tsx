@@ -423,7 +423,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
       {/* ═══════════════════════════════════════════════════
           MAIN CONTENT BODY
       ═══════════════════════════════════════════════════ */}
-      <div className="flex-1 overflow-y-auto max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto w-full px-4 sm:px-6 py-6 space-y-6">
 
         {/* KPI Summary Banner Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

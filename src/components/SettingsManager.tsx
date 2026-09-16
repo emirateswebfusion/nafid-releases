@@ -2381,6 +2381,49 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
 
                 <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-1 block">Item Columns Order on Bill</label>
+                  <p className="text-[10px] text-muted-foreground/75 mb-3">Choose column order for items in receipts and bills (Qty Rate vs Rate Qty).</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setBillSettings(s => ({ ...s, itemColumnOrder: 'qty_rate' }))}
+                      className={clsx(
+                        'flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer',
+                        (billSettings.itemColumnOrder || 'qty_rate') === 'qty_rate'
+                          ? 'bg-primary/10 border-primary text-primary font-semibold'
+                          : 'bg-background border-border text-foreground hover:border-primary/30'
+                      )}
+                    >
+                      <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center shrink-0">
+                        {(billSettings.itemColumnOrder || 'qty_rate') === 'qty_rate' && <div className="w-2 h-2 rounded-full bg-current" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Qty → Rate</div>
+                        <div className="text-[10px] text-muted-foreground">Quantity first, then Rate</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setBillSettings(s => ({ ...s, itemColumnOrder: 'rate_qty' }))}
+                      className={clsx(
+                        'flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer',
+                        billSettings.itemColumnOrder === 'rate_qty'
+                          ? 'bg-primary/10 border-primary text-primary font-semibold'
+                          : 'bg-background border-border text-foreground hover:border-primary/30'
+                      )}
+                    >
+                      <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center shrink-0">
+                        {billSettings.itemColumnOrder === 'rate_qty' && <div className="w-2 h-2 rounded-full bg-current" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Rate → Qty</div>
+                        <div className="text-[10px] text-muted-foreground">Rate first, then Quantity</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                     {[
@@ -2406,6 +2449,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       { key: 'showCreditBalance', label: 'Show Customer Balance / Credit Breakdown (Sales, Cash Received, Balance)' },
                       { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
                       { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
+                      { key: 'showForShopName', label: 'For {shop name}' },
                     ].map(({ key, label }) => {
                       const isChecked = (billSettings as any)[key] !== false;
                       return (
@@ -2528,6 +2572,49 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
 
                 <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-1 block">Scrap Bill Item Columns Order</label>
+                  <p className="text-[10px] text-muted-foreground/75 mb-3">Choose column order for items in scrap receipts and bills.</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setScrapBillSettings(s => ({ ...s, itemColumnOrder: 'qty_rate' }))}
+                      className={clsx(
+                        'flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer',
+                        (scrapBillSettings.itemColumnOrder || 'qty_rate') === 'qty_rate'
+                          ? 'bg-primary/10 border-primary text-primary font-semibold'
+                          : 'bg-background border-border text-foreground hover:border-primary/30'
+                      )}
+                    >
+                      <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center shrink-0">
+                        {(scrapBillSettings.itemColumnOrder || 'qty_rate') === 'qty_rate' && <div className="w-2 h-2 rounded-full bg-current" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Qty → Rate</div>
+                        <div className="text-[10px] text-muted-foreground">Quantity first, then Rate</div>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScrapBillSettings(s => ({ ...s, itemColumnOrder: 'rate_qty' }))}
+                      className={clsx(
+                        'flex items-center gap-3 p-3 rounded-xl border text-left transition-all cursor-pointer',
+                        scrapBillSettings.itemColumnOrder === 'rate_qty'
+                          ? 'bg-primary/10 border-primary text-primary font-semibold'
+                          : 'bg-background border-border text-foreground hover:border-primary/30'
+                      )}
+                    >
+                      <div className="w-4 h-4 rounded-full border-2 border-current flex items-center justify-center shrink-0">
+                        {scrapBillSettings.itemColumnOrder === 'rate_qty' && <div className="w-2 h-2 rounded-full bg-current" />}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold">Rate → Qty</div>
+                        <div className="text-[10px] text-muted-foreground">Rate first, then Quantity</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
                   <label className="text-xs font-bold text-foreground mb-3 block">Scrap Bill Content</label>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                     {[
@@ -2544,6 +2631,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       { key: 'showCustomerState', label: 'Customer State' },
                       { key: 'showBarcodeOnReceipt', label: 'Invoice Barcode on Receipts' },
                       { key: 'showAuthorisedSignatory', label: 'Authorised Signatory' },
+                      { key: 'showForShopName', label: 'For {shop name}' },
                     ].map(({ key, label }) => {
                       const isChecked = (scrapBillSettings as any)[key] !== false;
                       return (

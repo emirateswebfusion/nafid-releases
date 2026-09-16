@@ -313,8 +313,8 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
       <div className="flex-1 flex flex-col h-full overflow-hidden bg-muted/10">
         
         {/* Filter Control Bar */}
-        <div className="border-b border-border/80 bg-card px-6 py-3 shrink-0 shadow-sm">
-          <div className="max-w-7xl mx-auto w-full flex flex-wrap items-center justify-between gap-3">
+        <div className="border-b border-border/80 bg-card px-4 sm:px-6 py-3 shrink-0 shadow-sm">
+          <div className="w-full flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-1.5">
               {[
                 { id: 'today', label: 'Today' },
@@ -365,8 +365,8 @@ export function FinancialReport({ onClose, isRestricted: _isRestricted }: Financ
         </div>
 
         {/* Scrollable Report Content Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+          <div className="w-full space-y-6">
 
             {/* KPI Stat Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">

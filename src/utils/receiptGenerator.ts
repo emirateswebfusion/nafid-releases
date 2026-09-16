@@ -46,7 +46,9 @@ export interface BillSettings {
   showTransporterDetails?: boolean;
   showBarcodeOnReceipt?: boolean;
   showAuthorisedSignatory?: boolean;
+  showForShopName?: boolean;
   reverseCharge?: boolean;
+  itemColumnOrder?: 'qty_rate' | 'rate_qty';
 }
 
 export const DEFAULT_BILL_SETTINGS: BillSettings = {
@@ -78,7 +80,9 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   showTransporterDetails: true,
   showBarcodeOnReceipt: true,
   showAuthorisedSignatory: true,
+  showForShopName: true,
   reverseCharge: false,
+  itemColumnOrder: 'qty_rate',
 };
 
 export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
@@ -298,6 +302,55 @@ function getDocumentTitle(invoiceType?: string, _isReprint?: boolean, estimateMo
   }
 }
 
+export function formatBalanceLines(
+  data: ReceiptData,
+  labelW: number,
+  totalW: number,
+  padRight: (text: string, width: number) => string,
+  padLeft: (text: string, width: number) => string
+): string[] {
+  const lines: string[] = [];
+  const bs = data.billSettings || DEFAULT_BILL_SETTINGS;
+  if (bs.showCreditBalance === false) return lines;
+
+  const pm = (data.paymentMethod || '').toUpperCase();
+  const isCredit = pm === 'CREDIT' || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
+
+  if (isCredit) {
+    if (data.oldBalance != null && data.oldBalance !== 0) {
+      if (data.oldBalance > 0) {
+        lines.push(`${padRight('OLD DUE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}`);
+      } else {
+        lines.push(`${padRight('OLD ADVANCE', labelW)}  ${padLeft(Math.abs(data.oldBalance).toFixed(2), totalW)}`);
+      }
+    }
+    if (data.receivedAmount != null && data.receivedAmount > 0) {
+      lines.push(`${padRight('CASH RCVD', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}`);
+    }
+    const netBal = data.customerBalance ?? data.balanceAmount;
+    if (netBal != null) {
+      if (netBal > 0) {
+        lines.push(`${padRight('BALANCE DUE', labelW)}  ${padLeft(netBal.toFixed(2), totalW)}`);
+      } else if (netBal < 0) {
+        lines.push(`${padRight('ADVANCE BAL', labelW)}  ${padLeft(Math.abs(netBal).toFixed(2), totalW)}`);
+      } else {
+        lines.push(`${padRight('BALANCE DUE', labelW)}  ${padLeft('0.00', totalW)}`);
+      }
+    }
+  } else {
+    if (data.receivedAmount != null && data.receivedAmount > 0) {
+      lines.push(`${padRight('RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}`);
+      const change = data.receivedAmount - data.grandTotal;
+      if (change > 0) {
+        lines.push(`${padRight('CHANGE RETURN', labelW)}  ${padLeft(change.toFixed(2), totalW)}`);
+      }
+    } else if (data.balanceAmount != null && data.balanceAmount > 0 && !data.isReprint) {
+      lines.push(`${padRight('CHANGE RETURN', labelW)}  ${padLeft(data.balanceAmount.toFixed(2), totalW)}`);
+    }
+  }
+  return lines;
+}
+
 export type ReceiptStyle = 'standard' | 'compact' | 'modern' | 'classic' | 'clean' | 'dot' | 'slim' | 'luxe' | 'boxed';
 
 export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, charsPerLine?: number, style: ReceiptStyle | string = 'standard'): string {
@@ -356,6 +409,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
   const selectedBillSettings = data.billSettings || DEFAULT_BILL_SETTINGS;
   const printFullName = selectedBillSettings.printFullName !== false;
   const showBrand = selectedBillSettings.showBrandName !== false;
+  const isRateQty = selectedBillSettings.itemColumnOrder === 'rate_qty';
 
   const appendInstructions = (t: string): string => {
     const instr = data.billSettings?.instructions;
@@ -509,7 +563,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         text += `${clipped}${item.discountLabel ? `  (${item.discountLabel})` : ''}\n`;
       } else if (data.invoiceType === 'SCRAP') {
         // Rate | Weight | Total sub-line for scrap items
-        const subLine = `  ${padLeft(fmt.displayRate, 7)} ${padLeft(qty, 5)} ${padLeft(fmt.displayTotal, 8)}`;
+        const subLine = isRateQty
+          ? `  ${padLeft(fmt.displayRate, 7)} ${padLeft(qty, 5)} ${padLeft(fmt.displayTotal, 8)}`
+          : `  ${padLeft(qty, 5)} ${padLeft(fmt.displayRate, 7)} ${padLeft(fmt.displayTotal, 8)}`;
         text += subLine.substring(0, charsPerLine) + '\n';
       }
     });
@@ -563,16 +619,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'BALANCE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
       text += LIGHT + '\n';
     }
 
@@ -669,12 +718,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += ` MRP ${item.originalRate.toFixed(2)}@${fmt.displayRate}`;
         if (item.discountLabel) text += ` (${item.discountLabel})`;
-        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
+        text += ` ${qtyRateText}\n`;
       } else {
-        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
+        text += ` ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
@@ -716,16 +766,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('Old Balance', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received' : 'Paid', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Change', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
     }
 
     text += DASH + '\n';
@@ -833,12 +876,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `  MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? ` (~ ${item.discountLabel})\n` : '\n';
-        text += `  ${fmt.displayQty} x ${fmt.displayRate}\n`;
+        text += `  ${qtyRateText}\n`;
       } else {
-        text += `  ${fmt.displayQty} x ${fmt.displayRate}\n`;
+        text += `  ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ~ ${item.discountLabel}\n`;
       }
     });
@@ -890,16 +934,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'CHANGE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
       text += THIN + '\n';
     }
 
@@ -993,7 +1030,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     let nameW = charsPerLine - idxW - colGap - qtyW - colGap - rateW - colGap - amtW;
     if (nameW < 6) {
       nameW = charsPerLine - qtyW - colGap - rateW - colGap - amtW;
-      text += `${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
+      text += isRateQty
+        ? `${padRight('ITEM', nameW)} ${padLeft('RATE', rateW)} ${padLeft('QTY', qtyW)} ${padLeft('AMOUNT', amtW)}\n`
+        : `${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item) => {
         const fmt = formatPrintItem(item, selectedBillSettings);
         const qty = fmt.displayQty;
@@ -1003,7 +1042,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
         nameLines.forEach((name, li) => {
           if (li === 0) {
-            text += `${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
+            text += isRateQty
+              ? `${padRight(name, nameW)} ${padLeft(rate, rateW)} ${padLeft(qty, qtyW)} ${padLeft(amt, amtW)}\n`
+              : `${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
           } else {
             text += `${padRight(name, nameW)}${' '.repeat(colGap + qtyW + colGap + rateW + colGap + amtW)}\n`;
           }
@@ -1014,7 +1055,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
     } else {
-      text += `${padRight('No', idxW)} ${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
+      text += isRateQty
+        ? `${padRight('No', idxW)} ${padRight('ITEM', nameW)} ${padLeft('RATE', rateW)} ${padLeft('QTY', qtyW)} ${padLeft('AMOUNT', amtW)}\n`
+        : `${padRight('No', idxW)} ${padRight('ITEM', nameW)} ${padLeft('QTY', qtyW)} ${padLeft('RATE', rateW)} ${padLeft('AMOUNT', amtW)}\n`;
       data.items.forEach((item, i) => {
         const fmt = formatPrintItem(item, selectedBillSettings);
         const qty = fmt.displayQty;
@@ -1024,7 +1067,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         const nameLines = printFullName ? wrapText(rawName, nameW) : [rawName.length > nameW ? rawName.substring(0, nameW - 2) + '..' : rawName];
         nameLines.forEach((name, li) => {
           if (li === 0) {
-            text += `${padRight(String(i + 1), idxW)} ${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
+            text += isRateQty
+              ? `${padRight(String(i + 1), idxW)} ${padRight(name, nameW)} ${padLeft(rate, rateW)} ${padLeft(qty, qtyW)} ${padLeft(amt, amtW)}\n`
+              : `${padRight(String(i + 1), idxW)} ${padRight(name, nameW)} ${padLeft(qty, qtyW)} ${padLeft(rate, rateW)} ${padLeft(amt, amtW)}\n`;
           } else {
             text += `${' '.repeat(idxW + colGap)}${padRight(name, nameW)}${' '.repeat(colGap + qtyW + colGap + rateW + colGap + amtW)}\n`;
           }
@@ -1085,16 +1130,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('OLD BALANCE :', labelW)}  ${padLeft(`₹${data.oldBalance.toFixed(2)}`, totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RECEIVED :' : 'AMOUNT RECEIVED :', labelW)}  ${padLeft(`₹${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE :' : 'BALANCE RETURN :', labelW)}  ${padLeft(`₹${Math.abs(data.balanceAmount).toFixed(2)}`, totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
     }
     text += '\n';
 
@@ -1212,12 +1250,13 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate} x ${fmt.displayQty}` : `${fmt.displayQty} x ${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `     MRP ₹${item.originalRate.toFixed(2)} → ₹${fmt.displayRate}`;
         text += item.discountLabel ? `  [${item.discountLabel}]\n` : '\n';
-        text += `     ${fmt.displayQty} x ${fmt.displayRate}\n`;
+        text += `     ${qtyRateText}\n`;
       } else {
-        text += `     ${fmt.displayQty} x ${fmt.displayRate}\n`;
+        text += `     ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `     [${item.discountLabel}]\n`;
       }
     });
@@ -1269,16 +1308,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       }
     }
 
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('Old Balance:', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received:' : 'Amount Received:', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due:' : 'Change Due:', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
       text += LIGHT + '\n';
     }
 
@@ -1385,11 +1417,12 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `  Brand: ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
         text += `  MRP ${item.originalRate.toFixed(2)} @ ${fmt.displayRate}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
-        text += `  ${fmt.displayQty}x${fmt.displayRate}\n`;
+        text += `  ${qtyRateText}\n`;
       } else {
-        text += `  ${fmt.displayQty}x${fmt.displayRate}\n`;
+        text += `  ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `  ${item.discountLabel}\n`;
       }
     });
@@ -1436,16 +1469,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        dotLine('OLD BALANCE', data.oldBalance.toFixed(2));
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        dotLine(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', data.receivedAmount.toFixed(2));
-      }
-      if (data.balanceAmount != null) {
-        dotLine(data.paymentMethod === 'CREDIT' ? 'BAL DUE' : 'CHANGE', Math.abs(data.balanceAmount).toFixed(2));
-      }
+    const bLines = formatBalanceLines(data, charsPerLine - 12, 10, (s) => s.trim(), (s) => s.trim());
+    if (bLines.length > 0) {
+      bLines.forEach(line => {
+        const parts = line.split(/\s{2,}/);
+        if (parts.length >= 2) {
+          dotLine(parts[0], parts[1]);
+        }
+      });
       text += DASH + '\n';
     }
 
@@ -1522,10 +1553,11 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += ` ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate}x${fmt.displayQty}` : `${fmt.displayQty}x${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += ` ${fmt.displayQty}x${fmt.displayRate}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
+        text += ` ${qtyRateText}  MRP ${item.originalRate.toFixed(2)}${item.discountLabel ? ` (${item.discountLabel})` : ''}\n`;
       } else {
-        text += ` ${fmt.displayQty}x${fmt.displayRate}\n`;
+        text += ` ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += ` ${item.discountLabel}\n`;
       }
     });
@@ -1560,16 +1592,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     text += '\n';
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('OLD BALANCE', labelW)}  ${padLeft(data.oldBalance.toFixed(2), totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'CASH RCVD' : 'RECEIVED', labelW)}  ${padLeft(data.receivedAmount.toFixed(2), totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'BALANCE DUE' : 'CHANGE', labelW)}  ${padLeft(Math.abs(data.balanceAmount).toFixed(2), totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
     }
 
     // ── You Saved (skip for scrap) ──
@@ -1666,13 +1691,14 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
         }
       });
       if (showBrand && item.brand) text += `     Brand: ${item.brand}\n`;
+      const qtyRateText = isRateQty ? `${fmt.displayRate} \u00D7 ${fmt.displayQty}` : `${fmt.displayQty} \u00D7 ${fmt.displayRate}`;
       if (data.showProductOffers !== false && item.originalRate != null && item.originalRate !== item.unit_price) {
-        text += `     ${fmt.displayQty} \u00D7 ${fmt.displayRate}`;
+        text += `     ${qtyRateText}`;
         text += `    MRP \u20B9${item.originalRate.toFixed(2)}`;
         text += item.discountLabel ? ` (${item.discountLabel})` : '';
         text += '\n';
       } else {
-        text += `     ${fmt.displayQty} \u00D7 ${fmt.displayRate}\n`;
+        text += `     ${qtyRateText}\n`;
         if (data.showProductOffers !== false && item.discountLabel) text += `     ${item.discountLabel}\n`;
       }
     });
@@ -1723,16 +1749,9 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     }
 
     // ── Payment ──
-    if (data.billSettings?.showCreditBalance !== false && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null)) {
-      if (data.oldBalance != null && data.oldBalance !== 0) {
-        text += `${padRight('Old Balance', labelW)}  ${padLeft(`\u20B9${data.oldBalance.toFixed(2)}`, totalW)}\n`;
-      }
-      if (data.receivedAmount != null && data.receivedAmount > 0) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Cash Received' : 'Received', labelW)}  ${padLeft(`\u20B9${data.receivedAmount.toFixed(2)}`, totalW)}\n`;
-      }
-      if (data.balanceAmount != null) {
-        text += `${padRight(data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Change', labelW)}  ${padLeft(`\u20B9${Math.abs(data.balanceAmount).toFixed(2)}`, totalW)}\n`;
-      }
+    const bLines = formatBalanceLines(data, labelW, totalW, padRight, padLeft);
+    if (bLines.length > 0) {
+      bLines.forEach(line => { text += line + '\n'; });
       text += THIN + '\n';
     }
 
@@ -1934,23 +1953,23 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       // 6 cols: Sr(2) Product Qty(4) MRP(6) Rate(6) Amt(7)
       idxW = 2; qtyW = 4; mrpW = 6; rateW = 6; amtW = 7;
       nameW = (charsPerLine - 7) - (idxW + qtyW + mrpW + rateW + amtW);
-      colWidths = [idxW, nameW, qtyW, mrpW, rateW, amtW];
-      colLabels = ['Sr', 'Product', 'Qty', 'MRP', 'Rate', 'Amount'];
+      colWidths = isRateQty ? [idxW, nameW, rateW, mrpW, qtyW, amtW] : [idxW, nameW, qtyW, mrpW, rateW, amtW];
+      colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'MRP', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'MRP', 'Rate', 'Amount'];
       colAligns = ['center', 'left', 'right', 'right', 'right', 'right'];
     } else if (charsPerLine >= 36) {
       // 5 cols: Sr(2) Product Qty(3) Rate(6) Amt(7)
       idxW = 2; qtyW = 3; mrpW = null; rateW = 6; amtW = 7;
       nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
-      colWidths = [idxW, nameW, qtyW, rateW, amtW];
-      colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
+      colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
+      colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amount'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amount'];
       colAligns = ['center', 'left', 'right', 'right', 'right'];
     } else {
       // 5 cols: Sr(2) Product Qty(3) Rate(5) Amt(5)
       idxW = 2; qtyW = 3; mrpW = null; rateW = 5; amtW = 5;
       nameW = (charsPerLine - 6) - (idxW + qtyW + rateW + amtW);
       if (nameW < 4) { nameW = 4; }
-      colWidths = [idxW, nameW, qtyW, rateW, amtW];
-      colLabels = ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
+      colWidths = isRateQty ? [idxW, nameW, rateW, qtyW, amtW] : [idxW, nameW, qtyW, rateW, amtW];
+      colLabels = isRateQty ? ['Sr', 'Product', 'Rate', 'Qty', 'Amt'] : ['Sr', 'Product', 'Qty', 'Rate', 'Amt'];
       colAligns = ['center', 'left', 'right', 'right', 'right'];
     }
 
@@ -1976,8 +1995,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
 
       nameLines.forEach((name, li) => {
         const cells = mrpW
-          ? [li === 0 ? idx : '', name, li === 0 ? qty : '', li === 0 ? mrpStr : '', li === 0 ? rate : '', li === 0 ? amt : '']
-          : [li === 0 ? idx : '', name, li === 0 ? qty : '', li === 0 ? rate : '', li === 0 ? amt : ''];
+          ? [li === 0 ? idx : '', name, li === 0 ? (isRateQty ? rate : qty) : '', li === 0 ? mrpStr : '', li === 0 ? (isRateQty ? qty : rate) : '', li === 0 ? amt : '']
+          : [li === 0 ? idx : '', name, li === 0 ? (isRateQty ? rate : qty) : '', li === 0 ? (isRateQty ? qty : rate) : '', li === 0 ? amt : ''];
         text += B_ROW(cells, colWidths, colAligns);
       });
 
@@ -2171,10 +2190,18 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
       text += B_MID();
     }
 
-    // ── Authorised Signatory ──────────────────────────────────────────────────
-    if (selectedBillSettings.showAuthorisedSignatory !== false) {
+    // ── Authorised Signatory & For Shop Name ──────────────────────────────────
+    if ((selectedBillSettings.showForShopName !== false && data.shopName) || selectedBillSettings.showAuthorisedSignatory !== false) {
       text += B_LINE('');
-      text += B_LINE(padLeft('Authorised Signatory', INNER));
+      if (selectedBillSettings.showForShopName !== false && data.shopName) {
+        text += B_LINE(padLeft(`For ${data.shopName.toUpperCase()}`, INNER));
+      }
+      if (selectedBillSettings.showAuthorisedSignatory !== false) {
+        if (selectedBillSettings.showForShopName !== false && data.shopName) {
+          text += B_LINE('');
+        }
+        text += B_LINE(padLeft('Authorised Signatory', INNER));
+      }
       text += B_MID();
     }
 

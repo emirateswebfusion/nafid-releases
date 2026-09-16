@@ -572,7 +572,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
         </header>
 
         <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
-          <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-4">
+          <div className="w-full px-4 sm:px-6 py-6 space-y-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
             <div className="bg-card border border-border p-5 rounded-[24px] flex flex-col !items-start gap-1 hover:border-primary/25 hover:shadow-md transition-all duration-300 group select-none">
               <p className="text-2xl font-black text-foreground leading-none font-mono">{salesLoading ? <Skeleton className="h-7 w-16" /> : salesTotals.products.toLocaleString('en-IN')}</p>
@@ -779,7 +779,7 @@ export function StockReport({ onClose, isRestricted }: { onClose: () => void; is
           CONTENT
       ══════════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto bg-muted/[0.02]">
-        <div className="max-w-7xl mx-auto w-full px-6 py-6 space-y-6">
+        <div className="w-full px-4 sm:px-6 py-6 space-y-6">
 
           {/* Themed Stats Cards */}
           <div className="grid grid-cols-3 gap-5 select-none">

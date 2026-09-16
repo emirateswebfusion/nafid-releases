@@ -672,7 +672,13 @@ export function BillingPage() {
     : (rawPaymentMethod ?? defaultPaymentMethod);
   const rawSplitDetails = activeTab?.splitDetails;
   const splitDetails: SplitDetails = typeof rawSplitDetails === 'string'
-    ? (() => { try { return JSON.parse(rawSplitDetails); } catch { return { cash: 0, card: 0, upi: 0, bank_transfer: 0 }; } })()
+    ? (() => {
+        let curr: any = rawSplitDetails;
+        while (typeof curr === 'string') {
+          try { curr = JSON.parse(curr); } catch { break; }
+        }
+        return (typeof curr === 'object' && curr !== null) ? curr : { cash: 0, card: 0, upi: 0, bank_transfer: 0 };
+      })()
     : (rawSplitDetails ?? { cash: 0, card: 0, upi: 0, bank_transfer: 0 });
   const splitTotal = paymentMethod === 'SPLIT' ? ((Number(splitDetails.cash) || 0) + (Number(splitDetails.card) || 0) + (Number(splitDetails.upi) || 0) + (Number(splitDetails.bank_transfer) || 0)) : 0;
   const receivedAmount = activeTab?.receivedAmount ?? 0;
@@ -1578,7 +1584,15 @@ export function BillingPage() {
     const qPhone = customerPhone.trim();
     if (!qName && !qPhone) return [];
 
-    const seen = new Set<string>();
+    const partyMap = new Map<string, any>();
+    (partiesForTier || []).forEach((p: any) => {
+      const pName = (p.name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+      const pPhone = (p.phone || '').trim();
+      if (pName) partyMap.set(pName, p);
+      if (pPhone) partyMap.set(pPhone, p);
+      if (pName && pPhone) partyMap.set(`${pName}|${pPhone}`, p);
+    });
+
     const partyCustomers = (partiesForTier || []).map((p: any) => ({
       name: p.name,
       phone: p.phone,
@@ -1589,7 +1603,8 @@ export function BillingPage() {
       balance: p.balance,
       party_type: p.party_type,
     }));
-    const combined = [...customerSearchResults, ...allCustomersList, ...partyCustomers];
+    const combined = [...partyCustomers, ...customerSearchResults, ...allCustomersList];
+    const seen = new Set<string>();
     const matched: any[] = [];
 
     for (const c of combined) {
@@ -1604,7 +1619,12 @@ export function BillingPage() {
 
       if (matchesName || matchesPhone) {
         seen.add(key);
-        matched.push(c);
+        const pMatch = partyMap.get(key) || partyMap.get(cNormName) || (cPhone ? partyMap.get(cPhone) : null);
+        const mergedBal = c.balance ?? (pMatch ? pMatch.balance : undefined);
+        matched.push({
+          ...c,
+          balance: mergedBal,
+        });
       }
     }
     return matched.slice(0, 15);
@@ -1829,10 +1849,25 @@ export function BillingPage() {
       localStorage.removeItem('editBillData');
 
       try {
-        const { invoice, items: invoiceItems, originalRole } = JSON.parse(raw);
+        const { invoice: localInvoice, items: invoiceItems, originalRole } = JSON.parse(raw);
         if (!invoiceItems?.length) return;
 
         setIsLoadingEditBill(true);
+
+        let invoice = localInvoice;
+        if (window.electronAPI?.dbGetInvoices && localInvoice?.invoice_id) {
+          try {
+            const fetched = await window.electronAPI.dbGetInvoices({ search: localInvoice.invoice_number || localInvoice.invoice_id, tenant_id: localInvoice.tenant_id });
+            if (Array.isArray(fetched) && fetched.length > 0) {
+              const exact = fetched.find((i: any) => i.invoice_id === localInvoice.invoice_id);
+              if (exact) {
+                invoice = exact;
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to fetch fresh invoice from DB for edit, using cached invoice data', e);
+          }
+        }
 
         if (!useTabStore.getState().activeTabId) {
           tabCounter.current++;
@@ -2012,14 +2047,48 @@ export function BillingPage() {
           isScrapMode: false,
         });
 
-        // Parse split_details safely (could be JSON string or object)
+        // Parse split_details safely (handles double/multi-encoded JSON string or object)
         let parsedSplitDetails: any = null;
         if (invoice.split_details) {
-          if (typeof invoice.split_details === 'string') {
-            try { parsedSplitDetails = JSON.parse(invoice.split_details); } catch {}
-          } else if (typeof invoice.split_details === 'object') {
-            parsedSplitDetails = invoice.split_details;
+          let curr = invoice.split_details;
+          while (typeof curr === 'string') {
+            try {
+              const p = JSON.parse(curr);
+              curr = p;
+            } catch {
+              break;
+            }
           }
+          if (typeof curr === 'object' && curr !== null) {
+            parsedSplitDetails = curr;
+          }
+        }
+
+        const grandTotalVal = Number(invoice.grand_total) || 0;
+        const rawPm = invoice.payment_method ? String(invoice.payment_method).toUpperCase() : 'PENDING';
+        const pmUpper = (['PENDING', 'CASH', 'CARD', 'UPI', 'CREDIT', 'SPLIT'].includes(rawPm) ? rawPm : 'PENDING') as PaymentMethod;
+
+        let finalSplitDetails: SplitDetails = { cash: 0, card: 0, upi: 0, credit: 0, bank_transfer: 0 };
+
+        if (parsedSplitDetails && (Number(parsedSplitDetails.cash) || Number(parsedSplitDetails.card) || Number(parsedSplitDetails.upi) || Number(parsedSplitDetails.credit) || Number(parsedSplitDetails.bank_transfer || parsedSplitDetails.bank))) {
+          finalSplitDetails = {
+            cash: Number(parsedSplitDetails.cash) || 0,
+            card: Number(parsedSplitDetails.card) || 0,
+            upi: Number(parsedSplitDetails.upi) || 0,
+            credit: Number(parsedSplitDetails.credit) || 0,
+            bank_transfer: Number(parsedSplitDetails.bank_transfer || parsedSplitDetails.bank) || 0,
+          };
+          if (parsedSplitDetails.upi_id) (finalSplitDetails as any).upi_id = parsedSplitDetails.upi_id;
+          if (parsedSplitDetails.upi_name) (finalSplitDetails as any).upi_name = parsedSplitDetails.upi_name;
+          if (parsedSplitDetails.upi_source_id) (finalSplitDetails as any).upi_source_id = parsedSplitDetails.upi_source_id;
+        } else {
+          // Pre-fill split details according to single payment method and received amount / grand total
+          const amt = Number(invoice.received_amount) > 0 ? Number(invoice.received_amount) : grandTotalVal;
+          if (pmUpper === 'CASH') finalSplitDetails.cash = amt;
+          else if (pmUpper === 'CARD') finalSplitDetails.card = amt;
+          else if (pmUpper === 'UPI') finalSplitDetails.upi = amt;
+          else if (pmUpper === 'CREDIT') finalSplitDetails.credit = grandTotalVal;
+          else if (pmUpper === 'SPLIT') finalSplitDetails.cash = amt;
         }
 
         // Set customer info, payment details, and split details on active tab
@@ -2028,9 +2097,9 @@ export function BillingPage() {
           customerPhone: invoice.customer_phone || '',
           customerGstin: invoice.customer_gstin || '',
           customerAddress: invoice.customer_address || '',
-          paymentMethod: invoice.payment_method || 'PENDING',
+          paymentMethod: pmUpper,
           receivedAmount: Number(invoice.received_amount) || 0,
-          splitDetails: parsedSplitDetails || undefined,
+          splitDetails: finalSplitDetails,
           selectedUpiId: parsedSplitDetails?.upi_id,
           selectedUpiSourceId: parsedSplitDetails?.upi_source_id,
           selectedUpiName: parsedSplitDetails?.upi_name,
@@ -5804,6 +5873,51 @@ export function BillingPage() {
                 />
               </div>
             </div>
+
+            {/* ── Real-time Customer Old Balance Banner (Visible in ALL payment modes) ── */}
+            {(() => {
+              const cleanName = (customerName || '').trim();
+              const cleanPhone = (customerPhone || '').trim();
+              if (!cleanName && !cleanPhone) return null;
+              const partyObj = (partiesForTier || []).find((p: any) =>
+                (cleanName && p.name && p.name.trim().toLowerCase() === cleanName.toLowerCase()) ||
+                (cleanPhone && p.phone && String(p.phone).trim() === cleanPhone)
+              );
+              if (!partyObj || partyObj.balance == null || Number(partyObj.balance) === 0) return null;
+              const bal = Number(partyObj.balance);
+              const isDue = bal > 0;
+              const fmtN = (n: number) => n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+              
+              return (
+                <div className={`mb-2 rounded-xl px-3.5 py-2 border text-xs flex items-center justify-between gap-2 flex-wrap transition-all duration-300 shadow-xs ${
+                  isDue
+                    ? 'border-amber-500/50 bg-amber-50 dark:bg-amber-950/40 text-amber-950 dark:text-amber-100'
+                    : 'border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-950 dark:text-emerald-100'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <User className={`w-4 h-4 shrink-0 ${isDue ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                    <span className="font-extrabold text-sm text-foreground">
+                      {partyObj.name}
+                    </span>
+                    {partyObj.phone && (
+                      <span className="text-xs font-semibold text-muted-foreground">({partyObj.phone})</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <span className={`font-black text-xs uppercase tracking-wider ${isDue ? 'text-amber-900 dark:text-amber-200' : 'text-emerald-900 dark:text-emerald-200'}`}>
+                      {isDue ? 'Outstanding Old Due:' : 'Advance Credit Balance:'}
+                    </span>
+                    <span className={`text-sm font-black px-3 py-1 rounded-lg shadow-xs text-white ${
+                      isDue
+                        ? 'bg-amber-600 dark:bg-amber-500'
+                        : 'bg-emerald-600 dark:bg-emerald-500'
+                    }`}>
+                      ₹{fmtN(Math.abs(bal))}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* ── Real-time Credit Limit Warning Banner ────────────────────────── */}
             {(() => {

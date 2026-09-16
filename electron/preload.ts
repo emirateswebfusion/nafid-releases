@@ -223,6 +223,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Customers / Loyalty
   dbGetCustomers: (args: { tenant_id: string }) => ipcRenderer.invoke('db:getCustomers', args),
   dbFindCustomers: (args: { tenant_id: string; name?: string; phone?: string }) => ipcRenderer.invoke('db:findCustomers', args),
+  dbDeleteCustomer: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:deleteCustomer', args),
   dbGetCustomerInvoices: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerInvoices', args),
   dbDeleteInvoice: (invoice_id: string) => ipcRenderer.invoke('db:deleteInvoice', invoice_id),
   dbGetCustomerLoyaltyTransactions: (args: { customer_id: string; tenant_id: string }) => ipcRenderer.invoke('db:getCustomerLoyaltyTransactions', args),

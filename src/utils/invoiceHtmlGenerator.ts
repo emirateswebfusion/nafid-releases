@@ -1,4 +1,4 @@
-import { type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
+import { DEFAULT_BILL_SETTINGS, type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
 
 export interface InvoiceItemDisplay {
@@ -114,6 +114,69 @@ function formatItemNameForBill(name: string, isCombo?: boolean): string {
   return formatted;
 }
 
+function renderHtmlBalanceRows(data: InvoiceData, layout: 'table' | 'div' = 'table'): string {
+  const bs = data.billSettings || DEFAULT_BILL_SETTINGS;
+  if (bs.showCreditBalance === false) return '';
+
+  const pm = (data.paymentMethod || '').toUpperCase();
+  const isCredit = pm === 'CREDIT' || (pm === 'SPLIT' && (data.customerBalance != null || data.oldBalance != null)) || (pm === '' && (data.customerBalance != null || data.oldBalance != null));
+
+  let html = '';
+
+  if (isCredit) {
+    if (data.oldBalance != null && data.oldBalance !== 0) {
+      const label = data.oldBalance > 0 ? 'Old Due' : 'Old Advance';
+      const valStr = Math.abs(data.oldBalance).toFixed(2);
+      if (layout === 'table') {
+        html += `<tr><td style="padding-right: 10px; font-weight: bold;">${label}</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${valStr}</td></tr>`;
+      } else {
+        html += `<div class="row"><span>${label}</span><span>₹${valStr}</span></div>`;
+      }
+    }
+    if (data.receivedAmount != null && data.receivedAmount > 0) {
+      if (layout === 'table') {
+        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Cash Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${data.receivedAmount.toFixed(2)}</td></tr>`;
+      } else {
+        html += `<div class="row"><span>Cash Received</span><span>₹${data.receivedAmount.toFixed(2)}</span></div>`;
+      }
+    }
+    const netBal = data.customerBalance ?? data.balanceAmount;
+    if (netBal != null) {
+      const label = netBal > 0 ? 'Balance Due' : netBal < 0 ? 'Advance Balance' : 'Balance Due';
+      const valStr = Math.abs(netBal).toFixed(2);
+      if (layout === 'table') {
+        html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">${label}</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${valStr}</td></tr>`;
+      } else {
+        html += `<div class="row" style="font-weight:bold"><span>${label}</span><span>₹${valStr}</span></div>`;
+      }
+    }
+  } else {
+    if (data.receivedAmount != null && data.receivedAmount > 0) {
+      if (layout === 'table') {
+        html += `<tr><td style="padding-right: 10px; font-weight: bold;">Received</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${data.receivedAmount.toFixed(2)}</td></tr>`;
+      } else {
+        html += `<div class="row"><span>Received</span><span>₹${data.receivedAmount.toFixed(2)}</span></div>`;
+      }
+      const change = data.receivedAmount - data.grandTotal;
+      if (change > 0) {
+        if (layout === 'table') {
+          html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${change.toFixed(2)}</td></tr>`;
+        } else {
+          html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>₹${change.toFixed(2)}</span></div>`;
+        }
+      }
+    } else if (data.balanceAmount != null && data.balanceAmount > 0 && !data.isReprint) {
+      if (layout === 'table') {
+        html += `<tr class="double-underline"><td style="padding-right: 10px; font-weight: bold;">Change Return</td><td style="font-weight: bold;">:</td><td style="text-align: right; padding-left: 10px; font-weight: bold;">₹${data.balanceAmount.toFixed(2)}</td></tr>`;
+      } else {
+        html += `<div class="row" style="font-weight:bold"><span>Change Return</span><span>₹${data.balanceAmount.toFixed(2)}</span></div>`;
+      }
+    }
+  }
+
+  return html;
+}
+
 export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxed' | 'modern' | 'classic' | 'half-a4' = 'standard'): string {
   const bs = data.billSettings;
   const isB2B = data.isB2B === true;
@@ -134,30 +197,27 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
   const grandTotal = Number(data.grandTotal) || 0;
   const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
   const isVertical = data.a5Orientation === 'vertical';
+  const isRateQty = data.billSettings?.itemColumnOrder === 'rate_qty';
   const itemsList = Array.isArray(data.items) ? data.items : [];
 
   const itemsHtml = itemsList.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
     const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
+    const middleCols = isRateQty
+      ? `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td>`
+      : `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td>`;
     return `
     <tr>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; width: 35px;">${idx + 1}</td>
       <td style="text-align: left; padding: 2.5px 4px; font-size: 11.5px; font-weight: 500;">${displayName}${brandHtml}</td>
-      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td>
-      <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td>
+      ${middleCols}
       <td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; font-weight: 600; width: 85px;">${fmt.displayTotal}</td>
     </tr>
     `;
   }).join('');
 
   const amountWords = numberToIndianWords(Math.max(0, netPayable));
-
-  const oldBalance = data.oldBalance !== undefined
-    ? data.oldBalance
-    : (data.balanceAmount != null && data.receivedAmount != null && data.paymentMethod !== 'CREDIT'
-      ? (data.balanceAmount - grandTotal + data.receivedAmount)
-      : null);
 
   const pageCss = isVertical ? `
     @page {
@@ -387,8 +447,9 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           <tr>
             <th style="text-align: left; width: 35px;">S No</th>
             <th style="text-align: left;">Description</th>
-            <th style="text-align: right; width: 75px;">Rate</th>
-            <th style="text-align: right; width: 55px;">Qty</th>
+            ${isRateQty
+              ? `<th style="text-align: right; width: 75px;">Rate</th><th style="text-align: right; width: 55px;">Qty</th>`
+              : `<th style="text-align: right; width: 55px;">Qty</th><th style="text-align: right; width: 75px;">Rate</th>`}
             <th style="text-align: right; width: 85px;">Total</th>
           </tr>
         </thead>
@@ -406,31 +467,9 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
         <div style="width: ${isVertical ? '50%' : '55%'};">
           <div style="font-size: 11px; font-weight: 600;">Rupees ${amountWords} Only</div>
 
-          ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
+          ${renderHtmlBalanceRows(data, 'table') ? `
           <table class="ledger-table">
-            ${oldBalance != null && oldBalance !== 0 ? `
-            <tr>
-              <td style="padding-right: 10px; font-weight: bold;">Old Balance</td>
-              <td style="font-weight: bold;">:</td>
-              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${oldBalance.toFixed(2)}</td>
-            </tr>` : ''}
-            <tr>
-              <td style="padding-right: 10px; font-weight: bold;">Sales</td>
-              <td style="font-weight: bold;">:</td>
-              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${grandTotal.toFixed(2)}</td>
-            </tr>
-            ${data.receivedAmount != null && data.receivedAmount > 0 ? `
-            <tr>
-              <td style="padding-right: 10px; font-weight: bold;">${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Cash Received'}</td>
-              <td style="font-weight: bold;">:</td>
-              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${data.receivedAmount.toFixed(2)}</td>
-            </tr>` : ''}
-            ${data.balanceAmount != null ? `
-            <tr class="double-underline">
-              <td style="padding-right: 10px; font-weight: bold;">${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</td>
-              <td style="font-weight: bold;">:</td>
-              <td style="text-align: right; padding-left: 10px; font-weight: bold;">${Math.abs(data.balanceAmount).toFixed(2)}</td>
-            </tr>` : ''}
+            ${renderHtmlBalanceRows(data, 'table')}
           </table>
           ` : ''}
 
@@ -482,11 +521,13 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
           </table>
 
           <!-- Signatory Section -->
-          ${bs?.showAuthorisedSignatory !== false ? `
+          ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
           <div style="margin-top: 14px; font-size: 10px;">
-            <div>For <strong>${data.shopName ? data.shopName.toUpperCase() : 'Store'}</strong></div>
-            <div style="height: 22px;"></div>
+            ${bs?.showForShopName !== false && data.shopName ? `<div>For <strong>${data.shopName.toUpperCase()}</strong></div>` : ''}
+            ${bs?.showAuthorisedSignatory !== false ? `
+            <div style="height: ${bs?.showForShopName !== false && data.shopName ? '22px' : '30px'};"></div>
             <div>Authorised Signatory</div>
+            ` : ''}
           </div>
           ` : ''}
         </div>
@@ -499,6 +540,7 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 
 function generateBoxedHtml(data: InvoiceData, title: string): string {
   const bs = data.billSettings;
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const grandTotal = Number(data.grandTotal) || 0;
   const scrapDed = Number(data.scrapDeduction) || 0;
   const returnDed = Number(data.returnDeduction) || 0;
@@ -554,13 +596,16 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     totalSgstSum += sgstAmt;
     totalAmountSum += itemTotal;
 
+    const qtyRateCols = isRateQty
+      ? `<td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td>`
+      : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td>`;
+
     return `
     <tr style="height: 24px;">
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${idx + 1}</td>
       <td style="text-align: left; border-right: 1px solid #000; padding: 3px 6px; font-weight: 500;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${hsnCode}</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td>
-      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td>
+      ${qtyRateCols}
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${taxableVal.toFixed(2)}</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${cgstPct > 0 ? cgstPct : ''}</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${cgstAmt > 0 ? cgstAmt.toFixed(2) : ''}</td>
@@ -571,7 +616,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     `;
   }).join('');
 
-  const minRows = 8;
+  const minRows = 12;
   let emptyRowsHtml = '';
   if (itemsList.length < minRows) {
     const padCount = minRows - itemsList.length;
@@ -592,6 +637,20 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       </tr>`;
     }
   }
+  emptyRowsHtml += `
+      <tr style="height: 100%;">
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
+        <td>&nbsp;</td>
+      </tr>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -600,6 +659,11 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
   <title>${title} - ${data.invoiceNumber}</title>
   <style>
     * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
     @page {
       size: A4 portrait;
       margin: 8mm 10mm;
@@ -608,8 +672,6 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
       font-size: 11px;
       color: #000;
-      margin: 0;
-      padding: 0;
       background: #fff;
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -617,8 +679,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     .invoice-box {
       width: 100%;
+      min-height: 275mm;
       border: 1.5px solid #000;
       margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
     }
     .header-table {
       width: 100%;
@@ -650,8 +716,14 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     .grid-col.left {
       border-right: 1px solid #000;
     }
+    .table-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
     .items-table {
       width: 100%;
+      height: 100%;
       border-collapse: collapse;
       table-layout: fixed;
       border-bottom: 1px solid #000;
@@ -666,8 +738,20 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       font-size: 11px;
       vertical-align: middle;
     }
+    .footer-container {
+      margin-top: auto;
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .invoice-box {
+        min-height: 275mm;
+      }
+      .footer-container {
+        page-break-inside: avoid;
+        break-inside: avoid;
+      }
     }
   </style>
 </head>
@@ -736,14 +820,16 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     </div>
 
     <!-- Items Table -->
+    <div class="table-container">
     <table class="items-table">
       <thead>
         <tr style="border-bottom: 1px solid #000;">
           <th rowspan="2" style="width: 32px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Sl<br>No</th>
           <th rowspan="2" style="border-right: 1px solid #000; text-align: left; padding: 4px 6px;">Description of Goods</th>
           <th rowspan="2" style="width: 70px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Hsn Code<br>(GST)</th>
-          <th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th>
-          <th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th>
+          ${isRateQty
+            ? `<th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th><th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th>`
+            : `<th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th><th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th>`}
           <th rowspan="2" style="width: 72px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Taxable<br>Value</th>
           <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">CGST</th>
           <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">SGST</th>
@@ -763,8 +849,9 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
-          <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td>
-          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          ${isRateQty
+            ? `<td style="border-right: 1px solid #000;">&nbsp;</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td>`
+            : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td><td style="border-right: 1px solid #000;">&nbsp;</td>`}
           <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalTaxableSum.toFixed(2)}</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalCgstSum > 0 ? totalCgstSum.toFixed(2) : ''}</td>
@@ -775,41 +862,55 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       </tbody>
     </table>
 
-    <!-- E&OE & Words Section -->
-    <div style="padding: 4px 8px; border-bottom: 1px solid #000; font-size: 11px; line-height: 1.4;">
-      <div style="font-weight: bold;">E&amp;OE</div>
-      <div style="margin-top: 2px;">
-        <strong>Invoice Value (In Words)</strong><br>
-        ( Rupees ${amountWords} Only )
-      </div>
-      <div style="margin-top: 4px; font-size: 10.5px;">Certified that the Particulars given above are true and correct</div>
-      <div style="font-size: 10.5px;">Electronic Reference Number : ${data.irn || ''}</div>
     </div>
 
-    <!-- Bottom Footer Grid (Bank Details & Signatory) -->
-    <div style="display: flex;">
-      <div style="width: 55%; border-right: 1px solid #000; padding: 6px 8px; font-size: 11px; line-height: 1.5;">
-        <div style="font-weight: bold; margin-bottom: 2px; text-decoration: underline;">Bank Details :-</div>
-        <div><strong>Bank Name :</strong> ${data.bankName || ''}</div>
-        <div><strong>Branch :</strong> ${data.bankBranch || ''}</div>
-        <div><strong>A/C No :</strong> ${data.bankAccount || ''}</div>
-        <div><strong>IFSC :</strong> ${data.bankIfsc || ''}</div>
-      </div>
-      <div style="width: 45%; padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px;">
-        <div>
-          <div style="display: flex; justify-content: space-between; padding: 2px 0;">
-            <span>Round To</span>
-            <span>${roundOff.toFixed(2)}</span>
+    <!-- Bottom Page Footer -->
+    <div class="footer-container">
+      <!-- E&OE & Totals Section -->
+      <div style="display: flex; border-bottom: 1px solid #000;">
+        <div style="width: 55%; border-right: 1px solid #000; padding: 4px 8px; font-size: 11px; line-height: 1.4;">
+          <div style="font-weight: bold;">E&amp;OE</div>
+          <div style="margin-top: 2px;">
+            <strong>Invoice Value (In Words)</strong><br>
+            ( Rupees ${amountWords} Only )
           </div>
-          <div style="display: flex; justify-content: space-between; padding: 4px 0; font-weight: bold; font-size: 12.5px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 2px;">
-            <span>Total</span>
-            <span>${finalTotal.toFixed(2)}</span>
+          <div style="margin-top: 4px; font-size: 10.5px;">Certified that the Particulars given above are true and correct</div>
+          <div style="font-size: 10.5px;">Electronic Reference Number : ${data.irn || ''}</div>
+        </div>
+        <div style="width: 45%; padding: 4px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px;">
+          <div>
+            <div style="display: flex; justify-content: space-between; padding: 2px 0;">
+              <span>Round To</span>
+              <span>${roundOff.toFixed(2)}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-weight: bold; font-size: 12.5px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 2px;">
+              <span>Total</span>
+              <span>${finalTotal.toFixed(2)}</span>
+            </div>
           </div>
         </div>
-        <div style="text-align: right; margin-top: 18px;">
-          <div style="font-weight: bold; font-size: 11px; text-transform: uppercase;">${data.shopName ? data.shopName.toUpperCase() : ''}</div>
-          <div style="height: 35px;"></div>
-          <div style="font-weight: bold; font-size: 10.5px;">Authorised Signatory</div>
+      </div>
+
+      <!-- Bottom Footer Grid (Bank Details & Signatory) -->
+      <div style="display: flex;">
+        <div style="width: 55%; border-right: 1px solid #000; padding: 6px 8px; font-size: 11px; line-height: 1.5;">
+          <div style="font-weight: bold; margin-bottom: 2px; text-decoration: underline;">Bank Details :-</div>
+          <div><strong>Bank Name :</strong> ${data.bankName || ''}</div>
+          <div><strong>Branch :</strong> ${data.bankBranch || ''}</div>
+          <div><strong>A/C No :</strong> ${data.bankAccount || ''}</div>
+          <div><strong>IFSC :</strong> ${data.bankIfsc || ''}</div>
+        </div>
+        <div style="width: 45%; padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; text-align: right;">
+          <div></div>
+          ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
+          <div>
+            ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; font-size: 11px; text-transform: uppercase;">FOR ${data.shopName.toUpperCase()}</div>` : ''}
+            ${bs?.showAuthorisedSignatory !== false ? `
+            <div style="height: ${bs?.showForShopName !== false && data.shopName ? '35px' : '45px'};"></div>
+            <div style="font-weight: bold; font-size: 10.5px;">Authorised Signatory</div>
+            ` : ''}
+          </div>
+          ` : ''}
         </div>
       </div>
     </div>
@@ -819,6 +920,8 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
 }
 
 function generateStandardHtml(data: InvoiceData, title: string): string {
+  const bs = data.billSettings;
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
@@ -827,18 +930,18 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10.5px; color:#6b21a8; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:10px; color:#4b5563; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
+    const middleCols = isRateQty
+      ? `<td class="text-right">₹${fmt.displayRate}</td><td class="text-center">${fmt.displayQty}</td>`
+      : `<td class="text-center">${fmt.displayQty}</td><td class="text-right">₹${fmt.displayRate}</td>`;
     return `
     <tr>
       <td class="text-center">${idx + 1}</td>
       <td>${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span class="discount-badge">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
-      <td class="text-center">${fmt.displayQty}</td>
-      <td class="text-right">₹${fmt.displayRate}</td>
+      ${middleCols}
       <td class="text-right">₹${fmt.displayTotal}</td>
     </tr>
   `;
   }).join('');
-
-
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
@@ -909,8 +1012,9 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
     <thead><tr>
       <th class="text-center" style="width:36px">#</th>
       <th>Item</th>
-      <th class="text-center" style="width:70px">Qty</th>
-      <th class="text-right" style="width:80px">Rate</th>
+      ${isRateQty
+        ? `<th class="text-right" style="width:80px">Rate</th><th class="text-center" style="width:70px">Qty</th>`
+        : `<th class="text-center" style="width:70px">Qty</th><th class="text-right" style="width:80px">Rate</th>`}
       <th class="text-right" style="width:90px">Amount</th>
     </tr></thead>
     <tbody>${itemsHtml}</tbody>
@@ -928,19 +1032,28 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
       ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
       <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#16a34a">Net Payable</td><td class="text-right" style="font-weight:bold;color:#16a34a">₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</td></tr>
       ` : ''}
-      ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
-      ${data.oldBalance != null && data.oldBalance !== 0 ? `<tr><td colspan="4" class="text-right">Old Balance</td><td class="text-right">₹${data.oldBalance.toFixed(2)}</td></tr>` : ''}
-      ${data.receivedAmount != null && data.receivedAmount > 0 ? `<tr><td colspan="4" class="text-right">${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Received'}</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>` : ''}
-      ${data.balanceAmount != null ? `<tr><td colspan="4" class="text-right" style="font-weight:bold">${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</td><td class="text-right" style="font-weight:bold">₹${Math.abs(data.balanceAmount).toFixed(2)}</td></tr>` : ''}
-      ` : ''}
+      ${renderHtmlBalanceRows(data, 'table')}
     </tfoot>
   </table>
   ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms &amp; Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
+  ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
+  <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+    <div style="text-align: right; font-size: 11px;">
+      ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; text-transform: uppercase;">For ${data.shopName.toUpperCase()}</div>` : ''}
+      ${bs?.showAuthorisedSignatory !== false ? `
+      <div style="height: 35px;"></div>
+      <div style="font-weight: bold;">Authorised Signatory</div>
+      ` : ''}
+    </div>
+  </div>
+  ` : ''}
   <div class="footer">Generated by Nafid — ${new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })}</div>
 </body></html>`;
 }
 
 function generateModernHtml(data: InvoiceData, title: string): string {
+  const bs = data.billSettings;
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
@@ -949,12 +1062,14 @@ function generateModernHtml(data: InvoiceData, title: string): string {
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#059669; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#6b7280; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
+    const middleCols = isRateQty
+      ? `<td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td><td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td>`
+      : `<td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td><td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td>`;
     return `
     <tr style="border-bottom:1px solid #e5e7eb">
       <td style="padding:6px 4px;font-size:11px;color:#374151">${idx + 1}</td>
       <td style="padding:6px 4px;font-size:11px;color:#374151">${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#dc2626;font-weight:600">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
-      <td style="padding:6px 4px;font-size:11px;text-align:center;color:#374151">${fmt.displayQty}</td>
-      <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151">₹${fmt.displayRate}</td>
+      ${middleCols}
       <td style="padding:6px 4px;font-size:11px;text-align:right;color:#374151;font-weight:600">₹${fmt.displayTotal}</td>
     </tr>
   `;
@@ -1030,8 +1145,9 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       <thead><tr>
         <th style="text-align:center;width:30px">#</th>
         <th style="text-align:left">Item</th>
-        <th style="text-align:center;width:60px">Qty</th>
-        <th style="text-align:right;width:80px">Rate</th>
+        ${isRateQty
+          ? `<th style="text-align:right;width:80px">Rate</th><th style="text-align:center;width:60px">Qty</th>`
+          : `<th style="text-align:center;width:60px">Qty</th><th style="text-align:right;width:80px">Rate</th>`}
         <th style="text-align:right;width:90px">Amount</th>
       </tr></thead>
       <tbody>${itemsHtml}</tbody>
@@ -1051,23 +1167,31 @@ function generateModernHtml(data: InvoiceData, title: string): string {
       ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
       <div class="row" style="font-weight:bold;color:#16a34a"><span>Net Payable</span><span>₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</span></div>
       ` : ''}
-      ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
-      ${data.oldBalance != null && data.oldBalance !== 0 ? `<div class="row"><span>Old Balance</span><span>₹${data.oldBalance.toFixed(2)}</span></div>` : ''}
-      ${data.receivedAmount != null && data.receivedAmount > 0 ? `<div class="row"><span>${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Received'}</span><span>₹${data.receivedAmount.toFixed(2)}</span></div>` : ''}
-      ${data.balanceAmount != null ? `<div class="row" style="font-weight:bold"><span>${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</span><span>₹${Math.abs(data.balanceAmount).toFixed(2)}</span></div>` : ''}
-      ` : ''}
+      ${renderHtmlBalanceRows(data, 'div')}
     </div>
 
     ${data.upiId ? `<div class="upi-box"><p>Pay via UPI: <strong>${data.upiId}</strong></p></div>` : ''}
 
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
-
+    ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
+    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+      <div style="text-align: right; font-size: 11px;">
+        ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; text-transform: uppercase;">For ${data.shopName.toUpperCase()}</div>` : ''}
+        ${bs?.showAuthorisedSignatory !== false ? `
+        <div style="height: 35px;"></div>
+        <div style="font-weight: bold;">Authorised Signatory</div>
+        ` : ''}
+      </div>
+    </div>
+    ` : ''}
     <div class="footer">Generated by Nafid — ${new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })}</div>
   </div>
 </body></html>`;
 }
 
 function generateClassicHtml(data: InvoiceData, title: string): string {
+  const bs = data.billSettings;
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
   const itemsHtml = data.items.map((item, idx) => {
     const fmt = formatPrintItem(item, data.billSettings);
@@ -1076,18 +1200,18 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#1a1a1a; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#555; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
+    const middleCols = isRateQty
+      ? `<td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayRate}</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${fmt.displayQty}</td>`
+      : `<td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${fmt.displayQty}</td><td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayRate}</td>`;
     return `
     <tr>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${idx + 1}</td>
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px">${displayName}${brandHtml}${comboHtml}${data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px;color:#b91c1c;font-style:italic">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : ''}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:center">${fmt.displayQty}</td>
-      <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayRate}</td>
+      ${middleCols}
       <td style="padding:5px 6px;border:1px solid #d1d5db;font-size:11px;text-align:right">₹${fmt.displayTotal}</td>
     </tr>
   `;
   }).join('');
-
-
 
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="page-size" content="A4"><meta name="page-orientation" content="portrait"><title>${title} - ${data.shopName}</title>
@@ -1165,8 +1289,9 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
       <thead><tr>
         <th style="width:32px;text-align:center">#</th>
         <th>Particulars</th>
-        <th style="width:55px;text-align:center">Qty</th>
-        <th style="width:75px;text-align:right">Rate</th>
+        ${isRateQty
+          ? `<th style="width:75px;text-align:right">Rate</th><th style="width:55px;text-align:center">Qty</th>`
+          : `<th style="width:55px;text-align:center">Qty</th><th style="width:75px;text-align:right">Rate</th>`}
         <th style="width:85px;text-align:right">Amount</th>
       </tr></thead>
       <tbody>${itemsHtml}</tbody>
@@ -1184,18 +1309,24 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
         ` : ((data.scrapDeduction || 0) + (data.returnDeduction || 0)) > 0 ? `
         <tr><td colspan="4" class="text-right" style="font-weight:bold;color:#15803d">Net Payable</td><td class="text-right" style="font-weight:bold;color:#15803d">₹${(data.grandTotal - ((data.scrapDeduction || 0) + (data.returnDeduction || 0))).toFixed(2)}</td></tr>
         ` : ''}
-        ${(data.billSettings?.showCreditBalance !== false) && (data.receivedAmount != null || data.balanceAmount != null || data.oldBalance != null) ? `
-        ${data.oldBalance != null && data.oldBalance !== 0 ? `<tr><td colspan="4" class="text-right">Old Balance</td><td class="text-right">₹${data.oldBalance.toFixed(2)}</td></tr>` : ''}
-        ${data.receivedAmount != null && data.receivedAmount > 0 ? `<tr><td colspan="4" class="text-right">${data.paymentMethod === 'CREDIT' ? 'Cash Received / Paid' : 'Received'}</td><td class="text-right">₹${data.receivedAmount.toFixed(2)}</td></tr>` : ''}
-        ${data.balanceAmount != null ? `<tr><td colspan="4" class="text-right" style="font-weight:bold">${data.paymentMethod === 'CREDIT' ? 'Balance Due' : 'Balance'}</td><td class="text-right" style="font-weight:bold">₹${Math.abs(data.balanceAmount).toFixed(2)}</td></tr>` : ''}
-        ` : ''}
+        ${renderHtmlBalanceRows(data, 'table')}
       </tfoot>
     </table>
 
     ${data.upiId ? `<div class="upi-box"><p>Pay via UPI: <strong>${data.upiId}</strong></p></div>` : ''}
 
     ${data.billSettings?.instructions ? `<div class="terms"><strong>Terms & Conditions:</strong><br>${data.billSettings.instructions.replace(/\n/g, '<br>')}</div>` : ''}
-
+    ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
+    <div style="margin-top: 20px; display: flex; justify-content: flex-end;">
+      <div style="text-align: right; font-size: 11px;">
+        ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; text-transform: uppercase;">For ${data.shopName.toUpperCase()}</div>` : ''}
+        ${bs?.showAuthorisedSignatory !== false ? `
+        <div style="height: 35px;"></div>
+        <div style="font-weight: bold;">Authorised Signatory</div>
+        ` : ''}
+      </div>
+    </div>
+    ` : ''}
     <div class="footer">This is a computer generated invoice — Generated by Nafid on ${new Date().toLocaleString('en-IN', { timeZone: getStoreTimezone() })}</div>
   </div>
 </body></html>`;

@@ -138,7 +138,7 @@ export function ActionPane() {
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
-          shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
+          shopName: shopNameVal || shopName || 'My Shop',
           shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
           shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
           shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,

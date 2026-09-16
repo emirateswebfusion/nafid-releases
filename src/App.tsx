@@ -145,6 +145,8 @@ function App() {
   const [showPurchaseBillManager, setShowPurchaseBillManager] = useState(false);
   const [showCashierSettlement, setShowCashierSettlement] = useState(false);
   const [showCustomersPage, setShowCustomersPage] = useState(false);
+  const [cameFromCustomers, setCameFromCustomers] = useState(false);
+  const [customerTarget, setCustomerTarget] = useState<string | undefined>(undefined);
   const [showPaymentsPage, setShowPaymentsPage] = useState(false);
   const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -646,10 +648,30 @@ function App() {
           <ComboManager onClose={() => setShowComboManager(false)} />
         </PermissionGuard>
       ) : showPartyManager ? (
-        <PermissionGuard permission="customers.view" onBack={() => { setShowPartyManager(false); setPartyTarget(undefined); }}>
+        <PermissionGuard permission="customers.view" onBack={() => {
+          setShowPartyManager(false);
+          setPartyTarget(undefined);
+          if (cameFromCustomers) {
+            setCameFromCustomers(false);
+            setShowCustomersPage(true);
+          }
+        }}>
           <PartyManager
             initialPartyIdOrQuery={partyTarget}
-            onClose={() => { setShowPartyManager(false); setPartyTarget(undefined); }}
+            onClose={() => {
+              setShowPartyManager(false);
+              setPartyTarget(undefined);
+              if (cameFromCustomers) {
+                setCameFromCustomers(false);
+                setShowCustomersPage(true);
+              }
+            }}
+            onBackToCustomers={cameFromCustomers ? () => {
+              setShowPartyManager(false);
+              setPartyTarget(undefined);
+              setCameFromCustomers(false);
+              setShowCustomersPage(true);
+            } : undefined}
           />
         </PermissionGuard>
       ) : showCashierSettlement ? (
@@ -677,12 +699,21 @@ function App() {
           <PurchaseBillManager onClose={() => setShowPurchaseBillManager(false)} />
         </PermissionGuard>
       ) : showCustomersPage ? (
-        <PermissionGuard permission="customers.view" onBack={() => setShowCustomersPage(false)}>
+        <PermissionGuard permission="customers.view" onBack={() => {
+          setShowCustomersPage(false);
+          setCustomerTarget(undefined);
+        }}>
           <CustomersPage
-            onClose={() => setShowCustomersPage(false)}
-            onOpenParty={(target) => {
+            initialCustomerIdOrQuery={customerTarget}
+            onClose={() => {
               setShowCustomersPage(false);
-              setPartyTarget(target);
+              setCustomerTarget(undefined);
+            }}
+            onOpenParty={(pTarget, cTarget) => {
+              setShowCustomersPage(false);
+              setPartyTarget(pTarget);
+              setCustomerTarget(cTarget);
+              setCameFromCustomers(true);
               setShowPartyManager(true);
             }}
           />

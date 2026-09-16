@@ -523,7 +523,7 @@ export function SettingsPricingTiers({ onClose }: { onClose?: () => void }) {
             TIERS LIST VIEW
         ═══════════════════════════════════════════════════════════════ */
         <div className="flex-1 overflow-y-auto">
-          <div className="max-w-7xl mx-auto w-full px-6 pt-6 pb-10 space-y-4">
+          <div className="w-full px-4 sm:px-6 pt-6 pb-10 space-y-4">
 
             {/* Create Tier Card */}
             <section className="bg-card border border-border rounded-[28px] p-6 shadow-sm">

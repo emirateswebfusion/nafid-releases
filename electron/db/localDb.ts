@@ -437,6 +437,7 @@ export function initDb() {
         total_points_redeemed REAL NOT NULL DEFAULT 0,
         current_points_balance REAL NOT NULL DEFAULT 0,
         last_purchase_date DATETIME,
+        is_deleted INTEGER DEFAULT 0,
         sync_status TEXT DEFAULT 'SYNCED',
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -637,7 +638,7 @@ export function initDb() {
     ],
     customers: [
         'customer_id', 'tenant_id', 'name', 'phone', 'address', 'total_points_earned', 'total_points_redeemed',
-        'current_points_balance', 'last_purchase_date', 'sync_status', 'created_at', 'updated_at'
+        'current_points_balance', 'last_purchase_date', 'is_deleted', 'sync_status', 'created_at', 'updated_at'
     ],
     returns: [
         'return_id', 'invoice_id', 'tenant_id', 'user_id', 'return_number', 'customer_name', 'customer_phone',

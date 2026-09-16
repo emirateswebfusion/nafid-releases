@@ -16,8 +16,15 @@ function localDate(d: Date = new Date()): string {
 function parseCleanDate(dStr: any): string {
   if (!dStr) return localDate();
   const str = String(dStr).trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
-  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})$/);
+
+  // 1. Match YYYY-MM-DD or YYYY/MM/DD at start
+  const yyyymmdd = str.match(/^(\d{4})[-/](\d{2})[-/](\d{2})/);
+  if (yyyymmdd) {
+    return `${yyyymmdd[1]}-${yyyymmdd[2]}-${yyyymmdd[3]}`;
+  }
+
+  // 2. Match DD-MM-YYYY or DD/MM/YYYY at start
+  const ddmmyyyy = str.match(/^(\d{2})[-/](\d{2})[-/](\d{4})/);
   if (ddmmyyyy) {
     return `${ddmmyyyy[3]}-${ddmmyyyy[2]}-${ddmmyyyy[1]}`;
   }
@@ -1308,13 +1315,13 @@ async function syncProducts(token: string, tenantId: string) {
 // ── Invoice Sync (Edge → Cloud) ──────────────────────────────────────────────
 async function syncInvoices(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND tenant_id = ? AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM invoices WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD')`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} invoices to cloud in batches of ${BATCH_SIZE}...`);
 
-  const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND tenant_id = ?`);
-  const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND tenant_id = ?`);
+  const getItems = db.prepare(`SELECT * FROM invoice_items WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
+  const updateStmt = db.prepare(`UPDATE invoices SET sync_status = 'SYNCED' WHERE invoice_id = ? AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`);
 
   let totalSynced = 0;
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
@@ -2009,7 +2016,7 @@ async function pullInvoices(token: string, tenantId: string): Promise<boolean> {
       discount_value = EXCLUDED.discount_value,
       grand_total = EXCLUDED.grand_total,
       payment_method = EXCLUDED.payment_method,
-      split_details = EXCLUDED.split_details,
+      split_details = COALESCE(EXCLUDED.split_details, split_details),
       received_amount = EXCLUDED.received_amount,
       balance_amount = EXCLUDED.balance_amount,
       invoice_type = EXCLUDED.invoice_type,
@@ -3037,12 +3044,12 @@ async function pullPurchaseBills(token: string, tenantId: string): Promise<boole
 // ── Cash Drawer Sync (Edge → Cloud) ─────────────────────────────────────────────
 async function syncCashDrawer(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM cash_drawer WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM cash_drawer WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash drawer records to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE cash_drawer SET sync_status = 'SYNCED' WHERE drawer_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE cash_drawer SET sync_status = 'SYNCED' WHERE drawer_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3051,7 +3058,7 @@ async function syncCashDrawer(token: string, tenantId: string) {
       token, batch, 'cash_drawer', `Cash Drawer batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
@@ -3060,12 +3067,12 @@ async function syncCashDrawer(token: string, tenantId: string) {
 // ── Cash Transactions Sync (Edge → Cloud) ───────────────────────────────────────
 async function syncCashTransactions(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM cash_transactions WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM cash_transactions WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash transactions to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE cash_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE cash_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3074,7 +3081,7 @@ async function syncCashTransactions(token: string, tenantId: string) {
       token, batch, 'cash_transactions', `Cash Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
@@ -3083,12 +3090,12 @@ async function syncCashTransactions(token: string, tenantId: string) {
 // ── Cash Categories Sync (Edge → Cloud) ─────────────────────────────────────────
 async function syncCashCategories(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM cash_categories WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM cash_categories WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cash categories to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE cash_categories SET sync_status = 'SYNCED' WHERE category_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE cash_categories SET sync_status = 'SYNCED' WHERE category_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3097,7 +3104,7 @@ async function syncCashCategories(token: string, tenantId: string) {
       token, batch, 'cash_categories', `Cash Categories batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
@@ -3106,12 +3113,12 @@ async function syncCashCategories(token: string, tenantId: string) {
 // ── Cashier Audit Log Sync (Edge → Cloud) ───────────────────────────────────────
 async function syncCashierAuditLog(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM cashier_audit_log WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM cashier_audit_log WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} cashier audit log records to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE cashier_audit_log SET sync_status = 'SYNCED' WHERE audit_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE cashier_audit_log SET sync_status = 'SYNCED' WHERE audit_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3120,7 +3127,7 @@ async function syncCashierAuditLog(token: string, tenantId: string) {
       token, batch, 'cashier_audit_log', `Cashier Audit Log batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
@@ -3128,12 +3135,99 @@ async function syncCashierAuditLog(token: string, tenantId: string) {
 
 let lastCashDrawerHash = '';
 
+function reconcileCashDrawerSync(db: any, tenantId: string, drawer: any) {
+  if (!drawer || !tenantId) return;
+  try {
+    const cleanDate = parseCleanDate(drawer.business_date);
+    const parts = cleanDate.split('-');
+    const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
+    const dateLike1 = `${cleanDate}%`;
+    const dateLike2 = `${altDate}%`;
+
+    const salesRow = db.prepare(`
+      SELECT 
+        COALESCE(SUM(
+          CASE 
+            WHEN UPPER(payment_method) = 'CASH' THEN (
+              CASE 
+                WHEN (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0)) <= 0 THEN 0
+                WHEN received_amount > 0 AND received_amount < (COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                  THEN received_amount 
+                ELSE MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+              END
+            )
+            WHEN UPPER(payment_method) = 'SPLIT' AND split_details IS NOT NULL THEN (
+              CASE 
+                WHEN json_extract(split_details, '$.cash') IS NOT NULL 
+                THEN MIN(
+                  CAST(json_extract(split_details, '$.cash') AS REAL),
+                  MAX(0, COALESCE(grand_total, 0) - COALESCE(return_deduction, 0) - COALESCE(scrap_deduction, 0))
+                )
+                ELSE 0 
+              END
+            )
+            ELSE 0 
+          END
+        ), 0) AS total_cash_sales
+      FROM invoices
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+        AND UPPER(payment_method) IN ('CASH', 'SPLIT')
+        AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
+        AND (is_held IS NULL OR is_held = 0)
+        AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = 0.0)
+        AND (
+          substr(COALESCE(settled_at, created_at), 1, 10) = ?
+          OR substr(COALESCE(settled_at, created_at), 1, 10) = ?
+          OR date(COALESCE(settled_at, created_at)) = ?
+          OR date(COALESCE(settled_at, created_at)) = ?
+          OR COALESCE(settled_at, created_at) LIKE ?
+          OR COALESCE(settled_at, created_at) LIKE ?
+        )
+    `).get(tenantId, cleanDate, altDate, cleanDate, altDate, dateLike1, dateLike2) as any;
+
+    const calcSales = Math.round(Number(salesRow?.total_cash_sales || 0) * 100) / 100;
+
+    const txSums = db.prepare(`
+      SELECT 
+        COALESCE(SUM(CASE WHEN type = 'CASH_IN' THEN amount ELSE 0 END), 0) AS total_in,
+        COALESCE(SUM(CASE WHEN type = 'CASH_OUT' THEN amount ELSE 0 END), 0) AS total_out
+      FROM cash_transactions 
+      WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (
+        drawer_id = ? 
+        OR drawer_id IN (SELECT drawer_id FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?))
+        OR date(transaction_date) = ? OR transaction_date LIKE ? OR substr(transaction_date, 1, 10) = ? OR substr(transaction_date, 1, 10) = ?
+      )
+    `).get(tenantId, drawer.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
+
+    const calcIn = Math.round(Number(txSums?.total_in || 0) * 100) / 100;
+    const calcOut = Math.round(Number(txSums?.total_out || 0) * 100) / 100;
+
+    const openingBal = Math.round(Number(drawer.opening_balance || 0) * 100) / 100;
+    const expectedCash = Math.round((openingBal + calcSales + calcIn - calcOut) * 100) / 100;
+
+    db.prepare(`
+      UPDATE cash_drawer 
+      SET cash_sales = ?, cash_in = ?, cash_out = ?, current_cash = ?, expected_closing = ?, updated_at = CURRENT_TIMESTAMP 
+      WHERE drawer_id = ?
+    `).run(calcSales, calcIn, calcOut, expectedCash, expectedCash, drawer.drawer_id);
+  } catch (e: any) {
+    console.error('[SyncWorker] reconcileCashDrawerSync error:', e.message);
+  }
+}
+
 // ── Pull Cash Drawer (Cloud → Edge) ─────────────────────────────────────────────
 async function pullCashDrawer(token: string, tenantId: string): Promise<boolean> {
   const db = getDb();
   let hasContentChanged = false;
 
-  const selectExisting = db.prepare(`SELECT drawer_id, sync_status FROM cash_drawer WHERE drawer_id = ? OR (tenant_id = ? AND (business_date = ? OR date(business_date) = ? OR business_date LIKE ?)) LIMIT 1`);
+  const selectExisting = db.prepare(`
+    SELECT drawer_id, status, opening_balance, cash_sales, cash_in, cash_out, current_cash, expected_closing, sync_status 
+    FROM cash_drawer 
+    WHERE drawer_id = ? 
+       OR ((tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
+           AND (business_date = ? OR business_date = ? OR date(business_date) = ? OR business_date LIKE ? OR substr(business_date, 1, 10) = ? OR substr(business_date, 1, 10) = ?)) 
+    ORDER BY (CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) DESC, created_at DESC LIMIT 1
+  `);
   const updateTxDrawerId = db.prepare(`UPDATE cash_transactions SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
   const updateAuditDrawerId = db.prepare(`UPDATE cashier_audit_log SET drawer_id = ? WHERE drawer_id = ? AND tenant_id = ?`);
   const updateMatchedDrawer = db.prepare(`
@@ -3186,6 +3280,9 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
         for (const r of rows) {
           try {
             const cleanDate = parseCleanDate(r.business_date);
+            const parts = cleanDate.split('-');
+            const altDate = parts.length === 3 ? `${parts[2]}-${parts[1]}-${parts[0]}` : cleanDate;
+            const dateLike1 = `${cleanDate}%`;
 
             const drawerData = {
               drawer_id: r.drawer_id,
@@ -3210,9 +3307,21 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
               updated_at: toSqliteDate(r.updated_at),
             };
 
-            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, cleanDate, `${cleanDate}%`) as any;
+            const existing = selectExisting.get(r.drawer_id, tenantId, cleanDate, altDate, cleanDate, dateLike1, cleanDate, altDate) as any;
             if (existing) {
               const targetId = existing.drawer_id;
+              // For open drawers or drawers pending push, preserve local sales & cash balance if cloud is lower
+              const localSales = Number(existing.cash_sales) || 0;
+              const localCurrent = Number(existing.current_cash) || 0;
+              const cloudSales = Number(drawerData.cash_sales) || 0;
+              const cloudCurrent = Number(drawerData.current_cash) || 0;
+              
+              if (existing.status === 'OPEN' || existing.sync_status === 'PENDING' || localSales > cloudSales || localCurrent > cloudCurrent) {
+                drawerData.cash_sales = Math.max(cloudSales, localSales);
+                drawerData.current_cash = Math.max(cloudCurrent, localCurrent);
+                drawerData.expected_closing = Math.max(Number(drawerData.expected_closing) || 0, drawerData.current_cash);
+              }
+
               updateMatchedDrawer.run({ ...drawerData, target_id: targetId });
               if (targetId !== r.drawer_id) {
                 updateTxDrawerId.run(r.drawer_id, targetId, tenantId);
@@ -3227,6 +3336,17 @@ async function pullCashDrawer(token: string, tenantId: string): Promise<boolean>
         }
       });
       tx(rows);
+
+      // Instantly reconcile all open cash drawers so cash_sales & current_cash stay accurate
+      try {
+        const openDrawers = db.prepare(`SELECT * FROM cash_drawer WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN'`).all(tenantId) as any[];
+        for (const d of openDrawers) {
+          reconcileCashDrawerSync(db, tenantId, d);
+        }
+      } catch (e: any) {
+        console.error('[SyncWorker] Drawer reconcile error after pull:', e.message);
+      }
+
       return reconcilePending(db, 'cash_drawer', 'drawer_id', rows);
     },
   });
@@ -3443,16 +3563,17 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
   const upsert = db.prepare(`
     INSERT INTO customers (customer_id, tenant_id, name, phone, address,
       total_points_earned, total_points_redeemed, current_points_balance,
-      last_purchase_date, sync_status, created_at, updated_at)
+      last_purchase_date, is_deleted, sync_status, created_at, updated_at)
     VALUES (@customer_id, @tenant_id, @name, @phone, @address,
       @total_points_earned, @total_points_redeemed, @current_points_balance,
-      @last_purchase_date, 'SYNCED', @created_at, @updated_at)
+      @last_purchase_date, @is_deleted, 'SYNCED', @created_at, @updated_at)
     ON CONFLICT(customer_id) DO UPDATE SET
       name = excluded.name, phone = excluded.phone, address = excluded.address,
       total_points_earned = excluded.total_points_earned,
       total_points_redeemed = excluded.total_points_redeemed,
       current_points_balance = excluded.current_points_balance,
       last_purchase_date = excluded.last_purchase_date,
+      is_deleted = excluded.is_deleted,
       sync_status = 'SYNCED', updated_at = excluded.updated_at
   `);
 
@@ -3473,6 +3594,7 @@ async function pullCustomers(token: string, tenantId: string): Promise<boolean> 
             total_points_redeemed: r.total_points_redeemed ?? 0,
             current_points_balance: r.current_points_balance ?? 0,
             last_purchase_date: toSqliteDate(r.last_purchase_date),
+            is_deleted: r.is_deleted ? 1 : 0,
             created_at: toSqliteDate(r.created_at), updated_at: toSqliteDate(r.updated_at),
           });
         }
@@ -3656,12 +3778,12 @@ async function pullReturns(token: string, tenantId: string): Promise<boolean> {
 // ── Payment Sources Sync (Edge → Cloud) ─────────────────────────────────────────
 async function syncPaymentSources(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM payment_sources WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM payment_sources WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} payment sources to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE payment_sources SET sync_status = 'SYNCED' WHERE source_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE payment_sources SET sync_status = 'SYNCED' WHERE source_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3670,7 +3792,7 @@ async function syncPaymentSources(token: string, tenantId: string) {
       token, batch, 'payment_sources', `Payment Sources batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
@@ -3679,12 +3801,12 @@ async function syncPaymentSources(token: string, tenantId: string) {
 // ── Payment Source Transactions Sync (Edge → Cloud) ─────────────────────────────
 async function syncPaymentSourceTransactions(token: string, tenantId: string) {
   const db = getDb();
-  const pending = db.prepare(`SELECT * FROM payment_source_transactions WHERE sync_status = 'PENDING' AND tenant_id = ?`).all(tenantId) as any[];
+  const pending = db.prepare(`SELECT * FROM payment_source_transactions WHERE sync_status = 'PENDING' AND (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)`).all(tenantId) as any[];
 
   if (pending.length === 0) return;
   console.log(`[SyncWorker] Pushing ${pending.length} payment source transactions to cloud...`);
 
-  const updateStmt = db.prepare(`UPDATE payment_source_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ? AND tenant_id = ?`);
+  const updateStmt = db.prepare(`UPDATE payment_source_transactions SET sync_status = 'SYNCED' WHERE transaction_id = ?`);
 
   for (let i = 0; i < pending.length; i += BATCH_SIZE) {
     const batch = pending.slice(i, i + BATCH_SIZE);
@@ -3693,7 +3815,7 @@ async function syncPaymentSourceTransactions(token: string, tenantId: string) {
       token, batch, 'payment_source_transactions', `Payment Source Transactions batch ${Math.floor(i / BATCH_SIZE) + 1}`,
     );
     if (synced.length > 0) {
-      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id, tenantId); });
+      const tx = db.transaction((ids: string[]) => { for (const id of ids) updateStmt.run(id); });
       tx(synced);
     }
   }
