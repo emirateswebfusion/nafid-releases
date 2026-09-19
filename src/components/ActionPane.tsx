@@ -104,7 +104,7 @@ export function ActionPane() {
           };
         });
 
-        const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, bName, bAcc, bIfsc, bBranch] = await Promise.all([
+        const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, bName, bAcc, bIfsc, bBranch, shopEmailVal, shopWebVal] = await Promise.all([
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
@@ -116,6 +116,8 @@ export function ActionPane() {
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_account_number' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_ifsc' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'bank_branch' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }),
+          window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }),
         ]);
 
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
@@ -138,11 +140,13 @@ export function ActionPane() {
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
-          shopName: shopNameVal || shopName || 'My Shop',
-          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
+          shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (shopNameVal || shopName || 'My Shop') : '',
+          shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
+          shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (shopStateVal || undefined) : undefined,
+          shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddr || undefined) : undefined,
+          shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPh || undefined) : undefined,
+          shopEmail: shopEmailVal || undefined,
+          shopWebsite: shopWebVal || undefined,
           bankName: bName || undefined,
           bankAccount: bAcc || undefined,
           bankIfsc: bIfsc || undefined,

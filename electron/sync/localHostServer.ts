@@ -82,6 +82,7 @@ function sendJson(res: http.ServerResponse, statusCode: number, payload: any) {
 
 function extractItemId(item: any): string | null {
   if (!item || typeof item !== 'object') return null;
+  if (item.item_id) return String(item.item_id);
   if (item.transaction_id) return String(item.transaction_id);
   if (item.audit_id) return String(item.audit_id);
   if (item.invoice_id) return String(item.invoice_id);
@@ -102,7 +103,6 @@ function extractItemId(item: any): string | null {
   if (item.pricing_id || item.product_pricing_id) return String(item.pricing_id || item.product_pricing_id);
   if (item.ledger_id) return String(item.ledger_id);
   if (item.scrap_category_id) return String(item.scrap_category_id);
-  if (item.item_id) return String(item.item_id);
   if (item.key) return String(item.key);
   if (item.id) return String(item.id);
 
@@ -260,6 +260,10 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
       if (itemId) syncedIds.push(itemId);
 
       if (tableName === 'invoices' && Array.isArray(rawRow.items)) {
+        for (const line of rawRow.items) {
+          if (!line.invoice_id) line.invoice_id = rawRow.invoice_id;
+          if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
+        }
         upsertTableRows(db, 'invoice_items', rawRow.items);
         const isDeleted = rawRow.is_deleted === true || rawRow.is_deleted === 1 || rawRow.is_deleted === '1' || rawRow.is_deleted === 'true';
         const isConversionCopy = !!(rawRow.converted_from_invoice_id || rawRow.converted_from_invoice_number);
@@ -279,6 +283,10 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
           } catch {}
         }
       } else if (tableName === 'purchase_bills' && Array.isArray(rawRow.items)) {
+        for (const line of rawRow.items) {
+          if (!line.purchase_bill_id) line.purchase_bill_id = rawRow.purchase_bill_id;
+          if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
+        }
         upsertTableRows(db, 'purchase_bill_items', rawRow.items);
         if (isNewPurchaseBill) {
           for (const line of rawRow.items) {
@@ -290,6 +298,10 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
           }
         }
       } else if (tableName === 'returns' && Array.isArray(rawRow.items)) {
+        for (const line of rawRow.items) {
+          if (!line.return_id) line.return_id = rawRow.return_id;
+          if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
+        }
         upsertTableRows(db, 'return_items', rawRow.items);
         if (isNewReturn) {
           for (const line of rawRow.items) {
@@ -301,6 +313,10 @@ function upsertTableRows(db: any, tableName: string, items: any[]): string[] {
           }
         }
       } else if (tableName === 'quotations' && Array.isArray(rawRow.items)) {
+        for (const line of rawRow.items) {
+          if (!line.quotation_id) line.quotation_id = rawRow.quotation_id;
+          if (!line.tenant_id) line.tenant_id = rawRow.tenant_id || 'global';
+        }
         upsertTableRows(db, 'quotation_items', rawRow.items);
       }
     }

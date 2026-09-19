@@ -729,6 +729,22 @@ export function initDb() {
     console.warn('[DB Migration] Failed to sanitize empty sku_barcodes:', e.message);
   }
 
+  // Repair historical incomplete quotations that have non-zero total but 0 items due to legacy sync
+  try {
+    const repairedCount = db.prepare(`
+      UPDATE quotations
+      SET sync_status = 'PENDING'
+      WHERE (subtotal > 0 OR grand_total > 0)
+        AND (status IS NULL OR status != 'DELETED')
+        AND quotation_id NOT IN (SELECT DISTINCT quotation_id FROM quotation_items WHERE quotation_id IS NOT NULL);
+    `).run().changes;
+    if (repairedCount > 0) {
+      console.log(`[DB Migration] Flagged ${repairedCount} incomplete historical quotations for item re-sync.`);
+    }
+  } catch (e: any) {
+    console.warn('[DB Migration] Failed to flag incomplete quotations for re-sync:', e.message);
+  }
+
   // Deduplicate actual sku_barcode conflicts before applying unique constraints
   try {
     db.exec(`

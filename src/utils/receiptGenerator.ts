@@ -85,13 +85,44 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   itemColumnOrder: 'qty_rate',
 };
 
-export function formatPrintItem(item: ReceiptItem, bs?: BillSettings): {
+export function getEffectiveBillSettings(bs?: BillSettings, isGstBill?: boolean): BillSettings {
+  const base = { ...DEFAULT_BILL_SETTINGS, ...(bs || {}) };
+  if (!isGstBill) return base;
+  return {
+    ...base,
+    showShopName: true,
+    showShopAddress: true,
+    showPhone: true,
+    showShopGstin: true,
+    showShopState: true,
+    showTitle: true,
+    showBillerName: true,
+    showCustomerName: true,
+    showCustomerPhone: true,
+    showCustomerAddress: true,
+    showCustomerGstin: true,
+    showCustomerState: true,
+    showTransporterDetails: true,
+    printFullName: true,
+    showBrandName: true,
+    showWeightDetails: true,
+    showPcsForWeightProducts: true,
+    showPcsUnit: true,
+    showCreditBalance: true,
+    showBarcodeOnReceipt: true,
+    showAuthorisedSignatory: true,
+    showForShopName: true,
+  };
+}
+
+export function formatPrintItem(item: ReceiptItem, bs?: BillSettings, isGstBill?: boolean): {
   displayQty: string;
   displayRate: string;
   displayTotal: string;
   isWeightHidden: boolean;
 } {
-  const showWeightDetails = bs?.showWeightDetails !== false;
+  const effectiveBs = getEffectiveBillSettings(bs, isGstBill);
+  const showWeightDetails = effectiveBs.showWeightDetails !== false;
   const uomLower = (item.unit || '').trim().toLowerCase();
   const isWeightUnit = ['kg', 'kgs', 'g', 'gram', 'grams', 'gm', 'gms', 'ltr', 'ltrs', 'ml', 'mtr', 'mtrs'].includes(uomLower);
   const isWeightProduct = item.billing_type === 'WEIGHT' || isWeightUnit ||
@@ -187,6 +218,8 @@ export interface ReceiptData {
   shopState?: string;
   shopAddress?: string;
   shopPhone?: string;
+  shopEmail?: string;
+  shopWebsite?: string;
   upiId?: string;
   showUpiQr?: boolean;
   invoiceNumber: string;
@@ -406,7 +439,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     return lines;
   };
 
-  const selectedBillSettings = data.billSettings || DEFAULT_BILL_SETTINGS;
+  const isGstBill = data.invoiceType === 'GST' || Boolean(data.isB2B);
+  const selectedBillSettings = getEffectiveBillSettings(data.billSettings, isGstBill);
   const printFullName = selectedBillSettings.printFullName !== false;
   const showBrand = selectedBillSettings.showBrandName !== false;
   const isRateQty = selectedBillSettings.itemColumnOrder === 'rate_qty';
@@ -463,7 +497,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const LIGHT = '-'.repeat(charsPerLine);
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
     const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
                       (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
@@ -670,7 +704,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     if (bs?.showShopName !== false && data.shopName) text += `${data.shopName}\n`;
     if (bs?.showShopAddress !== false && data.shopAddress) text += `${data.shopAddress}\n`;
     if (bs?.showPhone !== false && data.shopPhone) text += `${data.shopPhone}\n`;
@@ -812,7 +846,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
     const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
                       (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
@@ -987,7 +1021,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     if (bs?.showShopName !== false && data.shopName) { text += '\n'; text += centerText(data.shopName, charsPerLine) + '\n'; }
     if (bs?.showShopAddress !== false && data.shopAddress) text += centerText(data.shopAddress, charsPerLine) + '\n';
     if (bs?.showPhone !== false && data.shopPhone) text += centerText(`Ph: ${data.shopPhone}`, charsPerLine) + '\n';
@@ -1183,7 +1217,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header (ornate banner with ***) ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
     const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
                       (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
@@ -1360,7 +1394,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const totalW = 10;
 
     // ── Header centered ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     const showScrap = data.invoiceType === 'SCRAP' && (bs?.showScrapHeading || bs?.showTitle);
     const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
                       (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
@@ -1517,7 +1551,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     if (bs?.showShopName !== false && data.shopName) text += `${data.shopName}\n`;
     if (bs?.showShopAddress !== false && data.shopAddress) text += `${data.shopAddress}\n`;
     if (bs?.showPhone !== false && data.shopPhone) text += `${data.shopPhone}\n`;
@@ -1634,7 +1668,7 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     const labelW = charsPerLine - totalW - 2;
 
     // ── Header ──
-    const bs = data.billSettings;
+    const bs = selectedBillSettings;
     const showScrapH = data.invoiceType === 'SCRAP' && bs?.showScrapHeading;
     const hasHeader = (bs?.showShopName !== false && Boolean(data.shopName)) ||
                       (bs?.showShopAddress !== false && Boolean(data.shopAddress)) ||
@@ -1846,7 +1880,8 @@ export function generateReceiptText(data: ReceiptData, widthCm: number = 5.8, ch
     };
 
     // ── Header ───────────────────────────────────────────────────────────────
-    const bs = data.billSettings;
+    const isGstBill = data.invoiceType === 'GST' || Boolean(data.isB2B);
+    const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
     text += B_TOP();
 
     // 1. Shop name — UPPERCASE, centered

@@ -4204,20 +4204,24 @@ async function pullQuotations(token: string, tenantId: string): Promise<boolean>
               updated_at: toSqliteDate(q.updated_at),
             });
 
-            if (Array.isArray(q.items)) {
+            const itemsList = Array.isArray(q.items) ? q.items : (Array.isArray(q.quotation_items) ? q.quotation_items : (Array.isArray(q.quotationItems) ? q.quotationItems : null));
+            if (itemsList && itemsList.length > 0) {
               deleteItems.run(q.quotation_id);
-              for (const item of q.items) {
+              for (let idx = 0; idx < itemsList.length; idx++) {
+                const item = itemsList[idx];
+                const itemId = item.item_id || item.id || item.quotation_item_id || `${q.quotation_id}_item_${idx + 1}`;
+                const itemName = item.name || item.product_name || 'Item';
                 upsertItem.run({
-                  item_id: item.item_id,
-                  quotation_id: q.quotation_id,
+                  item_id: String(itemId),
+                  quotation_id: String(q.quotation_id),
                   tenant_id: tenantId,
-                  product_id: item.product_id || null,
-                  name: item.name,
+                  product_id: item.product_id ? String(item.product_id) : null,
+                  name: String(itemName),
                   quantity: Number(item.quantity) || 1,
                   weight: item.weight != null ? Number(item.weight) : null,
                   rate: Number(item.rate) || 0,
                   amount: Number(item.amount) || 0,
-                  created_at: toSqliteDate(item.created_at),
+                  created_at: toSqliteDate(item.created_at || q.created_at || new Date().toISOString()),
                 });
               }
             }

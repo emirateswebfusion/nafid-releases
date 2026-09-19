@@ -5614,10 +5614,21 @@ ipcMain.handle('db:getQuotations', (event, { tenant_id, search }: { tenant_id: s
   }
 });
 
-ipcMain.handle('db:getQuotationItems', (event, quotationId: string) => {
+ipcMain.handle('db:getQuotationItems', async (event, quotationId: string) => {
   try {
     const db = getDb();
-    return db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+    let items = db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+    if ((!items || items.length === 0) && quotationId) {
+      const q = db.prepare('SELECT * FROM quotations WHERE quotation_id = ?').get(quotationId) as any;
+      if (q && (Number(q.subtotal) > 0 || Number(q.grand_total) > 0)) {
+        console.log(`[db:getQuotationItems] Repairing missing items for quotation ${quotationId}...`);
+        db.prepare("UPDATE quotations SET sync_status = 'PENDING' WHERE quotation_id = ?").run(quotationId);
+        triggerUrgentQuotationSync().catch(() => {});
+        await new Promise(r => setTimeout(r, 300));
+        items = db.prepare('SELECT * FROM quotation_items WHERE quotation_id = ? ORDER BY created_at ASC').all(quotationId);
+      }
+    }
+    return items;
   } catch (error: any) {
     console.error('[db:getQuotationItems]', error);
     return { error: 'Operation failed' };

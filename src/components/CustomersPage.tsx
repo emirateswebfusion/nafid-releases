@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/parser
 import { useState, useEffect, useCallback } from 'react';
 import { useAuthStore } from '../store/authStore';
 import {
@@ -58,6 +59,8 @@ interface InvoiceRecord {
   points_redeemed: number;
   points_redeemed_discount: number;
   payment_method?: string;
+  invoice_type?: string;
+  customer_gstin?: string;
   subtotal?: number;
   tax_total?: number;
   discount_total?: number;
@@ -91,6 +94,48 @@ function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return name.slice(0, 2).toUpperCase();
+}
+
+function getBillTypeDisplay(inv: InvoiceRecord): { label: string; color: string; bgColor: string; borderColor: string } {
+  const invoiceType = inv.invoice_type;
+  const hasCustomerGstin = inv.customer_gstin && inv.customer_gstin.trim() !== '';
+  
+  if (invoiceType === 'GST') {
+    if (hasCustomerGstin) {
+      return { label: 'B2B', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' };
+    } else {
+      return { label: 'B2C', color: 'text-indigo-600 dark:text-indigo-400', bgColor: 'bg-indigo-500/10', borderColor: 'border-indigo-500/20' };
+    }
+  } else if (invoiceType === 'BILL_OF_SUPPLY') {
+    return { label: 'Bill of Supply', color: 'text-emerald-600 dark:text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' };
+  } else if (invoiceType === 'ESTIMATE') {
+    return { label: 'Estimate', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20' };
+  }
+  return { label: 'Unknown', color: 'text-muted-foreground', bgColor: 'bg-muted/10', borderColor: 'border-border/20' };
+}
+
+function getPaymentMethodDisplay(method?: string): { label: string; color: string; bgColor: string; borderColor: string } {
+  const m = (method || 'CASH').toUpperCase();
+  const methods: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+    'CASH': { label: 'Cash', color: 'text-emerald-600 dark:text-emerald-400', bgColor: 'bg-emerald-500/10', borderColor: 'border-emerald-500/20' },
+    'CARD': { label: 'Card', color: 'text-blue-600 dark:text-blue-400', bgColor: 'bg-blue-500/10', borderColor: 'border-blue-500/20' },
+    'UPI': { label: 'UPI', color: 'text-purple-600 dark:text-purple-400', bgColor: 'bg-purple-500/10', borderColor: 'border-purple-500/20' },
+    'CREDIT': { label: 'Credit', color: 'text-amber-600 dark:text-amber-400', bgColor: 'bg-amber-500/10', borderColor: 'border-amber-500/20' },
+    'CHEQUE': { label: 'Cheque', color: 'text-indigo-600 dark:text-indigo-400', bgColor: 'bg-indigo-500/10', borderColor: 'border-indigo-500/20' },
+    'ONLINE': { label: 'Online', color: 'text-cyan-600 dark:text-cyan-400', bgColor: 'bg-cyan-500/10', borderColor: 'border-cyan-500/20' },
+    'MIXED': { label: 'Mixed', color: 'text-rose-600 dark:text-rose-400', bgColor: 'bg-rose-500/10', borderColor: 'border-rose-500/20' },
+  };
+  return methods[m] || { label: m, color: 'text-muted-foreground', bgColor: 'bg-muted/10', borderColor: 'border-border/20' };
+}
+
+function renderPaymentMethodBadge(method: string) {
+  const pm = getPaymentMethodDisplay(method);
+  return <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono', pm.bgColor, pm.color, pm.borderColor)}>{pm.label}</span>;
+}
+
+function renderBillTypeBadge(inv: InvoiceRecord) {
+  const bt = getBillTypeDisplay(inv);
+  return <span className={clsx('px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider font-mono', bt.bgColor, bt.color, bt.borderColor)}>{bt.label}</span>;
 }
 
 type View = 'list' | 'detail';
@@ -711,6 +756,7 @@ export function CustomersPage({
                   ) : (
                     <div className="space-y-3">
                       {invoices.map(inv => (
+                        // eslint-disable-next-line @typescript-eslint/parser
                         <div
                           key={inv.invoice_id}
                           onClick={() => handleOpenInvoiceDetail(inv)}
@@ -729,6 +775,10 @@ export function CustomersPage({
                               </div>
                               <div className="text-xs text-muted-foreground font-bold mt-1">
                                 Grand Total: <span className="text-foreground font-black">{formatCurrency(inv.grand_total)}</span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                                {inv.payment_method && renderPaymentMethodBadge(inv.payment_method)}
+                                {inv.invoice_type && renderBillTypeBadge(inv)}
                               </div>
                             </div>
                           </div>
@@ -835,11 +885,10 @@ export function CustomersPage({
               <div>
                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Invoice Number</p>
                 <p className="text-base font-black text-foreground font-mono">#{viewingInvoice.invoice_number}</p>
-                {viewingInvoice.payment_method && (
-                  <span className="inline-block mt-1 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                    Method: {viewingInvoice.payment_method}
-                  </span>
-                )}
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  {viewingInvoice.payment_method && renderPaymentMethodBadge(viewingInvoice.payment_method)}
+                  {viewingInvoice.invoice_type && renderBillTypeBadge(viewingInvoice)}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase font-bold text-muted-foreground">Date & Time</p>

@@ -46,7 +46,11 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [quotationItems, setQuotationItems] = useState<QuotationItem[]>([]);
   const [showDetail, setShowDetail] = useState(false);
-  
+  const [shopAddress, setShopAddress] = useState('');
+  const [shopPhone, setShopPhone] = useState('');
+  const [shopGstin, setShopGstin] = useState('');
+  const [shopState, setShopState] = useState('');
+
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
@@ -68,6 +72,20 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
 
   useEffect(() => {
     loadQuotations();
+    if (window.electronAPI) {
+      const tid = tenantId || 'global';
+      Promise.all([
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_address' }),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_phone' }),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_gstin' }),
+        window.electronAPI.settingsGet({ tenant_id: tid, key: 'shop_state' }),
+      ]).then(([addr, ph, gst, st]) => {
+        if (addr) setShopAddress(addr);
+        if (ph) setShopPhone(ph);
+        if (gst) setShopGstin(gst);
+        if (st) setShopState(st);
+      }).catch(err => console.error('[QuotationManager] Failed to load shop settings:', err));
+    }
     if (window.electronAPI?.onSyncDataUpdated) {
       const unsub = window.electronAPI.onSyncDataUpdated(() => {
         loadQuotations();
@@ -76,7 +94,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         if (typeof unsub === 'function') (unsub as any)();
       };
     }
-  }, []);
+  }, [tenantId]);
 
   const loadQuotations = async () => {
     setLoading(true);
@@ -119,7 +137,15 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
     setSelectedQuotation(q);
     if (window.electronAPI) {
       const its = await window.electronAPI.dbGetQuotationItems(q.quotation_id);
-      if (Array.isArray(its)) setQuotationItems(its);
+      if (Array.isArray(its) && its.length > 0) {
+        setQuotationItems(its);
+      } else if (Array.isArray((q as any).items) && (q as any).items.length > 0) {
+        setQuotationItems((q as any).items);
+      } else {
+        setQuotationItems(Array.isArray(its) ? its : []);
+      }
+    } else if (Array.isArray((q as any).items)) {
+      setQuotationItems((q as any).items);
     }
     setShowDetail(true);
   };
@@ -193,12 +219,13 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           <title>Quotation - ${shopName}</title>
           <style>
             @page { size: A4; margin: 15mm; }
-            body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+            html, body { background: #ffffff !important; background-color: #ffffff !important; color: #1a1a1a !important; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 0; margin: 0; }
             .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-            .header h1 { font-size: 24px; margin: 0; }
-            .header p { font-size: 13px; color: #666; margin: 3px 0; }
+            .header h1 { font-size: 24px; margin: 0; text-transform: uppercase; }
+            .header p { font-size: 12px; color: #444; margin: 3px 0; font-weight: 500; }
             .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
             table { width: 100%; border-collapse: collapse; }
+            tfoot { display: table-row-group !important; page-break-inside: avoid !important; break-inside: avoid !important; }
             th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
             td { padding: 6px; border: 1px solid #ddd; }
             .text-right { text-align: right; }
@@ -207,6 +234,10 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
             .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
             .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
+            @media print {
+              html, body { background: #ffffff !important; background-color: #ffffff !important; color: #1a1a1a !important; }
+              tfoot { display: table-row-group !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+            }
           </style>
         </head>
         <body>${content}</body>
@@ -234,7 +265,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
       const printFmtRaw = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'print_format' });
       const printFmt = parsePrintFormat(printFmtRaw);
       if (printFmt.format === 'half-a4') {
-        const [shopNameVal, shopGstin, shopAddr, shopPh, upi, shopStateVal] = await Promise.all([
+        const [shopNameVal, shopGstinVal, shopAddrVal, shopPhVal, upiVal, shopStateVal] = await Promise.all([
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
@@ -249,11 +280,11 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
         };
         const receiptData: ReceiptData = {
           shopName: billSettings.showShopName !== false ? (shopNameVal || shopName || 'My Shop') : '',
-          shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-          shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
-          shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
-          shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
-          upiId: upi || undefined,
+          shopGstin: billSettings.showShopGstin !== false ? (shopGstinVal || shopGstin || undefined) : undefined,
+          shopState: billSettings.showShopState !== false ? (shopStateVal || shopState || undefined) : undefined,
+          shopAddress: billSettings.showShopAddress !== false ? (shopAddrVal || shopAddress || undefined) : undefined,
+          shopPhone: billSettings.showPhone !== false ? (shopPhVal || shopPhone || undefined) : undefined,
+          upiId: upiVal || undefined,
           showUpiQr: true,
           showProductOffers: printFmt.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
           invoiceNumber: selectedQuotation.quotation_number,
@@ -293,12 +324,13 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             <title>Quotation - ${selectedQuotation.quotation_number}</title>
             <style>
               @page { size: A4; margin: 15mm; }
-              body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; padding: 0; margin: 0; }
+              html, body { background: #ffffff !important; background-color: #ffffff !important; color: #1a1a1a !important; font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; padding: 0; margin: 0; }
               .header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
-              .header h1 { font-size: 24px; margin: 0; }
-              .header p { font-size: 13px; color: #666; margin: 3px 0; }
+              .header h1 { font-size: 24px; margin: 0; text-transform: uppercase; }
+              .header p { font-size: 12px; color: #444; margin: 3px 0; font-weight: 500; }
               .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
               table { width: 100%; border-collapse: collapse; }
+              tfoot { display: table-row-group !important; page-break-inside: avoid !important; break-inside: avoid !important; }
               th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
               td { padding: 6px; border: 1px solid #ddd; }
               .text-right { text-align: right; }
@@ -307,6 +339,10 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
               .terms { margin-top: 25px; padding-top: 12px; border-top: 1px solid #ddd; }
               .terms h3 { font-size: 14px; margin-bottom: 6px; font-weight: bold; color: #000; }
               .terms p { font-size: 13px; color: #1a1a1a; line-height: 1.5; white-space: pre-line; }
+              @media print {
+                html, body { background: #ffffff !important; background-color: #ffffff !important; color: #1a1a1a !important; }
+                tfoot { display: table-row-group !important; page-break-inside: avoid !important; break-inside: avoid !important; }
+              }
             </style>
           </head>
           <body>${content}</body>
@@ -582,21 +618,27 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
           <div className="max-w-4xl mx-auto p-6">
             <div ref={printRef} className="space-y-6 bg-card border border-border rounded-2xl p-8 shadow-sm">
               <div className="text-center border-b-2 border-foreground pb-4">
-                <h1 className="text-3xl font-black">{shopName || 'NAFID Store'}</h1>
-                <p className="text-sm text-muted-foreground mt-1 uppercase font-bold tracking-widest">OFFICIAL QUOTATION</p>
+                <h1 className="text-3xl font-black uppercase tracking-wide text-foreground">{shopName || 'NAFID Store'}</h1>
+                {shopAddress && <p className="text-xs font-semibold text-foreground/80 mt-1">{shopAddress}</p>}
+                {(shopPhone || shopGstin || shopState) && (
+                  <p className="text-xs font-semibold text-foreground/80 mt-0.5">
+                    {[shopPhone ? `Phone: ${shopPhone}` : '', shopGstin ? `GSTIN: ${shopGstin}` : '', shopState ? `State: ${shopState}` : ''].filter(Boolean).join(' | ')}
+                  </p>
+                )}
+                <p className="text-sm text-primary mt-2 uppercase font-extrabold tracking-widest">OFFICIAL QUOTATION</p>
               </div>
 
-              <div className="flex justify-between">
+              <div className="flex justify-between items-start">
                 <div>
-                  <p className="text-xs text-muted-foreground font-semibold uppercase">Quotation Number</p>
+                  <p className="text-xs text-foreground font-bold uppercase tracking-wider">Quotation Number</p>
                   <p className="font-mono font-bold text-lg text-primary">{selectedQuotation.quotation_number}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Date: {parseUTCDate(selectedQuotation.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                  <p className="text-xs font-semibold text-foreground/80 mt-1">Date: {parseUTCDate(selectedQuotation.created_at).toLocaleDateString('en-IN', { timeZone: getStoreTimezone(), day: '2-digit', month: 'long', year: 'numeric' })}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-muted-foreground font-semibold uppercase">Customer Details</p>
-                  <p className="font-bold text-foreground">{selectedQuotation.customer_name || 'N/A'}</p>
-                  <p className="text-xs text-muted-foreground">{selectedQuotation.customer_phone || ''}</p>
-                  <p className="text-xs text-muted-foreground">{selectedQuotation.customer_address || ''}</p>
+                  <p className="text-xs text-foreground font-bold uppercase tracking-wider">Customer Details</p>
+                  <p className="font-bold text-foreground text-sm">{selectedQuotation.customer_name || 'N/A'}</p>
+                  {selectedQuotation.customer_phone && <p className="text-xs font-semibold text-foreground/80">{selectedQuotation.customer_phone}</p>}
+                  {selectedQuotation.customer_address && <p className="text-xs font-semibold text-foreground/80">{selectedQuotation.customer_address}</p>}
                 </div>
               </div>
 
@@ -623,7 +665,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
                     </tr>
                   ))}
                 </tbody>
-                <tfoot>
+                <tfoot style={{ display: 'table-row-group' }}>
                   <tr className="font-bold">
                     <td colSpan={5} className="p-3 border border-border text-right">Subtotal</td>
                     <td className="p-3 border border-border text-right">{formatCurrency(selectedQuotation.subtotal)}</td>

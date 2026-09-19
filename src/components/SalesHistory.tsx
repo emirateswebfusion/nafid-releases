@@ -834,17 +834,17 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       const combosList = Array.isArray(allCombos) ? allCombos : [];
 
       const receiptData: ReceiptData = {
-        shopName: billSettings.showShopName !== false ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
-        shopGstin: billSettings.showShopGstin !== false ? (shopGstin || undefined) : undefined,
-        shopState: billSettings.showShopState !== false ? (shopStateVal || undefined) : undefined,
-        shopAddress: billSettings.showShopAddress !== false ? (shopAddr || undefined) : undefined,
-        shopPhone: billSettings.showPhone !== false ? (shopPh || undefined) : undefined,
+        shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (shopNameVal || useAuthStore.getState().shopName || 'My Shop') : '',
+        shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
+        shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (shopStateVal || undefined) : undefined,
+        shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddr || undefined) : undefined,
+        shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPh || undefined) : undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,
         invoiceNumber: selectedInvoice.invoice_number,
         date: formatBillDateTime(selectedInvoice.created_at),
-        billerName: billSettings.showBillerName !== false ? (selectedInvoice.biller_name || undefined) : undefined,
+        billerName: (isGstOrB2B || billSettings.showBillerName !== false) ? (selectedInvoice.biller_name || undefined) : undefined,
         items: items.map(item => {
           let comboItemsParsed: any[] | undefined = undefined;
           if (item.combo_details) {
@@ -903,14 +903,14 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           if (pmUpper !== 'CREDIT' && pmUpper !== 'SPLIT' && rawBal < 0) return 0;
           return rawBal;
         })(),
-        customerName: billSettings.showCustomerName !== false ? (selectedInvoice.customer_name || undefined) : undefined,
-        customerPhone: billSettings.showCustomerPhone !== false ? (selectedInvoice.customer_phone || undefined) : undefined,
-        customerAddress: billSettings.showCustomerAddress !== false ? (selectedInvoice.customer_address || undefined) : undefined,
+        customerName: (isGstOrB2B || billSettings.showCustomerName !== false) ? (selectedInvoice.customer_name || undefined) : undefined,
+        customerPhone: (isGstOrB2B || billSettings.showCustomerPhone !== false) ? (selectedInvoice.customer_phone || undefined) : undefined,
+        customerAddress: (isGstOrB2B || billSettings.showCustomerAddress !== false) ? (selectedInvoice.customer_address || undefined) : undefined,
         customerGstin: selectedInvoice.customer_gstin?.trim() || undefined,
         billSettings,
         isB2B,
         a5Orientation: printFmt.a5Orientation || 'horizontal',
-        customerState: billSettings.showCustomerState !== false ? (selectedInvoice.customer_state || undefined) : undefined,
+        customerState: (isGstOrB2B || billSettings.showCustomerState !== false) ? (selectedInvoice.customer_state || undefined) : undefined,
       };
       if (useA4) {
         const invoiceStyle = (!isGstOrB2B && isHalfA4) ? 'half-a4' : (printFmt.a4Style || (printFmt.format === 'a4' ? printFmt.style : undefined) || 'boxed');

@@ -16,6 +16,12 @@ export function PrintA4View() {
   const [htmlContent, setHtmlContent] = useState('');
 
   useEffect(() => {
+    // Remove dark theme class and force white background during A4 print/PDF rendering
+    document.documentElement.classList.remove('dark');
+    document.documentElement.style.backgroundColor = '#ffffff';
+    document.body.style.backgroundColor = '#ffffff';
+    document.body.style.color = '#000000';
+
     if (window.electronAPI && window.electronAPI.getA4Html) {
       window.electronAPI.getA4Html().then((html: string) => {
         if (html) setHtmlContent(html);
@@ -38,16 +44,37 @@ export function PrintA4View() {
   return (
     <>
       <style>{`
+        html, body, #root {
+          background: #ffffff !important;
+          background-color: #ffffff !important;
+          color: #000000 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          box-sizing: border-box !important;
+        }
+        tfoot {
+          display: table-row-group !important;
+          page-break-inside: avoid !important;
+          break-inside: avoid !important;
+        }
         @media print {
           html, body, #root {
+            background: #ffffff !important;
+            background-color: #ffffff !important;
+            color: #000000 !important;
             margin: 0 !important;
             padding: 0 !important;
             box-sizing: border-box !important;
           }
+          tfoot {
+            display: table-row-group !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
         }
       `}</style>
       <div
-        style={{ width: '100%', backgroundColor: 'white', padding: 0, margin: 0 }}
+        style={{ width: '100%', backgroundColor: '#ffffff', color: '#000000', padding: 0, margin: 0 }}
         dangerouslySetInnerHTML={{ __html: sanitizeHtml(htmlContent) }}
       />
     </>

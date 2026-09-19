@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Settings, Printer, Scale, Save, Loader2, RefreshCw, Download,
   Key, Tags, Building, Receipt, Usb, Landmark,
-  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi,
+  CheckCircle2, AlertCircle, Globe, Upload, Type, Plus, Minus, Wifi, Info,
   Smartphone, X, RotateCcw, Maximize2, Eye, EyeOff,
   Store, Package, Monitor, ChevronRight, Shield, FileText, TrendingUp,
   Clock, Power, Lock, Unlock, Cloud, Database, HelpCircle, Copy, Check, BookOpen
@@ -209,6 +209,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
   const [shopNameLocal, setShopNameLocal] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');
+  const [shopEmail, setShopEmail] = useState('');
+  const [shopWebsite, setShopWebsite] = useState('');
   const [storeTimezone, setStoreTimezoneState] = useState<string>(getStoreTimezone());
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
@@ -453,12 +455,76 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
     }
   };
 
-  const getSettingsSnapshot = () => JSON.stringify({ barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '', b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '', b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '', b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '', labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, features: JSON.stringify(featureFlags) });
+  const buildSettingsSnapshot = (overrides: Record<string, any> = {}) => JSON.stringify({
+    barcodePrinter: overrides.barcodePrinter !== undefined ? overrides.barcodePrinter : barcodePrinter,
+    receiptPrinter: overrides.receiptPrinter !== undefined ? overrides.receiptPrinter : receiptPrinter,
+    a4Printer: overrides.a4Printer !== undefined ? overrides.a4Printer : a4Printer,
+    scale: overrides.scale !== undefined ? overrides.scale : scale,
+    priceCoding: overrides.priceCoding !== undefined ? overrides.priceCoding : priceCoding,
+    shopGstin: overrides.shopGstin !== undefined ? overrides.shopGstin : shopGstin,
+    shopState: overrides.shopState !== undefined ? overrides.shopState : shopState,
+    shopNameLocal: overrides.shopNameLocal !== undefined ? overrides.shopNameLocal : shopNameLocal,
+    shopAddress: overrides.shopAddress !== undefined ? overrides.shopAddress : shopAddress,
+    shopPhone: overrides.shopPhone !== undefined ? overrides.shopPhone : shopPhone,
+    shopEmail: overrides.shopEmail !== undefined ? overrides.shopEmail : shopEmail,
+    shopWebsite: overrides.shopWebsite !== undefined ? overrides.shopWebsite : shopWebsite,
+    storeTimezone: overrides.storeTimezone !== undefined ? overrides.storeTimezone : storeTimezone,
+    upiId: overrides.upiId !== undefined ? overrides.upiId : upiId,
+    showUpiQr: overrides.showUpiQr !== undefined ? overrides.showUpiQr : showUpiQr,
+    bankName: overrides.bankName !== undefined ? overrides.bankName : bankName,
+    bankAccount: overrides.bankAccount !== undefined ? overrides.bankAccount : bankAccount,
+    bankIfsc: overrides.bankIfsc !== undefined ? overrides.bankIfsc : bankIfsc,
+    bankBranch: overrides.bankBranch !== undefined ? overrides.bankBranch : bankBranch,
+    showProductOffers: overrides.showProductOffers !== undefined ? overrides.showProductOffers : showProductOffers,
+    openCashDrawerOnPending: overrides.openCashDrawerOnPending !== undefined ? overrides.openCashDrawerOnPending : openCashDrawerOnPending,
+    receiptFont: overrides.receiptFont !== undefined ? overrides.receiptFont : receiptFont,
+    printFormat: overrides.printFormat !== undefined ? overrides.printFormat : printFormat,
+    a5Orientation: overrides.a5Orientation !== undefined ? overrides.a5Orientation : a5Orientation,
+    printWidth: overrides.printWidth !== undefined ? overrides.printWidth : printWidth,
+    thermalStyle: overrides.thermalStyle !== undefined ? overrides.thermalStyle : thermalStyle,
+    a4Style: overrides.a4Style !== undefined ? overrides.a4Style : a4Style,
+    terminalCode: overrides.terminalCode !== undefined ? overrides.terminalCode : terminalCode,
+    invoiceStartNumber: overrides.invoiceStartNumber !== undefined ? overrides.invoiceStartNumber : invoiceStartNumber,
+    enableThreeInvoiceSeries: overrides.enableThreeInvoiceSeries !== undefined ? overrides.enableThreeInvoiceSeries : enableThreeInvoiceSeries,
+    b2bPrefix: (overrides.enableThreeInvoiceSeries !== undefined ? overrides.enableThreeInvoiceSeries : enableThreeInvoiceSeries) ? (overrides.b2bPrefix !== undefined ? overrides.b2bPrefix : b2bPrefix) : '',
+    b2bStartNumber: (overrides.enableThreeInvoiceSeries !== undefined ? overrides.enableThreeInvoiceSeries : enableThreeInvoiceSeries) ? (overrides.b2bStartNumber !== undefined ? overrides.b2bStartNumber : b2bStartNumber) : '',
+    b2cPrefix: (overrides.enableThreeInvoiceSeries !== undefined ? overrides.enableThreeInvoiceSeries : enableThreeInvoiceSeries) ? (overrides.b2cPrefix !== undefined ? overrides.b2cPrefix : b2cPrefix) : '',
+    b2cStartNumber: (overrides.enableThreeInvoiceSeries !== undefined ? overrides.enableThreeInvoiceSeries : enableThreeInvoiceSeries) ? (overrides.b2cStartNumber !== undefined ? overrides.b2cStartNumber : b2cStartNumber) : '',
+    labelCodeType: overrides.labelCodeType !== undefined ? overrides.labelCodeType : labelCodeType,
+    labelShowShopName: overrides.labelShowShopName !== undefined ? overrides.labelShowShopName : labelShowShopName,
+    enableScrap: overrides.enableScrap !== undefined ? overrides.enableScrap : enableScrap,
+    showCashRegister: overrides.showCashRegister !== undefined ? overrides.showCashRegister : showCashRegister,
+    autoPrintBarcode: overrides.autoPrintBarcode !== undefined ? overrides.autoPrintBarcode : autoPrintBarcode,
+    loyaltyEnabled: overrides.loyaltyEnabled !== undefined ? overrides.loyaltyEnabled : loyaltyEnabled,
+    loyaltyEarningRate: overrides.loyaltyEarningRate !== undefined ? overrides.loyaltyEarningRate : loyaltyEarningRate,
+    loyaltyRedemptionRate: overrides.loyaltyRedemptionRate !== undefined ? overrides.loyaltyRedemptionRate : loyaltyRedemptionRate,
+    billSettings: overrides.billSettings !== undefined ? overrides.billSettings : billSettings,
+    scrapBillSettings: overrides.scrapBillSettings !== undefined ? overrides.scrapBillSettings : scrapBillSettings,
+    gstProfitPercentage: overrides.gstProfitPercentage !== undefined ? overrides.gstProfitPercentage : gstProfitPercentage,
+    returnPrefix: overrides.returnPrefix !== undefined ? overrides.returnPrefix : returnPrefix,
+    returnStartNumber: overrides.returnStartNumber !== undefined ? overrides.returnStartNumber : returnStartNumber,
+    scrapPrefix: overrides.scrapPrefix !== undefined ? overrides.scrapPrefix : scrapPrefix,
+    scrapStartNumber: overrides.scrapStartNumber !== undefined ? overrides.scrapStartNumber : scrapStartNumber,
+    quotationPrefix: overrides.quotationPrefix !== undefined ? overrides.quotationPrefix : quotationPrefix,
+    quotationStartNumber: overrides.quotationStartNumber !== undefined ? overrides.quotationStartNumber : quotationStartNumber,
+    stockReportDefaultView: overrides.stockReportDefaultView !== undefined ? overrides.stockReportDefaultView : stockReportDefaultView,
+    inventoryDefaultView: overrides.inventoryDefaultView !== undefined ? overrides.inventoryDefaultView : inventoryDefaultView,
+    serviceChargeBarcode: overrides.serviceChargeBarcode !== undefined ? overrides.serviceChargeBarcode : serviceChargeBarcode,
+    timeFormat: overrides.timeFormat !== undefined ? overrides.timeFormat : timeFormat,
+    syncMode: overrides.syncMode !== undefined ? overrides.syncMode : syncMode,
+    lanRole: overrides.lanRole !== undefined ? overrides.lanRole : lanRole,
+    lanHostIp: overrides.lanHostIp !== undefined ? overrides.lanHostIp : lanHostIp,
+    lanPort: overrides.lanPort !== undefined ? overrides.lanPort : lanPort,
+    syncFrequency: overrides.syncFrequency !== undefined ? overrides.syncFrequency : syncFrequency,
+    features: JSON.stringify(overrides.featureFlags !== undefined ? overrides.featureFlags : featureFlags)
+  });
+
+  const getSettingsSnapshot = () => buildSettingsSnapshot();
 
   const hasChanges = useMemo(() => {
     if (!initialSnapshot.current) return false;
     return getSettingsSnapshot() !== initialSnapshot.current;
-  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
+  }, [barcodePrinter, receiptPrinter, a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, shopEmail, shopWebsite, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries, b2bPrefix, b2bStartNumber, b2cPrefix, b2cStartNumber, labelCodeType, labelShowShopName, enableScrap, showCashRegister, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency, featureFlags, saveRevision]);
 
   const updateSnapshotField = (updater: (prevObj: any) => any) => {
     try {
@@ -536,7 +602,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         const keysToFetch = [
           'barcode_printer_config', 'receipt_printer_config', 'a4_printer_config', 'printer_config',
           'scale_config', 'price_coding', 'shop_gstin', 'shop_state', 'shop_name', 'shop_address',
-          'shop_phone', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
+          'shop_phone', 'shop_email', 'shop_website', 'upi_id', 'show_upi_qr', 'print_format', 'label_code_type',
           'network_sync_config', 'enable_scrap', 'show_cash_register', 'auto_print_barcode',
           'loyalty_config', 'label_show_shop_name', 'stock_report_default_view', 'inventory_default_view',
           'time_format', 'store_timezone', 'gst_profit_percentage', 'feature_flags',
@@ -575,6 +641,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const nameVal = allSettings['shop_name'];
       const addressVal = allSettings['shop_address'];
       const phoneVal = allSettings['shop_phone'];
+      const emailVal = allSettings['shop_email'];
+      const websiteVal = allSettings['shop_website'] || allSettings['shop_web'];
       const upiVal = allSettings['upi_id'];
       const showQrVal = allSettings['show_upi_qr'];
       const printFmt = allSettings['print_format'];
@@ -620,6 +688,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       const finalName = typeof nameVal === 'string' ? nameVal : (nameVal ? String(nameVal) : '');
       const finalAddress = typeof addressVal === 'string' ? addressVal : (addressVal ? String(addressVal) : '');
       const finalPhone = typeof phoneVal === 'string' ? phoneVal : (phoneVal ? String(phoneVal) : '');
+      const finalEmail = typeof emailVal === 'string' ? emailVal : (emailVal ? String(emailVal) : '');
+      const finalWebsite = typeof websiteVal === 'string' ? websiteVal : (websiteVal ? String(websiteVal) : '');
       const finalUpi = typeof upiVal === 'string' ? upiVal : (upiVal ? String(upiVal) : '');
       const finalShowQr = showQrVal !== null && showQrVal !== undefined ? Boolean(showQrVal) : true;
 
@@ -842,6 +912,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setShopNameLocal(finalName);
       setShopAddress(finalAddress);
       setShopPhone(finalPhone);
+      setShopEmail(finalEmail);
+      setShopWebsite(finalWebsite);
       setUpiId(finalUpi);
       setShowUpiQr(finalShowQr);
       setSyncMode(finalSyncMode);
@@ -890,7 +962,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       setBankIfsc(finalBankIfsc);
       setBankBranch(finalBankBranch);
 
-      initialSnapshot.current = JSON.stringify({
+      initialSnapshot.current = buildSettingsSnapshot({
         barcodePrinter: finalBarcode,
         receiptPrinter: finalReceipt,
         a4Printer: finalA4,
@@ -919,10 +991,10 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         terminalCode: finalTermCode,
         invoiceStartNumber: finalInvoiceStart,
         enableThreeInvoiceSeries: finalTripleSeries,
-        b2bPrefix: finalTripleSeries ? finalB2bPrefix : '',
-        b2bStartNumber: finalTripleSeries ? finalB2bStart : '',
-        b2cPrefix: finalTripleSeries ? finalB2cPrefix : '',
-        b2cStartNumber: finalTripleSeries ? finalB2cStart : '',
+        b2bPrefix: finalB2bPrefix,
+        b2bStartNumber: finalB2bStart,
+        b2cPrefix: finalB2cPrefix,
+        b2cStartNumber: finalB2cStart,
         labelCodeType: finalLabelType,
         labelShowShopName: finalLabelShowName,
         enableScrap: finalScrap,
@@ -949,7 +1021,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         lanHostIp: finalLanHostIp,
         lanPort: finalLanPort,
         syncFrequency: finalSyncFreq,
-        features: JSON.stringify(finalFlags)
+        featureFlags: finalFlags
       });
 
       // Settings loaded: dismiss skeleton loader immediately (<30ms)
@@ -1084,6 +1156,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_address', value: shopAddress }), name: 'address' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_email', value: shopEmail }), name: 'email' },
+        { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_website', value: shopWebsite }), name: 'website' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'upi_id', value: upiId }), name: 'upi' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'show_upi_qr', value: showUpiQr }), name: 'qr' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'bank_name', value: bankName }), name: 'bank_name' },
@@ -1184,16 +1258,66 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           text: `${label} saved successfully!`
         });
       }
-      initialSnapshot.current = JSON.stringify({
+      initialSnapshot.current = buildSettingsSnapshot({
         barcodePrinter: formattedBarcodePrinter,
         receiptPrinter: formattedReceiptPrinter,
-        a4Printer, scale, priceCoding, shopGstin, shopState, shopNameLocal, shopAddress, shopPhone, storeTimezone, upiId, showUpiQr, bankName, bankAccount, bankIfsc, bankBranch, showProductOffers, openCashDrawerOnPending, receiptFont, printFormat, a5Orientation, printWidth, thermalStyle, a4Style, terminalCode, invoiceStartNumber, enableThreeInvoiceSeries,
-        b2bPrefix: enableThreeInvoiceSeries ? b2bPrefix : '',
-        b2bStartNumber: enableThreeInvoiceSeries ? b2bStartNumber : '',
-        b2cPrefix: enableThreeInvoiceSeries ? b2cPrefix : '',
-        b2cStartNumber: enableThreeInvoiceSeries ? b2cStartNumber : '',
-        labelCodeType, labelShowShopName, enableScrap: Boolean(featureFlags.scrap), showCashRegister: featureFlags.cash_register, autoPrintBarcode, loyaltyEnabled, loyaltyEarningRate, loyaltyRedemptionRate, billSettings, scrapBillSettings, gstProfitPercentage, returnPrefix, returnStartNumber, scrapPrefix, scrapStartNumber, quotationPrefix, quotationStartNumber, stockReportDefaultView, inventoryDefaultView, serviceChargeBarcode, timeFormat, syncMode, lanRole, lanHostIp, lanPort, syncFrequency,
-        features: JSON.stringify(featureFlags)
+        a4Printer,
+        scale,
+        priceCoding,
+        shopGstin,
+        shopState,
+        shopNameLocal,
+        shopAddress,
+        shopPhone,
+        storeTimezone,
+        upiId,
+        showUpiQr,
+        bankName,
+        bankAccount,
+        bankIfsc,
+        bankBranch,
+        showProductOffers,
+        openCashDrawerOnPending,
+        receiptFont,
+        printFormat,
+        a5Orientation,
+        printWidth,
+        thermalStyle,
+        a4Style,
+        terminalCode: cleanCode,
+        invoiceStartNumber: finalInvCounter,
+        enableThreeInvoiceSeries,
+        b2bPrefix,
+        b2bStartNumber: finalB2bCounter,
+        b2cPrefix,
+        b2cStartNumber: finalB2cCounter,
+        labelCodeType,
+        labelShowShopName,
+        enableScrap: Boolean(featureFlags.scrap),
+        showCashRegister: featureFlags.cash_register,
+        autoPrintBarcode,
+        loyaltyEnabled,
+        loyaltyEarningRate: Number(loyaltyEarningRate) || 100,
+        loyaltyRedemptionRate: Number(loyaltyRedemptionRate) || 1,
+        billSettings,
+        scrapBillSettings,
+        gstProfitPercentage,
+        returnPrefix: computedReturnPrefix,
+        returnStartNumber: finalReturnCounter,
+        scrapPrefix: computedScrapPrefix,
+        scrapStartNumber: finalScrapCounter,
+        quotationPrefix: computedQuotationPrefix,
+        quotationStartNumber: finalQuotationCounter,
+        stockReportDefaultView,
+        inventoryDefaultView,
+        serviceChargeBarcode,
+        timeFormat,
+        syncMode,
+        lanRole,
+        lanHostIp,
+        lanPort: Number(lanPort) || 3888,
+        syncFrequency,
+        featureFlags
       });
       setSaveRevision(v => v + 1);
       setTimeout(() => setMessage(null), 3000);
@@ -1343,6 +1467,14 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 <div className="space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Phone Number</label>
                   <Input type="text" value={shopPhone} onChange={(e) => setShopPhone(e.target.value)} placeholder="e.g. +91 98765 43210" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Email Address (E-Mail)</label>
+                  <Input type="email" value={shopEmail} onChange={(e) => setShopEmail(e.target.value)} placeholder="e.g. info@business.com" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
+                </div>
+                <div className="space-y-2 col-span-2">
+                  <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Website URL (Web)</label>
+                  <Input type="text" value={shopWebsite} onChange={(e) => setShopWebsite(e.target.value)} placeholder="e.g. www.business.com" className="bg-background/50 focus:bg-background border-border/80 focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all rounded-xl py-2.5" />
                 </div>
                 <div className="col-span-2 space-y-2">
                   <label className="text-[10px] font-bold text-muted-foreground/80 uppercase tracking-wider mb-1.5 block">Shop Address</label>
@@ -2032,16 +2164,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
               </div>
 
               <div className="space-y-6">
-                {/* Info Note for GST Bills */}
-                <div className="p-4 bg-emerald-500/[0.06] border border-emerald-500/20 rounded-2xl flex items-start gap-3">
-                  <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-xs font-bold text-emerald-800 dark:text-emerald-300">GST Bills (Tax Invoices) are fixed to A4 Format</p>
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium leading-relaxed mt-0.5">
-                      GST Tax Invoices and B2B bills are automatically formatted and printed on standard A4 paper as required by GST regulations. Paper format selection below applies to Normal Print (Bill of Supply &amp; Estimate).
-                    </p>
-                  </div>
-                </div>
 
                 {/* Normal Print Format Toggle: Thermal vs A5 (Half A4) vs A4 */}
                 <div>
@@ -2424,7 +2546,22 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                 </div>
 
                 <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
-                  <label className="text-xs font-bold text-foreground mb-3 block">Bill Content Checklist</label>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div>
+                      <label className="text-xs font-bold text-foreground block">Bill Content Checklist</label>
+                      <p className="text-[11px] text-muted-foreground/80 mt-0.5">Customize fields for Bill of Supply &amp; Estimate bills</p>
+                    </div>
+                    <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-400 bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 self-start sm:self-auto shrink-0">
+                      Applies to Bill of Supply &amp; Estimate Only
+                    </span>
+                  </div>
+
+                  <div className="mb-3.5 p-3 bg-blue-500/[0.06] border border-blue-500/20 rounded-xl flex items-start gap-2.5">
+                    <Info className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-blue-700 dark:text-blue-300 font-medium leading-relaxed">
+                      Checklist customization applies only to <strong>Bill of Supply &amp; Estimate</strong> bills. <strong>GST Tax Invoices</strong> will always display all mandatory invoice details as required by GST regulations.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-x-6 gap-y-1.5">
                     {[
                       { key: 'showShopName', label: 'Shop Name' },

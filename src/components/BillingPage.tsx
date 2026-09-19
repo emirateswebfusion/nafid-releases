@@ -3327,6 +3327,7 @@ export function BillingPage() {
                 .header p { font-size: 13px; color: #666; margin: 3px 0; }
                 .qtn-info { display: flex; justify-content: space-between; margin-bottom: 20px; }
                 table { width: 100%; border-collapse: collapse; }
+                tfoot { display: table-row-group; page-break-inside: avoid; break-inside: avoid; }
                 th { background: #f5f5f5; padding: 8px 6px; border: 1px solid #ddd; text-align: left; font-size: 10px; text-transform: uppercase; }
                 td { padding: 6px; border: 1px solid #ddd; }
                 .text-right { text-align: right; }
@@ -4314,8 +4315,8 @@ export function BillingPage() {
                 ? { upi_id: currentSelectedUpi.upi_id, upi_name: currentSelectedUpi.name, upi_source_id: currentSelectedUpi.source_id }
                 : (splitDetails || undefined)),
           customer_name: customerName || null, customer_phone: customerPhone || null,
-          customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
-          customer_state: billSettings.showCustomerState !== false ? (customerState || null) : null,
+          customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
+          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
@@ -4341,8 +4342,8 @@ export function BillingPage() {
             ? (partyOldBalance + (Number(splitDetails?.credit) || 0))
             : effectiveBalanceAmount,
           customer_name: customerName || null, customer_phone: customerPhone || null,
-          customer_gstin: billSettings.showCustomerGstin ? (customerGstin || null) : null,
-          customer_state: billSettings.showCustomerState !== false ? (customerState || null) : null,
+          customer_gstin: (invoiceType === 'GST' || billSettings.showCustomerGstin !== false) ? (customerGstin || null) : null,
+          customer_state: (invoiceType === 'GST' || billSettings.showCustomerState !== false) ? (customerState || null) : null,
           customer_address: customerAddress || null,
           scrap_deduction: storeScrapDeduction || 0, scrap_invoice_number: storeScrapInvoiceNumber || null,
           return_deduction: storeReturnDeduction || 0, return_invoice_number: storeReturnInvoiceNumber || null,
@@ -5794,9 +5795,9 @@ export function BillingPage() {
                   }}
                   onKeyDown={handleCustomerNameKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
-                      ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
                       : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerName.trim())
                       ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'
@@ -5810,7 +5811,7 @@ export function BillingPage() {
                   if (!showCustomerDropdown || filteredCustomerSuggestions.length === 0 || isExactSingleMatch) return null;
 
                   return (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-card dark:bg-slate-900 border border-border dark:border-slate-700 rounded-xl shadow-xl z-50 max-h-[220px] overflow-y-auto">
                       {filteredCustomerSuggestions.map((c: any, index: number) => (
                         <button
                           key={c.customer_id || c.party_id || index}
@@ -5820,20 +5821,20 @@ export function BillingPage() {
                             selectCustomerSuggestion(c);
                           }}
                           className={clsx(
-                            "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border last:border-0 cursor-pointer transition-colors",
-                            index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold" : "hover:bg-muted/40"
+                            "w-full flex items-center gap-2 px-3 py-2 text-left border-b border-border dark:border-slate-800 last:border-0 cursor-pointer transition-colors",
+                            index === selectedCustomerIndex ? "bg-primary/15 text-primary font-bold dark:bg-primary/25" : "hover:bg-muted/40 dark:hover:bg-slate-800/60"
                           )}
                         >
-                          <User className="w-4 h-4 text-muted-foreground shrink-0" />
+                          <User className="w-4 h-4 text-muted-foreground dark:text-gray-400 shrink-0" />
                           <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold text-foreground truncate">{c.name}</div>
-                            <div className="text-[10px] text-muted-foreground">{c.phone || c.address || 'No phone/address'}</div>
+                            <div className="text-xs font-bold text-foreground dark:text-gray-100 truncate">{c.name}</div>
+                            <div className="text-[10px] text-muted-foreground dark:text-gray-400">{c.phone || c.address || 'No phone/address'}</div>
                           </div>
                           {Number(c.current_points_balance) > 0 && (
-                            <span className="text-[10px] font-bold text-emerald-600 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 shrink-0">{Number(c.current_points_balance).toFixed(0)} pts</span>
                           )}
                           {c.balance != null && Number(c.balance) !== 0 && (
-                            <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600" : "bg-emerald-500/10 text-emerald-600")}>
+                            <span className={clsx("text-[10px] font-bold shrink-0 px-1.5 py-0.5 rounded", Number(c.balance) > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400")}>
                               Bal: ₹{Math.abs(Number(c.balance)).toFixed(2)}
                             </span>
                           )}
@@ -5863,9 +5864,9 @@ export function BillingPage() {
                   }}
                   onKeyDown={handleCustomerPhoneKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
                     paymentMethod === 'CREDIT'
-                      ? 'border-amber-400 bg-amber-500/5 focus:ring-amber-500/30 focus:border-amber-500'
+                      ? 'border-amber-400 bg-amber-500/5 dark:bg-amber-950/30 dark:border-amber-500/60 focus:ring-amber-500/30 focus:border-amber-500'
                       : (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerPhone.trim())
                       ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'
@@ -5978,7 +5979,7 @@ export function BillingPage() {
                   onChange={e => updateActiveTab({ customerAddress: e.target.value })}
                   onKeyDown={handleCustomerAddressKeyDown}
                   className={clsx(
-                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 transition-all duration-300',
+                    'w-full pl-9 pr-3 py-2 bg-background border rounded-lg text-sm text-foreground placeholder:text-muted-foreground/60 dark:placeholder:text-gray-400 dark:text-gray-100 focus:outline-none focus:ring-2 transition-all duration-300',
                     (invoiceType === 'GST' && !isQuotationMode && !isReturnMode && !isScrapMode && !customerAddress.trim())
                       ? 'border-rose-400 dark:border-rose-700 focus:ring-rose-500/20 focus:border-rose-500'
                       : 'border-border focus:ring-primary/20 focus:border-primary'

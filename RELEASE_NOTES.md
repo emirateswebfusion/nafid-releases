@@ -1,3 +1,10 @@
+# Vendora v1.5.70 Release Notes
+
+## What's Changed
+- Enhanced `CustomersPage`, `QuotationManager`, `SettingsManager`, `PrintA4View`, `invoiceHtmlGenerator`, and `receiptGenerator`
+- Updated local SQLite DB queries, Electron main process IPC routines, and background sync worker/server handling
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.69...v1.5.70
+
 # Vendora v1.5.69 Release Notes
 
 ## What's Changed

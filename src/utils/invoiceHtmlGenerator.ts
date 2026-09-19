@@ -1,4 +1,4 @@
-import { DEFAULT_BILL_SETTINGS, type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
+import { DEFAULT_BILL_SETTINGS, getEffectiveBillSettings, type BillSettings, formatPrintItem, numberToIndianWords, parseUTCDate } from './receiptGenerator';
 import { getStoreTimezone } from './timezoneHelper';
 
 export interface InvoiceItemDisplay {
@@ -30,6 +30,7 @@ export interface InvoiceData {
   shopAddress?: string;
   shopPhone?: string;
   shopEmail?: string;
+  shopWebsite?: string;
   logoUrl?: string;
   upiId?: string;
   invoiceNumber: string;
@@ -190,20 +191,20 @@ export function generateInvoiceHtml(data: InvoiceData, style: 'standard' | 'boxe
 }
 
 export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string {
-  const bs = data.billSettings;
   const isB2B = data.isB2B === true;
   const isGstBill = data.invoiceType === 'GST' || isB2B;
+  const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
   const title = titleStr || getDocumentTitle(data.invoiceType, data.isReprint, bs?.estimateMode, isB2B, bs?.nonGstBillTitle);
   const grandTotal = Number(data.grandTotal) || 0;
   const netPayable = grandTotal - ((Number(data.scrapDeduction) || 0) + (Number(data.returnDeduction) || 0));
   const isVertical = data.a5Orientation === 'vertical';
-  const isRateQty = data.billSettings?.itemColumnOrder === 'rate_qty';
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const itemsList = Array.isArray(data.items) ? data.items : [];
 
   const itemsHtml = itemsList.map((item, idx) => {
-    const fmt = formatPrintItem(item, data.billSettings);
+    const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
+    const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#444;">(${item.brand})</span>` : '';
     const middleCols = isRateQty
       ? `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td>`
       : `<td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 55px;">${fmt.displayQty}</td><td style="text-align: right; padding: 2.5px 4px; font-size: 11.5px; width: 75px;">${fmt.displayRate}</td>`;
@@ -539,7 +540,8 @@ export function generateHalfA4Html(data: InvoiceData, titleStr?: string): string
 }
 
 function generateBoxedHtml(data: InvoiceData, title: string): string {
-  const bs = data.billSettings;
+  const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
+  const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
   const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const grandTotal = Number(data.grandTotal) || 0;
   const scrapDed = Number(data.scrapDeduction) || 0;
@@ -557,13 +559,13 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
   let totalAmountSum = 0;
 
   const itemsHtml = itemsList.map((item, idx) => {
-    const fmt = formatPrintItem(item, data.billSettings);
+    const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:10px; color:#333; font-weight: 600;">(${item.brand})</span>` : '';
+    const brandHtml = bs?.showBrandName !== false && item.brand ? ` <span style="font-size:9.5px; color:#333; font-weight: 600;">(${item.brand})</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
-      ? `<br><b style="font-size:10px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
+      ? `<br><b style="font-size:9.5px; color:#6b21a8; font-weight:800; letter-spacing:0.3px;">[COMBO OFFER]</b> <span style="font-size:9px; color:#4b5563; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
-    const offerHtml = data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9.5px; color:#dc2626; font-weight:600;">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
+    const offerHtml = data.showProductOffers !== false && item.discountLabel ? `<br><span style="font-size:9px; color:#dc2626; font-weight:600;">${item.discountLabel}${item.originalRate ? ' (was ₹' + item.originalRate.toFixed(2) + ')' : ''}</span>` : '';
 
     const hsnCode = item.hsn || item.hsn_code || '-';
     const qtyNum = Number(item.quantity) || 1;
@@ -597,21 +599,21 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     totalAmountSum += itemTotal;
 
     const qtyRateCols = isRateQty
-      ? `<td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td>`
-      : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px; font-weight: 600;">${fmt.displayQty}</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${unitPriceVal.toFixed(2)}</td>`;
+      ? `<td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${unitPriceVal.toFixed(2)}</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">${fmt.displayQty}</td>`
+      : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px; font-weight: 600;">${fmt.displayQty}</td><td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${unitPriceVal.toFixed(2)}</td>`;
 
     return `
-    <tr style="height: 24px;">
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${idx + 1}</td>
-      <td style="text-align: left; border-right: 1px solid #000; padding: 3px 6px; font-weight: 500;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${hsnCode}</td>
+    <tr style="height: 22px;">
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${idx + 1}</td>
+      <td style="text-align: left; border-right: 1px solid #000; padding: 3px 5px; font-weight: 500;">${displayName}${brandHtml}${comboHtml}${offerHtml}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${hsnCode}</td>
       ${qtyRateCols}
-      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${taxableVal.toFixed(2)}</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${cgstPct > 0 ? cgstPct : ''}</td>
-      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${cgstAmt > 0 ? cgstAmt.toFixed(2) : ''}</td>
-      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${sgstPct > 0 ? sgstPct : ''}</td>
-      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${sgstAmt > 0 ? sgstAmt.toFixed(2) : ''}</td>
-      <td style="text-align: right; padding: 3px 6px; font-weight: 700;">${itemTotal.toFixed(2)}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${taxableVal.toFixed(2)}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 2px;">${cgstPct > 0 ? cgstPct : ''}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${cgstAmt > 0 ? cgstAmt.toFixed(2) : ''}</td>
+      <td style="text-align: center; border-right: 1px solid #000; padding: 3px 2px;">${sgstPct > 0 ? sgstPct : ''}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${sgstAmt > 0 ? sgstAmt.toFixed(2) : ''}</td>
+      <td style="text-align: right; padding: 3px 5px; font-weight: 700;">${itemTotal.toFixed(2)}</td>
     </tr>
     `;
   }).join('');
@@ -622,7 +624,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     const padCount = minRows - itemsList.length;
     for (let i = 0; i < padCount; i++) {
       emptyRowsHtml += `
-      <tr style="height: 24px;">
+      <tr style="height: 22px;">
         <td style="border-right: 1px solid #000;">&nbsp;</td>
         <td style="border-right: 1px solid #000;">&nbsp;</td>
         <td style="border-right: 1px solid #000;">&nbsp;</td>
@@ -666,11 +668,11 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     @page {
       size: A4 portrait;
-      margin: 8mm 10mm;
+      margin: 6mm 8mm;
     }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-      font-size: 11px;
+      font-size: 10.5px;
       color: #000;
       background: #fff;
       -webkit-font-smoothing: antialiased;
@@ -679,7 +681,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     .invoice-box {
       width: 100%;
-      min-height: 275mm;
+      min-height: 280mm;
       border: 1.5px solid #000;
       margin: 0 auto;
       display: flex;
@@ -693,11 +695,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     .header-table td {
       vertical-align: top;
-      padding: 6px 8px;
-      font-size: 11px;
+      padding: 5px 8px;
+      font-size: 10.5px;
+      line-height: 1.35;
     }
     .shop-title {
-      font-size: 18px;
+      font-size: 17px;
       font-weight: 900;
       letter-spacing: 0.5px;
       text-transform: uppercase;
@@ -709,9 +712,9 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     .grid-col {
       width: 50%;
-      padding: 6px 8px;
-      font-size: 11px;
-      line-height: 1.45;
+      padding: 4px 8px;
+      font-size: 10.5px;
+      line-height: 1.4;
     }
     .grid-col.left {
       border-right: 1px solid #000;
@@ -729,14 +732,22 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       border-bottom: 1px solid #000;
     }
     .items-table th {
-      font-size: 10px;
+      font-size: 9.5px;
       font-weight: bold;
       background: #fff;
       vertical-align: middle;
+      border-right: 1px solid #000;
+      border-bottom: 1px solid #000;
+    }
+    .items-table th:last-child {
+      border-right: none;
     }
     .items-table td {
-      font-size: 11px;
+      font-size: 10px;
       vertical-align: middle;
+    }
+    .items-table td:last-child {
+      border-right: none;
     }
     .footer-container {
       margin-top: auto;
@@ -746,7 +757,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .invoice-box {
-        min-height: 275mm;
+        min-height: 280mm;
       }
       .footer-container {
         page-break-inside: avoid;
@@ -760,23 +771,23 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     <!-- Top Header -->
     <table class="header-table">
       <tr>
-        <td style="width: 30%;">
+        <td style="width: 32%;">
           E-Mail : ${data.shopEmail || ''}<br>
-          Web :
+          Web : ${data.shopWebsite || ''}
         </td>
-        <td style="width: 40%; text-align: center;">
+        <td style="width: 36%; text-align: center;">
           ${(bs?.showShopName !== false && data.shopName) ? `<div class="shop-title">${data.shopName}</div>` : ''}
           ${(bs?.showShopAddress !== false && data.shopAddress) ? `<div>${data.shopAddress}</div>` : ''}
           ${(bs?.showPhone !== false && data.shopPhone) ? `<div>Phone:${data.shopPhone}</div>` : ''}
         </td>
-        <td style="width: 30%; text-align: right;">
+        <td style="width: 32%; text-align: right;">
           ${(bs?.showPhone !== false && data.shopPhone) ? `Phone : ${data.shopPhone}<br>Mobile : ${data.shopPhone}` : ''}
         </td>
       </tr>
     </table>
 
     <!-- Subtitle Bar -->
-    <div style="text-align: center; font-size: 13px; font-weight: 800; padding: 3px 0; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #000;">
+    <div style="text-align: center; font-size: 12px; font-weight: 800; padding: 3px 0; letter-spacing: 1px; text-transform: uppercase; border-bottom: 1px solid #000;">
       ${title}
     </div>
 
@@ -786,7 +797,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
         <div><strong>GST Number</strong> : ${data.shopGstin || '-'}</div>
         <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
         <div><strong>Invoice Date</strong> : ${data.date}</div>
-        <div><strong>Tax Is Payable On Reverse Charge</strong> : ${bs?.reverseCharge ? 'Yes' : 'No'}</div>
+        <div><strong>Tax Is Payable On Reverse Charge</strong> : ${bs?.reverseCharge ? '(Yes)' : '(Yes/No)'}</div>
       </div>
       <div class="grid-col">
         <div><strong>Transportation Mode</strong> : ${data.transporterName || ''}</div>
@@ -799,21 +810,21 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     <!-- Receiver & Consignee Details Grid -->
     <div class="grid-2col">
       <div class="grid-col left">
-        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Receiver (Billed to)</div>
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 2px;">Details of Receiver (Billed to)</div>
         <div><strong>Name :</strong> ${data.customerName || ''}</div>
         <div><strong>Address :</strong> ${data.customerAddress || ''}</div>
-        <div style="margin-top: 2px;">
+        <div style="margin-top: 1px;">
           <span><strong>State :</strong> ${data.customerState || ''}</span>
-          <span style="margin-left: 20px;"><strong>State Code :</strong></span>
+          <span style="margin-left: 15px;"><strong>State Code :</strong></span>
         </div>
         <div>
           <span><strong>Mobile No. :</strong> ${data.customerPhone || ''}</span>
-          <span style="margin-left: 20px;"><strong>Phone :</strong></span>
+          <span style="margin-left: 15px;"><strong>Phone :</strong></span>
         </div>
         <div><strong>GST No :</strong> ${data.customerGstin || ''}</div>
       </div>
       <div class="grid-col">
-        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Consignee (Shipped to)</div>
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 2px;">Details of Consignee (Shipped to)</div>
         <div><strong>Name :</strong> ${data.shippingName || data.customerName || ''}</div>
         <div><strong>Address :</strong> ${data.shippingAddress || data.customerAddress || ''}</div>
       </div>
@@ -822,42 +833,56 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     <!-- Items Table -->
     <div class="table-container">
     <table class="items-table">
+      <colgroup>
+        <col style="width: 32px;" />
+        <col />
+        <col style="width: 65px;" />
+        ${isRateQty
+          ? '<col style="width: 65px;" /><col style="width: 36px;" />'
+          : '<col style="width: 36px;" /><col style="width: 65px;" />'}
+        <col style="width: 72px;" />
+        <col style="width: 28px;" />
+        <col style="width: 60px;" />
+        <col style="width: 28px;" />
+        <col style="width: 60px;" />
+        <col style="width: 75px;" />
+      </colgroup>
       <thead>
-        <tr style="border-bottom: 1px solid #000;">
-          <th rowspan="2" style="width: 32px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Sl<br>No</th>
-          <th rowspan="2" style="border-right: 1px solid #000; text-align: left; padding: 4px 6px;">Description of Goods</th>
-          <th rowspan="2" style="width: 70px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Hsn Code<br>(GST)</th>
+        <tr>
+          <th rowspan="2" style="text-align: center; padding: 4px 2px;">Sl<br>No</th>
+          <th rowspan="2" style="text-align: left; padding: 4px 5px;">Description of Goods</th>
+          <th rowspan="2" style="text-align: center; padding: 4px 2px;">Hsn Code<br>(GST)</th>
           ${isRateQty
-            ? `<th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th><th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th>`
-            : `<th rowspan="2" style="width: 38px; border-right: 1px solid #000; text-align: center; padding: 4px 2px;">Qty</th><th rowspan="2" style="width: 65px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Unit<br>Price</th>`}
-          <th rowspan="2" style="width: 72px; border-right: 1px solid #000; text-align: right; padding: 4px 4px;">Taxable<br>Value</th>
-          <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">CGST</th>
-          <th colspan="2" style="border-right: 1px solid #000; text-align: center; padding: 2px 2px; border-bottom: 1px solid #000;">SGST</th>
-          <th rowspan="2" style="width: 80px; text-align: right; padding: 4px 6px;">Total</th>
+            ? `<th rowspan="2" style="text-align: right; padding: 4px 4px;">Unit<br>Price</th><th rowspan="2" style="text-align: center; padding: 4px 2px;">Qty</th>`
+            : `<th rowspan="2" style="text-align: center; padding: 4px 2px;">Qty</th><th rowspan="2" style="text-align: right; padding: 4px 4px;">Unit<br>Price</th>`}
+          <th rowspan="2" style="text-align: right; padding: 4px 4px;">Taxable<br>Value</th>
+          <th colspan="2" style="text-align: center; padding: 2px 2px;">CGST</th>
+          <th colspan="2" style="text-align: center; padding: 2px 2px;">SGST</th>
+          <th rowspan="2" style="text-align: right; padding: 4px 5px;">Total</th>
         </tr>
-        <tr style="border-bottom: 1px solid #000;">
-          <th style="width: 28px; border-right: 1px solid #000; text-align: center; padding: 2px 2px;">%</th>
-          <th style="width: 58px; border-right: 1px solid #000; text-align: right; padding: 2px 4px;">Amount</th>
-          <th style="width: 28px; border-right: 1px solid #000; text-align: center; padding: 2px 2px;">%</th>
-          <th style="width: 58px; border-right: 1px solid #000; text-align: right; padding: 2px 4px;">Amount</th>
+        <tr>
+          <th style="text-align: center; padding: 2px 2px;">%</th>
+          <th style="text-align: right; padding: 2px 4px;">Amount</th>
+          <th style="text-align: center; padding: 2px 2px;">%</th>
+          <th style="text-align: right; padding: 2px 4px;">Amount</th>
         </tr>
       </thead>
       <tbody>
         ${itemsHtml}
         ${emptyRowsHtml}
-        <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 10.5px; height: 24px;">
+        <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 10px; height: 22px;">
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           ${isRateQty
-            ? `<td style="border-right: 1px solid #000;">&nbsp;</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td>`
-            : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 4px;">${totalQtySum}</td><td style="border-right: 1px solid #000;">&nbsp;</td>`}
-          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalTaxableSum.toFixed(2)}</td>
+            ? `<td style="border-right: 1px solid #000;">&nbsp;</td><td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${totalQtySum}</td>`
+            : `<td style="text-align: center; border-right: 1px solid #000; padding: 3px 3px;">${totalQtySum}</td><td style="border-right: 1px solid #000;">&nbsp;</td>`}
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalTaxableSum.toFixed(2)}</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
-          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalCgstSum > 0 ? totalCgstSum.toFixed(2) : ''}</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalCgstSum > 0 ? totalCgstSum.toFixed(2) : ''}</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
-          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 6px;">${totalSgstSum > 0 ? totalSgstSum.toFixed(2) : ''}</td>
-          <td style="text-align: right; padding: 3px 6px;">${totalAmountSum.toFixed(2)}</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalSgstSum > 0 ? totalSgstSum.toFixed(2) : ''}</td>
+          <td style="text-align: right; padding: 3px 5px;">${totalAmountSum.toFixed(2)}</td>
         </tr>
       </tbody>
     </table>
@@ -868,22 +893,22 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     <div class="footer-container">
       <!-- E&OE & Totals Section -->
       <div style="display: flex; border-bottom: 1px solid #000;">
-        <div style="width: 55%; border-right: 1px solid #000; padding: 4px 8px; font-size: 11px; line-height: 1.4;">
+        <div style="width: 65%; border-right: 1px solid #000; padding: 4px 8px; font-size: 10.5px; line-height: 1.35;">
           <div style="font-weight: bold;">E&amp;OE</div>
           <div style="margin-top: 2px;">
             <strong>Invoice Value (In Words)</strong><br>
             ( Rupees ${amountWords} Only )
           </div>
-          <div style="margin-top: 4px; font-size: 10.5px;">Certified that the Particulars given above are true and correct</div>
-          <div style="font-size: 10.5px;">Electronic Reference Number : ${data.irn || ''}</div>
+          <div style="margin-top: 3px; font-size: 10px;">Certified that the Particulars given above are true and correct</div>
+          <div style="font-size: 10px;">Electronic Reference Number : ${data.irn || ''}</div>
         </div>
-        <div style="width: 45%; padding: 4px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px;">
+        <div style="width: 35%; padding: 4px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px;">
           <div>
             <div style="display: flex; justify-content: space-between; padding: 2px 0;">
               <span>Round To</span>
               <span>${roundOff.toFixed(2)}</span>
             </div>
-            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-weight: bold; font-size: 12.5px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 2px;">
+            <div style="display: flex; justify-content: space-between; padding: 4px 0; font-weight: bold; font-size: 12px; border-top: 1px solid #000; border-bottom: 1px solid #000; margin-top: 2px;">
               <span>Total</span>
               <span>${finalTotal.toFixed(2)}</span>
             </div>
@@ -893,21 +918,21 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
 
       <!-- Bottom Footer Grid (Bank Details & Signatory) -->
       <div style="display: flex;">
-        <div style="width: 55%; border-right: 1px solid #000; padding: 6px 8px; font-size: 11px; line-height: 1.5;">
+        <div style="width: 65%; border-right: 1px solid #000; padding: 5px 8px; font-size: 10.5px; line-height: 1.45;">
           <div style="font-weight: bold; margin-bottom: 2px; text-decoration: underline;">Bank Details :-</div>
           <div><strong>Bank Name :</strong> ${data.bankName || ''}</div>
           <div><strong>Branch :</strong> ${data.bankBranch || ''}</div>
           <div><strong>A/C No :</strong> ${data.bankAccount || ''}</div>
           <div><strong>IFSC :</strong> ${data.bankIfsc || ''}</div>
         </div>
-        <div style="width: 45%; padding: 6px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 11px; text-align: right;">
+        <div style="width: 35%; padding: 5px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px; text-align: right;">
           <div></div>
           ${(bs?.showForShopName !== false && data.shopName) || bs?.showAuthorisedSignatory !== false ? `
           <div>
-            ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; font-size: 11px; text-transform: uppercase;">FOR ${data.shopName.toUpperCase()}</div>` : ''}
+            ${bs?.showForShopName !== false && data.shopName ? `<div style="font-weight: bold; font-size: 10.5px; text-transform: uppercase;">FOR ${data.shopName.toUpperCase()}</div>` : ''}
             ${bs?.showAuthorisedSignatory !== false ? `
-            <div style="height: ${bs?.showForShopName !== false && data.shopName ? '35px' : '45px'};"></div>
-            <div style="font-weight: bold; font-size: 10.5px;">Authorised Signatory</div>
+            <div style="height: ${bs?.showForShopName !== false && data.shopName ? '30px' : '40px'};"></div>
+            <div style="font-weight: bold; font-size: 10px;">Authorised Signatory</div>
             ` : ''}
           </div>
           ` : ''}
@@ -920,13 +945,13 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
 }
 
 function generateStandardHtml(data: InvoiceData, title: string): string {
-  const bs = data.billSettings;
-  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
+  const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const itemsHtml = data.items.map((item, idx) => {
-    const fmt = formatPrintItem(item, data.billSettings);
+    const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span class="brand-badge">${item.brand}</span>` : '';
+    const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span class="brand-badge">${item.brand}</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10.5px; color:#6b21a8; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:10px; color:#4b5563; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -957,6 +982,7 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   .info-block p { margin: 3px 0; font-size: 11px; }
   .info-block .label { color: #888; font-size: 10px; text-transform: uppercase; font-weight: bold; }
   table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+  tfoot { display: table-row-group; page-break-inside: avoid; break-inside: avoid; }
   th { background: #f0f4ff; padding: 8px 6px; border: 1px solid #d1d5db; text-align: left; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #374151; }
   td { padding: 7px 6px; border: 1px solid #d1d5db; font-size: 11px; }
   .text-right { text-align: right; }
@@ -971,25 +997,25 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } th { background: #f0f4ff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style></head><body>
   <div class="header">
-    ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-    ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-    ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-    ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-    ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
+    ${bs.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+    ${bs.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+    ${bs.showPhone !== false && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
+    ${data.shopGstin && bs.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+    ${data.shopState && bs.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
   </div>
-  ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-title">${title}</div>` : ''}
+  ${bs.showTitle !== false ? `<div class="invoice-title">${title}</div>` : ''}
   <div class="info-row">
     <div class="info-block">
       <p><span class="label">Invoice #:</span> ${data.invoiceNumber}</p>
       <p><span class="label">Date:</span> ${data.date}</p>
-      ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
+      ${data.billerName && bs.showBillerName !== false ? `<p><span class="label">Biller:</span> ${data.billerName}</p>` : ''}
     </div>
     <div class="info-block" style="text-align:right">
-      ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
-      ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<p><span class="label">Address:</span> ${data.customerAddress}</p>` : ''}
-      ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
-      ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
-      ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
+      ${data.customerName && bs.showCustomerName !== false ? `<p><span class="label">Customer:</span> ${data.customerName}</p>` : ''}
+      ${data.customerAddress && bs.showCustomerAddress !== false ? `<p><span class="label">Address:</span> ${data.customerAddress}</p>` : ''}
+      ${data.customerPhone && bs.showCustomerPhone !== false ? `<p><span class="label">Phone:</span> ${data.customerPhone}</p>` : ''}
+      ${data.customerGstin && bs.showCustomerGstin !== false ? `<p><span class="label">GSTIN:</span> ${data.customerGstin}</p>` : ''}
+      ${data.customerState && bs.showCustomerState !== false ? `<p><span class="label">State:</span> ${data.customerState}</p>` : ''}
     </div>
   </div>
   ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
@@ -1052,13 +1078,13 @@ function generateStandardHtml(data: InvoiceData, title: string): string {
 }
 
 function generateModernHtml(data: InvoiceData, title: string): string {
-  const bs = data.billSettings;
-  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
+  const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const itemsHtml = data.items.map((item, idx) => {
-    const fmt = formatPrintItem(item, data.billSettings);
+    const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#059669; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#6b7280; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -1102,26 +1128,26 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 </style></head><body>
   <div class="page">
     <div class="header-bar">
-      ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-      ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-      ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>${data.shopPhone}</p>` : ''}
-      ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-      ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
-      ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-badge">${title}</div>` : ''}
+      ${bs.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+      ${bs.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+      ${bs.showPhone !== false && data.shopPhone ? `<p>${data.shopPhone}</p>` : ''}
+      ${data.shopGstin && bs.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+      ${data.shopState && bs.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
+      ${bs.showTitle !== false ? `<div class="invoice-badge">${title}</div>` : ''}
     </div>
 
     <div class="info-grid">
       <div class="block">
         <p><span class="lbl">Invoice #</span><br>${data.invoiceNumber}</p>
         <p><span class="lbl">Date</span><br>${data.date}</p>
-        ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
+        ${data.billerName && bs.showBillerName !== false ? `<p><span class="lbl">Biller</span><br>${data.billerName}</p>` : ''}
       </div>
       <div class="block" style="text-align:right">
-        ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
-        ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<p><span class="lbl">Address</span><br>${data.customerAddress}</p>` : ''}
-        ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
-        ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
-        ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<p><span class="lbl">State</span><br>${data.customerState}</p>` : ''}
+        ${data.customerName && bs.showCustomerName !== false ? `<p><span class="lbl">Customer</span><br>${data.customerName}</p>` : ''}
+        ${data.customerAddress && bs.showCustomerAddress !== false ? `<p><span class="lbl">Address</span><br>${data.customerAddress}</p>` : ''}
+        ${data.customerPhone && bs.showCustomerPhone !== false ? `<p><span class="lbl">Phone</span><br>${data.customerPhone}</p>` : ''}
+        ${data.customerGstin && bs.showCustomerGstin !== false ? `<p><span class="lbl">GSTIN</span><br>${data.customerGstin}</p>` : ''}
+        ${data.customerState && bs.showCustomerState !== false ? `<p><span class="lbl">State</span><br>${data.customerState}</p>` : ''}
       </div>
     </div>
     ${(data.transporterName || data.vehicleNumber || data.ewayBillNo || data.transporterDocNo || data.shippingAddress) ? `
@@ -1190,13 +1216,13 @@ function generateModernHtml(data: InvoiceData, title: string): string {
 }
 
 function generateClassicHtml(data: InvoiceData, title: string): string {
-  const bs = data.billSettings;
-  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const isGstBill = data.invoiceType === 'GST' || data.isB2B === true;
+  const bs = getEffectiveBillSettings(data.billSettings, isGstBill);
+  const isRateQty = bs?.itemColumnOrder === 'rate_qty';
   const itemsHtml = data.items.map((item, idx) => {
-    const fmt = formatPrintItem(item, data.billSettings);
+    const fmt = formatPrintItem(item, bs, isGstBill);
     const displayName = formatItemNameForBill(item.name, item.isCombo);
-    const brandHtml = data.billSettings?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
+    const brandHtml = bs?.showBrandName !== false && item.brand ? `<br><span style="font-size:9px;color:#6b7280;font-weight:600">${item.brand}</span>` : '';
     const comboHtml = item.isCombo && item.combo_items && item.combo_items.length > 0
       ? `<br><b style="font-size:10px; color:#1a1a1a; font-weight:900; letter-spacing:0.5px;">[COMBO OFFER]</b> <span style="font-size:9.5px; color:#555; font-weight:bold; font-style:italic">Includes: ${item.combo_items.map(ci => `${ci.product_name || 'Product'} (x${ci.quantity})`).join(', ')}</span>`
       : '';
@@ -1227,6 +1253,7 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
   .info-table td { padding: 2px 4px; vertical-align: top; }
   .info-table .lbl { font-weight: 600; color: #555; }
   table.items { width: 100%; border-collapse: collapse; margin: 12px 0; }
+  table.items tfoot { display: table-row-group; page-break-inside: avoid; break-inside: avoid; }
   table.items th { background: #e5e7eb; padding: 7px 6px; border: 1px solid #9ca3af; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; text-align: left; }
   table.items td { padding: 5px 6px; border: 1px solid #9ca3af; font-size: 11px; }
   table.items tfoot td { font-weight: bold; border-top: 2px solid #333; }
@@ -1243,27 +1270,27 @@ function generateClassicHtml(data: InvoiceData, title: string): string {
 </style></head><body>
   <div class="outer-box">
     <div class="header">
-      ${(isGstBill || data.billSettings?.showShopName !== false) && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
-      ${(isGstBill || data.billSettings?.showShopAddress !== false) && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
-      ${(isGstBill || data.billSettings?.showPhone !== false) && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
-      ${data.shopGstin && (isGstBill || data.billSettings?.showShopGstin !== false) ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
-      ${data.shopState && (isGstBill || data.billSettings?.showShopState !== false) ? `<p>State: ${data.shopState}</p>` : ''}
+      ${bs.showShopName !== false && data.shopName ? `<h1>${data.shopName}</h1>` : ''}
+      ${bs.showShopAddress !== false && data.shopAddress ? `<p>${data.shopAddress}</p>` : ''}
+      ${bs.showPhone !== false && data.shopPhone ? `<p>Phone: ${data.shopPhone}</p>` : ''}
+      ${data.shopGstin && bs.showShopGstin !== false ? `<p>GSTIN: ${data.shopGstin}</p>` : ''}
+      ${data.shopState && bs.showShopState !== false ? `<p>State: ${data.shopState}</p>` : ''}
     </div>
-  ${(isGstBill || data.billSettings?.showTitle !== false) ? `<div class="invoice-title">— ${title} —</div>` : ''}
+  ${bs.showTitle !== false ? `<div class="invoice-title">— ${title} —</div>` : ''}
 
     <table class="info-table">
       <tr>
         <td style="width:50%">
           <span class="lbl">Invoice No:</span> ${data.invoiceNumber}<br>
           <span class="lbl">Date:</span> ${data.date}<br>
-          ${data.billerName && (isGstBill || data.billSettings?.showBillerName !== false) ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
+          ${data.billerName && bs.showBillerName !== false ? `<span class="lbl">Biller:</span> ${data.billerName}<br>` : ''}
         </td>
         <td style="width:50%;text-align:right">
-          ${data.customerName && (isGstBill || data.billSettings?.showCustomerName !== false) ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
-          ${data.customerAddress && (isGstBill || data.billSettings?.showCustomerAddress !== false) ? `<span class="lbl">Address:</span> ${data.customerAddress}<br>` : ''}
-          ${data.customerPhone && (isGstBill || data.billSettings?.showCustomerPhone !== false) ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
-          ${data.customerGstin && (isGstBill || data.billSettings?.showCustomerGstin !== false) ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
-          ${data.customerState && (isGstBill || data.billSettings?.showCustomerState !== false) ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
+          ${data.customerName && bs.showCustomerName !== false ? `<span class="lbl">Customer:</span> ${data.customerName}<br>` : ''}
+          ${data.customerAddress && bs.showCustomerAddress !== false ? `<span class="lbl">Address:</span> ${data.customerAddress}<br>` : ''}
+          ${data.customerPhone && bs.showCustomerPhone !== false ? `<span class="lbl">Phone:</span> ${data.customerPhone}<br>` : ''}
+          ${data.customerGstin && bs.showCustomerGstin !== false ? `<span class="lbl">GSTIN:</span> ${data.customerGstin}<br>` : ''}
+          ${data.customerState && bs.showCustomerState !== false ? `<span class="lbl">State:</span> ${data.customerState}<br>` : ''}
         </td>
       </tr>
     </table>
