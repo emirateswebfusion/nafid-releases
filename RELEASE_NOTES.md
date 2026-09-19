@@ -1,3 +1,9 @@
+# Vendora v1.5.71 Release Notes
+
+## What's Changed
+- Maintenance build release with updated installer packaging and release distribution configuration
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.70...v1.5.71
+
 # Vendora v1.5.70 Release Notes
 
 ## What's Changed
