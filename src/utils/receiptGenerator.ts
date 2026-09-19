@@ -39,6 +39,8 @@ export interface BillSettings {
   printFullName?: boolean;
   showBrandName?: boolean;
   instructions?: string;
+  certificationText?: string;
+  electronicRefNumber?: string;
   showWeightDetails?: boolean;
   showPcsForWeightProducts?: boolean;
   showPcsUnit?: boolean;
@@ -73,6 +75,8 @@ export const DEFAULT_BILL_SETTINGS: BillSettings = {
   printFullName: true,
   showBrandName: true,
   instructions: '',
+  certificationText: 'Certified that the Particulars given above are true and correct',
+  electronicRefNumber: '',
   showWeightDetails: true,
   showPcsForWeightProducts: true,
   showPcsUnit: false,

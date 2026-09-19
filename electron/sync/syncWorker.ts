@@ -620,7 +620,7 @@ async function clearAuthAndNotify() {
 
 import { startLocalHostServer } from './localHostServer.js';
 
-const FAST_INVOICE_PULL_MS = 5000;
+const FAST_INVOICE_PULL_MS = 15000;
 let fastInvoicePullInProgress = false;
 let syncCycleTimerId: NodeJS.Timeout | null = null;
 let activePageContext: string | null = null;
@@ -661,7 +661,14 @@ export function reloadSyncConfig() {
   }, 500);
 }
 
+let isWorkerInitialized = false;
+
 export function initSyncWorker() {
+  if (isWorkerInitialized) {
+    console.log('[SyncWorker] Background sync worker already initialized. Skipping duplicate initialization.');
+    return;
+  }
+  isWorkerInitialized = true;
   console.log('[SyncWorker] ========= Initializing background sync worker... =========');
   const initialAuth = getAuthConfig();
   if (initialAuth && !isJwtExpired(initialAuth.jwt_token)) {
@@ -944,6 +951,80 @@ export async function forceResyncInvoices(sender?: WebContents) {
   return runInitialSync(sender);
 }
 
+async function unifiedDeltaPull(token: string, tenantId: string): Promise<{ success: boolean; dataUpdated: boolean }> {
+  const tables = [
+    'product_grades', 'pricing_tiers', 'product_pricing', 'products', 'settings',
+    'parties', 'party_ledger', 'customers', 'loyalty_transactions', 'scrap_categories',
+    'scrap_transactions', 'purchase_bills', 'cash_drawer', 'cash_transactions',
+    'cashier_audit_log', 'cash_categories', 'returns', 'payment_sources',
+    'payment_source_transactions', 'combo_offers', 'quotations', 'invoices', 'users'
+  ];
+
+  const sinceMap: Record<string, string | null> = {};
+  for (const t of tables) {
+    sinceMap[t] = replaySince(getMeta(cursorKey(tenantId, t)));
+  }
+
+  try {
+    const { response } = await fetchWithFallback('/api/sync/delta-pull', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ since: sinceMap }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) return { success: false, dataUpdated: false };
+    const result = await response.json();
+    if (!result.success || !result.data) return { success: false, dataUpdated: false };
+
+    const data = result.data;
+    let anyHasRows = false;
+    for (const key of Object.keys(data)) {
+      if (Array.isArray(data[key]) && data[key].length > 0) {
+        anyHasRows = true;
+        break;
+      }
+    }
+
+    if (!anyHasRows) {
+      return { success: true, dataUpdated: false };
+    }
+
+    let dataUpdated = false;
+    if (data.product_grades?.length) if (await pullGrades(token, tenantId)) dataUpdated = true;
+    if (data.pricing_tiers?.length) if (await pullPricingTiers(token, tenantId)) dataUpdated = true;
+    if (data.product_pricing?.length) if (await pullProductPricing(token, tenantId)) dataUpdated = true;
+    if (data.products?.length) if (await pullProducts(token, tenantId)) dataUpdated = true;
+    if (data.settings?.length) if (await pullSettings(token, tenantId)) dataUpdated = true;
+    if (data.parties?.length) if (await pullParties(token, tenantId)) dataUpdated = true;
+    if (data.party_ledger?.length) if (await pullPartyLedger(token, tenantId)) dataUpdated = true;
+    if (data.customers?.length) if (await pullCustomers(token, tenantId)) dataUpdated = true;
+    if (data.loyalty_transactions?.length) if (await pullLoyaltyTransactions(token, tenantId)) dataUpdated = true;
+    if (data.scrap_categories?.length) if (await pullScrapCategories(token, tenantId)) dataUpdated = true;
+    if (data.scrap_transactions?.length) if (await pullScrapTransactions(token, tenantId)) dataUpdated = true;
+    if (data.purchase_bills?.length) if (await pullPurchaseBills(token, tenantId)) dataUpdated = true;
+    if (data.cash_drawer?.length) if (await pullCashDrawer(token, tenantId)) dataUpdated = true;
+    if (data.cash_transactions?.length) if (await pullCashTransactions(token, tenantId)) dataUpdated = true;
+    if (data.cashier_audit_log?.length) if (await pullCashierAuditLog(token, tenantId)) dataUpdated = true;
+    if (data.cash_categories?.length) if (await pullCashCategories(token, tenantId)) dataUpdated = true;
+    if (data.returns?.length) if (await pullReturns(token, tenantId)) dataUpdated = true;
+    if (data.payment_sources?.length) if (await pullPaymentSources(token, tenantId)) dataUpdated = true;
+    if (data.payment_source_transactions?.length) if (await pullPaymentSourceTransactions(token, tenantId)) dataUpdated = true;
+    if (data.combo_offers?.length) if (await pullComboOffers(token, tenantId)) dataUpdated = true;
+    if (data.quotations?.length) if (await pullQuotations(token, tenantId)) dataUpdated = true;
+    if (data.invoices?.length) if (await pullInvoices(token, tenantId)) dataUpdated = true;
+    if (data.users?.length) if (await pullUsers(token, tenantId)) dataUpdated = true;
+
+    return { success: true, dataUpdated };
+  } catch (err: any) {
+    console.warn('[SyncWorker] Unified delta pull error, falling back to standard pull:', err.message);
+    return { success: false, dataUpdated: false };
+  }
+}
+
 async function runSyncCycle(sender?: WebContents): Promise<void> {
   if (syncInProgress) {
     return syncPromise ?? Promise.resolve();
@@ -1057,47 +1138,51 @@ async function runSyncCycle(sender?: WebContents): Promise<void> {
         notifyProgress(12.4, sender, undefined, totalRecords); await syncComboOffers(jwt_token, tenant_id);
         notifyProgress(12.5, sender, undefined, totalRecords); await syncQuotations(jwt_token, tenant_id);
 
-        // Pull phase — every table is independent, so fetch them concurrently
-        // (bounded by PULL_CONCURRENCY) instead of serially. First login does a
-        // full paginated download; later cycles only pull rows newer than each
-        // table's stored cursor, so steady-state syncs are tiny.
-        const pullTasks: { run: () => Promise<boolean> }[] = [
-          { run: () => pullGrades(jwt_token, tenant_id) },
-          { run: () => pullPricingTiers(jwt_token, tenant_id) },
-          { run: () => pullProductPricing(jwt_token, tenant_id) },
-          { run: () => pullProducts(jwt_token, tenant_id) },
-          { run: () => pullInvoices(jwt_token, tenant_id) },
-          { run: () => pullUsers(jwt_token, tenant_id) },
-          { run: () => pullSettings(jwt_token, tenant_id) },
-          { run: () => pullParties(jwt_token, tenant_id) },
-          { run: () => pullPartyLedger(jwt_token, tenant_id) },
-          { run: () => pullCustomers(jwt_token, tenant_id) },
-          { run: () => pullLoyaltyTransactions(jwt_token, tenant_id) },
-          { run: () => pullScrapCategories(jwt_token, tenant_id) },
-          { run: () => pullScrapTransactions(jwt_token, tenant_id) },
-          { run: () => pullPurchaseBills(jwt_token, tenant_id) },
-          { run: () => pullCashDrawer(jwt_token, tenant_id) },
-          { run: () => pullCashTransactions(jwt_token, tenant_id) },
-          { run: () => pullCashierAuditLog(jwt_token, tenant_id) },
-          { run: () => pullCashCategories(jwt_token, tenant_id) },
-          { run: () => pullReturns(jwt_token, tenant_id) },
-          { run: () => pullPaymentSources(jwt_token, tenant_id) },
-          { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
-          { run: () => pullComboOffers(jwt_token, tenant_id) },
-          { run: () => pullQuotations(jwt_token, tenant_id) },
-        ];
+        // Try unified delta pull first (1 request for all datasets)
+        const deltaRes = await unifiedDeltaPull(jwt_token, tenant_id);
+        if (deltaRes.success) {
+          if (deltaRes.dataUpdated) dataUpdated = true;
+          notifyPercent(100, 'Sync completed', sender);
+        } else {
+          // Fallback to legacy parallel pull if unified delta-pull endpoint is unavailable
+          const pullTasks: { run: () => Promise<boolean> }[] = [
+            { run: () => pullGrades(jwt_token, tenant_id) },
+            { run: () => pullPricingTiers(jwt_token, tenant_id) },
+            { run: () => pullProductPricing(jwt_token, tenant_id) },
+            { run: () => pullProducts(jwt_token, tenant_id) },
+            { run: () => pullInvoices(jwt_token, tenant_id) },
+            { run: () => pullUsers(jwt_token, tenant_id) },
+            { run: () => pullSettings(jwt_token, tenant_id) },
+            { run: () => pullParties(jwt_token, tenant_id) },
+            { run: () => pullPartyLedger(jwt_token, tenant_id) },
+            { run: () => pullCustomers(jwt_token, tenant_id) },
+            { run: () => pullLoyaltyTransactions(jwt_token, tenant_id) },
+            { run: () => pullScrapCategories(jwt_token, tenant_id) },
+            { run: () => pullScrapTransactions(jwt_token, tenant_id) },
+            { run: () => pullPurchaseBills(jwt_token, tenant_id) },
+            { run: () => pullCashDrawer(jwt_token, tenant_id) },
+            { run: () => pullCashTransactions(jwt_token, tenant_id) },
+            { run: () => pullCashierAuditLog(jwt_token, tenant_id) },
+            { run: () => pullCashCategories(jwt_token, tenant_id) },
+            { run: () => pullReturns(jwt_token, tenant_id) },
+            { run: () => pullPaymentSources(jwt_token, tenant_id) },
+            { run: () => pullPaymentSourceTransactions(jwt_token, tenant_id) },
+            { run: () => pullComboOffers(jwt_token, tenant_id) },
+            { run: () => pullQuotations(jwt_token, tenant_id) },
+          ];
 
-        pullProgressCtx = { done: 0, total: pullTasks.length };
-        for (let i = 0; i < pullTasks.length; i += PULL_CONCURRENCY) {
-          const batch = pullTasks.slice(i, i + PULL_CONCURRENCY);
-          const results = await Promise.all(batch.map(async (t) => {
-            const ok = await t.run();
-            pullProgressCtx!.done++;
-            notifyPercent(38 + 55 * (pullProgressCtx!.done / pullProgressCtx!.total),
-              `Downloaded ${pullProgressCtx!.done}/${pullProgressCtx!.total} datasets`, sender);
-            return ok;
-          }));
-          if (results.some(Boolean)) dataUpdated = true;
+          pullProgressCtx = { done: 0, total: pullTasks.length };
+          for (let i = 0; i < pullTasks.length; i += PULL_CONCURRENCY) {
+            const batch = pullTasks.slice(i, i + PULL_CONCURRENCY);
+            const results = await Promise.all(batch.map(async (t) => {
+              const ok = await t.run();
+              pullProgressCtx!.done++;
+              notifyPercent(38 + 55 * (pullProgressCtx!.done / pullProgressCtx!.total),
+                `Downloaded ${pullProgressCtx!.done}/${pullProgressCtx!.total} datasets`, sender);
+              return ok;
+            }));
+            if (results.some(Boolean)) dataUpdated = true;
+          }
         }
       } catch (err: any) {
         console.error('[SyncWorker] Sync cycle error:', err.message);

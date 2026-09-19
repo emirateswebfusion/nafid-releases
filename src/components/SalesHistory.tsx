@@ -791,7 +791,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
     if (!selectedInvoice || !window.electronAPI) return;
     try {
       const { tenantId } = useAuthStore.getState();
-      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal] = await Promise.all([
+      const [shopNameVal, shopAddr, shopPh, upi, showQr, shopGstin, shopStateVal, shopEmailVal, shopWebsiteVal] = await Promise.all([
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_name' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_address' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }),
@@ -799,6 +799,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'show_upi_qr' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_gstin' }),
         window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_state' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }),
+        window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }),
       ]);
       const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
       const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
@@ -839,6 +841,8 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
         shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (shopStateVal || undefined) : undefined,
         shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddr || undefined) : undefined,
         shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPh || undefined) : undefined,
+        shopEmail: shopEmailVal || undefined,
+        shopWebsite: shopWebsiteVal || undefined,
         upiId: upi || undefined,
         showUpiQr: showQr !== null && showQr !== undefined ? Boolean(showQr) : true,
         showProductOffers: printFmt?.showProductOffers !== undefined ? Boolean(printFmt.showProductOffers) : true,

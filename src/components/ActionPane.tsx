@@ -120,6 +120,14 @@ export function ActionPane() {
           window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }),
         ]);
 
+        const finalShopName = shopNameVal || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_name' }) : '') || shopName || '';
+        const finalShopAddr = shopAddr || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_address' }) : '') || '';
+        const finalShopPh = shopPh || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_phone' }) : '') || '';
+        const finalShopEmail = shopEmailVal || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_email' }) : '') || '';
+        const finalShopWeb = shopWebVal || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_website' }) : '') || '';
+        const finalShopGstin = shopGstin || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_gstin' }) : '') || '';
+        const finalShopState = shopStateVal || (tenantId !== 'global' ? await window.electronAPI.settingsGet({ tenant_id: 'global', key: 'shop_state' }) : '') || '';
+
         const receiptConfig = await window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'receipt_printer_config' });
         const receiptWidthCm = receiptConfig?.receiptWidthCm ? Number(receiptConfig.receiptWidthCm) : 5.8;
 
@@ -140,13 +148,13 @@ export function ActionPane() {
         const billSettings = { ...DEFAULT_BILL_SETTINGS, ...(printFmt.billSettings || {}) };
 
         const receiptData: ReceiptData = {
-          shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (shopNameVal || shopName || 'My Shop') : '',
-          shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (shopGstin || undefined) : undefined,
-          shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (shopStateVal || undefined) : undefined,
-          shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (shopAddr || undefined) : undefined,
-          shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (shopPh || undefined) : undefined,
-          shopEmail: shopEmailVal || undefined,
-          shopWebsite: shopWebVal || undefined,
+          shopName: (isGstOrB2B || billSettings.showShopName !== false) ? (finalShopName || 'My Shop') : '',
+          shopGstin: (isGstOrB2B || billSettings.showShopGstin !== false) ? (finalShopGstin || undefined) : undefined,
+          shopState: (isGstOrB2B || billSettings.showShopState !== false) ? (finalShopState || undefined) : undefined,
+          shopAddress: (isGstOrB2B || billSettings.showShopAddress !== false) ? (finalShopAddr || undefined) : undefined,
+          shopPhone: (isGstOrB2B || billSettings.showPhone !== false) ? (finalShopPh || undefined) : undefined,
+          shopEmail: finalShopEmail || undefined,
+          shopWebsite: finalShopWeb || undefined,
           bankName: bName || undefined,
           bankAccount: bAcc || undefined,
           bankIfsc: bIfsc || undefined,

@@ -1152,7 +1152,13 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_state', value: shopState }), name: 'state' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_name', value: shopNameLocal }), name: 'name' },
         ...(tenantId && tenantId !== 'global' ? [
-          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_name', value: shopNameLocal }), name: 'name_global' }
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_name', value: shopNameLocal }), name: 'name_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_address', value: shopAddress }), name: 'address_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_phone', value: shopPhone }), name: 'phone_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_email', value: shopEmail }), name: 'email_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_website', value: shopWebsite }), name: 'website_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_gstin', value: shopGstin }), name: 'gstin_global' },
+          { promise: window.electronAPI.settingsSet({ tenant_id: 'global', key: 'shop_state', value: shopState }), name: 'state_global' },
         ] : []),
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_address', value: shopAddress }), name: 'address' },
         { promise: window.electronAPI.settingsSet({ tenant_id: tenantId || 'global', key: 'shop_phone', value: shopPhone }), name: 'phone' },
@@ -2706,6 +2712,30 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                     className="w-full bg-background border border-border/80 rounded-xl px-4 py-3 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 focus:bg-background transition-all resize-none text-sm font-medium"
                   />
                   <p className="text-[10px] text-muted-foreground/70 mt-1.5">These instructions will appear at the bottom of thermal receipts, A5 estimates, and A4 invoices.</p>
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-1 block">Certification Statement / Declaration</label>
+                  <p className="text-[10px] text-muted-foreground/75 mb-3">Appears at the bottom left of boxed GST A4 invoices.</p>
+                  <input
+                    type="text"
+                    value={billSettings.certificationText !== undefined ? billSettings.certificationText : 'Certified that the Particulars given above are true and correct'}
+                    onChange={e => setBillSettings(s => ({ ...s, certificationText: e.target.value }))}
+                    placeholder="Certified that the Particulars given above are true and correct"
+                    className="w-full bg-background border border-border/80 rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-sm font-medium"
+                  />
+                </div>
+
+                <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">
+                  <label className="text-xs font-bold text-foreground mb-1 block">Electronic Reference Number (IRN / e-Invoice No)</label>
+                  <p className="text-[10px] text-muted-foreground/75 mb-3">Optional e-invoice / electronic reference number printed on GST invoices.</p>
+                  <input
+                    type="text"
+                    value={billSettings.electronicRefNumber || ''}
+                    onChange={e => setBillSettings(s => ({ ...s, electronicRefNumber: e.target.value }))}
+                    placeholder="e.g. 4d1693f213284395b6aa536df37a9a5"
+                    className="w-full bg-background border border-border/80 rounded-xl px-4 py-2.5 text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all text-sm font-medium"
+                  />
                 </div>
 
                 <div className="p-4.5 bg-muted/30 border border-border rounded-2xl hover:border-primary/20 transition-all duration-300">

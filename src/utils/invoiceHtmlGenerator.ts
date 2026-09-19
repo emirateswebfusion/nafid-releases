@@ -44,6 +44,8 @@ export interface InvoiceData {
   ewayBillNo?: string;
   ewayBillDate?: string;
   irn?: string;
+  certificationText?: string;
+  electronicRefNumber?: string;
   ackNo?: string;
   ackDate?: string;
   bankAccount?: string;
@@ -71,6 +73,8 @@ export interface InvoiceData {
   customerPhone?: string;
   customerGstin?: string;
   customerState?: string;
+  customerStateCode?: string;
+  customerLandline?: string;
   customerAddress?: string;
   shippingName?: string;
   shippingAddress?: string;
@@ -613,12 +617,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${cgstAmt > 0 ? cgstAmt.toFixed(2) : ''}</td>
       <td style="text-align: center; border-right: 1px solid #000; padding: 3px 2px;">${sgstPct > 0 ? sgstPct : ''}</td>
       <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${sgstAmt > 0 ? sgstAmt.toFixed(2) : ''}</td>
-      <td style="text-align: right; padding: 3px 5px; font-weight: 700;">${itemTotal.toFixed(2)}</td>
+      <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px; font-weight: 700;">${itemTotal.toFixed(2)}</td>
     </tr>
     `;
   }).join('');
 
-  const minRows = 12;
+  const minRows = 8;
   let emptyRowsHtml = '';
   if (itemsList.length < minRows) {
     const padCount = minRows - itemsList.length;
@@ -635,24 +639,10 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
         <td style="border-right: 1px solid #000;">&nbsp;</td>
         <td style="border-right: 1px solid #000;">&nbsp;</td>
         <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td>&nbsp;</td>
+        <td style="border-right: 1px solid #000;">&nbsp;</td>
       </tr>`;
     }
   }
-  emptyRowsHtml += `
-      <tr style="height: 100%;">
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td style="border-right: 1px solid #000;">&nbsp;</td>
-        <td>&nbsp;</td>
-      </tr>`;
 
   return `<!DOCTYPE html>
 <html>
@@ -681,11 +671,12 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     }
     .invoice-box {
       width: 100%;
-      min-height: 280mm;
+      height: 282mm;
       border: 1.5px solid #000;
       margin: 0 auto;
       display: flex;
       flex-direction: column;
+      justify-content: space-between;
       box-sizing: border-box;
     }
     .header-table {
@@ -720,16 +711,22 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       border-right: 1px solid #000;
     }
     .table-container {
-      flex: 1;
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
+      min-height: 0;
     }
     .items-table {
       width: 100%;
       height: 100%;
       border-collapse: collapse;
       table-layout: fixed;
-      border-bottom: 1px solid #000;
+    }
+    .items-table tbody {
+      height: 100%;
+    }
+    .items-table tr.fill-row {
+      height: 100%;
     }
     .items-table th {
       font-size: 9.5px;
@@ -740,14 +737,14 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       border-bottom: 1px solid #000;
     }
     .items-table th:last-child {
-      border-right: none;
+      border-right: 1px solid #000;
     }
     .items-table td {
       font-size: 10px;
       vertical-align: middle;
     }
     .items-table td:last-child {
-      border-right: none;
+      border-right: 1px solid #000;
     }
     .footer-container {
       margin-top: auto;
@@ -757,7 +754,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
       .invoice-box {
-        min-height: 280mm;
+        height: 282mm;
       }
       .footer-container {
         page-break-inside: avoid;
@@ -778,10 +775,9 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
         <td style="width: 36%; text-align: center;">
           ${(bs?.showShopName !== false && data.shopName) ? `<div class="shop-title">${data.shopName}</div>` : ''}
           ${(bs?.showShopAddress !== false && data.shopAddress) ? `<div>${data.shopAddress}</div>` : ''}
-          ${(bs?.showPhone !== false && data.shopPhone) ? `<div>Phone:${data.shopPhone}</div>` : ''}
         </td>
         <td style="width: 32%; text-align: right;">
-          ${(bs?.showPhone !== false && data.shopPhone) ? `Phone : ${data.shopPhone}<br>Mobile : ${data.shopPhone}` : ''}
+          ${data.shopPhone ? `Phone : ${data.shopPhone}` : ''}
         </td>
       </tr>
     </table>
@@ -794,39 +790,107 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
     <!-- GST & Supply Details Grid -->
     <div class="grid-2col">
       <div class="grid-col left">
-        <div><strong>GST Number</strong> : ${data.shopGstin || '-'}</div>
-        <div><strong>Invoice Number</strong> : ${data.invoiceNumber}</div>
-        <div><strong>Invoice Date</strong> : ${data.date}</div>
-        <div><strong>Tax Is Payable On Reverse Charge</strong> : ${bs?.reverseCharge ? '(Yes)' : '(Yes/No)'}</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.45;">
+          <tr>
+            <td style="width: 215px; font-weight: bold;">GST Number</td>
+            <td style="width: 15px; text-align: center; font-weight: bold;">:</td>
+            <td>${data.shopGstin || '-'}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Invoice Number</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td style="font-weight: bold;">${data.invoiceNumber}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Invoice Date</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${data.date}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Tax Is Payable On Reverse Charge</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${bs?.reverseCharge ? 'Yes' : 'No'}</td>
+          </tr>
+        </table>
       </div>
       <div class="grid-col">
-        <div><strong>Transportation Mode</strong> : ${data.transporterName || ''}</div>
-        <div><strong>Vehicle Number</strong> : ${data.vehicleNumber || ''}</div>
-        <div><strong>Date &amp; Time of Supply</strong> : ${data.date}</div>
-        <div><strong>Place OF Supply</strong> : ${data.customerState || data.shopState || ''}</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.45;">
+          <tr>
+            <td style="width: 160px; font-weight: bold;">Transportation Mode</td>
+            <td style="width: 15px; text-align: center; font-weight: bold;">:</td>
+            <td>${data.transporterName || ''}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Vehicle Number</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${data.vehicleNumber || ''}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Date &amp; Time of Supply</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${data.date}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Place Of Supply</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${data.customerState || data.shopState || ''}</td>
+          </tr>
+        </table>
       </div>
     </div>
 
     <!-- Receiver & Consignee Details Grid -->
     <div class="grid-2col">
       <div class="grid-col left">
-        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 2px;">Details of Receiver (Billed to)</div>
-        <div><strong>Name :</strong> ${data.customerName || ''}</div>
-        <div><strong>Address :</strong> ${data.customerAddress || ''}</div>
-        <div style="margin-top: 1px;">
-          <span><strong>State :</strong> ${data.customerState || ''}</span>
-          <span style="margin-left: 15px;"><strong>State Code :</strong></span>
-        </div>
-        <div>
-          <span><strong>Mobile No. :</strong> ${data.customerPhone || ''}</span>
-          <span style="margin-left: 15px;"><strong>Phone :</strong></span>
-        </div>
-        <div><strong>GST No :</strong> ${data.customerGstin || ''}</div>
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Receiver (Billed to)</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.45;">
+          <tr>
+            <td style="width: 80px; font-weight: bold; vertical-align: top;">Name</td>
+            <td style="width: 15px; text-align: center; font-weight: bold; vertical-align: top;">:</td>
+            <td style="font-weight: bold; vertical-align: top;">${data.customerName || ''}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; vertical-align: top;">Address</td>
+            <td style="text-align: center; font-weight: bold; vertical-align: top;">:</td>
+            <td style="vertical-align: top;">${data.customerAddress || ''}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">State</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>
+              <span style="display: inline-block; min-width: 60px;">${data.customerState || ''}</span>
+              <strong style="margin-left: 15px;">State Code :</strong> ${data.customerStateCode || ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">Mobile No.</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>
+              <span style="display: inline-block; min-width: 60px;">${data.customerPhone || ''}</span>
+              <strong style="margin-left: 15px;">Phone :</strong> ${data.customerLandline || ''}
+            </td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold;">GST No</td>
+            <td style="text-align: center; font-weight: bold;">:</td>
+            <td>${data.customerGstin || ''}</td>
+          </tr>
+        </table>
       </div>
       <div class="grid-col">
-        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 2px;">Details of Consignee (Shipped to)</div>
-        <div><strong>Name :</strong> ${data.shippingName || data.customerName || ''}</div>
-        <div><strong>Address :</strong> ${data.shippingAddress || data.customerAddress || ''}</div>
+        <div style="font-weight: 800; text-decoration: underline; margin-bottom: 3px;">Details of Consignee (Shipped to)</div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 10.5px; line-height: 1.45;">
+          <tr>
+            <td style="width: 80px; font-weight: bold; vertical-align: top;">Name</td>
+            <td style="width: 15px; text-align: center; font-weight: bold; vertical-align: top;">:</td>
+            <td style="font-weight: bold; vertical-align: top;">${data.shippingName || data.customerName || ''}</td>
+          </tr>
+          <tr>
+            <td style="font-weight: bold; vertical-align: top;">Address</td>
+            <td style="text-align: center; font-weight: bold; vertical-align: top;">:</td>
+            <td style="vertical-align: top;">${data.shippingAddress || data.customerAddress || ''}</td>
+          </tr>
+        </table>
       </div>
     </div>
 
@@ -870,7 +934,20 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
       <tbody>
         ${itemsHtml}
         ${emptyRowsHtml}
-        <tr style="border-top: 1px solid #000; font-weight: bold; font-size: 10px; height: 22px;">
+        <tr class="fill-row">
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+          <td style="border-right: 1px solid #000;">&nbsp;</td>
+        </tr>
+        <tr style="border-top: 1px solid #000; border-bottom: 1px solid #000; font-weight: bold; font-size: 10px; height: 22px;">
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
@@ -882,7 +959,7 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
           <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalCgstSum > 0 ? totalCgstSum.toFixed(2) : ''}</td>
           <td style="border-right: 1px solid #000;">&nbsp;</td>
           <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalSgstSum > 0 ? totalSgstSum.toFixed(2) : ''}</td>
-          <td style="text-align: right; padding: 3px 5px;">${totalAmountSum.toFixed(2)}</td>
+          <td style="text-align: right; border-right: 1px solid #000; padding: 3px 5px;">${totalAmountSum.toFixed(2)}</td>
         </tr>
       </tbody>
     </table>
@@ -899,8 +976,14 @@ function generateBoxedHtml(data: InvoiceData, title: string): string {
             <strong>Invoice Value (In Words)</strong><br>
             ( Rupees ${amountWords} Only )
           </div>
-          <div style="margin-top: 3px; font-size: 10px;">Certified that the Particulars given above are true and correct</div>
-          <div style="font-size: 10px;">Electronic Reference Number : ${data.irn || ''}</div>
+          ${(() => {
+            const certText = data.certificationText !== undefined ? data.certificationText : (bs?.certificationText !== undefined ? bs.certificationText : 'Certified that the Particulars given above are true and correct');
+            return certText ? `<div style="margin-top: 3px; font-size: 10px;">${certText}</div>` : '';
+          })()}
+          ${(() => {
+            const elecNum = data.electronicRefNumber || bs?.electronicRefNumber || data.irn || '';
+            return elecNum ? `<div style="font-size: 10px;">Electronic Reference Number : ${elecNum}</div>` : '';
+          })()}
         </div>
         <div style="width: 35%; padding: 4px 8px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10.5px;">
           <div>

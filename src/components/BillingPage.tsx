@@ -605,6 +605,8 @@ export function BillingPage() {
   const [shopGstin, setShopGstin] = useState('');
   const [shopAddress, setShopAddress] = useState('');
   const [shopPhone, setShopPhone] = useState('');
+  const [shopEmail, setShopEmail] = useState('');
+  const [shopWebsite, setShopWebsite] = useState('');
   const [upiId, setUpiId] = useState('');
   const [showUpiQr, setShowUpiQr] = useState(true);
   const [bankNameState, setBankNameState] = useState('');
@@ -940,6 +942,12 @@ export function BillingPage() {
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_phone' }).then((v: any) => {
       setShopPhone(typeof v === 'string' ? v : '');
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_email' }).then((v: any) => {
+      setShopEmail(typeof v === 'string' ? v : '');
+    });
+    window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'shop_website' }).then((v: any) => {
+      setShopWebsite(typeof v === 'string' ? v : '');
     });
     window.electronAPI.settingsGet({ tenant_id: tenantId || 'global', key: 'upi_id' }).then((v: any) => {
       setUpiId(typeof v === 'string' ? v : '');
@@ -3287,6 +3295,8 @@ export function BillingPage() {
               shopName: shopNameState || shopName || 'Shop',
               shopAddress: shopAddress || undefined,
               shopPhone: shopPhone || undefined,
+              shopEmail: shopEmail || undefined,
+              shopWebsite: shopWebsite || undefined,
               shopGstin: shopGstin || undefined,
               invoiceNumber: quotationNumber,
               invoiceType: 'QUOTATION',
@@ -4223,6 +4233,8 @@ export function BillingPage() {
         shopState: (invoiceType === 'GST' || billSettings.showShopState !== false) ? (state.shopState || undefined) : undefined,
         shopAddress: (invoiceType === 'GST' || billSettings.showShopAddress !== false) ? (shopAddress || undefined) : undefined,
         shopPhone: (invoiceType === 'GST' || billSettings.showPhone !== false) ? (shopPhone || undefined) : undefined,
+        shopEmail: shopEmail || undefined,
+        shopWebsite: shopWebsite || undefined,
         bankName: bankNameState || undefined,
         bankAccount: bankAccountState || undefined,
         bankIfsc: bankIfscState || undefined,
