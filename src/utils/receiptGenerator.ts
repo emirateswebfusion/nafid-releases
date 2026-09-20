@@ -190,10 +190,17 @@ export function parseUTCDate(dateInput: Date | string | number | null | undefine
     return new Date(y, m - 1, d);
   }
 
-  // Strip trailing Z or +00:00 offset to ensure JavaScript Date parses local ISO strings as local time
-  dateStr = dateStr.replace(/Z$/i, '').replace(/\+00:?00$/i, '');
-  if (dateStr.includes(' ')) {
-    dateStr = dateStr.replace(' ', 'T');
+  // If string explicitly contains UTC 'Z' or offset like +04:00, let Date parse absolute instant
+  if (/Z$/i.test(dateStr) || /[\+\-]\d{2}:?\d{2}$/.test(dateStr)) {
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // For YYYY-MM-DD HH:mm:ss or YYYY-MM-DDTHH:mm:ss without timezone offset, parse local wall-clock components
+  const match = dateStr.match(/^(\d{4})[-/](\d{2})[-/](\d{2})[T\s](\d{2}):(\d{2})(?::(\d{2}))?/);
+  if (match) {
+    const [_, y, m, d, hh, mm, ss] = match;
+    return new Date(Number(y), Number(m) - 1, Number(d), Number(hh), Number(mm), Number(ss || 0));
   }
 
   const d = new Date(dateStr);

@@ -5,9 +5,36 @@ import fs from 'fs';
 import crypto from 'node:crypto';
 
 // ── Local Time Helpers ────────────────────────────────────────────────────
-function localTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+function localTimestamp(d: Date = new Date(), tenantId?: string): string {
+  try {
+    let tz = 'Asia/Kolkata';
+    if (db) {
+      const row = db.prepare(`SELECT value FROM settings WHERE key = 'store_timezone' AND (tenant_id = ? OR tenant_id = 'global') LIMIT 1`).get(tenantId || 'global') as any;
+      if (row?.value) {
+        const parsed = typeof row.value === 'string' ? JSON.parse(row.value) : row.value;
+        if (typeof parsed === 'string' && parsed) tz = parsed;
+        else if (parsed?.timezone) tz = parsed.timezone;
+      }
+    }
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '00';
+    let h = getPart('hour');
+    if (h === '24') h = '00';
+    return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${h}:${getPart('minute')}:${getPart('second')}`;
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
 }
 
 let db: Database.Database;

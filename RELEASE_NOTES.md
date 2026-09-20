@@ -1,3 +1,9 @@
+# Vendora v1.5.72 Release Notes
+
+## What's Changed
+- Updated local SQLite DB handling, main process IPC handlers, receipt generator formatting, and timezone helper routines
+- **Full Changelog**: https://github.com/emirateswebfusion/nafid-pos/compare/v1.5.71...v1.5.72
+
 # Vendora v1.5.71 Release Notes
 
 ## What's Changed

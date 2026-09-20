@@ -213,17 +213,6 @@ if (!process.env.GH_TOKEN && !process.env.GITHUB_TOKEN && fs.existsSync(envPath)
   }
 }
 // ── Local Time Helpers ────────────────────────────────────────────────────
-/** Returns local timestamp: YYYY-MM-DD HH:mm:ss */
-function localTimestamp(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-}
-/** Returns local date: YYYY-MM-DD */
-function localDate(d: Date = new Date()): string {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
-}
-
 function getStoreTimezoneSetting(db: any, tenantId?: string): string {
   try {
     if (!db || !tenantId) return 'Asia/Kolkata';
@@ -237,10 +226,49 @@ function getStoreTimezoneSetting(db: any, tenantId?: string): string {
   return 'Asia/Kolkata';
 }
 
-function parseCleanDate(dStr: any, timeZone: string = 'Asia/Kolkata'): string {
+/** Returns store timezone timestamp: YYYY-MM-DD HH:mm:ss */
+function localTimestamp(d: Date = new Date(), tenantId?: string): string {
+  try {
+    const db = getDb();
+    const tz = getStoreTimezoneSetting(db, tenantId || 'global');
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value || '00';
+    let h = getPart('hour');
+    if (h === '24') h = '00';
+    return `${getPart('year')}-${getPart('month')}-${getPart('day')} ${h}:${getPart('minute')}:${getPart('second')}`;
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+}
+
+/** Returns store timezone date: YYYY-MM-DD */
+function localDate(d: Date = new Date(), tenantId?: string): string {
+  try {
+    const db = getDb();
+    const tz = getStoreTimezoneSetting(db, tenantId || 'global');
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(d);
+  } catch {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  }
+}
+
+function parseCleanDate(dStr: any, timeZone?: string): string {
+  const activeTz = timeZone || (typeof getDb === 'function' && getDb() ? getStoreTimezoneSetting(getDb(), 'global') : 'Asia/Kolkata');
   if (!dStr) {
     try {
-      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+      return new Intl.DateTimeFormat('en-CA', { timeZone: activeTz }).format(new Date());
     } catch {
       return localDate();
     }
@@ -265,7 +293,7 @@ function parseCleanDate(dStr: any, timeZone: string = 'Asia/Kolkata'): string {
   const d = new Date(formatted);
   if (!isNaN(d.getTime())) {
     try {
-      return new Intl.DateTimeFormat('en-CA', { timeZone }).format(d);
+      return new Intl.DateTimeFormat('en-CA', { timeZone: activeTz }).format(d);
     } catch {
       return localDate(d);
     }
@@ -3357,18 +3385,17 @@ ipcMain.handle('db:getInvoicesSummary', (event, filters?: { user_id?: string; te
 ipcMain.handle('db:getDashboardStats', (event, tenantId: string) => {
   try {
     const db = getDb();
-    const today = new Date();
-    const dateStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    const dateStr = localDate(new Date(), tenantId);
     const row = db.prepare(`
       SELECT COALESCE(SUM(MIN(grand_total, MAX(0, COALESCE(subtotal, 0) + COALESCE(tax_total, 0) - COALESCE(discount_total, 0) - COALESCE(points_redeemed_discount, 0) - COALESCE(scrap_deduction, 0) - COALESCE(return_deduction, 0)))), 0) as totalSales, COUNT(*) as invoiceCount
       FROM invoices
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) 
-        AND created_at >= ? 
+        AND (created_at >= ? OR substr(created_at, 1, 10) = ?)
         AND converted_to_invoice_id IS NULL 
         AND (is_deleted IS NULL OR is_deleted = 0 OR is_deleted = '0' OR is_deleted = '0.0' OR is_deleted = 0.0)
         AND (invoice_type NOT IN ('HOLD', 'EXPIRED_HOLD', 'RECALLED_HOLD'))
         AND (is_held IS NULL OR is_held = 0)
-    `).get(tenantId, dateStr) as any;
+    `).get(tenantId, dateStr, dateStr) as any;
     return { success: true, totalSales: row.totalSales, invoiceCount: row.invoiceCount };
   } catch (error: any) {
     console.error('[db:getDashboardStats]', error);
@@ -6413,7 +6440,8 @@ function reconcileCashDrawer(db: any, tenantId: string, drawer: any): any {
 function autoClosePastOpenDrawers(db: any, tenantId: string) {
   if (!tenantId) return;
   try {
-    const today = localDate();
+    const today = localDate(new Date(), tenantId);
+    const storeTz = getStoreTimezoneSetting(db, tenantId);
     const openDrawers = db.prepare(`
       SELECT * FROM cash_drawer
       WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL) AND status = 'OPEN'
@@ -6421,7 +6449,7 @@ function autoClosePastOpenDrawers(db: any, tenantId: string) {
 
     if (Array.isArray(openDrawers) && openDrawers.length > 0) {
       for (const d of openDrawers) {
-        const cleanDate = parseCleanDate(d.business_date);
+        const cleanDate = parseCleanDate(d.business_date, storeTz);
         if (cleanDate < today) {
           reconcileCashDrawer(db, tenantId, d);
           const exp = Number(d.expected_closing || 0);
@@ -6455,12 +6483,12 @@ function adjustCashDrawerForInvoice(
   const diff = (Number(newCashAmount) || 0) - (Number(oldCashAmount) || 0);
   if (Math.abs(diff) < 0.001) return; // No change in cash amount
 
-  let businessDate = localDate();
+  let businessDate = localDate(new Date(), tenantId);
   if (invoiceCreatedAt) {
     try {
       const d = new Date(invoiceCreatedAt);
       if (!isNaN(d.getTime())) {
-        businessDate = localDate(d);
+        businessDate = localDate(d, tenantId);
       }
     } catch {}
   }
@@ -6611,10 +6639,21 @@ ipcMain.handle('db:cashier:setOpeningBalance', safeHandler((event, { tenant_id, 
     }
     
     const dId = existing ? existing.drawer_id : '';
+    const targetDrawer = db.prepare(`SELECT * FROM cash_drawer WHERE tenant_id = ? AND business_date = ?`).get(tenant_id, date) as any;
+    if (targetDrawer) {
+      db.prepare(`
+        UPDATE cash_transactions 
+        SET drawer_id = ? 
+        WHERE (tenant_id = ? OR tenant_id = 'global' OR tenant_id = 'unset' OR tenant_id IS NULL)
+          AND (substr(transaction_date, 1, 10) = ? OR date(transaction_date) = ?)
+      `).run(targetDrawer.drawer_id, tenant_id, date, date);
+      reconcileCashDrawer(db, tenant_id, targetDrawer);
+    }
+
     db.prepare(`
       INSERT INTO cashier_audit_log (audit_id, tenant_id, drawer_id, action, details, performed_by, performed_by_name, sync_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING')
-    `).run(crypto.randomUUID(), tenant_id, dId, 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
+    `).run(crypto.randomUUID(), tenant_id, dId || (targetDrawer ? targetDrawer.drawer_id : ''), 'OPENING_BALANCE_SET', JSON.stringify({ opening_balance, business_date: date }), user_id, user_name || null);
     
     const win = BrowserWindow.getAllWindows()[0];
     if (win) win.webContents.send('sync:data-updated');

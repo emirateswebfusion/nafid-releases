@@ -34,6 +34,10 @@ export function getStoreTimezone(): string {
     const saved = localStorage.getItem('app_store_timezone');
     if (saved) return saved;
   } catch {}
+  try {
+    const sysTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    if (sysTz) return sysTz;
+  } catch {}
   return activeStoreTimezone || DEFAULT_STORE_TIMEZONE;
 }
 
