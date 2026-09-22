@@ -15,6 +15,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { BulkOnboardingSheet } from './BulkOnboardingSheet';
 import { PaperPreviewModal } from './PaperPreviewModal';
@@ -3251,8 +3252,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   {/* GST Balance Toggle */}
                   <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
                     <div className="flex-1 min-w-0">
-                      <label className="text-xs font-bold text-foreground block">Track GST Balance in Parties</label>
-                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate GST tax invoice balance for credit parties</p>
+                      <label className="text-xs font-bold text-foreground block">Track GST Balance in Ledger</label>
+                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate GST tax invoice balance for ledger accounts</p>
                     </div>
                     <button
                       type="button"
@@ -3273,8 +3274,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   {/* Estimate Balance Toggle */}
                   <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border bg-muted/20 border-border/60">
                     <div className="flex-1 min-w-0">
-                      <label className="text-xs font-bold text-foreground block">Track Estimate Balance in Parties</label>
-                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate Estimate / Non-GST invoice balance for credit parties</p>
+                      <label className="text-xs font-bold text-foreground block">Track Estimate Balance in Ledger</label>
+                      <p className="text-[10px] text-muted-foreground/80 mt-0.5 leading-relaxed">Maintain separate Estimate / Non-GST invoice balance for ledger accounts</p>
                     </div>
                     <button
                       type="button"
@@ -3297,8 +3298,8 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                       <Info className="w-4 h-4 shrink-0 text-amber-500" />
                       <span>
                         {enablePartyGst
-                          ? 'Estimate Balance is turned OFF. Parties & Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'
-                          : 'GST Balance is turned OFF. Parties & Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'}
+                          ? 'Estimate Balance is turned OFF. Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'
+                          : 'GST Balance is turned OFF. Ledger UI will show a single main balance without GST or Estimate labels, and form selection is hidden.'}
                       </span>
                     </div>
                   )}
@@ -3318,7 +3319,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   </div>
                   <div>
                     <span className="text-xs font-black text-foreground uppercase tracking-widest block">Network & Connectivity Mode</span>
-                    <span className="text-[11px] text-muted-foreground font-medium">Choose how POS terminals sync all store data (Products, Invoices, Stock, Customers & Parties)</span>
+                    <span className="text-[11px] text-muted-foreground font-medium">Choose how POS terminals sync all store data (Products, Invoices, Stock, Customers & Ledger)</span>
                   </div>
                 </div>
 
@@ -3543,7 +3544,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
                   )}
 
                   <p className="text-[10px] text-muted-foreground/80 leading-relaxed font-medium">
-                    * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Parties & Cashier settlement across all terminals.
+                    * Real-time synchronization of all store data: Invoices, Products, Stock, Inventory, Customers, Ledger & Cashier settlement across all terminals.
                   </p>
                 </div>
               )}
@@ -3956,7 +3957,7 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
       <Modal
         isOpen={confirmTurnOffAllModalOpen}
         onClose={() => setConfirmTurnOffAllModalOpen(false)}
-        closeButton={null}
+        closeButton={<RedCrossButton onClick={() => setConfirmTurnOffAllModalOpen(false)} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <Power className="w-5 h-5 text-red-500" />
@@ -3976,13 +3977,6 @@ export function SettingsManager({ onClose, isRestricted: _isRestricted }: { onCl
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              type="button"
-              onClick={() => setConfirmTurnOffAllModalOpen(false)}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               type="button"
               onClick={() => {

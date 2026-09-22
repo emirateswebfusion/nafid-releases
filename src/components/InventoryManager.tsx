@@ -7,6 +7,7 @@ import QRCode from 'qrcode';
 import { v4 as uuidv4 } from 'uuid';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { Skeleton } from './ui/Skeleton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
@@ -1485,13 +1486,10 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <RedCrossButton
               onClick={view !== 'list' ? () => setView('list') : onClose}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
@@ -2474,9 +2472,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
                                 <button onClick={handleCreateSupplier} className="flex-1 px-3 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-bold transition-all cursor-pointer">
                                   Save Supplier
                                 </button>
-                                <button onClick={() => { setShowSupplierCreate(false); setNewSupplierName(''); setNewSupplierPhone(''); setNewSupplierAddress(''); }} className="px-3 py-2 text-red-500 border border-red-200 dark:border-red-900 rounded-lg text-xs font-bold transition-all cursor-pointer">
-                                  Cancel
-                                </button>
                               </div>
                             </div>
                           ) : (
@@ -2622,13 +2617,9 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
           title="Create New Grade"
           className="max-w-lg backdrop-blur-none"
           closeButton={
-            <button
+            <RedCrossButton
               onClick={() => { setIsAddingGrade(false); setNewGradeForm({ grade_name: '', purchase_price: '', rate: '', offer_price: '' }); }}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-              title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           }
         >
           <div className="space-y-3" onKeyDown={handleFormKeyDown} data-enter-nav>
@@ -2827,13 +2818,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2 border-t border-border mt-1 pt-4">
-              <button
-                onClick={() => setAdjustModal(null)}
-                className="px-4 py-2.5 text-sm font-semibold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-              >
-                Cancel
-              </button>
+            <div className="flex items-center justify-end border-t border-border mt-1 pt-4">
               <button
                 onClick={confirmAdjustStock}
                 disabled={adjustingStockId === adjustModal.product.product_id}
@@ -2931,24 +2916,8 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             </div>
 
             {/* ── Status & Actions ── */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-border mt-3 gap-4">
-              <div className="flex-1 min-w-0">
-                {statusMessage && (
-                  <div className={clsx(
-                    "px-3 py-2 rounded-lg text-sm font-bold animate-in fade-in",
-                    statusMessage.type === 'success' ? "bg-emerald-500/10 text-emerald-600" : "bg-destructive/10 text-destructive"
-                  )}>
-                    {statusMessage.text}
-                  </div>
-                )}
-              </div>
+            <div className="flex items-center justify-end px-6 py-4 border-t border-border mt-3">
               <div className="flex items-center gap-2 shrink-0">
-                <button
-                  onClick={() => { setPrintModalProduct(null); setStatusMessage(null); }}
-                  className="px-4 py-2.5 text-sm font-semibold text-red-500 hover:text-red-600 border border-red-200 dark:border-red-900 rounded-xl transition-colors"
-                >
-                  Cancel
-                </button>
                 <button
                   onClick={() => printProductLabel(printModalProduct)}
                   className="px-5 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 shadow-sm transition-all"
@@ -2982,14 +2951,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               Are you sure you want to delete <span className="font-bold text-foreground">"{deleteConfirmProduct.name}"</span>?
             </p>
             <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setDeleteConfirmProduct(null)}
-                disabled={isDeleting}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
               <button
                 type="button"
                 onClick={handleConfirmDelete}
@@ -3035,14 +2996,6 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setShowBulkDeleteConfirm(false)}
-                disabled={isBulkDeleting}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all cursor-pointer disabled:opacity-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 onClick={handleConfirmBulkDelete}
                 disabled={isBulkDeleting}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50"
@@ -3077,6 +3030,7 @@ export function InventoryManager({ onClose, isRestricted: _isRestricted }: { onC
               </span>
               <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
             </div>
+            <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
           </div>
         )}
       </div>

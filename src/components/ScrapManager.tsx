@@ -12,6 +12,8 @@ import {
   ChevronRight, Activity, FileText, Layers
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 import { DateRangeFilter } from './ui/DateRangeFilter';
@@ -865,18 +867,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {statusMessage && (
-                <span className={clsx(
-                  'hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg animate-in fade-in duration-200',
-                  statusMessage.type === 'success'
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'bg-destructive/10 text-destructive'
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                  {statusMessage.text}
-                </span>
-              )}
-
               {view === 'list' && (
                 <>
                   <button
@@ -912,7 +902,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                 </button>
               )}
 
-              <button
+              <RedCrossButton
                 onClick={
                   view === 'list' ? onClose 
                   : view === 'transaction' ? () => setView('list') 
@@ -923,11 +913,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                   : view === 'invoices' ? () => { setConfirmDeleteInvoiceNumber(null); setView('list'); } 
                   : () => setView('list')
                 }
-                className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
                 title="Close"
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </button>
+              />
             </div>
           </div>
         </header>
@@ -1220,25 +1207,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </div>
 
             <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-              {statusMessage && (
-                <div className={clsx(
-                  'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
-                  statusMessage.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                  {statusMessage.text}
-                </div>
-              )}
               <div className="flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setView('list'); resetCategoryForm(); }}
-                  className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
-                >
-                  Cancel
-                </button>
                 <button
                   type="button"
                   disabled={isSavingCategory}
@@ -1533,29 +1502,11 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </div>
 
             <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-              {statusMessage && (
-                <div className={clsx(
-                  'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
-                  statusMessage.type === 'success'
-                    ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
-                )}>
-                  {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                  {statusMessage.text}
-                </div>
-              )}
               <div className="flex items-center justify-between">
                 <div className="text-xs text-muted-foreground font-medium">
                   Current Stock: <span className="font-bold text-foreground">{Number(selectedCategory.current_stock).toFixed(1)} {selectedCategory.unit}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setView('transaction'); if (selectedCategory) loadTransactions(selectedCategory.scrap_category_id); }}
-                    className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
-                  >
-                    Cancel
-                  </button>
                   <button
                     type="submit"
                     disabled={isSavingTx}
@@ -1728,13 +1679,7 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                       {formatCurrency(sellingSelected.reduce((sum, s) => sum + s.qty * s.rate, 0))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setView('list')}
-                      className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors active:scale-95 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex items-center justify-end">
                     <button
                       onClick={handleRecordSales}
                       disabled={sellingSelected.length === 0 || sellingProcessing}
@@ -1748,15 +1693,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
                     </button>
                   </div>
                 </div>
-
-                {statusMessage && (
-                  <div className={clsx("mt-3 px-4 py-2.5 rounded-xl border text-sm font-bold flex items-center gap-2 animate-in fade-in duration-200",
-                    statusMessage.type === 'success' ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-600 dark:text-emerald-400" : "bg-destructive/10 border-destructive/20 text-destructive"
-                  )}>
-                    {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4 shrink-0" /> : <AlertCircle className="w-4 h-4 shrink-0" />}
-                    <span className="flex-1">{statusMessage.text}</span>
-                  </div>
-                )}
               </section>
             </div>
           </div>
@@ -2131,12 +2067,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
               <button
-                onClick={() => setConfirmDeleteInvoiceNumber(null)}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
                 onClick={() => handleDeleteInvoice(confirmDeleteInvoiceNumber)}
                 className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer"
               >
@@ -2166,12 +2096,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-              <button
-                onClick={() => setConfirmDeleteTxId(null)}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
               <button
                 onClick={() => handleDeleteTx(confirmDeleteTxId)}
                 className="px-4 py-2 text-sm font-bold bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl transition-all shadow-sm cursor-pointer"
@@ -2287,13 +2211,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               <button
-                type="button"
-                onClick={() => setEditingTxItem(null)}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
                 type="submit"
                 disabled={isSavingTx}
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
@@ -2400,13 +2317,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               <button
-                type="button"
-                onClick={() => setEditHeaderInvoice(null)}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
                 type="submit"
                 disabled={isSavingHeader}
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
@@ -2512,13 +2422,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
               <button
-                type="button"
-                onClick={() => setIsAddingItem(false)}
-                className="px-4 py-2 text-sm font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
                 type="submit"
                 disabled={isAddingItemSaving}
                 className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all shadow-sm cursor-pointer"
@@ -2556,13 +2459,6 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button
-              onClick={() => { setDeleteCatModalOpen(false); setCategoryToDelete(null); }}
-              disabled={deleteCatSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
               onClick={confirmDeleteCategory}
               disabled={deleteCatSaving}
               className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
@@ -2576,6 +2472,8 @@ export function ScrapManager({ onClose, initialView, isRestricted: _isRestricted
           </div>
         </div>
       </Modal>
+
+      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
     </>
   );
 }

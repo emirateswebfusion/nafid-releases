@@ -10,6 +10,7 @@ import { parsePrintFormat } from '../utils/printFormatHelper';
 import { DEFAULT_BILL_SETTINGS, type ReceiptData, parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 import { isAdminRole } from '../utils/permissions';
+import { RedCrossButton } from './ui/RedCrossButton';
 
 interface Quotation {
   quotation_id: string;
@@ -481,13 +482,10 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             )}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <RedCrossButton
               onClick={showDetail ? () => setShowDetail(false) : (isRestricted ? () => useAuthStore.getState().logout() : onClose)}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
@@ -743,13 +741,6 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             <div className="flex items-center justify-end gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => setConfirmDialog(prev => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold text-xs rounded-xl transition-all active:scale-95 cursor-pointer border border-border"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
                 onClick={confirmDialog.onConfirm}
                 className={clsx(
                   "px-4 py-2 text-white font-bold text-xs rounded-xl transition-all active:scale-95 shadow-sm cursor-pointer border-0",
@@ -777,9 +768,7 @@ export function QuotationManager({ onClose, isRestricted }: { onClose: () => voi
             </span>
             <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
           </div>
-          <button onClick={() => setStatusMessage(null)} className="ml-1 p-1 hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white">
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
         </div>
       )}
     </div>

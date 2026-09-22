@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { Skeleton } from './ui/Skeleton';
 import { useAuthStore } from '../store/authStore';
 import { useCartStore } from '../store/cartStore';
@@ -949,13 +951,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                 <AlertTriangle className="w-3.5 h-3.5" /> Close
               </button>
             )}
-            <button
+            <RedCrossButton
               onClick={isRestricted ? () => useAuthStore.getState().logout() : onClose}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
@@ -2192,13 +2191,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     )}
                   </div>
                 </div>
-                <button
+                <RedCrossButton
                   onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setClosingDate(null); } }}
-                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center"
                   title="Close"
-                >
-                  <X className="w-4 h-4 text-destructive" />
-                </button>
+                />
               </div>
             </div>
 
@@ -2277,17 +2273,11 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     className="w-full px-4 py-2.5 text-sm bg-card border border-border rounded-xl outline-none focus:border-primary/30 text-foreground placeholder:text-muted-foreground/50 resize-none h-20 shadow-sm transition-all"
                     onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleDayClose(); } }}
                   />
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => { setShowDayClose(false); setClosingDate(null); }}
-                      className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex justify-end">
                     <button
                       onClick={handleDayClose}
                       disabled={closeSubmitting || actualCash < 0}
-                      className="flex-1 py-3 text-sm font-black text-white bg-destructive rounded-xl hover:bg-destructive/90 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40"
+                      className="px-6 py-3 text-sm font-black text-white bg-destructive rounded-xl hover:bg-destructive/90 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40"
                     >
                       {closeSubmitting ? 'Processing…' : 'Complete Day Closing'}
                     </button>
@@ -2341,16 +2331,10 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                   <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{openingBalError}</p>
                 </div>
               )}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => { setShowOpeningBal(false); setOpeningBalError(''); }}
-                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="flex justify-end">
                 <button
                   onClick={handleSetOpening}
-                  className="flex-1 py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer"
+                  className="px-6 py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer"
                 >
                   Save
                 </button>
@@ -2489,12 +2473,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
                     >
                       {addingCat ? '...' : 'Add'}
                     </button>
-                    <button
-                      onClick={() => { setShowAddCatForm(false); setNewCatName(''); }}
-                      className="px-3 py-2.5 text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer"
-                    >
-                      Cancel
-                    </button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -2601,21 +2579,12 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-1">
-                <button
-                  onClick={() => {
-                    setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote('');
-                    setTxnPartyId(''); setTxnPartyName(''); setPartySearch(''); setShowAddCatForm(false); setNewCatName('');
-                  }}
-                  className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border rounded-xl hover:bg-muted transition-all duration-200 active:scale-[0.98] cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="flex justify-end pt-1">
                 <button
                   onClick={handleAddTransaction}
                   disabled={txnSubmitting || txnAmt <= 0}
                   className={clsx(
-                    'flex-1 py-3 text-sm font-black text-white rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40',
+                    'px-6 py-3 text-sm font-black text-white rounded-xl shadow-sm transition-all duration-200 active:scale-[0.98] cursor-pointer disabled:opacity-40',
                     txnType === 'CASH_IN' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-rose-500 hover:bg-rose-600'
                   )}
                 >
@@ -2650,13 +2619,6 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
       >
         {selectedInvoice && (
           <div className="space-y-4 text-foreground">
-            {/* Toast notification inside modal */}
-            {reprintSuccess && (
-              <div className="bg-emerald-500/10 border border-emerald-500/25 rounded-xl px-4 py-2 flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-xs font-bold shadow-sm">
-                <CheckCheck className="w-4 h-4 shrink-0" />
-                Invoice reprinted successfully!
-              </div>
-            )}
 
             {/* Action Buttons & Time */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-muted/30 border border-border rounded-2xl">
@@ -3361,6 +3323,8 @@ export function CashierSettlement({ onClose, isRestricted }: CashierSettlementPr
           </div>
         </div>
       )}
+
+      <FloatToast message={reprintSuccess ? 'Invoice reprinted successfully!' : null} onClose={() => setReprintSuccess(false)} />
     </div>
   );
 }

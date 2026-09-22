@@ -8,6 +8,7 @@ import {
   Wrench, Gem, ShoppingBag, Server, Terminal, Info, Sun, Moon, Cloud, Clock, Trash2, Lock, Unlock, Shield, Save
 } from 'lucide-react';
 import clsx from 'clsx';
+import { RedCrossButton } from './ui/RedCrossButton';
 
 interface TenantAdmin {
   tenant_id: string;
@@ -986,6 +987,7 @@ export default function SuperDashboard() {
                 <Database className="h-4.5 w-4.5 text-amber-500" />
                 {editingAdmin ? `Configure Tenant: ${editingAdmin.name}` : 'Provision New Store Workspace'}
               </h2>
+              <RedCrossButton onClick={() => setModalOpen(false)} />
             </div>
 
             {/* Interactive Progress Visualizer Logs Terminal */}
@@ -1236,13 +1238,6 @@ export default function SuperDashboard() {
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-2.5 border-t border-border">
                   <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="px-4 py-1.5 bg-background hover:bg-muted border border-border rounded-lg text-xs font-semibold text-foreground transition cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
                     type="submit"
                     className="inline-flex items-center gap-1.5 px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-955 dark:text-zinc-955 font-bold rounded-lg shadow-lg shadow-amber-500/10 transition cursor-pointer text-xs"
                   >
@@ -1374,12 +1369,7 @@ export default function SuperDashboard() {
                 <Cloud className="h-4 w-4 text-primary" />
                 Super Admin Cloud Access & Schedule Control — {selectedCloudTenant.name}
               </h3>
-              <button
-                onClick={() => setCloudModalOpen(false)}
-                className="text-muted-foreground hover:text-foreground p-1 rounded-lg hover:bg-muted cursor-pointer"
-              >
-                ✕
-              </button>
+              <RedCrossButton onClick={() => setCloudModalOpen(false)} />
             </div>
 
             <div className="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
@@ -1515,13 +1505,6 @@ export default function SuperDashboard() {
             </div>
 
             <div className="px-6 py-4 border-t border-border bg-muted/20 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setCloudModalOpen(false)}
-                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground border border-border rounded-xl text-xs font-bold transition cursor-pointer"
-              >
-                Cancel
-              </button>
               <button
                 type="button"
                 onClick={handleSaveCloudAccess}

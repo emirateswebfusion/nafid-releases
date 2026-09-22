@@ -12,6 +12,7 @@ import clsx from 'clsx';
 import { v4 as uuidv4 } from 'uuid';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { parseUTCDate } from '../utils/receiptGenerator';
@@ -620,21 +621,18 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <RedCrossButton
               onClick={showAddForm ? () => { setShowAddForm(false); setEditingBill(null); setEditHasItems(false); setGstHasItems(false); setEstHasItems(false); } : onClose}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
 
       {/* ─── FLOATING TOASTS ─── */}
-      <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 w-full max-w-md pointer-events-none">
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col items-start gap-2 w-full max-w-md pointer-events-none">
         {statusMessage && (
-          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto w-full">
+          <div className="px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto w-full">
             <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
               {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
             </div>
@@ -644,6 +642,7 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
               </span>
               <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
             </div>
+            <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
           </div>
         )}
       </div>
@@ -1613,13 +1612,6 @@ export function PurchaseBillManager({ onClose, isRestricted: _isRestricted }: { 
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={() => { setDeleteConfirmOpen(false); setBillToDelete(null); }}
-              disabled={deleteSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               onClick={confirmDeleteBill}
               disabled={deleteSaving}

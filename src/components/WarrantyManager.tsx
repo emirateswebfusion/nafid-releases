@@ -9,6 +9,8 @@ import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 
 interface Warranty {
   warranty_id: string;
@@ -218,20 +220,13 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
             {!showCreate && <p className="text-[11px] text-muted-foreground font-medium leading-none mt-0.5">{warranties.length} warranties registered</p>}
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <RedCrossButton
               onClick={showCreate ? () => setShowCreate(false) : (isRestricted ? () => useAuthStore.getState().logout() : onClose)}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-destructive/10 text-destructive transition-all duration-200 active:scale-95 cursor-pointer flex items-center justify-center shadow-xs"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
-
-      {statusMessage && (
-        <div className={clsx('mx-6 mt-3 px-4 py-2.5 rounded-xl text-sm font-bold', statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20')}>{statusMessage.text}</div>
-      )}
 
       {!showCreate ? (
         <>
@@ -429,7 +424,6 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           </div>
 
           <div className="flex justify-end items-center gap-3 px-6 py-4 border-t border-border bg-card shrink-0 shadow-sm">
-            <button onClick={() => setShowCreate(false)} className="px-5 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 rounded-xl transition-all active:scale-95 cursor-pointer border border-border">Cancel</button>
             <button onClick={handleSave} className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border border-primary/10 active:scale-95 cursor-pointer">
               <Shield className="w-4 h-4" /> Register Warranty
             </button>
@@ -444,13 +438,13 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
               <table>
                 <tbody>
                   <tr><td className="label">Customer Name</td><td>{selectedWarranty.customer_name}</td></tr>
-                <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '�'}</td></tr>
+                <tr><td className="label">Phone</td><td>{selectedWarranty.customer_phone || '—'}</td></tr>
                 <tr><td className="label">Product</td><td>{selectedWarranty.product_name}</td></tr>
-                <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '�'}</td></tr>
+                <tr><td className="label">Product Details</td><td>{selectedWarranty.product_details || '—'}</td></tr>
                 <tr><td className="label">Purchase Date</td><td>{formatDate(selectedWarranty.purchase_date)}</td></tr>
                 <tr><td className="label">Warranty Period</td><td>{selectedWarranty.warranty_period_days} Days</td></tr>
                 <tr><td className="label">Expiry Date</td><td>{formatDate(selectedWarranty.expiry_date)}</td></tr>
-                <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '�'}</td></tr>
+                <tr><td className="label">Notes</td><td>{selectedWarranty.notes || '—'}</td></tr>
                 </tbody>
               </table>
             </div>
@@ -462,7 +456,7 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
       <Modal
         isOpen={deleteConfirmOpen}
         onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setWarrantyToDelete(null); } }}
-        closeButton={null}
+        closeButton={<RedCrossButton onClick={() => { setDeleteConfirmOpen(false); setWarrantyToDelete(null); }} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <Trash2 className="w-5 h-5 text-red-500" />
@@ -483,13 +477,6 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button
-              onClick={() => { setDeleteConfirmOpen(false); setWarrantyToDelete(null); }}
-              disabled={deleteSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
               onClick={confirmDeleteWarranty}
               disabled={deleteSaving}
               className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
@@ -503,6 +490,14 @@ export function WarrantyManager({ onClose, isRestricted }: { onClose: () => void
           </div>
         </div>
       </Modal>
+
+      {statusMessage && (
+        <FloatToast
+          message={statusMessage.text}
+          type={statusMessage.type}
+          onClose={() => setStatusMessage(null)}
+        />
+      )}
     </div>
   );
 }

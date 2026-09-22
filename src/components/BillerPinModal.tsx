@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Lock, AlertCircle, Loader2, CheckCircle2, KeyRound, X } from 'lucide-react';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import clsx from 'clsx';
 
@@ -115,26 +116,24 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="" size="sm">
-      <div className="p-6 text-center">
-        {/* Header Icon */}
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-4 shadow-sm">
-          {loading ? (
-            <Loader2 className="w-7 h-7 animate-spin" />
-          ) : success ? (
-            <CheckCircle2 className="w-7 h-7 text-emerald-500 animate-bounce" />
-          ) : (
-            <KeyRound className="w-7 h-7" />
-          )}
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      closeButton={<RedCrossButton onClick={onClose} />}
+      title={
+        <div className="flex items-center gap-2 font-bold text-foreground">
+          <KeyRound className="w-5 h-5 text-primary" />
+          <span>Biller Authentication Required</span>
         </div>
-
-        <h3 className="text-lg font-bold text-foreground mb-1">Enter Biller PIN</h3>
+      }
+    >
+      <div className="p-4 sm:p-6 text-center">
         <p className="text-xs text-muted-foreground mb-6">
-          Enter your 4-digit code to authorize & print this invoice
+          Enter your 4-digit POS Biller PIN to authorize printing.
         </p>
 
-        {/* 4 PIN Boxes */}
-        <div className="flex items-center justify-center gap-3 mb-6" onPaste={handlePaste}>
+        {/* PIN Inputs */}
+        <div className="flex justify-center gap-3 mb-6" onPaste={handlePaste}>
           {pinDigits.map((digit, idx) => (
             <input
               key={idx}
@@ -167,18 +166,6 @@ export function BillerPinModal({ isOpen, tenantId, onClose, onVerified }: Biller
             <span>{error}</span>
           </div>
         )}
-
-        {/* Action button */}
-        <div className="flex items-center justify-end gap-2 mt-2">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={loading}
-            className="w-full py-2.5 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-          >
-            Cancel Print
-          </button>
-        </div>
       </div>
     </Modal>
   );

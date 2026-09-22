@@ -15,6 +15,8 @@ import {
   FileText, Settings2, ToggleLeft, ToggleRight, RefreshCw
 } from 'lucide-react';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 
 type View = 'list' | 'form' | 'transactions';
 
@@ -474,7 +476,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                 <span>Link Payment Method</span>
               </button>
             )}
-            <button
+            <RedCrossButton
               onClick={() => {
                 if (view !== 'list') {
                   setView('list');
@@ -482,28 +484,19 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                   onClose();
                 }
               }}
-              className="p-2.5 rounded-xl border border-destructive/30 hover:bg-destructive/15 bg-destructive/5 text-destructive transition-all duration-200 active:scale-95 cursor-pointer shadow-sm"
               title={view !== 'list' ? 'Back to Payment Methods' : 'Close'}
-            >
-              <X className="w-4.5 h-4.5 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
 
       {/* Floating Status Toast Notification */}
       {statusMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
-          <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
-            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-          </div>
-          <div className="flex-1 min-w-0 leading-snug">
-            <span className="text-slate-400 block text-[10px] font-black uppercase tracking-wider">
-              {statusMessage.type === 'success' ? 'PAYMENT STATUS' : 'PAYMENT ERROR'}
-            </span>
-            <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
-          </div>
-        </div>
+        <FloatToast
+          message={statusMessage.text}
+          type={statusMessage.type}
+          onClose={() => setStatusMessage(null)}
+        />
       )}
 
       {/* Main Content Viewport */}
@@ -1236,13 +1229,6 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/60">
                     <button
                       type="button"
-                      onClick={() => setView('list')}
-                      className="px-5 py-2.5 text-xs font-bold bg-muted text-muted-foreground hover:text-foreground rounded-xl transition-all cursor-pointer border border-border/60"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
                       onClick={saveSource}
                       disabled={isSaving}
                       className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-primary-foreground text-xs font-bold rounded-xl hover:opacity-90 active:scale-95 transition-all shadow-md shadow-primary/25 disabled:opacity-50 cursor-pointer"
@@ -1637,7 +1623,7 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
       <Modal
         isOpen={deleteConfirmOpen}
         onClose={() => { if (!deleteSaving) { setDeleteConfirmOpen(false); setSourceToDelete(null); } }}
-        closeButton={null}
+        closeButton={<RedCrossButton onClick={() => { setDeleteConfirmOpen(false); setSourceToDelete(null); }} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <Trash2 className="w-5 h-5 text-red-500" />
@@ -1657,13 +1643,6 @@ export function PaymentMethods({ onClose, isRestricted }: { onClose: () => void;
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={() => { setDeleteConfirmOpen(false); setSourceToDelete(null); }}
-              disabled={deleteSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               onClick={confirmDeleteSource}
               disabled={deleteSaving}

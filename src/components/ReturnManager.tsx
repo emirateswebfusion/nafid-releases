@@ -5,6 +5,8 @@ import clsx from 'clsx';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
@@ -235,26 +237,12 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {statusMessage && (
-              <span className={clsx(
-                'hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg animate-in fade-in duration-200',
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-destructive/10 text-destructive'
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                {statusMessage.text}
-              </span>
-            )}
-
             {isRestricted ? (
               <button onClick={() => useAuthStore.getState().logout()} className="h-10 px-4 flex items-center gap-1.5 text-xs font-bold text-red-500 bg-red-500/10 hover:bg-red-500/20 rounded-xl transition-all duration-200 active:scale-95 border border-red-500/20 cursor-pointer">
                 <LogOut className="w-4 h-4" /> Logout
               </button>
             ) : (
-              <button onClick={onClose} className="h-10 w-10 text-muted-foreground hover:text-foreground hover:bg-muted rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-destructive/30 flex items-center justify-center" title="Close">
-                <X className="w-4 h-4 text-destructive" />
-              </button>
+              <RedCrossButton onClick={onClose} title="Close" />
             )}
           </div>
         </div>
@@ -526,7 +514,7 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)}>
+      <Modal isOpen={deleteConfirmOpen} onClose={() => setDeleteConfirmOpen(false)} closeButton={<RedCrossButton onClick={() => setDeleteConfirmOpen(false)} />}>
         <div className="p-6 max-w-sm mx-auto text-center">
           <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-500/10 flex items-center justify-center shadow-inner">
             <AlertCircle className="w-6 h-6 text-red-500" />
@@ -535,16 +523,21 @@ export function ReturnManager({ onClose, isRestricted }: { onClose: () => void; 
           <p className="text-xs text-muted-foreground mb-6 leading-relaxed">
             This will remove the return record and deduct the returned quantity from stock.
           </p>
-          <div className="flex gap-3">
-            <button onClick={() => setDeleteConfirmOpen(false)} disabled={deleteSaving}
-              className="flex-1 h-10 text-xs font-bold rounded-xl border border-border hover:bg-muted hover:text-foreground text-muted-foreground transition-all duration-150 active:scale-95 cursor-pointer disabled:opacity-50"
-            >Cancel</button>
+          <div className="flex justify-end gap-3">
             <button onClick={handleDeleteReturn} disabled={deleteSaving}
-              className="flex-1 h-10 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md shadow-red-500/10 transition-all duration-150 active:scale-95 cursor-pointer disabled:opacity-50"
+              className="w-full h-10 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded-xl shadow-md shadow-red-500/10 transition-all duration-150 active:scale-95 cursor-pointer disabled:opacity-50"
             >{deleteSaving ? 'Deleting...' : 'Delete'}</button>
           </div>
         </div>
       </Modal>
+
+      {statusMessage && (
+        <FloatToast
+          message={statusMessage.text}
+          type={statusMessage.type}
+          onClose={() => setStatusMessage(null)}
+        />
+      )}
     </div>
   );
 }

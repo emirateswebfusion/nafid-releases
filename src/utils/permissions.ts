@@ -57,7 +57,7 @@ export const PERMISSION_GROUPS: PermissionGroup[] = [
   },
   {
     id: 'customers',
-    name: 'Customers & Parties',
+    name: 'Customers & Ledger',
     description: 'Customer profiles and party ledgers',
     permissions: [
       { key: 'customers.view', label: 'View Customers', description: 'Can view customer directory and balances' },

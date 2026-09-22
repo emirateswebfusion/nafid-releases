@@ -277,7 +277,7 @@ export function OwnerDashboard({ isSyncing, syncProgress, syncComplete, shuffled
         }] : []),
         {
             id: 'parties',
-            title: 'Parties / Credit',
+            title: 'Ledger',
             desc: 'Track credit parties, balances, and payments',
             icon: Handshake,
             color: 'text-rose-500',

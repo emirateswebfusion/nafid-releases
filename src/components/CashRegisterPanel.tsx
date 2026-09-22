@@ -7,6 +7,7 @@ import {
 import clsx from 'clsx';
 import { Select } from '../components/ui/Select';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
+import { RedCrossButton } from './ui/RedCrossButton';
 
 const formatCurrency = (v: any) => {
   const n = Number(v) || 0;
@@ -338,13 +339,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                 <AlertTriangle className="w-3.5 h-3.5" /> Close
               </button>
             )}
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-              title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            <RedCrossButton onClick={onClose} title="Close" />
           </div>
         </div>
       </header>
@@ -585,11 +580,12 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
       {showOpeningBal && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}>
           <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[360px] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-border/60" style={{ background: 'linear-gradient(135deg, hsl(142,72%,29%,0.1) 0%, transparent 100%)' }}>
+            <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, hsl(142,72%,29%,0.1) 0%, transparent 100%)' }}>
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-emerald-500/15"><Banknote className="w-4 h-4 text-emerald-500" /></div>
                 <h2 className="text-base font-extrabold text-foreground">Opening Balance</h2>
               </div>
+              <RedCrossButton onClick={() => setShowOpeningBal(false)} />
             </div>
             <div className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground font-medium">Enter the cash amount at the start of today's shift.</p>
@@ -606,9 +602,8 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                   <p className="text-xs font-medium text-rose-700 dark:text-rose-300">{openingBalError}</p>
                 </div>
               )}
-              <div className="flex gap-3">
-                <button onClick={() => setShowOpeningBal(false)} className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all active:scale-[0.98] cursor-pointer">Cancel</button>
-                <button onClick={handleSetOpening} className="flex-1 py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer">Save</button>
+              <div className="flex justify-end gap-3">
+                <button onClick={handleSetOpening} className="w-full py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer">Save</button>
               </div>
             </div>
           </div>
@@ -620,13 +615,14 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
           onClick={() => { if (!txnSubmitting) { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName(''); } }}>
           <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[400px] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className={clsx('relative px-6 py-4 border-b border-border/60', txnType === 'CASH_IN' ? 'bg-emerald-500/5' : 'bg-rose-500/5')}>
+            <div className={clsx('relative px-6 py-4 border-b border-border/60 flex items-center justify-between', txnType === 'CASH_IN' ? 'bg-emerald-500/5' : 'bg-rose-500/5')}>
               <div className="flex items-center gap-2.5">
                 <div className={clsx('p-2 rounded-xl', txnType === 'CASH_IN' ? 'bg-emerald-500/15' : 'bg-rose-500/15')}>
                   {txnType === 'CASH_IN' ? <Plus className="w-4 h-4 text-emerald-500" /> : <Minus className="w-4 h-4 text-rose-500" />}
                 </div>
                 <h2 className="text-base font-extrabold text-foreground">{txnType === 'CASH_IN' ? 'Record Cash In' : 'Record Expense'}</h2>
               </div>
+              <RedCrossButton onClick={() => { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName(''); }} />
             </div>
             <div className="p-6 space-y-4" onKeyDown={handleFormKeyDown} data-enter-nav>
               <div className="flex rounded-xl bg-muted/40 border border-border/60 p-1 gap-1">
@@ -655,7 +651,6 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                       className="flex-1 bg-background border border-border/80 rounded-xl px-3 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary transition-all" autoFocus />
                     <button onClick={async () => { if (!newCatName.trim() || !tenantId) return; setAddingCat(true); const r = await window.electronAPI!.dbCashierAddCategory({ tenant_id: tenantId, name: newCatName.trim(), type: txnType }); if (r.success) { const cats = await window.electronAPI!.dbCashierGetCategories({ tenant_id: tenantId }); if (Array.isArray(cats)) setCustomCategories(cats); setTxnCat(newCatName.trim()); setShowAddCatForm(false); setNewCatName(''); } setAddingCat(false); }}
                       disabled={addingCat || !newCatName.trim()} className="px-3.5 py-2.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:bg-primary/90 transition-all active:scale-95 cursor-pointer disabled:opacity-50">{addingCat ? '...' : 'Add'}</button>
-                    <button onClick={() => { setShowAddCatForm(false); setNewCatName(''); }} className="px-3 py-2.5 text-muted-foreground hover:text-foreground rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer">Cancel</button>
                   </div>
                 ) : (
                   <Select value={txnCat} onChange={v => { if (v === '__ADD_NEW__') { setShowAddCatForm(true); setNewCatName(''); } else setTxnCat(v); }}
@@ -724,8 +719,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                 )}
               </div>
               <div className="flex gap-3 pt-1">
-                <button onClick={() => { setShowTxnModal(false); setTxnAmt(0); setTxnCat(''); setTxnNote(''); setShowAddCatForm(false); setNewCatName(''); }} className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all active:scale-[0.98] cursor-pointer">Cancel</button>
-                <button onClick={handleAddTransaction} disabled={txnSubmitting || txnAmt <= 0} className="flex-1 py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">{txnSubmitting ? 'Saving...' : 'Submit'}</button>
+                <button onClick={handleAddTransaction} disabled={txnSubmitting || txnAmt <= 0} className="w-full py-3 text-sm font-black text-primary-foreground bg-primary rounded-xl hover:bg-primary/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">{txnSubmitting ? 'Saving...' : 'Submit'}</button>
               </div>
             </div>
           </div>
@@ -737,13 +731,12 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)' }}
           onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setCloseResult(null); } }}>
           <div className="bg-card border border-border/80 rounded-2xl shadow-2xl w-[440px] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="relative px-6 py-4 border-b border-border/60" style={{ background: 'linear-gradient(135deg, hsl(0,72%,51%,0.08) 0%, transparent 100%)' }}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-destructive/10"><AlertTriangle className="w-4 h-4 text-destructive" /></div>
-                  <h2 className="text-base font-extrabold text-foreground">End of Day Closing</h2>
-                </div>
+            <div className="relative px-6 py-4 border-b border-border/60 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, hsl(0,72%,51%,0.08) 0%, transparent 100%)' }}>
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-destructive/10"><AlertTriangle className="w-4 h-4 text-destructive" /></div>
+                <h2 className="text-base font-extrabold text-foreground">End of Day Closing</h2>
               </div>
+              <RedCrossButton onClick={() => { if (!closeSubmitting) { setShowDayClose(false); setCloseResult(null); } }} />
             </div>
             <div className="p-6 space-y-4">
               {closeResult ? (
@@ -778,8 +771,7 @@ export function CashRegisterPanel({ onClose }: { onClose: () => void }) {
                     <input type="text" value={closeRemarks} onChange={e => setCloseRemarks(e.target.value)} placeholder="Any closing notes..." className="w-full bg-background border border-border/80 rounded-xl px-4 py-2.5 text-sm font-medium text-foreground outline-none focus:border-primary transition-all" />
                   </div>
                   <div className="flex gap-3 pt-1">
-                    <button onClick={() => { setShowDayClose(false); }} className="flex-1 py-3 text-sm font-bold text-muted-foreground border border-border/80 rounded-xl hover:bg-muted transition-all active:scale-[0.98] cursor-pointer">Cancel</button>
-                    <button onClick={handleDayClose} disabled={closeSubmitting} className="flex-1 py-3 text-sm font-black text-primary-foreground bg-destructive rounded-xl hover:bg-destructive/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">{closeSubmitting ? 'Closing...' : 'Close Day'}</button>
+                    <button onClick={handleDayClose} disabled={closeSubmitting} className="w-full py-3 text-sm font-black text-primary-foreground bg-destructive rounded-xl hover:bg-destructive/90 shadow-sm transition-all active:scale-[0.98] cursor-pointer disabled:opacity-50">{closeSubmitting ? 'Closing...' : 'Close Day'}</button>
                   </div>
                 </>
               )}

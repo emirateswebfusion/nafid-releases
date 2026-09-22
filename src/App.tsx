@@ -15,7 +15,7 @@ const PAGE_METADATA: Record<string, { label: string; icon: any }> = {
   RETURNS: { label: 'Returns', icon: Undo2 },
   WARRANTIES: { label: 'Warranties', icon: ShieldCheck },
   CUSTOMERS: { label: 'Customers', icon: UserCheck },
-  PARTIES: { label: 'Suppliers & Parties', icon: Handshake },
+  PARTIES: { label: 'Ledger', icon: Handshake },
   INVENTORY: { label: 'Inventory', icon: Package },
   STOCK_REPORT: { label: 'Stock Report', icon: BarChart3 },
   PURCHASE_BILLS: { label: 'Purchase Bills', icon: Receipt },

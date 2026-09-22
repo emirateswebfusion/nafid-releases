@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { DateRangeFilter } from './ui/DateRangeFilter';
 import { Select } from './ui/Select';
 import { v4 as uuidv4 } from 'uuid';
@@ -738,7 +739,7 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
     <Modal
       isOpen={confirmResetPrintModalOpen}
       onClose={() => { if (!resetPrintSaving) setConfirmResetPrintModalOpen(false); }}
-      closeButton={null}
+      closeButton={<RedCrossButton onClick={() => { if (!resetPrintSaving) setConfirmResetPrintModalOpen(false); }} />}
       title={
         <div className="flex items-center gap-2.5 font-bold text-foreground">
           <AlertCircle className="w-5 h-5 text-amber-500" />
@@ -758,13 +759,6 @@ export function BulkOnboardingSheet({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="flex justify-end gap-2 pt-2 border-t border-border">
-          <button
-            onClick={() => setConfirmResetPrintModalOpen(false)}
-            disabled={resetPrintSaving}
-            className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-          >
-            Cancel
-          </button>
           <button
             onClick={confirmResetPending}
             disabled={resetPrintSaving}

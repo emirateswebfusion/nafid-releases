@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 
 interface ComboItem {
@@ -390,13 +391,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
               <span>Create Combo Offer</span>
             </button>
             {!isRestricted && onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 transition-all duration-200 active:scale-95 cursor-pointer shadow-xs"
-                title="Close"
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </button>
+              <RedCrossButton onClick={onClose} title="Close" />
             )}
           </div>
         </div>
@@ -404,7 +399,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
 
       {/* Floating Status Toast */}
       {statusMessage && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200 pointer-events-auto max-w-md">
+        <div className="fixed bottom-5 right-5 z-[9999] px-4 py-3 bg-slate-900 text-slate-100 dark:bg-slate-800 border border-slate-700/80 rounded-2xl flex items-center gap-3 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-auto max-w-md">
           <div className={clsx("p-2 rounded-xl shrink-0", statusMessage.type === 'success' ? "bg-emerald-500/25 text-emerald-400" : "bg-red-500/25 text-red-400")}>
             {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
           </div>
@@ -414,9 +409,7 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
             </span>
             <span className="text-white font-bold text-xs block leading-tight">{statusMessage.text}</span>
           </div>
-          <button onClick={() => setStatusMessage(null)} className="ml-1 p-1 hover:bg-slate-700/60 rounded-lg transition-colors cursor-pointer text-slate-400 hover:text-white">
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <RedCrossButton onClick={() => setStatusMessage(null)} size="sm" />
         </div>
       )}
 
@@ -1048,13 +1041,6 @@ export function ComboManager({ onClose, isRestricted }: { onClose?: () => void; 
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={() => { setDeleteConfirmOpen(false); setComboToDelete(null); }}
-              disabled={deleteSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               onClick={confirmDeleteCombo}
               disabled={deleteSaving}

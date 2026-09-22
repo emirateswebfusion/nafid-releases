@@ -10,6 +10,8 @@ import {
 import clsx from 'clsx';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { PermissionSelector } from './PermissionSelector';
@@ -131,9 +133,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI?.dbGetStaff) {
         const rows = await window.electronAPI.dbGetStaff({ tenant_id: tenantId, search: searchQuery, status: statusFilter });
-        setStaffList(rows);
-        if (!selectedStaffId && rows.length > 0) {
-          setSelectedStaffId(rows[0].staff_id);
+        const list = Array.isArray(rows) ? rows : [];
+        setStaffList(list);
+        if (!selectedStaffId && list.length > 0) {
+          setSelectedStaffId(list[0].staff_id);
         }
       } else {
         // Web fallback
@@ -142,14 +145,22 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
         });
         if (res.ok) {
           const data = await res.json();
-          setStaffList(data);
-          if (!selectedStaffId && data.length > 0) {
-            setSelectedStaffId(data[0].staff_id);
+          const list = Array.isArray(data) ? data : (data?.data && Array.isArray(data.data) ? data.data : []);
+          setStaffList(list);
+          if (!selectedStaffId && list.length > 0) {
+            setSelectedStaffId(list[0].staff_id);
           }
+        } else {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData?.error || errData?.message || `HTTP ${res.status}`);
         }
       }
     } catch (err: any) {
-      setStatusMessage({ text: 'Failed to load staff members', type: 'error' });
+      console.error('[StaffManager] Failed to load staff members:', err);
+      setStatusMessage({
+        text: err?.message ? `Failed to load staff members (${err.message})` : 'Failed to load staff members',
+        type: 'error'
+      });
     } finally {
       setLoading(false);
     }
@@ -170,14 +181,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
     try {
       if (window.electronAPI?.dbGetStaffLedger) {
         const ledger = await window.electronAPI.dbGetStaffLedger({ tenant_id: tenantId, staff_id: selectedStaffId });
-        setLedgerEntries(ledger);
+        setLedgerEntries(Array.isArray(ledger) ? ledger : []);
       }
       if (window.electronAPI?.dbGetStaffAttendance) {
         const att = await window.electronAPI.dbGetStaffAttendance({ tenant_id: tenantId, staff_id: selectedStaffId, month: selectedMonth });
-        setAttendanceRecords(att);
+        setAttendanceRecords(Array.isArray(att) ? att : []);
       }
     } catch (err) {
-      console.warn('Error loading staff details:', err);
+      console.warn('[StaffManager] Error loading staff details:', err);
     }
   }, [selectedStaffId, tenantId, selectedMonth]);
 
@@ -348,29 +359,10 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
             >
               <UserPlus className="w-4 h-4" /> Add Staff Member
             </Button>
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            <RedCrossButton onClick={onClose} title="Close" />
           </div>
         </div>
       </header>
-
-      {/* ═══ STATUS NOTIFICATION ═══ */}
-      {statusMessage && (
-        <div className={clsx(
-          'px-6 py-2.5 text-xs font-bold flex items-center justify-between transition-all shrink-0',
-          statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-b border-emerald-500/20' : 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-b border-rose-500/20'
-        )}>
-          <div className="flex items-center gap-2">
-            {statusMessage.type === 'success' ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-            <span>{statusMessage.text}</span>
-          </div>
-          <button onClick={() => setStatusMessage(null)} className="cursor-pointer opacity-70 hover:opacity-100"><X className="w-3.5 h-3.5" /></button>
-        </div>
-      )}
 
       {/* ═══ MAIN LAYOUT ═══ */}
       <div className="flex-1 flex overflow-hidden">
@@ -1364,13 +1356,6 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-extrabold text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
                   onClick={handleSaveStaff}
                   disabled={saving || !formData.name.trim()}
                   className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-primary text-primary-foreground hover:bg-primary/90 transition-all cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 active:scale-[0.98]"
@@ -1394,7 +1379,7 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
       </Modal>
 
       {/* ═══ MODAL: ADD TRANSACTION (ADVANCE / PAYOUT) ═══ */}
-      <Modal isOpen={showTxnModal} onClose={() => setShowTxnModal(false)} title="Record Staff Transaction">
+      <Modal isOpen={showTxnModal} onClose={() => setShowTxnModal(false)} closeButton={<RedCrossButton onClick={() => setShowTxnModal(false)} />} title="Record Staff Transaction">
         <div className="p-6 space-y-4">
           <div>
             <label className="text-xs font-black text-muted-foreground uppercase tracking-wider block mb-1">Transaction Type</label>
@@ -1450,12 +1435,6 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
 
           <div className="flex justify-end gap-2 pt-2">
             <button
-              onClick={() => setShowTxnModal(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
               onClick={handleAddTransaction}
               disabled={saving || txnData.amount <= 0}
               className="px-5 py-2 rounded-xl text-xs font-bold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer disabled:opacity-50"
@@ -1465,6 +1444,14 @@ export function StaffManager({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </Modal>
+
+      {statusMessage && (
+        <FloatToast
+          message={statusMessage.text}
+          type={statusMessage.type}
+          onClose={() => setStatusMessage(null)}
+        />
+      )}
     </div>
   );
 }

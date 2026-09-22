@@ -10,6 +10,8 @@ import clsx from 'clsx';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { parseUTCDate, getAppTimeFormat } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
@@ -323,7 +325,7 @@ export function CustomersPage({
     if (onOpenParty) {
       onOpenParty(target, selectedCustomer.customer_id);
     } else {
-      showStatus(`Party ledger for "${selectedCustomer.name}" is accessible via the Parties menu.`, 'success');
+      showStatus(`Party ledger for "${selectedCustomer.name}" is accessible via the Ledger menu.`, 'success');
     }
   };
 
@@ -373,15 +375,6 @@ export function CustomersPage({
 
           {/* Right Actions & Close */}
           <div className="flex items-center gap-3 shrink-0">
-            {statusMessage && (
-              <span className={clsx(
-                'text-xs font-bold px-3 py-1.5 rounded-full animate-in fade-in slide-in-from-top-1 duration-200',
-                statusMessage.type === 'success' ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20' : 'bg-destructive/10 text-destructive border border-destructive/20'
-              )}>
-                {statusMessage.text}
-              </span>
-            )}
-
             {view === 'detail' && selectedCustomer && isOwner && (
               <button
                 onClick={() => handleDeleteCustomerClick(selectedCustomer)}
@@ -403,13 +396,10 @@ export function CustomersPage({
                 <span className="hidden sm:inline">Logout</span>
               </button>
             ) : (
-              <button
+              <RedCrossButton
                 onClick={() => view === 'detail' ? setView('list') : onClose()}
-                className="h-9 w-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-xl transition-all duration-200 active:scale-95 cursor-pointer border border-border hover:border-destructive/30 flex items-center justify-center shadow-xs"
                 title={view === 'detail' ? 'Back to Customer List' : 'Close'}
-              >
-                <X className="w-4 h-4" />
-              </button>
+              />
             )}
           </div>
         </div>
@@ -1075,14 +1065,6 @@ export function CustomersPage({
               <button
                 type="button"
                 disabled={deleteSaving}
-                onClick={() => setDeleteModalOpen(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold border border-border bg-card hover:bg-muted text-foreground transition-all cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={deleteSaving}
                 onClick={handleConfirmDeleteCustomer}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold bg-destructive hover:bg-destructive/90 text-destructive-foreground transition-all flex items-center gap-2 cursor-pointer shadow-sm active:scale-95 disabled:opacity-50"
               >
@@ -1102,6 +1084,8 @@ export function CustomersPage({
           </div>
         </Modal>
       )}
+
+      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
     </div>
   );
 }

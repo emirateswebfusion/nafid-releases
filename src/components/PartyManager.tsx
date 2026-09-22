@@ -16,6 +16,8 @@ import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Skeleton } from './ui/Skeleton';
 import { Select } from './ui/Select';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { getStoreTimezone } from '../utils/timezoneHelper';
 
@@ -486,7 +488,7 @@ export function PartyManager({
             <div className="flex items-center gap-2">
               <h1 className="text-sm font-bold text-foreground truncate">
                 {view === 'list'
-                  ? 'Parties & Ledger'
+                  ? 'Ledger'
                   : view === 'party_form'
                   ? (editingParty ? 'Edit Party' : 'New Party')
                   : view === 'ledger' && selectedParty
@@ -512,18 +514,6 @@ export function PartyManager({
 
           {/* Right actions */}
           <div className="flex items-center gap-2 shrink-0">
-            {statusMessage && (
-              <span className={clsx(
-                'hidden sm:flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg animate-in fade-in duration-200',
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-destructive/10 text-destructive'
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3 h-3" /> : <AlertCircle className="w-3 h-3" />}
-                {statusMessage.text}
-              </span>
-            )}
-
             {view === 'list' && isOwner && (
               <button
                 onClick={() => { resetPartyForm(); setView('party_form'); }}
@@ -542,13 +532,10 @@ export function PartyManager({
               </button>
             )}
 
-            <button
+            <RedCrossButton
               onClick={onBackToCustomers ? onBackToCustomers : (view === 'list' ? onClose : view === 'ledger' ? () => setView('list') : () => { setView(view === 'party_form' ? 'list' : 'ledger'); resetPartyForm(); })}
-              className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
               title="Close"
-            >
-              <X className="w-4 h-4 text-destructive" />
-            </button>
+            />
           </div>
         </div>
       </header>
@@ -982,25 +969,7 @@ export function PartyManager({
 
           {/* Footer */}
           <div className="shrink-0 border-t border-border bg-card px-5 py-3">
-            {statusMessage && (
-              <div className={clsx(
-                'flex items-center gap-2 px-3.5 py-2.5 rounded-xl border text-xs font-bold mb-3 animate-in fade-in duration-200',
-                statusMessage.type === 'success'
-                  ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800/40 text-emerald-700 dark:text-emerald-400'
-                  : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/40 text-red-600'
-              )}>
-                {statusMessage.type === 'success' ? <CheckCircle2 className="w-3.5 h-3.5 shrink-0" /> : <AlertCircle className="w-3.5 h-3.5 shrink-0" />}
-                {statusMessage.text}
-              </div>
-            )}
             <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => { setView('list'); resetPartyForm(); }}
-                className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
-              >
-                Cancel
-              </button>
               <button
                 type="button"
                 disabled={isSavingParty}
@@ -1493,13 +1462,6 @@ export function PartyManager({
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  type="button"
-                  onClick={() => setView('ledger')}
-                  className="px-4 py-2 rounded-xl border border-border bg-background hover:bg-muted text-sm font-bold text-foreground transition-all active:scale-95 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
                   type="submit"
                   disabled={isSavingTx}
                   className="flex items-center gap-2 px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground rounded-xl text-sm font-bold transition-all active:scale-95 cursor-pointer shadow-sm"
@@ -1540,13 +1502,6 @@ export function PartyManager({
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button
-              onClick={() => { setDeleteTxModalOpen(false); setTxToDelete(null); }}
-              disabled={deleteTxSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
               onClick={confirmDeleteTx}
               disabled={deleteTxSaving}
               className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
@@ -1586,13 +1541,6 @@ export function PartyManager({
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
             <button
-              onClick={() => { setDeletePartyModalOpen(false); setPartyToDelete(null); }}
-              disabled={deletePartySaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
-            <button
               onClick={confirmDeleteParty}
               disabled={deletePartySaving}
               className="px-5 py-2.5 text-sm font-black bg-red-500 text-white rounded-xl hover:bg-red-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer flex items-center gap-2"
@@ -1606,6 +1554,8 @@ export function PartyManager({
           </div>
         </div>
       </Modal>
+
+      <FloatToast message={statusMessage} onClose={() => setStatusMessage(null)} />
     </div>
   );
 }

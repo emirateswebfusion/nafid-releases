@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
+import { FloatToast } from './ui/FloatToast';
 import { Skeleton } from './ui/Skeleton';
 import { useCloseOnEscape } from '../hooks/useCloseOnEscape';
 import { Badge } from './ui/Badge';
@@ -312,17 +314,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
 
   return (
     <div className="fixed inset-0 z-40 flex flex-col bg-background animate-in fade-in duration-200 select-none">
-      {error && (
-        <div className="p-4 bg-destructive/10 text-destructive text-xs rounded-2xl border border-destructive/20 flex items-center justify-between gap-3 shadow-inner">
-          <div className="flex items-center gap-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-destructive animate-pulse shrink-0" />
-            <span className="font-bold">{typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error))}</span>
-          </div>
-          <button onClick={() => setError(null)} className="p-1 hover:bg-destructive/20 rounded-lg transition-colors shrink-0 cursor-pointer">
-            <X className="w-4.5 h-4.5" />
-          </button>
-        </div>
-      )}
+      <FloatToast message={error ? { text: typeof error === 'string' ? error : ((error as any)?.message || JSON.stringify(error)), type: 'error' } : null} onClose={() => setError(null)} />
 
       {/* Sticky Page Header */}
       <header className="shrink-0 z-10 border-b border-border bg-card shadow-sm">
@@ -341,13 +333,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {onClose && (
-              <button
-                onClick={onClose}
-                className="p-2 rounded-xl border border-destructive/30 hover:bg-muted text-muted-foreground hover:text-foreground transition-all duration-200 active:scale-95 cursor-pointer"
-                title="Close"
-              >
-                <X className="w-4 h-4 text-destructive" />
-              </button>
+              <RedCrossButton onClick={onClose} title="Close" />
             )}
           </div>
         </div>
@@ -811,13 +797,7 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
                             </div>
                           </div>
                         </div>
-                        <div className="flex justify-end gap-2.5 pt-3 border-t border-border/40">
-                          <button
-                            onClick={() => setEditingId(null)}
-                            className="px-4 py-2 hover:bg-muted text-xs font-bold rounded-xl text-muted-foreground hover:text-foreground transition-all border border-transparent hover:border-border/50 cursor-pointer"
-                          >
-                            Cancel
-                          </button>
+                        <div className="flex justify-end gap-2.5 pt-3 border-t border-border">
                           <button
                             onClick={() => handleUpdate(grade.grade_id)}
                             disabled={operating}
@@ -1052,14 +1032,6 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
             </p>
           </div>
           <div className="flex justify-end gap-2.5 pt-2">
-            <button
-              type="button"
-              onClick={() => setConfirmDeleteCategory(null)}
-              disabled={operating}
-              className="px-4 py-2 text-xs font-bold text-muted-foreground hover:bg-muted rounded-xl transition-all duration-200 disabled:opacity-50 border border-transparent hover:border-border/40 cursor-pointer"
-            >
-              Cancel
-            </button>
             <Button
               size="sm"
               variant="destructive"
@@ -1102,13 +1074,6 @@ export function SettingsGrades({ onClose, isRestricted: _isRestricted }: { onClo
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={() => setGradeToDelete(null)}
-              disabled={operating}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               onClick={confirmDeleteGrade}
               disabled={operating}

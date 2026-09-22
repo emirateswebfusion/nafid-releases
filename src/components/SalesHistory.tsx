@@ -14,6 +14,7 @@ import { Input } from './ui/Input';
 import { Select } from './ui/Select';
 import { Skeleton } from './ui/Skeleton';
 import { Modal } from './ui/Modal';
+import { RedCrossButton } from './ui/RedCrossButton';
 import { generateReceiptText, DEFAULT_BILL_SETTINGS, formatBillDateTime, type ReceiptData, getAppTimeFormat, parseUTCDate } from '../utils/receiptGenerator';
 import { generateInvoiceHtml } from '../utils/invoiceHtmlGenerator';
 import { parsePrintFormat, formatPrinterError } from '../utils/printFormatHelper';
@@ -2265,6 +2266,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       <Modal
         isOpen={collectPaymentOpen}
         onClose={() => setCollectPaymentOpen(false)}
+        closeButton={<RedCrossButton onClick={() => setCollectPaymentOpen(false)} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <CreditCard className="w-5 h-5 text-emerald-500" />
@@ -2396,12 +2398,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
               <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
-                  onClick={() => setCollectPaymentOpen(false)}
-                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
                   onClick={handleCollectPayment}
                   disabled={collectPaymentSaving || collectPaymentSuccess}
                   className="px-5 py-2.5 text-sm font-black bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed active:scale-95 shadow-sm cursor-pointer"
@@ -2423,7 +2419,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       <Modal
         isOpen={conversionOpen}
         onClose={() => { if (!converting) { setConversionOpen(false); } }}
-        closeButton={null}
+        closeButton={<RedCrossButton onClick={() => { if (!converting) { setConversionOpen(false); } }} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <ArrowDownRight className="w-5 h-5 text-amber-500" />
@@ -2518,13 +2514,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
 
               <div className="flex justify-end gap-2 pt-2 border-t border-border">
                 <button
-                  onClick={() => setConversionOpen(false)}
-                  disabled={converting}
-                  className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
                   onClick={async () => {
                     setConverting(true);
                     try {
@@ -2589,7 +2578,7 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
       <Modal
         isOpen={deleteConfirmOpen}
         onClose={() => { if (!deleteSaving) setDeleteConfirmOpen(false); }}
-        closeButton={null}
+        closeButton={<RedCrossButton onClick={() => { if (!deleteSaving) setDeleteConfirmOpen(false); }} />}
         title={
           <div className="flex items-center gap-2.5 font-bold text-foreground">
             <Trash2 className="w-5 h-5 text-red-500" />
@@ -2611,13 +2600,6 @@ export function SalesHistory({ onClose, isRestricted }: { onClose: () => void; i
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">
-            <button
-              onClick={() => setDeleteConfirmOpen(false)}
-              disabled={deleteSaving}
-              className="px-4 py-2.5 text-sm font-bold text-muted-foreground hover:text-foreground border border-border rounded-xl transition-colors cursor-pointer"
-            >
-              Cancel
-            </button>
             <button
               onClick={handleDeleteInvoice}
               disabled={deleteSaving}
